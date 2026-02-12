@@ -1,0 +1,32 @@
+# Binaries
+repokeeper
+repokeeper.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test output
+coverage.out
+coverage
+coverage_all
+coverage*.out
+*.coverprofile
+discovery
+discovery.out
+*.test
+
+# Build artifacts
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.claude
+CLAUDE.md
+
+# OS
+.DS_Store
+Thumbs.db
