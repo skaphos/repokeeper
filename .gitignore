@@ -12,8 +12,8 @@ coverage
 coverage_all
 coverage*.out
 *.coverprofile
-discovery
-discovery.out
+/discovery
+/discovery.out
 *.test
 
 # Build artifacts

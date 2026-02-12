@@ -28,6 +28,13 @@
 ## Commit & Pull Request Guidelines
 - This checkout does not include Git history, so no project-specific commit convention is detectable.
 - Use concise, imperative subjects (example: “Add registry staleness check”) and include context in the body if needed.
+- For release automation, prefer Conventional Commits so `svu` can infer semantic version bumps:
+- `feat:` -> minor bump
+- `fix:` -> patch bump
+- `perf:` -> patch bump
+- `refactor:`, `chore:`, `task:`, `docs:`, `test:`, `build:`, `ci:` -> no release bump by default unless configured otherwise
+- Any `!` in the type/scope or a `BREAKING CHANGE:` footer -> major bump
+- Example subjects: `feat(sync): add opt-in pull --rebase`, `fix(ci): make coverage command shell-safe`
 - PRs should include: summary, testing performed, and doc updates when behavior changes (`README.md` or `DESIGN.md`).
 
 ## Configuration & Safety Notes
