@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
-	"github.com/mfacenet/repokeeper/internal/model"
-	"github.com/mfacenet/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 // Result represents a discovered git repository.

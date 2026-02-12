@@ -4,7 +4,7 @@
 
 ### Milestone 0 — Repo skeleton
 
-- [x] Initialize Go module (`github.com/mfacenet/repokeeper`)
+- [x] Initialize Go module (`github.com/skaphos/repokeeper`)
 - [x] Add Cobra scaffolding (`repokeeper`, `init`, `scan`, `status`, `sync`, `version`)
 - [x] Add config + registry paths and basic I/O
 - [x] Bootstrap Ginkgo test suites for each package (`ginkgo bootstrap`)
@@ -164,9 +164,9 @@
 
 ## Release & Distribution
 
-**Repository:** `github.com/mfacenet/repokeeper`
+**Repository:** `github.com/skaphos/repokeeper`
 
-**Go module path:** `github.com/mfacenet/repokeeper`
+**Go module path:** `github.com/skaphos/repokeeper`
 
 - [x] `.goreleaser.yaml` configured with binary name, archive formats, ldflags
 - [x] GitHub Actions release workflow triggers on tag push

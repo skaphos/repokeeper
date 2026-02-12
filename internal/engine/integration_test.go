@@ -13,10 +13,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/mfacenet/repokeeper/internal/config"
-	"github.com/mfacenet/repokeeper/internal/engine"
-	"github.com/mfacenet/repokeeper/internal/registry"
-	"github.com/mfacenet/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 var _ = Describe("Engine integration", func() {

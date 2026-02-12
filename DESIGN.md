@@ -434,7 +434,7 @@ Optional additional defense:
 
 ### 8.1 Packages (Go)
 
-Module: `github.com/mfacenet/repokeeper`
+Module: `github.com/skaphos/repokeeper`
 
 ```
 /cmd/repokeeper/              # cobra commands (main entry point)

@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/mfacenet/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 // Runner executes git commands in a given repo directory.

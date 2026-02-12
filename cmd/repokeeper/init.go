@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mfacenet/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/spf13/cobra"
 )
 

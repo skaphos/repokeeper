@@ -3,7 +3,7 @@ package gitx
 import (
 	"testing"
 
-	"github.com/mfacenet/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 func TestTrackingFromShort(t *testing.T) {

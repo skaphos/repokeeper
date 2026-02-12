@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/mfacenet/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/registry"
 )
 
 var _ = Describe("Registry", func() {

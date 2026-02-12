@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/mfacenet/repokeeper/internal/gitx"
-	"github.com/mfacenet/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 var _ = Describe("GitRunner.Run", func() {

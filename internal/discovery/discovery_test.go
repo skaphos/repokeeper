@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/mfacenet/repokeeper/internal/discovery"
-	"github.com/mfacenet/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/internal/discovery"
+	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 var _ = Describe("Discovery", func() {

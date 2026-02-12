@@ -9,11 +9,11 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/mfacenet/repokeeper/internal/config"
-	"github.com/mfacenet/repokeeper/internal/engine"
-	"github.com/mfacenet/repokeeper/internal/model"
-	"github.com/mfacenet/repokeeper/internal/registry"
-	"github.com/mfacenet/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
 

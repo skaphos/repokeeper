@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mfacenet/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 type stubAdapter struct {

@@ -3,8 +3,8 @@ package vcs
 import (
 	"context"
 
-	"github.com/mfacenet/repokeeper/internal/gitx"
-	"github.com/mfacenet/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 // Adapter defines the VCS operations RepoKeeper relies on.

@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mfacenet/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 // ParsePorcelainStatus parses the output of `git status --porcelain=v1`

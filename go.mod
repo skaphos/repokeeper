@@ -1,4 +1,4 @@
-module github.com/mfacenet/repokeeper
+module github.com/skaphos/repokeeper
 
 go 1.25
 

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mfacenet/repokeeper/internal/config"
-	"github.com/mfacenet/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )

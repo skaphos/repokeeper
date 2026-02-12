@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mfacenet/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/internal/gitx"
 )
 
 func TestClassifyError(t *testing.T) {

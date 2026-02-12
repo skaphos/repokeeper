@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mfacenet/repokeeper/internal/config"
-	"github.com/mfacenet/repokeeper/internal/discovery"
-	"github.com/mfacenet/repokeeper/internal/gitx"
-	"github.com/mfacenet/repokeeper/internal/model"
-	"github.com/mfacenet/repokeeper/internal/registry"
-	"github.com/mfacenet/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/discovery"
+	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 // FilterKind represents the --only filter options.

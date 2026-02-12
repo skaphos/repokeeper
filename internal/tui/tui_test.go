@@ -3,7 +3,7 @@ package tui_test
 import (
 	"testing"
 
-	"github.com/mfacenet/repokeeper/internal/tui"
+	"github.com/skaphos/repokeeper/internal/tui"
 )
 
 func TestRun(t *testing.T) {

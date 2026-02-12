@@ -17,12 +17,12 @@ RepoKeeper inventories your git repos, reports drift and broken tracking, and pe
 
 ### From release binaries
 
-Download the latest release from the [Releases](https://github.com/mfacenet/repokeeper/releases) page.
+Download the latest release from the [Releases](https://github.com/skaphos/repokeeper/releases) page.
 
 ### From source
 
 ```bash
-go install github.com/mfacenet/repokeeper@latest
+go install github.com/skaphos/repokeeper@latest
 ```
 
 ## Quick Start

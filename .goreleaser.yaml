@@ -17,9 +17,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/mfacenet/repokeeper/cmd/repokeeper.Version={{.Version}}
-      - -X github.com/mfacenet/repokeeper/cmd/repokeeper.Commit={{.Commit}}
-      - -X github.com/mfacenet/repokeeper/cmd/repokeeper.Date={{.Date}}
+      - -X github.com/skaphos/repokeeper/cmd/repokeeper.Version={{.Version}}
+      - -X github.com/skaphos/repokeeper/cmd/repokeeper.Commit={{.Commit}}
+      - -X github.com/skaphos/repokeeper/cmd/repokeeper.Date={{.Date}}
 
 archives:
   - id: default

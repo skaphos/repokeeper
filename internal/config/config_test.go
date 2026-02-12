@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/mfacenet/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/config"
 )
 
 var _ = Describe("Config", func() {
