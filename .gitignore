@@ -1,6 +1,6 @@
 # Binaries
-repokeeper
-repokeeper.exe
+/repokeeper
+/repokeeper.exe
 *.exe
 *.dll
 *.so
