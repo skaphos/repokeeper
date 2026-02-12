@@ -49,6 +49,8 @@ repokeeper sync
 | `repokeeper scan` | Discover repos and update the registry |
 | `repokeeper status` | Report repo health (dirty, tracking, ahead/behind) |
 | `repokeeper sync` | Fetch and prune all repos safely |
+| `repokeeper export` | Export config (and registry) for migration |
+| `repokeeper import` | Import a previously exported bundle |
 | `repokeeper version` | Print version and build info |
 
 ### Global flags
@@ -96,6 +98,14 @@ RepoKeeper is designed to be safe to run on repos with dirty working trees:
 - **Never** updates or recurses into submodules
 - Fetch uses `--no-recurse-submodules` and `-c fetch.recurseSubmodules=false` as belt-and-suspenders
 - All mutating commands support `--dry-run`
+
+Optional local checkout update:
+
+- `repokeeper sync --update-local` adds `pull --rebase` after fetch, but only when all of these are true:
+- working tree is clean
+- branch is not detached
+- branch tracks `*/main`
+- branch is not ahead/diverged (no local commits pending push)
 
 ## Documentation
 

@@ -274,6 +274,24 @@ var _ = Describe("Fetch", func() {
 	})
 })
 
+var _ = Describe("PullRebase", func() {
+	It("runs pull --rebase with correct args", func() {
+		mock := &MockRunner{Responses: map[string]MockResponse{
+			"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {Output: ""},
+		}}
+		err := gitx.PullRebase(context.Background(), mock, "/repo")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("returns error on pull failure", func() {
+		mock := &MockRunner{Responses: map[string]MockResponse{
+			"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {Err: errors.New("pull failed")},
+		}}
+		err := gitx.PullRebase(context.Background(), mock, "/repo")
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 var _ = Describe("GitRunner with real git", func() {
 	var tmpDir string
 

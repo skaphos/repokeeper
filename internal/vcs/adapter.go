@@ -19,6 +19,7 @@ type Adapter interface {
 	TrackingStatus(ctx context.Context, dir string) (model.Tracking, error)
 	HasSubmodules(ctx context.Context, dir string) (bool, error)
 	Fetch(ctx context.Context, dir string) error
+	PullRebase(ctx context.Context, dir string) error
 	NormalizeURL(rawURL string) string
 	PrimaryRemote(remoteNames []string) string
 }
@@ -67,6 +68,10 @@ func (g *GitAdapter) HasSubmodules(ctx context.Context, dir string) (bool, error
 
 func (g *GitAdapter) Fetch(ctx context.Context, dir string) error {
 	return gitx.Fetch(ctx, g.Runner, dir)
+}
+
+func (g *GitAdapter) PullRebase(ctx context.Context, dir string) error {
+	return gitx.PullRebase(ctx, g.Runner, dir)
 }
 
 func (g *GitAdapter) NormalizeURL(rawURL string) string {

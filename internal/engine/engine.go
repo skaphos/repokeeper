@@ -5,8 +5,10 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/mfacenet/repokeeper/internal/config"
@@ -218,6 +220,7 @@ type SyncOptions struct {
 	Concurrency int
 	Timeout     int // seconds per repo
 	DryRun      bool
+	UpdateLocal bool
 }
 
 // SyncResult records the outcome for a single repo sync.
@@ -305,11 +308,15 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				defer cancel()
 			}
 			if opts.DryRun {
+				action := "git fetch --all --prune --prune-tags --no-recurse-submodules"
+				if opts.UpdateLocal {
+					action += " && git pull --rebase --no-recurse-submodules"
+				}
 				out <- result{res: SyncResult{
 					RepoID: entry.RepoID,
 					OK:     true,
 					Error:  "dry-run",
-					Action: "git fetch --all --prune --prune-tags --no-recurse-submodules",
+					Action: action,
 				}}
 				return
 			}
@@ -339,6 +346,43 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				}}
 				return
 			}
+
+			if opts.UpdateLocal {
+				status, err := e.InspectRepo(repoCtx, entry.Path)
+				if err != nil {
+					out <- result{res: SyncResult{
+						RepoID:     entry.RepoID,
+						OK:         false,
+						Error:      err.Error(),
+						ErrorClass: gitx.ClassifyError(err),
+					}}
+					return
+				}
+				if reason := pullRebaseSkipReason(status); reason != "" {
+					out <- result{res: SyncResult{
+						RepoID: entry.RepoID,
+						OK:     true,
+						Error:  "skipped-local-update: " + reason,
+					}}
+					return
+				}
+				if err := e.Adapter.PullRebase(repoCtx, entry.Path); err != nil {
+					out <- result{res: SyncResult{
+						RepoID:     entry.RepoID,
+						OK:         false,
+						Error:      err.Error(),
+						ErrorClass: gitx.ClassifyError(err),
+						Action:     "git pull --rebase --no-recurse-submodules",
+					}}
+					return
+				}
+				out <- result{res: SyncResult{
+					RepoID: entry.RepoID,
+					OK:     true,
+					Action: "git pull --rebase --no-recurse-submodules",
+				}}
+				return
+			}
 			out <- result{res: SyncResult{RepoID: entry.RepoID, OK: true}}
 		}()
 	}
@@ -352,6 +396,34 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	}
 	sortSyncResults(results)
 	return results, nil
+}
+
+func pullRebaseSkipReason(status *model.RepoStatus) string {
+	if status == nil {
+		return "unknown status"
+	}
+	if status.Bare {
+		return "bare repository"
+	}
+	if status.Head.Detached {
+		return "detached HEAD"
+	}
+	if status.Worktree == nil || status.Worktree.Dirty {
+		return "dirty working tree"
+	}
+	if status.Tracking.Upstream == "" || status.Tracking.Status == model.TrackingNone || status.Tracking.Status == model.TrackingGone {
+		return "no usable upstream"
+	}
+	if !strings.HasSuffix(status.Tracking.Upstream, "/main") {
+		return fmt.Sprintf("upstream %q is not main", status.Tracking.Upstream)
+	}
+	if status.Tracking.Status == model.TrackingAhead || status.Tracking.Status == model.TrackingDiverged {
+		return "branch has local commits to push"
+	}
+	if status.Tracking.Status == model.TrackingEqual {
+		return "already up to date"
+	}
+	return ""
 }
 
 // InspectRepo gathers the full status for a single repository path.

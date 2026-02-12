@@ -210,3 +210,9 @@ func Fetch(ctx context.Context, r Runner, dir string) error {
 	_, err := r.Run(ctx, dir, "-c", "fetch.recurseSubmodules=false", "fetch", "--all", "--prune", "--prune-tags", "--no-recurse-submodules")
 	return err
 }
+
+// PullRebase runs a safe pull --rebase with submodule recursion disabled.
+func PullRebase(ctx context.Context, r Runner, dir string) error {
+	_, err := r.Run(ctx, dir, "-c", "fetch.recurseSubmodules=false", "pull", "--rebase", "--no-recurse-submodules")
+	return err
+}

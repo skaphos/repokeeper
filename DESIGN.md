@@ -163,7 +163,28 @@ Flags:
 * `--concurrency <n>` (default: min(8, CPU))
 * `--timeout <duration>` (default 60s/repo)
 * `--dry-run`
+* `--update-local` (optional; after fetch, run `pull --rebase` only for clean repos tracking `*/main` and not ahead/diverged)
 * `--format table|json`
+
+#### `repokeeper export`
+
+Exports config and optional registry into a single YAML bundle for migration.
+
+Flags:
+
+* `--output <path|->` (default `repokeeper-export.yaml`)
+* `--include-registry` (default true)
+
+#### `repokeeper import`
+
+Imports a previously exported YAML bundle.
+
+Flags:
+
+* `--input <path>` (required)
+* `--force` (overwrite existing config)
+* `--include-registry` (default true)
+* `--preserve-registry-path` (default false; by default registry path is rewritten beside imported config)
 
 ### 5.2 TUI command (phase 2)
 
@@ -468,7 +489,7 @@ The v1 data model should be designed so the registry is **portable and mergeable
 
 ### 9.2 Planned sync mechanisms (future, not v1)
 
-* **File-based:** Export registry to a shared location (cloud drive, git repo, S3 bucket). `repokeeper export` / `repokeeper import`.
+* **File-based:** Baseline export/import is implemented in v1 (`repokeeper export` / `repokeeper import`). Future work can extend this with remote targets (cloud drive, git repo, S3 bucket).
 * **Network-based:** Lightweight HTTP/gRPC server mode (`repokeeper serve`) that other machines can push/pull registries to/from.
 * **Git-based:** Store registries in a dedicated git repo (for example, a `repokeeper/registries/` folder) and sync via git itself — dogfooding.
 
