@@ -206,11 +206,8 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 
 	runner := &gitx.GitRunner{}
 	targets := make(map[string]registry.Entry, len(cfg.Registry.Entries))
+	skippedLocal := make(map[string]registry.Entry)
 	for _, entry := range cfg.Registry.Entries {
-		remoteURL := strings.TrimSpace(entry.RemoteURL)
-		if remoteURL == "" {
-			return fmt.Errorf("cannot clone %q: missing remote_url in bundle", entry.RepoID)
-		}
 		targetRel := importTargetRelativePath(entry, bundle.Config.Roots)
 		target := filepath.Clean(filepath.Join(cwd, targetRel))
 
@@ -226,9 +223,21 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 			return fmt.Errorf("multiple repos resolve to same target path %q", target)
 		}
 		targets[target] = entry
+
+		remoteURL := strings.TrimSpace(entry.RemoteURL)
+		if remoteURL == "" {
+			if strings.HasPrefix(strings.TrimSpace(entry.RepoID), "local:") {
+				skippedLocal[target] = entry
+				continue
+			}
+			return fmt.Errorf("cannot clone %q: missing remote_url in bundle", entry.RepoID)
+		}
 	}
 
 	for target, entry := range targets {
+		if _, skip := skippedLocal[target]; skip {
+			continue
+		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
@@ -256,9 +265,29 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 		entry.Path = target
 		entry.Status = registry.StatusPresent
 		entry.LastSeen = time.Now()
-		cfg.Registry.Upsert(entry)
+		setRegistryEntryByRepoID(cfg.Registry, entry)
+	}
+	for target, entry := range skippedLocal {
+		entry.Path = target
+		entry.Status = registry.StatusMissing
+		entry.LastSeen = time.Now()
+		setRegistryEntryByRepoID(cfg.Registry, entry)
+		infof(cmd, "skipping local-only repo %s: missing remote_url", entry.RepoID)
 	}
 	return nil
+}
+
+func setRegistryEntryByRepoID(reg *registry.Registry, entry registry.Entry) {
+	if reg == nil {
+		return
+	}
+	for i := range reg.Entries {
+		if reg.Entries[i].RepoID == entry.RepoID {
+			reg.Entries[i] = entry
+			return
+		}
+	}
+	reg.Entries = append(reg.Entries, entry)
 }
 
 func importTargetRelativePath(entry registry.Entry, roots []string) string {
