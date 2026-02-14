@@ -15,9 +15,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
+      - name: Run lint task
+        run: go tool task lint
 
   test:
     name: Test
@@ -30,8 +29,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Run tests
-        run: go test -v -coverprofile coverage.out ./...
+      - name: Run coverage test task
+        run: go tool task test-cover
       - name: Check coverage
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -46,20 +45,30 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Run integration tests
-        run: go test -v -tags integration ./...
+      - name: Run integration test task
+        run: go tool task test-integration
 
-  build:
-    name: Build
+  quality:
+    name: Static Analysis
     runs-on: ubuntu-latest
-    needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build all platforms
-        run: |
-          GOOS=linux GOARCH=amd64 go build -o /dev/null .
-          GOOS=darwin GOARCH=arm64 go build -o /dev/null .
-          GOOS=windows GOARCH=amd64 go build -o /dev/null .
+      - name: Run staticcheck task
+        run: go tool task staticcheck
+      - name: Run vulnerability task
+        run: go tool task vuln
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test, integration, quality]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run CI build task
+        run: go tool task build-ci

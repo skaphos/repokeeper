@@ -36,6 +36,11 @@ tasks:
     cmds:
       - go test -coverprofile=coverage.out ./...
 
+  test-integration:
+    desc: Run integration-tagged tests
+    cmds:
+      - go test -v -tags integration ./...
+
   lint:
     desc: Run linters
     cmds:
@@ -74,6 +79,7 @@ tasks:
     deps:
       - lint
       - test
+      - test-integration
       - staticcheck
       - vuln
       - build-ci
