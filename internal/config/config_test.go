@@ -112,8 +112,24 @@ var _ = Describe("Config", func() {
 
 		loaded, err := config.Load(cfgPath)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(loaded.APIVersion).To(Equal(config.ConfigAPIVersion))
+		Expect(loaded.APIVersion).To(Equal(config.LegacyConfigAPIVersion))
 		Expect(loaded.Kind).To(Equal(config.ConfigKind))
+	})
+
+	It("migrates legacy gvk to v1beta1 on save", func() {
+		dir := GinkgoT().TempDir()
+		cfgPath := filepath.Join(dir, ".repokeeper.yaml")
+		Expect(os.WriteFile(cfgPath, []byte("exclude: []\n"), 0o644)).To(Succeed())
+
+		loaded, err := config.Load(cfgPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(loaded.APIVersion).To(Equal(config.LegacyConfigAPIVersion))
+
+		Expect(config.Save(loaded, cfgPath)).To(Succeed())
+		rewritten, err := config.Load(cfgPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rewritten.APIVersion).To(Equal(config.ConfigAPIVersion))
+		Expect(rewritten.Kind).To(Equal(config.ConfigKind))
 	})
 
 	It("rejects unsupported gvk", func() {

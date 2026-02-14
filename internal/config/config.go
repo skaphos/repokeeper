@@ -17,6 +17,9 @@ import (
 const (
 	// LocalConfigFilename is the per-directory RepoKeeper config file.
 	LocalConfigFilename = ".repokeeper.yaml"
+	// LegacyConfigAPIVersion is the implicit schema version used when legacy
+	// configs omit apiVersion/kind.
+	LegacyConfigAPIVersion = "skaphos.io/repokeeper/v1alpha1"
 	// ConfigAPIVersion is the current config schema apiVersion.
 	ConfigAPIVersion = "skaphos.io/repokeeper/v1beta1"
 	// ConfigKind is the current config schema kind.
@@ -188,8 +191,8 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	cfg.LegacyRoots = legacy.Roots
-	applyConfigGVK(&cfg)
-	if err := validateConfigGVK(&cfg); err != nil {
+	loadGVKState(&cfg, data)
+	if err := validateLoadedConfigGVK(&cfg); err != nil {
 		return nil, err
 	}
 
@@ -265,8 +268,8 @@ func Save(cfg *Config, path string) error {
 	if cfg == nil {
 		return errors.New("config is nil")
 	}
-	applyConfigGVK(cfg)
-	if err := validateConfigGVK(cfg); err != nil {
+	upgradeConfigGVK(cfg)
+	if err := validateSavedConfigGVK(cfg); err != nil {
 		return err
 	}
 	dir := filepath.Dir(path)
@@ -294,8 +297,21 @@ func isConfigFilePath(path string) bool {
 	return ext == ".yaml" || ext == ".yml"
 }
 
-func applyConfigGVK(cfg *Config) {
+func loadGVKState(cfg *Config, raw []byte) {
 	if cfg == nil {
+		return
+	}
+	type gvkPresence struct {
+		APIVersion *string `yaml:"apiVersion"`
+		Kind       *string `yaml:"kind"`
+	}
+	var present gvkPresence
+	if err := yaml.Unmarshal(raw, &present); err != nil {
+		return
+	}
+	if present.APIVersion == nil && present.Kind == nil {
+		cfg.APIVersion = LegacyConfigAPIVersion
+		cfg.Kind = ConfigKind
 		return
 	}
 	if strings.TrimSpace(cfg.APIVersion) == "" {
@@ -306,7 +322,31 @@ func applyConfigGVK(cfg *Config) {
 	}
 }
 
-func validateConfigGVK(cfg *Config) error {
+func upgradeConfigGVK(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	cfg.APIVersion = ConfigAPIVersion
+	cfg.Kind = ConfigKind
+}
+
+func validateLoadedConfigGVK(cfg *Config) error {
+	if cfg == nil {
+		return errors.New("config is nil")
+	}
+	if cfg.APIVersion == LegacyConfigAPIVersion && cfg.Kind == ConfigKind {
+		return nil
+	}
+	if cfg.APIVersion != ConfigAPIVersion {
+		return fmt.Errorf("unsupported config apiVersion %q (expected %q)", cfg.APIVersion, ConfigAPIVersion)
+	}
+	if cfg.Kind != ConfigKind {
+		return fmt.Errorf("unsupported config kind %q (expected %q)", cfg.Kind, ConfigKind)
+	}
+	return nil
+}
+
+func validateSavedConfigGVK(cfg *Config) error {
 	if cfg == nil {
 		return errors.New("config is nil")
 	}
