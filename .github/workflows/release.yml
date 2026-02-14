@@ -19,10 +19,40 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Mint Homebrew app token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.HOMEBREW_APP_ID }}
+          private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
+          owner: skaphos
+          repositories: homebrew-tools
+          skip-token-revoke: false
+      - name: Determine GoReleaser args
+        id: goreleaser_args
+        shell: bash
+        env:
+          HOMEBREW_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          if [ -z "${HOMEBREW_TOKEN}" ]; then
+            echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
+            echo "::warning::GitHub App token was not minted; skipping Homebrew formula publish."
+            exit 0
+          fi
+
+          if curl --silent --show-error --fail \
+            --header "Authorization: Bearer ${HOMEBREW_TOKEN}" \
+            --header "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/skaphos/homebrew-tools >/dev/null; then
+            echo "args=release --clean" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
+            echo "::warning::GitHub App token cannot access skaphos/homebrew-tools; skipping Homebrew formula publish."
+          fi
       - uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
-          args: release --clean
+          version: "~> v2"
+          args: ${{ steps.goreleaser_args.outputs.args }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
