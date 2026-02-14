@@ -100,7 +100,30 @@ var _ = Describe("Config", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(loaded.RegistryPath).To(BeEmpty())
 		Expect(loaded.Registry).To(BeNil())
+		Expect(loaded.APIVersion).To(Equal(config.ConfigAPIVersion))
+		Expect(loaded.Kind).To(Equal(config.ConfigKind))
 		Expect(loaded.Defaults.RemoteName).To(Equal("origin"))
+	})
+
+	It("defaults missing gvk when loading legacy config", func() {
+		dir := GinkgoT().TempDir()
+		cfgPath := filepath.Join(dir, ".repokeeper.yaml")
+		Expect(os.WriteFile(cfgPath, []byte("exclude: []\n"), 0o644)).To(Succeed())
+
+		loaded, err := config.Load(cfgPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(loaded.APIVersion).To(Equal(config.ConfigAPIVersion))
+		Expect(loaded.Kind).To(Equal(config.ConfigKind))
+	})
+
+	It("rejects unsupported gvk", func() {
+		dir := GinkgoT().TempDir()
+		cfgPath := filepath.Join(dir, ".repokeeper.yaml")
+		Expect(os.WriteFile(cfgPath, []byte("apiVersion: example.com/v1\nkind: RepoKeeperConfig\n"), 0o644)).To(Succeed())
+
+		_, err := config.Load(cfgPath)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("unsupported config apiVersion"))
 	})
 
 	It("loads registry_path relative to config file directory", func() {

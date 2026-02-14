@@ -110,6 +110,8 @@ Runtime commands (`scan`, `status`, `sync`) resolve config in this order:
 Example config:
 
 ```yaml
+apiVersion: "skaphos.io/repokeeper/v1beta1"
+kind: "RepoKeeperConfig"
 exclude:
   - "**/node_modules/**"
   - "**/.terraform/**"

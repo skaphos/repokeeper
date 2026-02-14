@@ -4,6 +4,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,10 @@ import (
 const (
 	// LocalConfigFilename is the per-directory RepoKeeper config file.
 	LocalConfigFilename = ".repokeeper.yaml"
+	// ConfigAPIVersion is the current config schema apiVersion.
+	ConfigAPIVersion = "skaphos.io/repokeeper/v1beta1"
+	// ConfigKind is the current config schema kind.
+	ConfigKind = "RepoKeeperConfig"
 )
 
 // Defaults holds default values for operations.
@@ -27,6 +32,8 @@ type Defaults struct {
 
 // Config represents the machine-level RepoKeeper configuration.
 type Config struct {
+	APIVersion        string             `yaml:"apiVersion"`
+	Kind              string             `yaml:"kind"`
 	Exclude           []string           `yaml:"exclude"`
 	RegistryPath      string             `yaml:"registry_path,omitempty"`
 	Registry          *registry.Registry `yaml:"registry,omitempty"`
@@ -38,6 +45,8 @@ type Config struct {
 // DefaultConfig returns a Config with sensible defaults applied.
 func DefaultConfig() Config {
 	return Config{
+		APIVersion:        ConfigAPIVersion,
+		Kind:              ConfigKind,
 		Exclude:           []string{"**/node_modules/**", "**/.terraform/**", "**/dist/**", "**/vendor/**"},
 		RegistryStaleDays: 30,
 		Defaults: Defaults{
@@ -179,6 +188,10 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	cfg.LegacyRoots = legacy.Roots
+	applyConfigGVK(&cfg)
+	if err := validateConfigGVK(&cfg); err != nil {
+		return nil, err
+	}
 
 	if cfg.Registry == nil && cfg.RegistryPath != "" {
 		reg, err := registry.Load(ResolveRegistryPath(path, cfg.RegistryPath))
@@ -252,6 +265,10 @@ func Save(cfg *Config, path string) error {
 	if cfg == nil {
 		return errors.New("config is nil")
 	}
+	applyConfigGVK(cfg)
+	if err := validateConfigGVK(cfg); err != nil {
+		return err
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -275,4 +292,29 @@ func isConfigFilePath(path string) bool {
 	}
 	ext := strings.ToLower(filepath.Ext(path))
 	return ext == ".yaml" || ext == ".yml"
+}
+
+func applyConfigGVK(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	if strings.TrimSpace(cfg.APIVersion) == "" {
+		cfg.APIVersion = ConfigAPIVersion
+	}
+	if strings.TrimSpace(cfg.Kind) == "" {
+		cfg.Kind = ConfigKind
+	}
+}
+
+func validateConfigGVK(cfg *Config) error {
+	if cfg == nil {
+		return errors.New("config is nil")
+	}
+	if cfg.APIVersion != ConfigAPIVersion {
+		return fmt.Errorf("unsupported config apiVersion %q (expected %q)", cfg.APIVersion, ConfigAPIVersion)
+	}
+	if cfg.Kind != ConfigKind {
+		return fmt.Errorf("unsupported config kind %q (expected %q)", cfg.Kind, ConfigKind)
+	}
+	return nil
 }

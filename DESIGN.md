@@ -284,6 +284,8 @@ The registry is embedded directly in `.repokeeper.yaml` under the `registry` key
 Implementation: use Go's `os.UserConfigDir()` as the base, which already returns the correct platform directory.
 
 ```yaml
+apiVersion: "skaphos.io/repokeeper/v1beta1"
+kind: "RepoKeeperConfig"
 exclude:
   - "**/node_modules/**"
   - "**/.terraform/**"
