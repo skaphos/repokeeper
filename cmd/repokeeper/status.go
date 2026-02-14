@@ -307,5 +307,5 @@ func relWithin(base, target string) (string, bool) {
 	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
 		return "", false
 	}
-	return rel, true
+	return filepath.ToSlash(rel), true
 }
