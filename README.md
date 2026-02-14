@@ -127,8 +127,20 @@ golangci-lint run ./...
 # Build locally
 go build -o repokeeper .
 
-# Snapshot build (all platforms)
-goreleaser build --snapshot --clean
+# Build locally (task runner)
+go tool task build
+
+# CI-style full platform build (task runner)
+go tool task build-ci
+
+# Run standard CI pipeline locally (lint/test/staticcheck/vuln/build-ci)
+go tool task ci
+
+# Format imports + code
+go tool task fmt
+
+# List all task targets
+go tool task --list
 ```
 
 ## License

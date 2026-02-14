@@ -1,0 +1,79 @@
+version: "3"
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - go tool task --list
+
+  list:
+    desc: List available tasks
+    cmds:
+      - go tool task --list
+
+  all:
+    desc: Build the local binary
+    deps:
+      - build
+
+  build:
+    desc: Build the repokeeper binary for the local OS/ARCH
+    cmds:
+      - go build -o repokeeper .
+
+  build-ci:
+    desc: Build all configured platform binaries (CI-style snapshot build)
+    cmds:
+      - go tool goreleaser build --snapshot --clean
+
+  test:
+    desc: Run test suite
+    cmds:
+      - go tool ginkgo ./...
+
+  test-cover:
+    desc: Run tests with coverage output
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+
+  lint:
+    desc: Run linters
+    cmds:
+      - go tool golangci-lint run ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go tool goimports -w .
+      - go fmt ./...
+
+  staticcheck:
+    desc: Run staticcheck directly
+    cmds:
+      - go tool staticcheck ./...
+
+  vuln:
+    desc: Run vulnerability scan
+    cmds:
+      - go tool govulncheck ./...
+
+  version-next:
+    desc: Show next semantic version from git history (svu)
+    cmds:
+      - go tool svu next
+
+  clean:
+    desc: Remove build artifacts and clear Go build outputs
+    cmds:
+      - go clean ./...
+      - go clean -testcache
+      - '{{if eq OS "windows"}}powershell -NoProfile -Command "Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue; Remove-Item -Force repokeeper.exe,repokeeper,coverage.out -ErrorAction SilentlyContinue"{{else}}rm -rf dist repokeeper coverage.out{{end}}'
+
+  ci:
+    desc: Run standard CI workflow locally
+    deps:
+      - lint
+      - test
+      - staticcheck
+      - vuln
+      - build-ci
