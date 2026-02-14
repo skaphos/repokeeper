@@ -50,9 +50,13 @@ var scanCmd = &cobra.Command{
 
 		adapter := vcs.NewGitAdapter(nil)
 		eng := engine.New(cfg, reg, adapter)
+		scanRoots := splitCSV(roots)
+		if len(scanRoots) == 0 {
+			scanRoots = []string{config.EffectiveRoot(cfgPath, cfg)}
+		}
 
 		statuses, err := eng.Scan(cmd.Context(), engine.ScanOptions{
-			Roots:          splitCSV(roots),
+			Roots:          scanRoots,
 			Exclude:        splitCSV(exclude),
 			FollowSymlinks: followSymlinks,
 		})

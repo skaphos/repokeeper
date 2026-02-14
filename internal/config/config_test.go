@@ -94,7 +94,6 @@ var _ = Describe("Config", func() {
 		dir := GinkgoT().TempDir()
 		path := filepath.Join(dir, "config.yaml")
 		cfg := config.DefaultConfig()
-		cfg.Roots = []string{filepath.Join(dir, "repos")}
 
 		Expect(config.Save(&cfg, path)).To(Succeed())
 		loaded, err := config.Load(path)
@@ -102,6 +101,38 @@ var _ = Describe("Config", func() {
 		Expect(loaded.RegistryPath).To(BeEmpty())
 		Expect(loaded.Registry).To(BeNil())
 		Expect(loaded.Defaults.RemoteName).To(Equal("origin"))
+	})
+
+	It("loads registry_path relative to config file directory", func() {
+		dir := GinkgoT().TempDir()
+		regPath := filepath.Join(dir, "state", "registry.yaml")
+		Expect(os.MkdirAll(filepath.Dir(regPath), 0o755)).To(Succeed())
+		Expect(os.WriteFile(regPath, []byte("updated_at: 2026-01-01T00:00:00Z\nrepos: []\n"), 0o644)).To(Succeed())
+
+		cfgPath := filepath.Join(dir, "cfg", ".repokeeper.yaml")
+		Expect(os.MkdirAll(filepath.Dir(cfgPath), 0o755)).To(Succeed())
+		Expect(os.WriteFile(cfgPath, []byte("registry_path: ../state/registry.yaml\n"), 0o644)).To(Succeed())
+
+		loaded, err := config.Load(cfgPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(loaded.Registry).NotTo(BeNil())
+	})
+
+	It("resolves relative registry_path against config path", func() {
+		cfgPath := filepath.Join("/tmp", "workspace", ".repokeeper.yaml")
+		resolved := config.ResolveRegistryPath(cfgPath, "./state/registry.yaml")
+		Expect(resolved).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace", "state", "registry.yaml"))))
+	})
+
+	It("returns config root from config path", func() {
+		cfgPath := filepath.Join("/tmp", "workspace", ".repokeeper.yaml")
+		Expect(config.ConfigRoot(cfgPath)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace"))))
+	})
+
+	It("uses legacy roots as temporary effective root fallback", func() {
+		cfgPath := filepath.Join("/tmp", "workspace", ".repokeeper.yaml")
+		cfg := &config.Config{LegacyRoots: []string{"legacy/repos"}}
+		Expect(config.EffectiveRoot(cfgPath, cfg)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace", "legacy/repos"))))
 	})
 
 	It("returns an RFC3339 timestamp for last updated", func() {

@@ -34,6 +34,7 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
 		debugf(cmd, "using config %s", cfgPath)
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
@@ -101,7 +102,7 @@ var statusCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeStatusTable(cmd, report, cwd, cfg.Roots)
+			writeStatusTable(cmd, report, cwd, []string{cfgRoot})
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}

@@ -26,6 +26,7 @@ var deleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
 		var reg *registry.Registry
@@ -41,7 +42,7 @@ var deleteCmd = &cobra.Command{
 			}
 		}
 
-		entry, err := selectRegistryEntryForDescribe(reg.Entries, args[0], cwd, cfg.Roots)
+		entry, err := selectRegistryEntryForDescribe(reg.Entries, args[0], cwd, []string{cfgRoot})
 		if err != nil {
 			return err
 		}

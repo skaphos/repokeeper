@@ -55,7 +55,7 @@ repokeeper sync
 3. Run `repokeeper status` to review repo health and identify issues (dirty worktrees, gone upstreams, missing repos).
 4. Run `repokeeper sync` to safely fetch/prune across registered repos.
 5. Re-run `repokeeper scan` whenever clones are added, moved, or removed so the embedded registry stays current.
-6. If needed, widen scope with `repokeeper scan --roots <dir1,dir2,...>` and keep those roots in `.repokeeper.yaml`.
+6. If needed, widen scope for a specific run with `repokeeper scan --roots <dir1,dir2,...>`.
 
 ## Commands
 
@@ -74,7 +74,7 @@ repokeeper sync
 
 `repokeeper sync --format table` mirrors the `status` columns (`PATH`, `BRANCH`, `DIRTY`, `TRACKING`) and appends sync outcome columns (`OK`, `ERROR_CLASS`, `ERROR`, `ACTION`).
 
-`repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to configured roots.
+`repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 
 `repokeeper add` accepts `--branch <name>` for a single-branch checkout clone or `--mirror` for a full mirror clone (bare, no working tree). Mirror repos are tracked and shown in status as `TRACKING=mirror`.
 
@@ -110,9 +110,6 @@ Runtime commands (`scan`, `status`, `sync`) resolve config in this order:
 Example config:
 
 ```yaml
-roots:
-  - "/home/user/code"
-  - "/home/user/work"
 exclude:
   - "**/node_modules/**"
   - "**/.terraform/**"
@@ -124,6 +121,8 @@ defaults:
   concurrency: 8
   timeout_seconds: 60
 ```
+
+The default scan/display root is inferred from the directory containing the active config file.
 
 ## Safety
 

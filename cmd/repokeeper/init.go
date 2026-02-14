@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
@@ -19,7 +18,6 @@ var initCmd = &cobra.Command{
 	Long:  "Creates a RepoKeeper config file in the current directory by default.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		force, _ := cmd.Flags().GetBool("force")
-		roots, _ := cmd.Flags().GetString("roots")
 
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -35,14 +33,6 @@ var initCmd = &cobra.Command{
 		}
 
 		cfg := config.DefaultConfig()
-		if strings.TrimSpace(roots) != "" {
-			cfg.Roots = splitCSV(roots)
-		} else {
-			cfg.Roots = []string{cwd}
-		}
-		if len(cfg.Roots) == 0 {
-			return fmt.Errorf("no roots provided; use --roots")
-		}
 		cfg.RegistryPath = ""
 		cfg.Registry = &registry.Registry{}
 
@@ -51,7 +41,7 @@ var initCmd = &cobra.Command{
 		}
 
 		eng := engine.New(&cfg, cfg.Registry, vcs.NewGitAdapter(nil))
-		if _, err := eng.Scan(cmd.Context(), engine.ScanOptions{}); err != nil {
+		if _, err := eng.Scan(cmd.Context(), engine.ScanOptions{Roots: []string{config.ConfigRoot(cfgPath)}}); err != nil {
 			return err
 		}
 		sort.SliceStable(cfg.Registry.Entries, func(i, j int) bool {
@@ -70,7 +60,6 @@ var initCmd = &cobra.Command{
 
 func init() {
 	initCmd.Flags().Bool("force", false, "overwrite existing config without prompting")
-	initCmd.Flags().String("roots", "", "comma-separated root directories")
 
 	rootCmd.AddCommand(initCmd)
 }

@@ -35,6 +35,7 @@ var describeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
 		debugf(cmd, "using config %s", cfgPath)
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
@@ -51,7 +52,7 @@ var describeCmd = &cobra.Command{
 			}
 		}
 
-		entry, err := selectRegistryEntryForDescribe(reg.Entries, args[0], cwd, cfg.Roots)
+		entry, err := selectRegistryEntryForDescribe(reg.Entries, args[0], cwd, []string{cfgRoot})
 		if err != nil {
 			return err
 		}
@@ -91,7 +92,7 @@ var describeCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeStatusDetails(cmd, repo, cwd, cfg.Roots)
+			writeStatusDetails(cmd, repo, cwd, []string{cfgRoot})
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}

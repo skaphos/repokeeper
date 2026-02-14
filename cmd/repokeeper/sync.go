@@ -32,6 +32,7 @@ var syncCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
 		debugf(cmd, "using config %s", cfgPath)
 
 		reg := cfg.Registry
@@ -91,7 +92,7 @@ var syncCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			writeSyncTable(cmd, results, report, cwd, cfg.Roots, wrap)
+			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}

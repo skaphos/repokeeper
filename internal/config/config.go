@@ -27,12 +27,12 @@ type Defaults struct {
 
 // Config represents the machine-level RepoKeeper configuration.
 type Config struct {
-	Roots             []string           `yaml:"roots"`
 	Exclude           []string           `yaml:"exclude"`
 	RegistryPath      string             `yaml:"registry_path,omitempty"`
 	Registry          *registry.Registry `yaml:"registry,omitempty"`
 	RegistryStaleDays int                `yaml:"registry_stale_days"`
 	Defaults          Defaults           `yaml:"defaults"`
+	LegacyRoots       []string           `yaml:"-"`
 }
 
 // DefaultConfig returns a Config with sensible defaults applied.
@@ -171,9 +171,17 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
+	type legacyRoots struct {
+		Roots []string `yaml:"roots"`
+	}
+	var legacy legacyRoots
+	if err := yaml.Unmarshal(data, &legacy); err != nil {
+		return nil, err
+	}
+	cfg.LegacyRoots = legacy.Roots
 
 	if cfg.Registry == nil && cfg.RegistryPath != "" {
-		reg, err := registry.Load(cfg.RegistryPath)
+		reg, err := registry.Load(ResolveRegistryPath(path, cfg.RegistryPath))
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return nil, err
@@ -193,6 +201,50 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// ResolveRegistryPath resolves registry_path against the config file location.
+// Absolute paths are returned unchanged; relative paths are joined to the
+// directory containing configPath.
+func ResolveRegistryPath(configPath, registryPath string) string {
+	if strings.TrimSpace(registryPath) == "" {
+		return ""
+	}
+	if filepath.IsAbs(registryPath) || strings.TrimSpace(configPath) == "" {
+		return filepath.Clean(registryPath)
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(configPath), registryPath))
+}
+
+// ConfigRoot returns the effective default root for a config file path.
+func ConfigRoot(configPath string) string {
+	if strings.TrimSpace(configPath) == "" {
+		return ""
+	}
+	return filepath.Clean(filepath.Dir(configPath))
+}
+
+// EffectiveRoot returns the inferred root for commands that need a default
+// scan/display root.
+func EffectiveRoot(configPath string, cfg *Config) string {
+	// TODO(v0.1.0): remove legacy roots fallback once configs have migrated.
+	if cfg != nil {
+		for _, root := range cfg.LegacyRoots {
+			root = strings.TrimSpace(root)
+			if root == "" {
+				continue
+			}
+			if filepath.IsAbs(root) {
+				return filepath.Clean(root)
+			}
+			base := ConfigRoot(configPath)
+			if base == "" {
+				return filepath.Clean(root)
+			}
+			return filepath.Clean(filepath.Join(base, root))
+		}
+	}
+	return ConfigRoot(configPath)
 }
 
 // Save writes the config to the given path.

@@ -66,7 +66,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 
 	roots := opts.Roots
 	if len(roots) == 0 {
-		roots = e.Config.Roots
+		return nil, errors.New("no scan roots provided")
 	}
 	exclude := opts.Exclude
 	if len(exclude) == 0 {

@@ -1,6 +1,7 @@
 package repokeeper
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,13 +47,14 @@ func TestCloneImportedReposReportsSpecificTargetConflicts(t *testing.T) {
 			},
 		},
 	}
-	bundle := exportBundle{Config: config.Config{Roots: []string{"/source/root"}}}
-	target := filepath.Join(cwd, "team", "repo-a")
+	bundle := exportBundle{Config: config.Config{}}
+	target := filepath.Join(cwd, "repo-a")
 	if err := os.MkdirAll(target, 0o755); err != nil {
 		t.Fatalf("mkdir target: %v", err)
 	}
 
 	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
 	err := cloneImportedRepos(cmd, cfg, bundle, cwd, false)
 	if err == nil {
 		t.Fatal("expected conflict error")
@@ -82,9 +84,10 @@ func TestCloneImportedReposSkipsLocalEntriesWithoutRemoteURL(t *testing.T) {
 			},
 		},
 	}
-	bundle := exportBundle{Config: config.Config{Roots: []string{"/source/root"}}}
+	bundle := exportBundle{Config: config.Config{}}
 
 	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
 	if err := cloneImportedRepos(cmd, cfg, bundle, cwd, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -96,7 +99,7 @@ func TestCloneImportedReposSkipsLocalEntriesWithoutRemoteURL(t *testing.T) {
 	if entry.Status != registry.StatusMissing {
 		t.Fatalf("expected local entry to be missing after skip, got %q", entry.Status)
 	}
-	if got, want := entry.Path, filepath.Join(cwd, "team", "repo-a"); got != want {
+	if got, want := entry.Path, filepath.Join(cwd, "repo-a"); got != want {
 		t.Fatalf("expected rewritten path %q, got %q", want, got)
 	}
 }
@@ -114,9 +117,10 @@ func TestCloneImportedReposErrorsForNonLocalMissingRemoteURL(t *testing.T) {
 			},
 		},
 	}
-	bundle := exportBundle{Config: config.Config{Roots: []string{"/source/root"}}}
+	bundle := exportBundle{Config: config.Config{}}
 
 	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
 	err := cloneImportedRepos(cmd, cfg, bundle, cwd, false)
 	if err == nil {
 		t.Fatal("expected error for non-local repo missing remote_url")

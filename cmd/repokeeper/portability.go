@@ -50,7 +50,7 @@ var exportCmd = &cobra.Command{
 		cfgCopy := *cfg
 		if includeRegistry {
 			if cfgCopy.Registry == nil && cfgCopy.RegistryPath != "" {
-				reg, err := registry.Load(cfgCopy.RegistryPath)
+				reg, err := registry.Load(config.ResolveRegistryPath(cfgPath, cfgCopy.RegistryPath))
 				if err != nil && !os.IsNotExist(err) {
 					return err
 				}
@@ -157,8 +157,6 @@ var importCmd = &cobra.Command{
 			if err := cloneImportedRepos(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting); err != nil {
 				return err
 			}
-			// Imported paths should now reflect this machine.
-			cfg.Roots = []string{cwd}
 		}
 		if err := config.Save(&cfg, cfgPath); err != nil {
 			return err
@@ -174,7 +172,7 @@ func init() {
 
 	importCmd.Flags().Bool("force", false, "overwrite existing config file")
 	importCmd.Flags().Bool("include-registry", true, "import bundled registry when present")
-	importCmd.Flags().Bool("preserve-registry-path", false, "keep bundled registry_path instead of rewriting beside imported config")
+	importCmd.Flags().Bool("preserve-registry-path", false, "keep bundled registry_path (resolved relative to imported config file)")
 	importCmd.Flags().Bool("clone", true, "clone repos from imported registry into target paths under the current directory")
 	importCmd.Flags().Bool("dangerously-delete-existing", false, "dangerous: delete conflicting target repo paths before cloning")
 	importCmd.Flags().Bool("file-only", false, "import config file only (disable registry import and cloning)")
@@ -192,7 +190,7 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 	targets := make(map[string]registry.Entry, len(cfg.Registry.Entries))
 	skippedLocal := make(map[string]registry.Entry)
 	for _, entry := range cfg.Registry.Entries {
-		targetRel := importTargetRelativePath(entry, bundle.Config.Roots)
+		targetRel := importTargetRelativePath(entry, nil)
 		target := filepath.Clean(filepath.Join(cwd, targetRel))
 
 		// Protect against path traversal/out-of-tree paths from malformed bundles.

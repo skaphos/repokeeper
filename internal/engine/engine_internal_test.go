@@ -19,10 +19,10 @@ func TestScanUpdatesRegistry(t *testing.T) {
 		t.Fatalf("git init failed: %v %s", err, string(out))
 	}
 
-	cfg := &config.Config{Roots: []string{root}, Exclude: []string{}}
+	cfg := &config.Config{Exclude: []string{}}
 	reg := &registry.Registry{}
 	eng := New(cfg, reg, vcs.NewGitAdapter(nil))
-	statuses, err := eng.Scan(context.Background(), ScanOptions{})
+	statuses, err := eng.Scan(context.Background(), ScanOptions{Roots: []string{root}})
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
 	}

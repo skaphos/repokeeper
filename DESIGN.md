@@ -117,7 +117,7 @@ Bootstrap that creates a RepoKeeper config file.
 
 Behavior:
 
-* Uses `roots` from `--roots` or defaults to current working directory.
+* Uses the config file directory as the default root.
 * Uses default exclude patterns (`node_modules`, `.terraform`, `dist`, `vendor`).
 * Runs an initial scan immediately after writing config.
 * Writes `.repokeeper.yaml` in the current working directory by default (see §6.2.1).
@@ -126,7 +126,6 @@ Behavior:
 Flags:
 
 * `--force` — overwrite existing config without prompting
-* `--roots <comma-separated>` — set roots
 
 #### `repokeeper scan`
 
@@ -153,7 +152,7 @@ Flags:
 
 #### `repokeeper describe <repo-id-or-path>`
 
-Shows detailed status for a single repo selected by repo ID, cwd-relative path, or root-relative path.
+Shows detailed status for a single repo selected by repo ID, cwd-relative path, or config-root-relative path.
 
 Flags:
 
@@ -285,9 +284,6 @@ The registry is embedded directly in `.repokeeper.yaml` under the `registry` key
 Implementation: use Go's `os.UserConfigDir()` as the base, which already returns the correct platform directory.
 
 ```yaml
-roots:
-  - "/Users/shawn/code"
-  - "/Users/shawn/work"
 exclude:
   - "**/node_modules/**"
   - "**/.terraform/**"
@@ -300,6 +296,8 @@ defaults:
   concurrency: 8
   timeout_seconds: 60
 ```
+
+The effective default root is the directory containing the active config file.
 
 #### 6.2.2 Registry (embedded in machine config by default)
 
