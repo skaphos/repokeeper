@@ -78,7 +78,7 @@ repokeeper sync
 
 `repokeeper add` accepts `--branch <name>` for a single-branch checkout clone or `--mirror` for a full mirror clone (bare, no working tree). Mirror repos are tracked and shown in status as `TRACKING=mirror`.
 
-`repokeeper export --output -` and `repokeeper import --input -` support shell piping.
+`repokeeper export --output -` and `repokeeper import` support shell piping (for example: `repokeeper import < repokeeper-export.yaml`).
 
 `repokeeper import` now clones repos from the imported registry by default (`--clone=true`). If a target repo path already exists, import reports the conflicting paths unless `--dangerously-delete-existing` is set, which removes conflicting target paths before cloning.
 

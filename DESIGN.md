@@ -207,7 +207,7 @@ Imports a previously exported YAML bundle.
 
 Flags:
 
-* `--input <path>` (required)
+* Positional bundle input: `<path>` or `-` (stdin). When omitted, import reads stdin.
 * `--force` (overwrite existing config)
 * `--include-registry` (default true)
 * `--preserve-registry-path` (default false; by default registry path is rewritten beside imported config)

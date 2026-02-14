@@ -85,10 +85,10 @@ var exportCmd = &cobra.Command{
 }
 
 var importCmd = &cobra.Command{
-	Use:   "import",
+	Use:   "import [bundle-file|-]",
 	Short: "Import an exported config bundle",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		inputPath, _ := cmd.Flags().GetString("input")
 		force, _ := cmd.Flags().GetBool("force")
 		includeRegistry, _ := cmd.Flags().GetBool("include-registry")
 		preserveRegistryPath, _ := cmd.Flags().GetBool("preserve-registry-path")
@@ -102,8 +102,12 @@ var importCmd = &cobra.Command{
 			preserveRegistryPath = false
 		}
 
+		inputPath := "-"
+		if len(args) == 1 {
+			inputPath = strings.TrimSpace(args[0])
+		}
 		if inputPath == "" {
-			return fmt.Errorf("input path is required")
+			return fmt.Errorf("bundle-file cannot be empty")
 		}
 		var data []byte
 		if inputPath == "-" {
@@ -168,12 +172,11 @@ func init() {
 	exportCmd.Flags().String("output", "repokeeper-export.yaml", "output file path or - for stdout")
 	exportCmd.Flags().Bool("include-registry", true, "include registry in the export bundle")
 
-	importCmd.Flags().String("input", "", "path to exported bundle file")
 	importCmd.Flags().Bool("force", false, "overwrite existing config file")
 	importCmd.Flags().Bool("include-registry", true, "import bundled registry when present")
 	importCmd.Flags().Bool("preserve-registry-path", false, "keep bundled registry_path instead of rewriting beside imported config")
-	importCmd.Flags().Bool("clone", true, "clone repos from imported registry into the current directory")
-	importCmd.Flags().Bool("dangerously-delete-existing", false, "dangerous: delete existing target repo directories before cloning")
+	importCmd.Flags().Bool("clone", true, "clone repos from imported registry into target paths under the current directory")
+	importCmd.Flags().Bool("dangerously-delete-existing", false, "dangerous: delete conflicting target repo paths before cloning")
 	importCmd.Flags().Bool("file-only", false, "import config file only (disable registry import and cloning)")
 
 	rootCmd.AddCommand(exportCmd)

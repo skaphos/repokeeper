@@ -125,3 +125,18 @@ func TestCloneImportedReposErrorsForNonLocalMissingRemoteURL(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestImportCommandArgsValidation(t *testing.T) {
+	if importCmd.Args == nil {
+		t.Fatal("expected import command args validator")
+	}
+	if err := importCmd.Args(importCmd, []string{"a.yaml", "b.yaml"}); err == nil {
+		t.Fatal("expected too-many-args validation error")
+	}
+	if err := importCmd.Args(importCmd, []string{}); err != nil {
+		t.Fatalf("expected zero args to be valid (stdin), got: %v", err)
+	}
+	if err := importCmd.Args(importCmd, []string{"bundle.yaml"}); err != nil {
+		t.Fatalf("expected one arg to be valid, got: %v", err)
+	}
+}
