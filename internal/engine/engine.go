@@ -217,11 +217,12 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 
 // SyncOptions configures a sync operation.
 type SyncOptions struct {
-	Filter      FilterKind
-	Concurrency int
-	Timeout     int // seconds per repo
-	DryRun      bool
-	UpdateLocal bool
+	Filter          FilterKind
+	Concurrency     int
+	Timeout         int // seconds per repo
+	DryRun          bool
+	UpdateLocal     bool
+	CheckoutMissing bool
 }
 
 // SyncResult records the outcome for a single repo sync.
@@ -271,7 +272,52 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 			continue
 		}
 		if entry.Status == registry.StatusMissing {
-			results = append(results, SyncResult{RepoID: entry.RepoID, OK: false, Error: "missing"})
+			if !opts.CheckoutMissing {
+				results = append(results, SyncResult{RepoID: entry.RepoID, OK: false, Error: "missing"})
+				continue
+			}
+			remoteURL := strings.TrimSpace(entry.RemoteURL)
+			if remoteURL == "" {
+				results = append(results, SyncResult{
+					RepoID:     entry.RepoID,
+					OK:         false,
+					Error:      "missing remote_url for checkout",
+					ErrorClass: "invalid",
+				})
+				continue
+			}
+			mirror := entry.Type == "mirror"
+			branch := strings.TrimSpace(entry.Branch)
+			action := "git clone"
+			if mirror {
+				action += " --mirror"
+			} else if branch != "" {
+				action += " --branch " + branch + " --single-branch"
+			}
+			action += " " + remoteURL + " " + entry.Path
+			if opts.DryRun {
+				results = append(results, SyncResult{
+					RepoID: entry.RepoID,
+					OK:     true,
+					Error:  "dry-run",
+					Action: action,
+				})
+				continue
+			}
+			if err := e.Adapter.Clone(ctx, remoteURL, entry.Path, branch, mirror); err != nil {
+				results = append(results, SyncResult{
+					RepoID:     entry.RepoID,
+					OK:         false,
+					Error:      err.Error(),
+					ErrorClass: gitx.ClassifyError(err),
+					Action:     action,
+				})
+				continue
+			}
+			entry.Status = registry.StatusPresent
+			entry.LastSeen = time.Now()
+			e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, entry)
+			results = append(results, SyncResult{RepoID: entry.RepoID, OK: true, Action: action})
 			continue
 		}
 		if opts.Filter == FilterGone && entry.Status != registry.StatusPresent {
@@ -529,4 +575,14 @@ func sortSyncResults(results []SyncResult) {
 		}
 		return results[i].RepoID < results[j].RepoID
 	})
+}
+
+func replaceRegistryEntry(entries []registry.Entry, updated registry.Entry) []registry.Entry {
+	for i := range entries {
+		if entries[i].RepoID == updated.RepoID && entries[i].Path == updated.Path {
+			entries[i] = updated
+			return entries
+		}
+	}
+	return entries
 }

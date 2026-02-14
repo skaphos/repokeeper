@@ -120,6 +120,32 @@ var _ = Describe("Engine", func() {
 		Expect(results[0].OK).To(BeFalse())
 	})
 
+	It("checks out missing entries when enabled", func() {
+		runner := &mockRunner{responses: map[string]mockResponse{
+			":clone --branch main --single-branch git@github.com:org/missing.git /missing": {out: ""},
+		}}
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID:    "missing",
+					Path:      "/missing",
+					RemoteURL: "git@github.com:org/missing.git",
+					Branch:    "main",
+					Status:    registry.StatusMissing,
+				},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{
+			Filter:          engine.FilterMissing,
+			CheckoutMissing: true,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].OK).To(BeTrue())
+		Expect(results[0].Action).To(ContainSubstring("git clone"))
+	})
+
 	It("filters dirty and clean during sync", func() {
 		runner := &mockRunner{responses: map[string]mockResponse{
 			"/repo1:rev-parse --is-bare-repository":    {out: "false"},

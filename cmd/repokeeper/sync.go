@@ -43,6 +43,7 @@ var syncCmd = &cobra.Command{
 		timeout, _ := cmd.Flags().GetInt("timeout")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		updateLocal, _ := cmd.Flags().GetBool("update-local")
+		checkoutMissing, _ := cmd.Flags().GetBool("checkout-missing")
 		format, _ := cmd.Flags().GetString("format")
 		wrap, _ := cmd.Flags().GetBool("wrap")
 
@@ -55,11 +56,12 @@ var syncCmd = &cobra.Command{
 
 		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
 		results, err := eng.Sync(cmd.Context(), engine.SyncOptions{
-			Filter:      engine.FilterKind(only),
-			Concurrency: concurrency,
-			Timeout:     timeout,
-			DryRun:      dryRun,
-			UpdateLocal: updateLocal,
+			Filter:          engine.FilterKind(only),
+			Concurrency:     concurrency,
+			Timeout:         timeout,
+			DryRun:          dryRun,
+			UpdateLocal:     updateLocal,
+			CheckoutMissing: checkoutMissing,
 		})
 		if err != nil {
 			return err
@@ -109,6 +111,7 @@ func init() {
 	syncCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
+	syncCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
 	syncCmd.Flags().String("format", "table", "output format: table or json")
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 

@@ -189,6 +189,7 @@ Flags:
 * `--timeout <duration>` (default 60s/repo)
 * `--dry-run`
 * `--update-local` (optional; after fetch, run `pull --rebase` only for clean repos tracking `*/main` and not ahead/diverged)
+* `--checkout-missing` (optional; clone repos marked missing from registry metadata)
 * `--format table|json`
 
 #### `repokeeper export`
@@ -210,6 +211,9 @@ Flags:
 * `--force` (overwrite existing config)
 * `--include-registry` (default true)
 * `--preserve-registry-path` (default false; by default registry path is rewritten beside imported config)
+* `--clone` (default true; clone imported registry repos into current directory)
+* `--dangerously-delete-existing` (dangerous; delete existing target paths before clone)
+* `--file-only` (config only; disables registry import and cloning)
 
 ### 5.2 TUI command (phase 2)
 

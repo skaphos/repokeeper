@@ -2,11 +2,14 @@ package repokeeper
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
@@ -88,13 +91,32 @@ var importCmd = &cobra.Command{
 		force, _ := cmd.Flags().GetBool("force")
 		includeRegistry, _ := cmd.Flags().GetBool("include-registry")
 		preserveRegistryPath, _ := cmd.Flags().GetBool("preserve-registry-path")
+		cloneRepos, _ := cmd.Flags().GetBool("clone")
+		dangerouslyDeleteExisting, _ := cmd.Flags().GetBool("dangerously-delete-existing")
+		fileOnly, _ := cmd.Flags().GetBool("file-only")
+
+		if fileOnly {
+			includeRegistry = false
+			cloneRepos = false
+			preserveRegistryPath = false
+		}
 
 		if inputPath == "" {
 			return fmt.Errorf("input path is required")
 		}
-		data, err := os.ReadFile(inputPath)
-		if err != nil {
-			return err
+		var data []byte
+		if inputPath == "-" {
+			stdinData, err := io.ReadAll(cmd.InOrStdin())
+			if err != nil {
+				return err
+			}
+			data = stdinData
+		} else {
+			fileData, err := os.ReadFile(inputPath)
+			if err != nil {
+				return err
+			}
+			data = fileData
 		}
 		var bundle exportBundle
 		if err := yaml.Unmarshal(data, &bundle); err != nil {
@@ -105,7 +127,9 @@ var importCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgPath, err := config.InitConfigPath(flagConfig, cwd)
+		// Use runtime resolution semantics so import targets the same config
+		// location the app would read by default.
+		cfgPath, err := config.ResolveConfigPath(flagConfig, cwd)
 		if err != nil {
 			return err
 		}
@@ -124,6 +148,25 @@ var importCmd = &cobra.Command{
 		if !preserveRegistryPath {
 			cfg.RegistryPath = ""
 		}
+		if cloneRepos {
+			if !dangerouslyDeleteExisting {
+				empty, err := isDirectoryEmpty(cwd)
+				if err != nil {
+					return err
+				}
+				if !empty {
+					return fmt.Errorf(
+						"import cloning should be run in a blank directory; this directory is not empty (%s). re-run with --dangerously-delete-existing to allow replacing existing target repos",
+						cwd,
+					)
+				}
+			}
+			if err := cloneImportedRepos(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting); err != nil {
+				return err
+			}
+			// Imported paths should now reflect this machine.
+			cfg.Roots = []string{cwd}
+		}
 		if err := config.Save(&cfg, cfgPath); err != nil {
 			return err
 		}
@@ -140,7 +183,105 @@ func init() {
 	importCmd.Flags().Bool("force", false, "overwrite existing config file")
 	importCmd.Flags().Bool("include-registry", true, "import bundled registry when present")
 	importCmd.Flags().Bool("preserve-registry-path", false, "keep bundled registry_path instead of rewriting beside imported config")
+	importCmd.Flags().Bool("clone", true, "clone repos from imported registry into the current directory")
+	importCmd.Flags().Bool("dangerously-delete-existing", false, "dangerous: delete existing target repo directories before cloning")
+	importCmd.Flags().Bool("file-only", false, "import config file only (disable registry import and cloning)")
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
+}
+
+func isDirectoryEmpty(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
+}
+
+func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool) error {
+	if cfg == nil || cfg.Registry == nil || len(cfg.Registry.Entries) == 0 {
+		return nil
+	}
+
+	runner := &gitx.GitRunner{}
+	targets := make(map[string]registry.Entry, len(cfg.Registry.Entries))
+	for _, entry := range cfg.Registry.Entries {
+		remoteURL := strings.TrimSpace(entry.RemoteURL)
+		if remoteURL == "" {
+			return fmt.Errorf("cannot clone %q: missing remote_url in bundle", entry.RepoID)
+		}
+		targetRel := importTargetRelativePath(entry, bundle.Config.Roots)
+		target := filepath.Clean(filepath.Join(cwd, targetRel))
+
+		// Protect against path traversal/out-of-tree paths from malformed bundles.
+		relToCWD, err := filepath.Rel(cwd, target)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(relToCWD, ".."+string(filepath.Separator)) || relToCWD == ".." {
+			return fmt.Errorf("refusing to clone outside current directory: %s", target)
+		}
+		if _, exists := targets[target]; exists {
+			return fmt.Errorf("multiple repos resolve to same target path %q", target)
+		}
+		targets[target] = entry
+	}
+
+	for target, entry := range targets {
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		if _, err := os.Stat(target); err == nil {
+			if !dangerouslyDeleteExisting {
+				return fmt.Errorf("target path already exists: %s (use --dangerously-delete-existing to replace)", target)
+			}
+			if err := os.RemoveAll(target); err != nil {
+				return fmt.Errorf("failed to remove existing path %s: %w", target, err)
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+
+		cloneArgs := []string{"clone"}
+		if entry.Type == "mirror" {
+			cloneArgs = append(cloneArgs, "--mirror")
+		} else if strings.TrimSpace(entry.Branch) != "" {
+			cloneArgs = append(cloneArgs, "--branch", strings.TrimSpace(entry.Branch), "--single-branch")
+		}
+		cloneArgs = append(cloneArgs, strings.TrimSpace(entry.RemoteURL), target)
+		if _, err := runner.Run(cmd.Context(), "", cloneArgs...); err != nil {
+			return fmt.Errorf("git %s: %w", strings.Join(cloneArgs, " "), err)
+		}
+		entry.Path = target
+		entry.Status = registry.StatusPresent
+		entry.LastSeen = time.Now()
+		cfg.Registry.Upsert(entry)
+	}
+	return nil
+}
+
+func importTargetRelativePath(entry registry.Entry, roots []string) string {
+	for _, root := range roots {
+		rel, ok := relWithin(root, entry.Path)
+		if ok {
+			return rel
+		}
+	}
+
+	base := filepath.Base(entry.Path)
+	if base != "" && base != "." && base != string(filepath.Separator) {
+		return base
+	}
+
+	repoID := strings.TrimSpace(entry.RepoID)
+	if repoID == "" {
+		return "repo"
+	}
+	parts := strings.Split(repoID, "/")
+	name := parts[len(parts)-1]
+	if strings.TrimSpace(name) == "" {
+		return "repo"
+	}
+	return name
 }

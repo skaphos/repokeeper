@@ -20,6 +20,7 @@ type Adapter interface {
 	HasSubmodules(ctx context.Context, dir string) (bool, error)
 	Fetch(ctx context.Context, dir string) error
 	PullRebase(ctx context.Context, dir string) error
+	Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error
 	NormalizeURL(rawURL string) string
 	PrimaryRemote(remoteNames []string) string
 }
@@ -72,6 +73,10 @@ func (g *GitAdapter) Fetch(ctx context.Context, dir string) error {
 
 func (g *GitAdapter) PullRebase(ctx context.Context, dir string) error {
 	return gitx.PullRebase(ctx, g.Runner, dir)
+}
+
+func (g *GitAdapter) Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error {
+	return gitx.Clone(ctx, g.Runner, remoteURL, targetPath, branch, mirror)
 }
 
 func (g *GitAdapter) NormalizeURL(rawURL string) string {

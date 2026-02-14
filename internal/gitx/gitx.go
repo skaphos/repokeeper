@@ -216,3 +216,16 @@ func PullRebase(ctx context.Context, r Runner, dir string) error {
 	_, err := r.Run(ctx, dir, "-c", "fetch.recurseSubmodules=false", "pull", "--rebase", "--no-recurse-submodules")
 	return err
 }
+
+// Clone runs a clone operation. Branch is ignored for mirror clones.
+func Clone(ctx context.Context, r Runner, remoteURL, targetPath, branch string, mirror bool) error {
+	args := []string{"clone"}
+	if mirror {
+		args = append(args, "--mirror")
+	} else if strings.TrimSpace(branch) != "" {
+		args = append(args, "--branch", strings.TrimSpace(branch), "--single-branch")
+	}
+	args = append(args, remoteURL, targetPath)
+	_, err := r.Run(ctx, "", args...)
+	return err
+}
