@@ -15,6 +15,13 @@ RepoKeeper inventories your git repos, reports drift and broken tracking, and pe
 
 ## Install
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew tap skaphos/tools
+brew install skaphos/tools/repokeeper
+```
+
 ### From release binaries
 
 Download the latest release from the [Releases](https://github.com/skaphos/repokeeper/releases) page.
@@ -73,7 +80,7 @@ repokeeper sync
 
 `repokeeper export --output -` and `repokeeper import --input -` support shell piping.
 
-`repokeeper import` now clones repos from the imported registry by default (`--clone=true`). Run imports in a blank directory. If a target repo path already exists, import fails unless `--dangerously-delete-existing` is set, which removes conflicting target paths before cloning.
+`repokeeper import` now clones repos from the imported registry by default (`--clone=true`). If a target repo path already exists, import reports the conflicting paths unless `--dangerously-delete-existing` is set, which removes conflicting target paths before cloning.
 
 Use `repokeeper import --file-only` to import only the config file without registry data or cloning.
 
