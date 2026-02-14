@@ -54,5 +54,5 @@ jobs:
           version: "~> v2"
           args: ${{ steps.goreleaser_args.outputs.args }}
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
