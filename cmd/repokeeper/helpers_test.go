@@ -58,8 +58,15 @@ func TestWriters(t *testing.T) {
 	}
 
 	out.Reset()
-	writeSyncTable(cmd, []engine.SyncResult{{RepoID: "r1", OK: false, ErrorClass: "network", Error: "x"}}, false)
-	if !strings.Contains(out.String(), "ERROR_CLASS") {
+	writeSyncTable(
+		cmd,
+		[]engine.SyncResult{{RepoID: "r1", Path: "/repo", OK: false, ErrorClass: "network", Error: "x"}},
+		&model.StatusReport{Repos: []model.RepoStatus{{Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}},
+		"/tmp",
+		nil,
+		false,
+	)
+	if !strings.Contains(out.String(), "PATH") || !strings.Contains(out.String(), "TRACKING") || !strings.Contains(out.String(), "ERROR_CLASS") {
 		t.Fatal("expected sync header")
 	}
 }

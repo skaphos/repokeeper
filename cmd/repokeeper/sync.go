@@ -10,6 +10,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -82,7 +83,15 @@ var syncCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeSyncTable(cmd, results, wrap)
+			report, err := eng.Status(cmd.Context(), engine.StatusOptions{
+				Filter:      engine.FilterAll,
+				Concurrency: concurrency,
+				Timeout:     timeout,
+			})
+			if err != nil {
+				return err
+			}
+			writeSyncTable(cmd, results, report, cwd, cfg.Roots, wrap)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -118,20 +127,56 @@ func init() {
 	rootCmd.AddCommand(syncCmd)
 }
 
-func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, wrap bool) {
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "REPO\tOK\tERROR_CLASS\tERROR\tACTION")
+func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool) {
+	statusByPath := make(map[string]model.RepoStatus, len(results))
+	if report != nil {
+		for _, repo := range report.Repos {
+			statusByPath[repo.Path] = repo
+		}
+	}
+
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
+	_, _ = fmt.Fprintln(w, "PATH\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tACTION")
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
 			ok = "no"
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-			formatCell(res.RepoID, wrap, 28),
+		repo, found := statusByPath[res.Path]
+		branch := "-"
+		dirty := "-"
+		tracking := string(model.TrackingNone)
+		path := res.Path
+		if found {
+			path = displayRepoPath(repo.Path, cwd, roots)
+			branch = repo.Head.Branch
+			if repo.Head.Detached {
+				branch = "detached:" + branch
+			}
+			if repo.Type == "mirror" {
+				branch = "-"
+			}
+			if repo.Worktree != nil {
+				if repo.Worktree.Dirty {
+					dirty = colorize("yes", ansiBrown)
+				} else {
+					dirty = colorize("no", ansiGreen)
+				}
+			}
+			tracking = displayTrackingStatus(repo.Tracking.Status)
+			if repo.Type == "mirror" {
+				tracking = colorize("mirror", ansiBlue)
+			}
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			path,
+			branch,
+			dirty,
+			tracking,
 			ok,
 			res.ErrorClass,
-			res.Error,
-			res.Action)
+			formatCell(res.Error, wrap, 36),
+			formatCell(res.Action, wrap, 48))
 	}
 	_ = w.Flush()
 }

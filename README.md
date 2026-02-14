@@ -65,6 +65,8 @@ repokeeper sync
 | `repokeeper import` | Import a previously exported bundle |
 | `repokeeper version` | Print version and build info |
 
+`repokeeper sync --format table` mirrors the `status` columns (`PATH`, `BRANCH`, `DIRTY`, `TRACKING`) and appends sync outcome columns (`OK`, `ERROR_CLASS`, `ERROR`, `ACTION`).
+
 `repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to configured roots.
 
 `repokeeper add` accepts `--branch <name>` for a single-branch checkout clone or `--mirror` for a full mirror clone (bare, no working tree). Mirror repos are tracked and shown in status as `TRACKING=mirror`.
