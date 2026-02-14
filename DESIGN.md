@@ -113,22 +113,20 @@ Prints the RepoKeeper version, Go version, and build metadata (commit SHA, build
 
 #### `repokeeper init`
 
-Interactive bootstrap that creates a RepoKeeper config file.
+Bootstrap that creates a RepoKeeper config file.
 
 Behavior:
 
-* Prompts for `machine_id` (default: hostname).
-* Prompts for one or more root directories to scan (defaults to current working directory).
-* Prompts for common exclude patterns (offers sensible defaults: `node_modules`, `.terraform`, `dist`, `vendor`).
+* Uses `roots` from `--roots` or defaults to current working directory.
+* Uses default exclude patterns (`node_modules`, `.terraform`, `dist`, `vendor`).
+* Runs an initial scan immediately after writing config.
 * Writes `.repokeeper.yaml` in the current working directory by default (see §6.2.1).
-* If a config already exists, asks before overwriting (or use `--force` to skip).
+* If a config already exists, errors unless `--force` is provided.
 
 Flags:
 
 * `--force` — overwrite existing config without prompting
-* `--machine-id <name>` — set machine id non-interactively
-* `--roots <comma-separated>` — set roots non-interactively
-* `--non-interactive` — use all defaults / flag values, no prompts (for scripting)
+* `--roots <comma-separated>` — set roots
 
 #### `repokeeper scan`
 
@@ -251,12 +249,11 @@ Config path is resolved in this order for runtime commands (`scan`, `status`, `s
 2. `REPOKEEPER_CONFIG` environment variable (if set).
 3. Current directory: `.repokeeper.yaml`.
 
-The registry file defaults to `registry.yaml` beside the resolved config file unless overridden by `registry_path` in the config.
+The registry is embedded directly in `.repokeeper.yaml` under the `registry` key. For backward compatibility, older configs may still contain `registry_path`.
 
 Implementation: use Go's `os.UserConfigDir()` as the base, which already returns the correct platform directory.
 
 ```yaml
-machine_id: "shawn-mbp"   # user-set or auto-generated once
 roots:
   - "/Users/shawn/code"
   - "/Users/shawn/work"
@@ -264,19 +261,20 @@ exclude:
   - "**/node_modules/**"
   - "**/.terraform/**"
   - "**/dist/**"
-registry_path: "/Users/shawn/code/my-workspace/registry.yaml"
+registry:
+  updated_at: "2026-02-10T16:00:00-06:00"
+  repos: []
 defaults:
   remote_name: "origin"
   concurrency: 8
   timeout_seconds: 60
 ```
 
-#### 6.2.2 Registry (`registry.yaml` adjacent to resolved config by default)
+#### 6.2.2 Registry (embedded in machine config by default)
 
 Per-machine mapping of repo-id to local path.
 
 ```yaml
-machine_id: "shawn-mbp"
 updated_at: "2026-02-10T16:00:00-06:00"
 repos:
   - repo_id: "github.com/alaskaairlines/sdp-foo"
@@ -307,7 +305,6 @@ Top-level:
 
 ```json
 {
-  "machine_id": "shawn-mbp",
   "generated_at": "…",
   "repos": [
     {
@@ -484,7 +481,6 @@ The v1 data model should be designed so the registry is **portable and mergeable
 
 * **`repo_id` is the join key** — the normalized remote URL is machine-independent by design. This is already the case.
 * **Registry is serializable** — YAML/JSON, no machine-specific binary state. Already the case.
-* **`machine_id` is embedded** — each registry identifies its source machine. Already the case.
 * **Timestamps on entries** — `last_seen` per repo enables conflict resolution (last-writer-wins or newest-wins). Added in §6.2.2.
 
 ### 9.2 Planned sync mechanisms (future, not v1)

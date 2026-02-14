@@ -36,14 +36,9 @@ var scanCmd = &cobra.Command{
 		}
 		debugf(cmd, "using config %s", cfgPath)
 
-		regPath := cfg.RegistryPath
-		reg, err := registry.Load(regPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				reg = &registry.Registry{MachineID: cfg.MachineID}
-			} else {
-				return err
-			}
+		reg := cfg.Registry
+		if reg == nil {
+			reg = &registry.Registry{}
 		}
 
 		roots, _ := cmd.Flags().GetString("roots")
@@ -77,7 +72,8 @@ var scanCmd = &cobra.Command{
 		})
 
 		if writeRegistry {
-			if err := registry.Save(reg, regPath); err != nil {
+			cfg.Registry = reg
+			if err := config.Save(cfg, cfgPath); err != nil {
 				return err
 			}
 		}

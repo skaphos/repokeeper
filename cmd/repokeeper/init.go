@@ -1,13 +1,15 @@
 package repokeeper
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
 
@@ -17,9 +19,7 @@ var initCmd = &cobra.Command{
 	Long:  "Creates a RepoKeeper config file in the current directory by default.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		force, _ := cmd.Flags().GetBool("force")
-		machineID, _ := cmd.Flags().GetString("machine-id")
 		roots, _ := cmd.Flags().GetString("roots")
-		nonInteractive, _ := cmd.Flags().GetBool("non-interactive")
 
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -35,33 +35,31 @@ var initCmd = &cobra.Command{
 		}
 
 		cfg := config.DefaultConfig()
-		cfg.Roots = []string{cwd}
-		if machineID != "" {
-			cfg.MachineID = machineID
+		if strings.TrimSpace(roots) != "" {
+			cfg.Roots = splitCSV(roots)
 		} else {
-			cfg.MachineID = config.GenerateMachineID()
+			cfg.Roots = []string{cwd}
+		}
+		if len(cfg.Roots) == 0 {
+			return fmt.Errorf("no roots provided; use --roots")
+		}
+		cfg.RegistryPath = ""
+		cfg.Registry = &registry.Registry{}
+
+		if err := config.Save(&cfg, cfgPath); err != nil {
+			return err
 		}
 
-		if nonInteractive {
-			if strings.TrimSpace(roots) != "" {
-				cfg.Roots = splitCSV(roots)
+		eng := engine.New(&cfg, cfg.Registry, vcs.NewGitAdapter(nil))
+		if _, err := eng.Scan(cmd.Context(), engine.ScanOptions{}); err != nil {
+			return err
+		}
+		sort.SliceStable(cfg.Registry.Entries, func(i, j int) bool {
+			if cfg.Registry.Entries[i].RepoID == cfg.Registry.Entries[j].RepoID {
+				return cfg.Registry.Entries[i].Path < cfg.Registry.Entries[j].Path
 			}
-			if len(cfg.Roots) == 0 {
-				return fmt.Errorf("no roots provided; use --roots")
-			}
-		} else {
-			reader := bufio.NewReader(cmd.InOrStdin())
-			cfg.MachineID = prompt(reader, cmd, "Machine ID", cfg.MachineID)
-			rootInput := prompt(reader, cmd, "Roots (comma-separated)", strings.Join(cfg.Roots, ","))
-			cfg.Roots = splitCSV(rootInput)
-			excludeInput := prompt(reader, cmd, "Exclude patterns (comma-separated)", strings.Join(cfg.Exclude, ","))
-			cfg.Exclude = splitCSV(excludeInput)
-		}
-
-		if cfg.RegistryPath == "" {
-			cfg.RegistryPath = filepath.Join(filepath.Dir(cfgPath), "registry.yaml")
-		}
-
+			return cfg.Registry.Entries[i].RepoID < cfg.Registry.Entries[j].RepoID
+		})
 		if err := config.Save(&cfg, cfgPath); err != nil {
 			return err
 		}
@@ -72,26 +70,7 @@ var initCmd = &cobra.Command{
 
 func init() {
 	initCmd.Flags().Bool("force", false, "overwrite existing config without prompting")
-	initCmd.Flags().String("machine-id", "", "set machine ID non-interactively")
 	initCmd.Flags().String("roots", "", "comma-separated root directories")
-	initCmd.Flags().Bool("non-interactive", false, "use defaults/flags, no prompts")
 
 	rootCmd.AddCommand(initCmd)
-}
-
-func prompt(reader *bufio.Reader, cmd *cobra.Command, label, def string) string {
-	if def != "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s [%s]: ", label, def)
-	} else {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s: ", label)
-	}
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return def
-	}
-	line = strings.TrimSpace(line)
-	if line == "" {
-		return def
-	}
-	return line
 }

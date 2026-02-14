@@ -40,7 +40,6 @@ var _ = Describe("Engine integration", func() {
 		before := readFile(filepath.Join(work, "file.txt"))
 
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: work, Status: registry.StatusPresent},
 			},
@@ -85,7 +84,6 @@ var _ = Describe("Engine integration", func() {
 		runGit(other, "push", "origin", "--delete", "feature")
 
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: work, Status: registry.StatusPresent},
 			},

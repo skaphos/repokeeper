@@ -16,7 +16,6 @@ var _ = Describe("Registry", func() {
 		dir := GinkgoT().TempDir()
 		path := filepath.Join(dir, "registry.yaml")
 		reg := &registry.Registry{
-			MachineID: "test-machine",
 			UpdatedAt: time.Now(),
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: filepath.Join(dir, "repo1"), LastSeen: time.Now(), Status: registry.StatusPresent},
@@ -25,7 +24,6 @@ var _ = Describe("Registry", func() {
 		Expect(registry.Save(reg, path)).To(Succeed())
 		loaded, err := registry.Load(path)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(loaded.MachineID).To(Equal("test-machine"))
 		Expect(loaded.Entries).To(HaveLen(1))
 	})
 

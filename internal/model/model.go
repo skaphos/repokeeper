@@ -73,7 +73,6 @@ type RepoStatus struct {
 
 // StatusReport is the top-level output of the status command.
 type StatusReport struct {
-	MachineID   string       `json:"machine_id" yaml:"machine_id"`
 	GeneratedAt time.Time    `json:"generated_at" yaml:"generated_at"`
 	Repos       []RepoStatus `json:"repos" yaml:"repos"`
 }

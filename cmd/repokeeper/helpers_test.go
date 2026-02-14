@@ -1,7 +1,6 @@
 package repokeeper
 
 import (
-	"bufio"
 	"bytes"
 	"strings"
 	"testing"
@@ -76,23 +75,5 @@ func TestLogHelpers(t *testing.T) {
 	debugf(cmd, "hello %s", "debug")
 	if !strings.Contains(errOut.String(), "hello info") || !strings.Contains(errOut.String(), "hello debug") {
 		t.Fatal("expected both info and debug logs")
-	}
-}
-
-func TestPrompt(t *testing.T) {
-	cmd := &cobra.Command{}
-	out := &bytes.Buffer{}
-	cmd.SetOut(out)
-
-	reader := bufio.NewReader(strings.NewReader("custom\n"))
-	got := prompt(reader, cmd, "Label", "default")
-	if got != "custom" {
-		t.Fatalf("unexpected prompt value: %q", got)
-	}
-
-	reader = bufio.NewReader(strings.NewReader("\n"))
-	got = prompt(reader, cmd, "Label", "default")
-	if got != "default" {
-		t.Fatalf("expected default, got %q", got)
 	}
 }

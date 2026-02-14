@@ -31,7 +31,6 @@ type Entry struct {
 
 // Registry is the per-machine mapping of repo identities to local paths.
 type Registry struct {
-	MachineID string    `yaml:"machine_id"`
 	UpdatedAt time.Time `yaml:"updated_at"`
 	Entries   []Entry   `yaml:"repos"`
 }

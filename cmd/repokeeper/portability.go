@@ -42,17 +42,24 @@ var exportCmd = &cobra.Command{
 		bundle := exportBundle{
 			Version:    1,
 			ExportedAt: time.Now().Format(time.RFC3339),
-			Config:     *cfg,
 		}
+		cfgCopy := *cfg
 		if includeRegistry {
-			reg, err := registry.Load(cfg.RegistryPath)
-			if err != nil && !os.IsNotExist(err) {
-				return err
+			if cfgCopy.Registry == nil && cfgCopy.RegistryPath != "" {
+				reg, err := registry.Load(cfgCopy.RegistryPath)
+				if err != nil && !os.IsNotExist(err) {
+					return err
+				}
+				if err == nil {
+					cfgCopy.Registry = reg
+				}
 			}
-			if err == nil {
-				bundle.Registry = reg
-			}
+			bundle.Registry = cfgCopy.Registry
+		} else {
+			cfgCopy.Registry = nil
+			bundle.Registry = nil
 		}
+		bundle.Config = cfgCopy
 
 		data, err := yaml.Marshal(&bundle)
 		if err != nil {
@@ -107,20 +114,20 @@ var importCmd = &cobra.Command{
 		}
 
 		cfg := bundle.Config
-		if !preserveRegistryPath || cfg.RegistryPath == "" {
-			cfg.RegistryPath = filepath.Join(filepath.Dir(cfgPath), "registry.yaml")
+		if includeRegistry {
+			if cfg.Registry == nil && bundle.Registry != nil {
+				cfg.Registry = bundle.Registry
+			}
+		} else {
+			cfg.Registry = nil
+		}
+		if !preserveRegistryPath {
+			cfg.RegistryPath = ""
 		}
 		if err := config.Save(&cfg, cfgPath); err != nil {
 			return err
 		}
 		infof(cmd, "imported config to %s", cfgPath)
-
-		if includeRegistry && bundle.Registry != nil {
-			if err := registry.Save(bundle.Registry, cfg.RegistryPath); err != nil {
-				return err
-			}
-			infof(cmd, "imported registry to %s", cfg.RegistryPath)
-		}
 		return nil
 	},
 }

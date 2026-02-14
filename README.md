@@ -9,7 +9,7 @@ RepoKeeper inventories your git repos, reports drift and broken tracking, and pe
 - **Discover** git repos across configured root directories
 - **Report** per-repo health: dirty/clean, branch, tracking status, ahead/behind, stale upstreams
 - **Sync** safely with `git fetch --all --prune` (never checkout, pull, reset, or touch submodules)
-- **Registry** tracks repos per-machine with staleness detection
+- **Registry** is stored in `.repokeeper.yaml` with staleness detection
 - **CLI-first** with table and JSON output formats
 - **Cross-platform** — macOS, Windows, Linux (incl. WSL)
 
@@ -28,7 +28,7 @@ go install github.com/skaphos/repokeeper@latest
 ## Quick Start
 
 ```bash
-# Bootstrap config for this directory
+# Bootstrap config and run initial scan for this directory
 repokeeper init
 
 # Scan your roots for git repos
@@ -77,7 +77,6 @@ Runtime commands (`scan`, `status`, `sync`) resolve config in this order:
 Example config:
 
 ```yaml
-machine_id: "my-laptop"
 roots:
   - "/home/user/code"
   - "/home/user/work"
@@ -85,6 +84,9 @@ exclude:
   - "**/node_modules/**"
   - "**/.terraform/**"
   - "**/vendor/**"
+registry:
+  updated_at: "2026-02-14T10:00:00Z"
+  repos: []
 defaults:
   concurrency: 8
   timeout_seconds: 60

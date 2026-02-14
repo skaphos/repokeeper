@@ -36,14 +36,17 @@ var statusCmd = &cobra.Command{
 		debugf(cmd, "using config %s", cfgPath)
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
-		regPath := cfg.RegistryPath
+		var reg *registry.Registry
 		if registryOverride != "" {
-			regPath = registryOverride
-		}
-
-		reg, err := registry.Load(regPath)
-		if err != nil {
-			return err
+			reg, err = registry.Load(registryOverride)
+			if err != nil {
+				return err
+			}
+		} else {
+			reg = cfg.Registry
+			if reg == nil {
+				return fmt.Errorf("registry not found in %s (run repokeeper scan first)", cfgPath)
+			}
 		}
 
 		roots, _ := cmd.Flags().GetString("roots")
@@ -61,8 +64,15 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if err := registry.Save(reg, regPath); err != nil {
-				return err
+			if registryOverride != "" {
+				if err := registry.Save(reg, registryOverride); err != nil {
+					return err
+				}
+			} else {
+				cfg.Registry = reg
+				if err := config.Save(cfg, cfgPath); err != nil {
+					return err
+				}
 			}
 		}
 

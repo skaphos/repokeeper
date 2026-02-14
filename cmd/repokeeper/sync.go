@@ -10,7 +10,6 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -34,13 +33,9 @@ var syncCmd = &cobra.Command{
 		}
 		debugf(cmd, "using config %s", cfgPath)
 
-		regPath := cfg.RegistryPath
-		reg, err := registry.Load(regPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return fmt.Errorf("registry not found at %s (run repokeeper scan first)", regPath)
-			}
-			return err
+		reg := cfg.Registry
+		if reg == nil {
+			return fmt.Errorf("registry not found in %s (run repokeeper scan first)", cfgPath)
 		}
 
 		only, _ := cmd.Flags().GetString("only")

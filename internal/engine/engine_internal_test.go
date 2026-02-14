@@ -19,7 +19,7 @@ func TestScanUpdatesRegistry(t *testing.T) {
 		t.Fatalf("git init failed: %v %s", err, string(out))
 	}
 
-	cfg := &config.Config{MachineID: "m1", Roots: []string{root}, Exclude: []string{}}
+	cfg := &config.Config{Roots: []string{root}, Exclude: []string{}}
 	reg := &registry.Registry{}
 	eng := New(cfg, reg, vcs.NewGitAdapter(nil))
 	statuses, err := eng.Scan(context.Background(), ScanOptions{})
@@ -29,7 +29,7 @@ func TestScanUpdatesRegistry(t *testing.T) {
 	if len(statuses) != 1 {
 		t.Fatalf("expected 1 status, got %d", len(statuses))
 	}
-	if reg.MachineID != "m1" || len(reg.Entries) != 1 {
+	if len(reg.Entries) != 1 {
 		t.Fatalf("unexpected registry state: %+v", reg)
 	}
 }

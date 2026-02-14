@@ -40,7 +40,6 @@ var _ = Describe("Model JSON", func() {
 
 	It("round-trips StatusReport JSON", func() {
 		report := model.StatusReport{
-			MachineID:   "machine-1",
 			GeneratedAt: time.Now().UTC(),
 			Repos: []model.RepoStatus{
 				{RepoID: "repo1", Path: "/tmp/repo1"},
@@ -51,7 +50,6 @@ var _ = Describe("Model JSON", func() {
 
 		var decoded model.StatusReport
 		Expect(json.Unmarshal(data, &decoded)).To(Succeed())
-		Expect(decoded.MachineID).To(Equal(report.MachineID))
 		Expect(decoded.Repos).To(HaveLen(1))
 	})
 })

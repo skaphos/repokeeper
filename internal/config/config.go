@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skaphos/repokeeper/internal/registry"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -26,12 +27,12 @@ type Defaults struct {
 
 // Config represents the machine-level RepoKeeper configuration.
 type Config struct {
-	MachineID         string   `yaml:"machine_id"`
-	Roots             []string `yaml:"roots"`
-	Exclude           []string `yaml:"exclude"`
-	RegistryPath      string   `yaml:"registry_path"`
-	RegistryStaleDays int      `yaml:"registry_stale_days"`
-	Defaults          Defaults `yaml:"defaults"`
+	Roots             []string           `yaml:"roots"`
+	Exclude           []string           `yaml:"exclude"`
+	RegistryPath      string             `yaml:"registry_path,omitempty"`
+	Registry          *registry.Registry `yaml:"registry,omitempty"`
+	RegistryStaleDays int                `yaml:"registry_stale_days"`
+	Defaults          Defaults           `yaml:"defaults"`
 }
 
 // DefaultConfig returns a Config with sensible defaults applied.
@@ -171,11 +172,15 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	if cfg.MachineID == "" {
-		cfg.MachineID = GenerateMachineID()
-	}
-	if cfg.RegistryPath == "" {
-		cfg.RegistryPath = filepath.Join(filepath.Dir(path), "registry.yaml")
+	if cfg.Registry == nil && cfg.RegistryPath != "" {
+		reg, err := registry.Load(cfg.RegistryPath)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+		} else {
+			cfg.Registry = reg
+		}
 	}
 	if cfg.Defaults.Concurrency == 0 {
 		cfg.Defaults.Concurrency = DefaultConfig().Defaults.Concurrency
@@ -204,15 +209,6 @@ func Save(cfg *Config, path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
-}
-
-// GenerateMachineID returns a default machine identifier (hostname).
-func GenerateMachineID() string {
-	host, err := os.Hostname()
-	if err != nil || strings.TrimSpace(host) == "" {
-		return "unknown"
-	}
-	return host
 }
 
 // LastUpdated is a helper to get "now" in a consistent format for timestamps.

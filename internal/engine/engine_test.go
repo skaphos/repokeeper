@@ -87,7 +87,6 @@ var _ = Describe("Engine", func() {
 
 	It("syncs repositories with dry-run", func() {
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 			},
@@ -106,7 +105,6 @@ var _ = Describe("Engine", func() {
 
 	It("prunes missing entries for sync filter", func() {
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "missing", Path: filepath.Join("C:", "missing"), Status: registry.StatusMissing, LastSeen: time.Now().Add(-48 * time.Hour)},
 			},
@@ -144,7 +142,6 @@ var _ = Describe("Engine", func() {
 			"/repo2:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
 		}}
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 				{RepoID: "repo2", Path: "/repo2", Status: registry.StatusPresent},
@@ -163,7 +160,6 @@ var _ = Describe("Engine", func() {
 
 	It("respects concurrency by not exceeding it", func() {
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 				{RepoID: "repo2", Path: "/repo2", Status: registry.StatusPresent},
@@ -203,7 +199,6 @@ var _ = Describe("Engine", func() {
 			release: make(chan struct{}),
 		}
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 			},
@@ -220,7 +215,7 @@ var _ = Describe("Engine", func() {
 
 	It("produces accurate status json across many repos", func() {
 		responses := map[string]mockResponse{}
-		reg := &registry.Registry{MachineID: "m1"}
+		reg := &registry.Registry{}
 
 		for i := 1; i <= 12; i++ {
 			repoPath := fmt.Sprintf("/repo%d", i)
@@ -246,7 +241,6 @@ var _ = Describe("Engine", func() {
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 4}}, reg, vcs.NewGitAdapter(&mockRunner{responses: responses}))
 		report, err := eng.Status(context.Background(), engine.StatusOptions{Filter: engine.FilterAll, Concurrency: 4, Timeout: 1})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(report.MachineID).To(Equal("m1"))
 		Expect(report.Repos).To(HaveLen(12))
 
 		data, err := json.Marshal(report)
@@ -276,7 +270,6 @@ var _ = Describe("Engine", func() {
 			"/repo2:remote":                         {err: errors.New("permission denied")},
 		}}
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo2", Path: "/repo2", Status: registry.StatusPresent},
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
@@ -300,7 +293,6 @@ var _ = Describe("Engine", func() {
 
 	It("classifies sync fetch failures", func() {
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 			},
@@ -332,7 +324,6 @@ var _ = Describe("Engine", func() {
 			"/repo1:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {out: ""},
 		}}
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 			},
@@ -360,7 +351,6 @@ var _ = Describe("Engine", func() {
 			"/repo1:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
 		}}
 		reg := &registry.Registry{
-			MachineID: "m1",
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 			},

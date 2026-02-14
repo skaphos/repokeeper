@@ -61,10 +61,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 		e.Adapter = vcs.NewGitAdapter(nil)
 	}
 	if e.Registry == nil {
-		e.Registry = &registry.Registry{MachineID: e.Config.MachineID}
-	}
-	if e.Registry.MachineID == "" {
-		e.Registry.MachineID = e.Config.MachineID
+		e.Registry = &registry.Registry{}
 	}
 
 	roots := opts.Roots
@@ -208,7 +205,6 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 	sortRepoStatuses(results)
 
 	return &model.StatusReport{
-		MachineID:   e.Registry.MachineID,
 		GeneratedAt: time.Now(),
 		Repos:       results,
 	}, nil
