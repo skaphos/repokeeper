@@ -131,6 +131,9 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		if repo.Head.Detached {
 			branch = "detached:" + branch
 		}
+		if repo.Type == "mirror" {
+			branch = "-"
+		}
 		path := displayRepoPath(repo.Path, cwd, roots)
 		dirty := "-"
 		if repo.Worktree != nil {
@@ -141,6 +144,9 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			}
 		}
 		tracking := displayTrackingStatus(repo.Tracking.Status)
+		if repo.Type == "mirror" {
+			tracking = colorize("mirror", ansiBlue)
+		}
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 			path,
 			branch,
@@ -155,6 +161,7 @@ const (
 	ansiGreen = "\x1b[32m"
 	ansiBrown = "\x1b[33m"
 	ansiRed   = "\x1b[31m"
+	ansiBlue  = "\x1b[34m"
 )
 
 func colorize(value, color string) string {
@@ -229,10 +236,16 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH: %s\n", displayRepoPath(repo.Path, cwd, roots))
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH_ABS: %s\n", repo.Path)
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "REPO: %s\n", repo.RepoID)
+	if repo.Type != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "TYPE: %s\n", repo.Type)
+	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BARE: %t\n", repo.Bare)
 	branch := repo.Head.Branch
 	if repo.Head.Detached {
 		branch = "detached:" + branch
+	}
+	if repo.Type == "mirror" {
+		branch = "-"
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BRANCH: %s\n", branch)
 	dirty := "-"
@@ -244,7 +257,11 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 		}
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "DIRTY: %s\n", dirty)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "TRACKING: %s\n", displayTrackingStatusNoColor(repo.Tracking.Status))
+	tracking := displayTrackingStatusNoColor(repo.Tracking.Status)
+	if repo.Type == "mirror" {
+		tracking = "mirror"
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "TRACKING: %s\n", tracking)
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "UPSTREAM: %s\n", repo.Tracking.Upstream)
 	ahead := "-"
 	if repo.Tracking.Ahead != nil {

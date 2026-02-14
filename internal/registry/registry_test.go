@@ -35,6 +35,25 @@ var _ = Describe("Registry", func() {
 		Expect(reg.Entries[0].Path).To(Equal("/b"))
 	})
 
+	It("preserves type and branch when not provided on upsert", func() {
+		reg := &registry.Registry{}
+		reg.Upsert(registry.Entry{
+			RepoID: "repo1",
+			Path:   "/a",
+			Type:   "mirror",
+			Branch: "main",
+			Status: registry.StatusPresent,
+		})
+		reg.Upsert(registry.Entry{
+			RepoID: "repo1",
+			Path:   "/a",
+			Status: registry.StatusPresent,
+		})
+		Expect(reg.Entries).To(HaveLen(1))
+		Expect(reg.Entries[0].Type).To(Equal("mirror"))
+		Expect(reg.Entries[0].Branch).To(Equal("main"))
+	})
+
 	It("validates paths and marks missing", func() {
 		dir := GinkgoT().TempDir()
 		existing := filepath.Join(dir, "exists")

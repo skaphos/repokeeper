@@ -25,6 +25,8 @@ type Entry struct {
 	RepoID    string      `yaml:"repo_id"`
 	Path      string      `yaml:"path"`
 	RemoteURL string      `yaml:"remote_url"`
+	Type      string      `yaml:"type,omitempty"` // checkout | mirror
+	Branch    string      `yaml:"branch,omitempty"`
 	LastSeen  time.Time   `yaml:"last_seen"`
 	Status    EntryStatus `yaml:"status"`
 }
@@ -75,8 +77,16 @@ func (r *Registry) Upsert(entry Entry) {
 			} else if entry.Status == "" {
 				entry.Status = StatusPresent
 			}
+			if entry.Type == "" {
+				entry.Type = r.Entries[i].Type
+			}
+			if entry.Branch == "" {
+				entry.Branch = r.Entries[i].Branch
+			}
 			r.Entries[i].Path = entry.Path
 			r.Entries[i].RemoteURL = entry.RemoteURL
+			r.Entries[i].Type = entry.Type
+			r.Entries[i].Branch = entry.Branch
 			r.Entries[i].LastSeen = entry.LastSeen
 			r.Entries[i].Status = entry.Status
 			return

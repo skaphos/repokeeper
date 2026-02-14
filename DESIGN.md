@@ -151,6 +151,33 @@ Flags:
 * `--format table|json` (default table)
 * `--only errors|dirty|clean|gone|missing|all` (default all)
 
+#### `repokeeper describe <repo-id-or-path>`
+
+Shows detailed status for a single repo selected by repo ID, cwd-relative path, or root-relative path.
+
+Flags:
+
+* `--registry <path>` (optional)
+* `--format table|json` (default table)
+
+#### `repokeeper add <path> <git-repo-url>`
+
+Clones and registers a repository entry.
+
+Flags:
+
+* `--branch <name>` (optional; checkout clone)
+* `--mirror` (optional; full mirror clone, bare with no working tree)
+* `--registry <path>` (optional)
+
+#### `repokeeper delete <repo-id-or-path>`
+
+Removes a repository entry from the registry.
+
+Flags:
+
+* `--registry <path>` (optional)
+
 #### `repokeeper sync`
 
 Runs safe fetch/prune on repos (all or selected).
@@ -280,6 +307,8 @@ repos:
   - repo_id: "github.com/alaskaairlines/sdp-foo"
     path: "/Users/shawn/code/sdp-foo"
     remote_url: "git@github.com:alaskaairlines/sdp-foo.git"
+    type: "checkout"    # checkout | mirror
+    branch: "main"      # optional preferred branch for checkout clones
     last_seen: "2026-02-10T16:00:00-06:00"
     status: "present"   # present | missing | moved
 ```

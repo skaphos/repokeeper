@@ -164,6 +164,7 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 				out <- result{status: model.RepoStatus{
 					RepoID:     entry.RepoID,
 					Path:       entry.Path,
+					Type:       entry.Type,
 					Tracking:   model.Tracking{Status: model.TrackingNone},
 					Error:      "path missing",
 					ErrorClass: "missing",
@@ -183,6 +184,7 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 				out <- result{status: model.RepoStatus{
 					RepoID:     entry.RepoID,
 					Path:       entry.Path,
+					Type:       entry.Type,
 					Tracking:   model.Tracking{Status: model.TrackingNone},
 					Error:      err.Error(),
 					ErrorClass: gitx.ClassifyError(err),
@@ -191,6 +193,9 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 			}
 			if status.RepoID == "" {
 				status.RepoID = entry.RepoID
+			}
+			if entry.Type != "" {
+				status.Type = entry.Type
 			}
 			out <- result{status: *status}
 		}()

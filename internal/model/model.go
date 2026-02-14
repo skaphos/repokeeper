@@ -59,6 +59,7 @@ type SyncResult struct {
 type RepoStatus struct {
 	RepoID        string      `json:"repo_id" yaml:"repo_id"`
 	Path          string      `json:"path" yaml:"path"`
+	Type          string      `json:"type,omitempty" yaml:"type,omitempty"` // checkout | mirror
 	Bare          bool        `json:"bare" yaml:"bare"`
 	Remotes       []Remote    `json:"remotes" yaml:"remotes"`
 	PrimaryRemote string      `json:"primary_remote" yaml:"primary_remote"`

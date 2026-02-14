@@ -56,11 +56,18 @@ repokeeper sync
 |---------|-------------|
 | `repokeeper init` | Bootstrap a new config file |
 | `repokeeper scan` | Discover repos and update the registry |
-| `repokeeper status` | Report repo health (dirty, tracking, ahead/behind) |
+| `repokeeper status` | Report repo health summary (path, branch, dirty, tracking) |
+| `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
+| `repokeeper add <path> <git-repo-url>` | Clone and register a repository (`--branch` or `--mirror`) |
+| `repokeeper delete <repo-id-or-path>` | Remove a repository from the registry |
 | `repokeeper sync` | Fetch and prune all repos safely |
 | `repokeeper export` | Export config (and registry) for migration |
 | `repokeeper import` | Import a previously exported bundle |
 | `repokeeper version` | Print version and build info |
+
+`repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to configured roots.
+
+`repokeeper add` accepts `--branch <name>` for a single-branch checkout clone or `--mirror` for a full mirror clone (bare, no working tree). Mirror repos are tracked and shown in status as `TRACKING=mirror`.
 
 ### Global flags
 
