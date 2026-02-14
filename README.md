@@ -41,6 +41,15 @@ repokeeper status
 repokeeper sync
 ```
 
+## Expected User Flow
+
+1. From the directory you want to manage, run `repokeeper init`.
+2. `init` creates `.repokeeper.yaml`, sets that directory as the default root, and performs an initial scan.
+3. Run `repokeeper status` to review repo health and identify issues (dirty worktrees, gone upstreams, missing repos).
+4. Run `repokeeper sync` to safely fetch/prune across registered repos.
+5. Re-run `repokeeper scan` whenever clones are added, moved, or removed so the embedded registry stays current.
+6. If needed, widen scope with `repokeeper scan --roots <dir1,dir2,...>` and keep those roots in `.repokeeper.yaml`.
+
 ## Commands
 
 | Command | Description |
