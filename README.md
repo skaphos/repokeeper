@@ -137,6 +137,8 @@ Optional local checkout update:
 
 - [DESIGN.md](DESIGN.md) — full design specification and architecture
 - [TASKS.md](TASKS.md) — implementation milestones and task tracking
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow and PR expectations
+- [RELEASE.md](RELEASE.md) — release and tagging process
 
 ## Development
 
