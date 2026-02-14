@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -149,18 +150,6 @@ var importCmd = &cobra.Command{
 			cfg.RegistryPath = ""
 		}
 		if cloneRepos {
-			if !dangerouslyDeleteExisting {
-				empty, err := isDirectoryEmpty(cwd)
-				if err != nil {
-					return err
-				}
-				if !empty {
-					return fmt.Errorf(
-						"import cloning should be run in a blank directory; this directory is not empty (%s). re-run with --dangerously-delete-existing to allow replacing existing target repos",
-						cwd,
-					)
-				}
-			}
 			if err := cloneImportedRepos(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting); err != nil {
 				return err
 			}
@@ -189,14 +178,6 @@ func init() {
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
-}
-
-func isDirectoryEmpty(path string) (bool, error) {
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return false, err
-	}
-	return len(entries) == 0, nil
 }
 
 func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool) error {
@@ -231,6 +212,20 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 				continue
 			}
 			return fmt.Errorf("cannot clone %q: missing remote_url in bundle", entry.RepoID)
+		}
+	}
+	if !dangerouslyDeleteExisting {
+		conflicts := findImportTargetConflicts(targets, skippedLocal)
+		if len(conflicts) > 0 {
+			var lines []string
+			for _, conflict := range conflicts {
+				lines = append(lines, fmt.Sprintf("%s (repo: %s)", conflict.target, conflict.entry.RepoID))
+			}
+			return fmt.Errorf(
+				"import target conflicts detected under %s:\n- %s\nre-run with --dangerously-delete-existing to replace these paths",
+				cwd,
+				strings.Join(lines, "\n- "),
+			)
 		}
 	}
 
@@ -275,6 +270,27 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 		infof(cmd, "skipping local-only repo %s: missing remote_url", entry.RepoID)
 	}
 	return nil
+}
+
+type importConflict struct {
+	target string
+	entry  registry.Entry
+}
+
+func findImportTargetConflicts(targets map[string]registry.Entry, skippedLocal map[string]registry.Entry) []importConflict {
+	conflicts := make([]importConflict, 0)
+	for target, entry := range targets {
+		if _, skip := skippedLocal[target]; skip {
+			continue
+		}
+		if _, err := os.Stat(target); err == nil {
+			conflicts = append(conflicts, importConflict{target: target, entry: entry})
+		}
+	}
+	sort.Slice(conflicts, func(i, j int) bool {
+		return conflicts[i].target < conflicts[j].target
+	})
+	return conflicts
 }
 
 func setRegistryEntryByRepoID(reg *registry.Registry, entry registry.Entry) {

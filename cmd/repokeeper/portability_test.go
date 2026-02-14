@@ -12,29 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestIsDirectoryEmpty(t *testing.T) {
-	dir := t.TempDir()
-	empty, err := isDirectoryEmpty(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !empty {
-		t.Fatal("expected new temp dir to be empty")
-	}
-
-	f := filepath.Join(dir, "x")
-	if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-	empty, err = isDirectoryEmpty(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if empty {
-		t.Fatal("expected dir with files to be non-empty")
-	}
-}
-
 func TestImportTargetRelativePath(t *testing.T) {
 	entry := registry.Entry{
 		RepoID: "github.com/org/repo-a",
@@ -52,6 +29,42 @@ func TestImportTargetRelativePath(t *testing.T) {
 	entry = registry.Entry{RepoID: "github.com/org/repo-z", Path: ""}
 	if got := importTargetRelativePath(entry, nil); got != "repo-z" {
 		t.Fatalf("expected repo-id fallback, got %q", got)
+	}
+}
+
+func TestCloneImportedReposReportsSpecificTargetConflicts(t *testing.T) {
+	cwd := t.TempDir()
+	cfg := &config.Config{
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID:    "github.com/org/repo-a",
+					Path:      "/source/root/team/repo-a",
+					RemoteURL: "git@github.com:org/repo-a.git",
+					Status:    registry.StatusPresent,
+				},
+			},
+		},
+	}
+	bundle := exportBundle{Config: config.Config{Roots: []string{"/source/root"}}}
+	target := filepath.Join(cwd, "team", "repo-a")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatalf("mkdir target: %v", err)
+	}
+
+	cmd := &cobra.Command{}
+	err := cloneImportedRepos(cmd, cfg, bundle, cwd, false)
+	if err == nil {
+		t.Fatal("expected conflict error")
+	}
+	if !strings.Contains(err.Error(), "import target conflicts detected") {
+		t.Fatalf("expected conflict summary error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), target) {
+		t.Fatalf("expected target path in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "github.com/org/repo-a") {
+		t.Fatalf("expected repo id in error, got: %v", err)
 	}
 }
 
