@@ -24,12 +24,12 @@ tasks:
   build-ci:
     desc: Build all configured platform binaries (CI-style snapshot build)
     cmds:
-      - go tool goreleaser build --snapshot --clean
+      - go -C tools tool goreleaser build --snapshot --clean
 
   test:
     desc: Run test suite
     cmds:
-      - go tool ginkgo ./...
+      - go -C tools tool ginkgo ./...
 
   test-cover:
     desc: Run tests with coverage output
@@ -44,28 +44,28 @@ tasks:
   lint:
     desc: Run linters
     cmds:
-      - go tool golangci-lint run ./...
+      - go -C tools tool golangci-lint run ./...
 
   fmt:
     desc: Format code
     cmds:
-      - go tool goimports -w .
+      - go -C tools tool goimports -w .
       - go fmt ./...
 
   staticcheck:
     desc: Run staticcheck directly
     cmds:
-      - go tool staticcheck ./...
+      - go -C tools tool staticcheck ./...
 
   vuln:
     desc: Run vulnerability scan
     cmds:
-      - go tool govulncheck ./...
+      - go -C tools tool govulncheck ./...
 
   version-next:
     desc: Show next semantic version from git history (svu)
     cmds:
-      - go tool svu next
+      - go -C tools tool svu next
 
   clean:
     desc: Remove build artifacts and clear Go build outputs
