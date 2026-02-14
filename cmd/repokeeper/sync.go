@@ -44,6 +44,7 @@ var syncCmd = &cobra.Command{
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		updateLocal, _ := cmd.Flags().GetBool("update-local")
 		format, _ := cmd.Flags().GetString("format")
+		wrap, _ := cmd.Flags().GetBool("wrap")
 
 		if concurrency == 0 {
 			concurrency = cfg.Defaults.Concurrency
@@ -79,7 +80,7 @@ var syncCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeSyncTable(cmd, results)
+			writeSyncTable(cmd, results, wrap)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -109,11 +110,12 @@ func init() {
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
 	syncCmd.Flags().String("format", "table", "output format: table or json")
+	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 
 	rootCmd.AddCommand(syncCmd)
 }
 
-func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult) {
+func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, wrap bool) {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintln(w, "REPO\tOK\tERROR_CLASS\tERROR\tACTION")
 	for _, res := range results {
@@ -121,7 +123,12 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult) {
 		if !res.OK {
 			ok = "no"
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", res.RepoID, ok, res.ErrorClass, res.Error, res.Action)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			formatCell(res.RepoID, wrap, 28),
+			ok,
+			res.ErrorClass,
+			res.Error,
+			res.Action)
 	}
 	_ = w.Flush()
 }

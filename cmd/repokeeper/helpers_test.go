@@ -52,13 +52,13 @@ func TestWriters(t *testing.T) {
 	}
 
 	out.Reset()
-	writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}})
+	writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}}, "/tmp", nil)
 	if !strings.Contains(out.String(), "TRACKING") {
 		t.Fatal("expected status header")
 	}
 
 	out.Reset()
-	writeSyncTable(cmd, []engine.SyncResult{{RepoID: "r1", OK: false, ErrorClass: "network", Error: "x"}})
+	writeSyncTable(cmd, []engine.SyncResult{{RepoID: "r1", OK: false, ErrorClass: "network", Error: "x"}}, false)
 	if !strings.Contains(out.String(), "ERROR_CLASS") {
 		t.Fatal("expected sync header")
 	}
@@ -75,5 +75,125 @@ func TestLogHelpers(t *testing.T) {
 	debugf(cmd, "hello %s", "debug")
 	if !strings.Contains(errOut.String(), "hello info") || !strings.Contains(errOut.String(), "hello debug") {
 		t.Fatal("expected both info and debug logs")
+	}
+}
+
+func TestWriteStatusTableUsesRelativePathAndLabel(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	prevNoColor := flagNoColor
+	flagNoColor = true
+	defer func() { flagNoColor = prevNoColor }()
+
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				RepoID:   "github.com/org/repo",
+				Path:     "/tmp/work/repos/repo-a",
+				Tracking: model.Tracking{Status: model.TrackingEqual},
+				Worktree: &model.Worktree{Dirty: false},
+			},
+		},
+	}
+	writeStatusTable(cmd, report, "/tmp/work", nil)
+
+	got := out.String()
+	if !strings.Contains(got, "repos/repo-a") {
+		t.Fatalf("expected relative path in output, got: %q", got)
+	}
+	if !strings.Contains(got, "up to date") {
+		t.Fatalf("expected 'up to date' label in output, got: %q", got)
+	}
+}
+
+func TestFormatCellWrapControl(t *testing.T) {
+	val := "abcdefghijklmnopqrstuvwxyz"
+	if got := formatCell(val, false, 10); got != "abcdefg..." {
+		t.Fatalf("expected truncated value, got %q", got)
+	}
+	if got := formatCell(val, true, 10); got != val {
+		t.Fatalf("expected wrapped mode to keep full value, got %q", got)
+	}
+}
+
+func TestWriteStatusTableDoesNotTruncatePathBranchOrTracking(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	prevNoColor := flagNoColor
+	flagNoColor = true
+	defer func() { flagNoColor = prevNoColor }()
+
+	branch := "feature/really-long-branch-name-for-testing"
+	path := "/tmp/workspace/very/long/path/that/should/not/be/truncated/repo"
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				RepoID: "github.com/org/some-really-long-repository-name",
+				Path:   path,
+				Head:   model.Head{Branch: branch},
+				Tracking: model.Tracking{
+					Status: model.TrackingEqual,
+				},
+				Worktree: &model.Worktree{Dirty: false},
+			},
+		},
+	}
+	writeStatusTable(cmd, report, "/tmp", nil)
+
+	got := out.String()
+	if !strings.Contains(got, "workspace/very/long/path/that/should/not/be/truncated/repo") {
+		t.Fatalf("expected full path in output, got: %q", got)
+	}
+	if !strings.Contains(got, branch) {
+		t.Fatalf("expected full branch in output, got: %q", got)
+	}
+	if !strings.Contains(got, "up to date") {
+		t.Fatalf("expected full tracking label in output, got: %q", got)
+	}
+}
+
+func TestWriteStatusTableStripsEscapeMarkers(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	prevNoColor := flagNoColor
+	flagNoColor = false
+	defer func() { flagNoColor = prevNoColor }()
+
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				RepoID: "github.com/org/repo",
+				Path:   "/tmp/repo",
+				Head:   model.Head{Branch: "main"},
+				Tracking: model.Tracking{
+					Status: model.TrackingEqual,
+				},
+				Worktree: &model.Worktree{Dirty: false},
+			},
+		},
+	}
+	writeStatusTable(cmd, report, "/tmp", nil)
+
+	got := out.String()
+	if strings.ContainsRune(got, '\xff') {
+		t.Fatalf("expected no visible tabwriter escape markers, got: %q", got)
+	}
+}
+
+func TestDisplayRepoPathPrefersCWDThenRoot(t *testing.T) {
+	if got := displayRepoPath("/tmp/work/app/repo", "/tmp/work", []string{"/tmp"}); got != "app/repo" {
+		t.Fatalf("expected cwd-relative path, got %q", got)
+	}
+	if got := displayRepoPath("/tmp/root/repo", "/tmp/work", []string{"/tmp/root"}); got != "repo" {
+		t.Fatalf("expected root-relative path, got %q", got)
+	}
+	if got := displayRepoPath("/opt/repo", "/tmp/work", []string{"/tmp/root"}); got != "/opt/repo" {
+		t.Fatalf("expected absolute fallback path, got %q", got)
 	}
 }

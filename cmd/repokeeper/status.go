@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -100,7 +101,7 @@ var statusCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeStatusTable(cmd, report)
+			writeStatusTable(cmd, report, cwd, cfg.Roots)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -122,35 +123,92 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 }
 
-func writeStatusTable(cmd *cobra.Command, report *model.StatusReport) {
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "REPO\tPATH\tBRANCH\tDIRTY\tTRACKING\tAHEAD\tBEHIND\tERROR_CLASS\tERROR")
+func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string) {
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
+	_, _ = fmt.Fprintln(w, "PATH\tBRANCH\tDIRTY\tTRACKING")
 	for _, repo := range report.Repos {
 		branch := repo.Head.Branch
 		if repo.Head.Detached {
 			branch = "detached:" + branch
 		}
+		path := displayRepoPath(repo.Path, cwd, roots)
 		dirty := "-"
 		if repo.Worktree != nil {
 			if repo.Worktree.Dirty {
-				dirty = "yes"
+				dirty = colorize("yes", ansiBrown)
 			} else {
-				dirty = "no"
+				dirty = colorize("no", ansiGreen)
 			}
 		}
-		tracking := string(repo.Tracking.Status)
-		ahead := "-"
-		behind := "-"
-		if repo.Tracking.Ahead != nil {
-			ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
-		}
-		if repo.Tracking.Behind != nil {
-			behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
-		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			repo.RepoID, repo.Path, branch, dirty, tracking, ahead, behind, repo.ErrorClass, repo.Error)
+		tracking := displayTrackingStatus(repo.Tracking.Status)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			path,
+			branch,
+			dirty,
+			tracking)
 	}
 	_ = w.Flush()
+}
+
+const (
+	ansiReset = "\x1b[0m"
+	ansiGreen = "\x1b[32m"
+	ansiBrown = "\x1b[33m"
+	ansiRed   = "\x1b[31m"
+)
+
+func colorize(value, color string) string {
+	if flagNoColor || value == "" || color == "" {
+		return value
+	}
+	// Hide ANSI sequences from tabwriter width calculations so columns align.
+	esc := string([]byte{tabwriter.Escape})
+	return esc + color + esc + value + esc + ansiReset + esc
+}
+
+func displayTrackingStatus(status model.TrackingStatus) string {
+	switch status {
+	case model.TrackingEqual:
+		return colorize("up to date", ansiGreen)
+	case model.TrackingDiverged:
+		return colorize(string(status), ansiRed)
+	case model.TrackingGone:
+		return colorize(string(status), ansiRed)
+	default:
+		return string(status)
+	}
+}
+
+func displayRepoPath(repoPath, cwd string, roots []string) string {
+	if repoPath == "" {
+		return repoPath
+	}
+	if rel, ok := relWithin(cwd, repoPath); ok {
+		return rel
+	}
+	for _, root := range roots {
+		if rel, ok := relWithin(root, repoPath); ok {
+			return rel
+		}
+	}
+	return repoPath
+}
+
+func formatCell(value string, wrap bool, max int) string {
+	if wrap || max <= 0 {
+		return value
+	}
+	return truncateASCII(value, max)
+}
+
+func truncateASCII(value string, max int) string {
+	if len(value) <= max {
+		return value
+	}
+	if max <= 3 {
+		return value[:max]
+	}
+	return value[:max-3] + "..."
 }
 
 func statusHasWarningsOrErrors(report *model.StatusReport, reg *registry.Registry) bool {
@@ -165,4 +223,72 @@ func statusHasWarningsOrErrors(report *model.StatusReport, reg *registry.Registr
 		}
 	}
 	return false
+}
+
+func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, roots []string) {
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH: %s\n", displayRepoPath(repo.Path, cwd, roots))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH_ABS: %s\n", repo.Path)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "REPO: %s\n", repo.RepoID)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BARE: %t\n", repo.Bare)
+	branch := repo.Head.Branch
+	if repo.Head.Detached {
+		branch = "detached:" + branch
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BRANCH: %s\n", branch)
+	dirty := "-"
+	if repo.Worktree != nil {
+		if repo.Worktree.Dirty {
+			dirty = "yes"
+		} else {
+			dirty = "no"
+		}
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "DIRTY: %s\n", dirty)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "TRACKING: %s\n", displayTrackingStatusNoColor(repo.Tracking.Status))
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "UPSTREAM: %s\n", repo.Tracking.Upstream)
+	ahead := "-"
+	if repo.Tracking.Ahead != nil {
+		ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "AHEAD: %s\n", ahead)
+	behind := "-"
+	if repo.Tracking.Behind != nil {
+		behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BEHIND: %s\n", behind)
+	if repo.ErrorClass != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ERROR_CLASS: %s\n", repo.ErrorClass)
+	}
+	if repo.Error != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ERROR: %s\n", repo.Error)
+	}
+}
+
+func displayTrackingStatusNoColor(status model.TrackingStatus) string {
+	if status == model.TrackingEqual {
+		return "up to date"
+	}
+	return string(status)
+}
+
+func relWithin(base, target string) (string, bool) {
+	if strings.TrimSpace(base) == "" || strings.TrimSpace(target) == "" {
+		return "", false
+	}
+	baseAbs, err := filepath.Abs(base)
+	if err != nil {
+		return "", false
+	}
+	targetAbs, err := filepath.Abs(target)
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(baseAbs, targetAbs)
+	if err != nil || rel == "." || rel == ".." {
+		return "", false
+	}
+	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+		return "", false
+	}
+	return rel, true
 }
