@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/config"
@@ -131,15 +132,21 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 	var matches []registry.Entry
 	seen := map[string]struct{}{}
 	for _, candidate := range candidates {
+		candidatePath, ok := canonicalPathForMatch(candidate)
+		if !ok {
+			continue
+		}
 		for _, entry := range entries {
-			if filepath.Clean(entry.Path) == candidate {
-				key := entry.RepoID + "|" + entry.Path
-				if _, ok := seen[key]; ok {
-					continue
-				}
-				seen[key] = struct{}{}
-				matches = append(matches, entry)
+			entryPath, ok := canonicalPathForMatch(entry.Path)
+			if !ok || !samePathForMatch(entryPath, candidatePath) {
+				continue
 			}
+			key := entry.RepoID + "|" + entry.Path
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			matches = append(matches, entry)
 		}
 	}
 
@@ -150,4 +157,23 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(matches))
 	}
 	return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
+}
+
+func canonicalPathForMatch(path string) (string, bool) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", false
+	}
+	return filepath.Clean(abs), true
+}
+
+func samePathForMatch(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
