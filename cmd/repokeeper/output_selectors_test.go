@@ -92,3 +92,39 @@ func TestResolveCustomColumnValue(t *testing.T) {
 		t.Fatalf("value = %q, want equal", value)
 	}
 }
+
+func TestCustomColumnsDeterministicAcrossTerminalWidths(t *testing.T) {
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{RepoID: "github.com/org/repo-a", Tracking: model.Tracking{Status: model.TrackingEqual}},
+		},
+	}
+	render := func(width int) (string, error) {
+		prevIsTerminalFD := isTerminalFD
+		prevGetTerminalSize := getTerminalSize
+		defer func() {
+			isTerminalFD = prevIsTerminalFD
+			getTerminalSize = prevGetTerminalSize
+		}()
+		isTerminalFD = func(int) bool { return true }
+		getTerminalSize = func(int) (int, int, error) { return width, 24, nil }
+
+		out := &bytes.Buffer{}
+		cmd := &cobra.Command{}
+		cmd.SetOut(out)
+		err := writeCustomColumnsOutput(cmd, report, "REPO:.repo_id,TRACKING:.tracking.status", false)
+		return out.String(), err
+	}
+
+	narrow, err := render(80)
+	if err != nil {
+		t.Fatalf("narrow render failed: %v", err)
+	}
+	wide, err := render(160)
+	if err != nil {
+		t.Fatalf("wide render failed: %v", err)
+	}
+	if narrow != wide {
+		t.Fatalf("expected deterministic custom-column output across widths, narrow=%q wide=%q", narrow, wide)
+	}
+}

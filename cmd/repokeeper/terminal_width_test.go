@@ -9,6 +9,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/termstyle"
 	"github.com/spf13/cobra"
 )
 
@@ -281,6 +282,58 @@ func TestWriteSyncTableCompactsColumnsOnTinyTTY(t *testing.T) {
 	}
 	if strings.Contains(got, "REPO") || strings.Contains(got, "BRANCH") || strings.Contains(got, "TRACKING") {
 		t.Fatalf("expected tiny mode to compact sync columns, got: %q", got)
+	}
+}
+
+func TestWriteStatusTableTinyModeRetainsSemanticColor(t *testing.T) {
+	prevIsTerminalFD := isTerminalFD
+	prevGetTerminalSize := getTerminalSize
+	prevColor := runtimeStateFor(rootCmd).colorOutputEnabled
+	defer func() {
+		isTerminalFD = prevIsTerminalFD
+		getTerminalSize = prevGetTerminalSize
+		runtimeStateFor(rootCmd).colorOutputEnabled = prevColor
+	}()
+	isTerminalFD = func(int) bool { return true }
+	getTerminalSize = func(int) (int, int, error) { return 70, 24, nil }
+	runtimeStateFor(rootCmd).colorOutputEnabled = true
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe setup failed: %v", err)
+	}
+	defer reader.Close()
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(writer)
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				Path: "/tmp/repo",
+				Tracking: model.Tracking{
+					Status: model.TrackingGone,
+				},
+				Worktree: &model.Worktree{Dirty: true},
+			},
+		},
+	}
+	if err := writeStatusTable(cmd, report, "/tmp", nil, false, false); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, termstyle.Red) || !strings.Contains(got, termstyle.Reset) {
+		t.Fatalf("expected semantic color output for tracking state, got: %q", got)
+	}
+	if strings.ContainsRune(got, '\xff') {
+		t.Fatalf("expected no visible tabwriter escape marker in colorized output, got: %q", got)
 	}
 }
 

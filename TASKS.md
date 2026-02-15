@@ -256,13 +256,13 @@
 - [x] Add output selector: `-o custom-columns=...` (custom headers/column maps)
 - [x] Non-goal: `-o jsonpath=...` support removed; keep selector surface to `custom-columns`
 - [x] Snapshot tests across terminal widths (for example: 80, 100, 120, 160 cols)
-- [ ] Ensure color and readability parity in compact/reflow modes
+- [x] Ensure color and readability parity in compact/reflow modes
 
 **Acceptance:**
 
-- [ ] Table output remains readable and actionable on small terminal windows without horizontal scrolling for common cases
-- [ ] Output remains deterministic across width classes for automation-safe parsing in machine formats
-- [ ] Milestone 6 remains free of terminal reflow scope
+- [x] Table output remains readable and actionable on small terminal windows without horizontal scrolling for common cases
+- [x] Output remains deterministic across width classes for automation-safe parsing in machine formats
+- [x] Milestone 6 remains free of terminal reflow scope
 
 ### Milestone 8 — Multi-VCS Adapters & Feedback Loop
 
