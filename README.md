@@ -151,6 +151,7 @@ Optional local checkout update:
 - branch is not diverged unless `--force` is set
 - branch is not matched by `--protected-branches` (default: `main,master,release/*`) unless `--allow-protected-rebase` is set
 - `--rebase-dirty` stashes changes, rebases, then pops the stash
+- `--push-local` pushes local commits when a branch is ahead (instead of skipping with "local commits to push")
 - In dry-run/preflight mode, these checks are evaluated up front so the plan calls out which repos are candidates for `fetch + rebase` versus `skip local update (...)`.
 
 ## Documentation

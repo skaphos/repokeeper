@@ -102,6 +102,20 @@ func TestDescribeSyncAction(t *testing.T) {
 			want: "fetch + rebase",
 		},
 		{
+			name: "fetch and push",
+			in: engine.SyncResult{
+				Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git push",
+			},
+			want: "fetch + push",
+		},
+		{
+			name: "push",
+			in: engine.SyncResult{
+				Action: "git push",
+			},
+			want: "push",
+		},
+		{
 			name: "skip no upstream",
 			in: engine.SyncResult{
 				OK:    true,

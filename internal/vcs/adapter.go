@@ -20,6 +20,7 @@ type Adapter interface {
 	HasSubmodules(ctx context.Context, dir string) (bool, error)
 	Fetch(ctx context.Context, dir string) error
 	PullRebase(ctx context.Context, dir string) error
+	Push(ctx context.Context, dir string) error
 	StashPush(ctx context.Context, dir, message string) (bool, error)
 	StashPop(ctx context.Context, dir string) error
 	Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error
@@ -75,6 +76,10 @@ func (g *GitAdapter) Fetch(ctx context.Context, dir string) error {
 
 func (g *GitAdapter) PullRebase(ctx context.Context, dir string) error {
 	return gitx.PullRebase(ctx, g.Runner, dir)
+}
+
+func (g *GitAdapter) Push(ctx context.Context, dir string) error {
+	return gitx.Push(ctx, g.Runner, dir)
 }
 
 func (g *GitAdapter) StashPush(ctx context.Context, dir, message string) (bool, error) {

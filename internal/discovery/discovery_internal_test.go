@@ -50,6 +50,7 @@ func (s *stubAdapter) TrackingStatus(context.Context, string) (model.Tracking, e
 func (s *stubAdapter) HasSubmodules(context.Context, string) (bool, error) { return false, nil }
 func (s *stubAdapter) Fetch(context.Context, string) error                 { return nil }
 func (s *stubAdapter) PullRebase(context.Context, string) error            { return nil }
+func (s *stubAdapter) Push(context.Context, string) error                  { return nil }
 func (s *stubAdapter) StashPush(context.Context, string, string) (bool, error) {
 	return false, nil
 }

@@ -48,6 +48,7 @@ var syncCmd = &cobra.Command{
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		yes, _ := cmd.Flags().GetBool("yes")
 		updateLocal, _ := cmd.Flags().GetBool("update-local")
+		pushLocal, _ := cmd.Flags().GetBool("push-local")
 		rebaseDirty, _ := cmd.Flags().GetBool("rebase-dirty")
 		force, _ := cmd.Flags().GetBool("force")
 		protectedBranchesRaw, _ := cmd.Flags().GetString("protected-branches")
@@ -57,6 +58,9 @@ var syncCmd = &cobra.Command{
 		wrap, _ := cmd.Flags().GetBool("wrap")
 		if rebaseDirty && !updateLocal {
 			return fmt.Errorf("--rebase-dirty requires --update-local")
+		}
+		if pushLocal && !updateLocal {
+			return fmt.Errorf("--push-local requires --update-local")
 		}
 
 		if concurrency == 0 {
@@ -73,6 +77,7 @@ var syncCmd = &cobra.Command{
 			Timeout:              timeout,
 			DryRun:               true,
 			UpdateLocal:          updateLocal,
+			PushLocal:            pushLocal,
 			RebaseDirty:          rebaseDirty,
 			Force:                force,
 			ProtectedBranches:    splitCSV(protectedBranchesRaw),
@@ -109,6 +114,7 @@ var syncCmd = &cobra.Command{
 				Timeout:              timeout,
 				DryRun:               false,
 				UpdateLocal:          updateLocal,
+				PushLocal:            pushLocal,
 				RebaseDirty:          rebaseDirty,
 				Force:                force,
 				ProtectedBranches:    splitCSV(protectedBranchesRaw),
@@ -172,6 +178,7 @@ func init() {
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	syncCmd.Flags().Bool("yes", false, "accept sync plan and execute without confirmation")
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
+	syncCmd.Flags().Bool("push-local", false, "when used with --update-local, push branches that are ahead of upstream")
 	syncCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
 	syncCmd.Flags().Bool("force", false, "when used with --update-local, allow rebase even when branch tracking state is diverged")
 	syncCmd.Flags().String("protected-branches", "main,master,release/*", "comma-separated branch patterns to protect from auto-rebase during --update-local")
@@ -309,8 +316,12 @@ func describeSyncAction(res engine.SyncResult) string {
 	switch {
 	case strings.Contains(normalized, "stash") && strings.Contains(normalized, "rebase"):
 		return "stash & rebase"
+	case strings.Contains(normalized, "fetch --all") && strings.Contains(normalized, "git push"):
+		return "fetch + push"
 	case strings.Contains(normalized, "fetch --all") && strings.Contains(normalized, "pull --rebase"):
 		return "fetch + rebase"
+	case strings.Contains(normalized, "git push"):
+		return "push"
 	case strings.Contains(normalized, "pull --rebase"):
 		return "rebase"
 	case strings.Contains(normalized, "fetch --all"):

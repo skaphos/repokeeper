@@ -224,6 +224,7 @@ type SyncOptions struct {
 	Timeout              int // seconds per repo
 	DryRun               bool
 	UpdateLocal          bool
+	PushLocal            bool
 	RebaseDirty          bool
 	Force                bool
 	ProtectedBranches    []string
@@ -392,6 +393,17 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						}}
 						return
 					}
+					if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
+						action += " && git push"
+						out <- result{res: SyncResult{
+							RepoID: entry.RepoID,
+							Path:   entry.Path,
+							OK:     true,
+							Error:  "dry-run",
+							Action: action,
+						}}
+						return
+					}
 					if reason := pullRebaseSkipReason(
 						status,
 						opts.RebaseDirty,
@@ -458,6 +470,26 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						OK:         false,
 						Error:      err.Error(),
 						ErrorClass: gitx.ClassifyError(err),
+					}}
+					return
+				}
+				if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
+					if err := e.Adapter.Push(repoCtx, entry.Path); err != nil {
+						out <- result{res: SyncResult{
+							RepoID:     entry.RepoID,
+							Path:       entry.Path,
+							OK:         false,
+							Error:      err.Error(),
+							ErrorClass: gitx.ClassifyError(err),
+							Action:     "git push",
+						}}
+						return
+					}
+					out <- result{res: SyncResult{
+						RepoID: entry.RepoID,
+						Path:   entry.Path,
+						OK:     true,
+						Action: "git push",
 					}}
 					return
 				}

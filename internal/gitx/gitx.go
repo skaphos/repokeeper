@@ -217,6 +217,12 @@ func PullRebase(ctx context.Context, r Runner, dir string) error {
 	return err
 }
 
+// Push publishes local commits on the current branch to its upstream.
+func Push(ctx context.Context, r Runner, dir string) error {
+	_, err := r.Run(ctx, dir, "push")
+	return err
+}
+
 // StashPush stashes current worktree changes (including untracked files).
 // Returns true when a stash entry was created.
 func StashPush(ctx context.Context, r Runner, dir, message string) (bool, error) {
