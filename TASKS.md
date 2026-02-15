@@ -21,7 +21,7 @@
 - [x] runtime commands resolve nearest `.repokeeper.yaml` by walking parent directories
 - [x] `repokeeper status --help`
 - [ ] `go tool golangci-lint run ./...` passes
-- [ ] `ginkgo ./...` runs (even if no tests yet)
+- [x] `go tool ginkgo ./...` runs (even if no tests yet)
 
 ### Milestone 1 — Discovery + registry
 
@@ -92,9 +92,9 @@
 - [x] Kubectl-aligned command aliases (additive):
 - [x] `get repos`, `describe repo`, `reconcile repos`, `repair upstream`
 - [x] map existing commands to new aliases with parity tests
-- [ ] Output contract alignment:
-- [ ] converge list commands on shared columns and `-o` semantics
-- [ ] add `--no-headers` and deterministic sort behavior everywhere
+- [x] Output contract alignment:
+- [x] converge list commands on shared columns and `-o` semantics
+- [x] add `--no-headers` and deterministic sort behavior everywhere
 - [x] implement `-o wide` for repo list/reconcile views
 - [ ] Color/styling policy hardening:
 - [x] auto-color only for TTY table output; disable color for machine formats
