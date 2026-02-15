@@ -242,6 +242,10 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
 	}
+	pathMax := adaptiveCellLimit(cmd, 0, 48, 32)
+	actionMax := adaptiveCellLimit(cmd, 0, 22, 16)
+	branchMax := adaptiveCellLimit(cmd, 0, 24, 16)
+	repoMax := adaptiveCellLimit(cmd, 0, 32, 20)
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
@@ -251,9 +255,9 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 		branch := "-"
 		dirty := "-"
 		tracking := string(model.TrackingNone)
-		path := displayRepoPath(res.Path, cwd, roots)
+		path := formatCell(displayRepoPath(res.Path, cwd, roots), wrap, pathMax)
 		if found {
-			path = displayRepoPath(repo.Path, cwd, roots)
+			path = formatCell(displayRepoPath(repo.Path, cwd, roots), wrap, pathMax)
 			branch = repo.Head.Branch
 			if repo.Head.Detached {
 				branch = "detached:" + branch
@@ -275,17 +279,20 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 				tracking = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "mirror", termstyle.Info)
 			}
 		}
+		action := formatCell(describeSyncAction(res), wrap, actionMax)
+		branch = formatCell(branch, wrap, branchMax)
+		repoID := formatCell(res.RepoID, wrap, repoMax)
 		if !wide {
 			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				path,
-				describeSyncAction(res),
+				action,
 				branch,
 				dirty,
 				tracking,
 				ok,
 				res.ErrorClass,
 				formatCell(res.Error, wrap, 36),
-				res.RepoID); err != nil {
+				repoID); err != nil {
 				return err
 			}
 			continue
@@ -307,14 +314,14 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 		}
 		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
-			describeSyncAction(res),
+			action,
 			branch,
 			dirty,
 			tracking,
 			ok,
 			res.ErrorClass,
 			formatCell(res.Error, wrap, 36),
-			res.RepoID,
+			repoID,
 			primaryRemote,
 			upstream,
 			ahead,

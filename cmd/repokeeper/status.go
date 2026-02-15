@@ -225,6 +225,8 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
 	}
+	pathMax := adaptiveCellLimit(cmd, 0, 48, 32)
+	branchMax := adaptiveCellLimit(cmd, 0, 24, 16)
 	for _, repo := range report.Repos {
 		branch := repo.Head.Branch
 		if repo.Head.Detached {
@@ -233,7 +235,8 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		if repo.Type == "mirror" {
 			branch = "-"
 		}
-		path := displayRepoPath(repo.Path, cwd, roots)
+		path := formatCell(displayRepoPath(repo.Path, cwd, roots), false, pathMax)
+		branch = formatCell(branch, false, branchMax)
 		dirty := "-"
 		if repo.Worktree != nil {
 			if repo.Worktree.Dirty {
@@ -298,6 +301,10 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
 	}
+	pathMax := adaptiveCellLimit(cmd, 0, 48, 32)
+	branchMax := adaptiveCellLimit(cmd, 0, 24, 16)
+	reasonMax := adaptiveCellLimit(cmd, 0, 36, 24)
+	actionMax := adaptiveCellLimit(cmd, 0, 36, 24)
 	for _, repo := range report.Repos {
 		advice, ok := adviceByPath[repo.Path]
 		if !ok {
@@ -307,10 +314,13 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 		if repo.Head.Detached {
 			branch = "detached:" + branch
 		}
-		path := displayRepoPath(repo.Path, cwd, roots)
+		path := formatCell(displayRepoPath(repo.Path, cwd, roots), false, pathMax)
+		branch = formatCell(branch, false, branchMax)
 		tracking := displayTrackingStatus(repo.Tracking.Status)
+		reason := formatCell(advice.Reason, false, reasonMax)
+		action := formatCell(advice.RecommendedAction, false, actionMax)
 		if !wide {
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", path, branch, tracking, advice.Reason, advice.RecommendedAction); err != nil {
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", path, branch, tracking, reason, action); err != nil {
 				return err
 			}
 			continue
@@ -333,8 +343,8 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 			repo.Tracking.Upstream,
 			ahead,
 			behind,
-			advice.Reason,
-			advice.RecommendedAction,
+			reason,
+			action,
 		); err != nil {
 			return err
 		}

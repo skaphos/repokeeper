@@ -249,7 +249,7 @@
 
 - [ ] Replace stdlib `text/tabwriter` with `github.com/liggitt/tabwriter` to align kubectl-style table behavior
 - [ ] Evaluate kubectl printer-stack compatibility (`k8s.io/cli-runtime/pkg/printers`) without taking Kubernetes object dependencies
-- [ ] Width-aware table rendering for narrow terminals (kubectl-style reflow behavior)
+- [x] Width-aware table rendering for narrow terminals (kubectl-style reflow behavior)
 - [ ] Adaptive column strategy by view (`get/status`, `reconcile/sync`, `repair`) with deterministic priority
 - [ ] Smart truncation rules and optional wrapping that preserve key identifiers (`PATH`, `REPO`, `ACTION`)
 - [ ] Dynamic header/column compaction for small widths while keeping `-o json` stable
