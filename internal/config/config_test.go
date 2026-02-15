@@ -103,6 +103,7 @@ var _ = Describe("Config", func() {
 		Expect(loaded.APIVersion).To(Equal(config.ConfigAPIVersion))
 		Expect(loaded.Kind).To(Equal(config.ConfigKind))
 		Expect(loaded.Defaults.RemoteName).To(Equal("origin"))
+		Expect(loaded.Defaults.MainBranch).To(Equal("main"))
 	})
 
 	It("defaults missing gvk when loading legacy config", func() {

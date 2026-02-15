@@ -170,8 +170,8 @@
 - [ ] Remove outdated loop capture pattern:
 - [x] remove `entry := entry` captures in goroutine loops (unnecessary since Go 1.22)
 - [ ] Configurable main branch assumption:
-  - [ ] make hardcoded `/main` suffix check in `pullRebaseSkipReason` configurable
-  - [ ] add `defaults.main_branch` config option or use protected-branches pattern
+- [x] make hardcoded `/main` suffix check in `pullRebaseSkipReason` configurable
+- [x] add `defaults.main_branch` config option or use protected-branches pattern
 - [ ] Dependency cleanup:
 - [x] run `go mod tidy` to fix `golang.org/x/term` direct/indirect status
 

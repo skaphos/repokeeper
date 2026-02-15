@@ -165,7 +165,7 @@ func TestPullRebaseSkipReasonTable(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := pullRebaseSkipReason(tc.status, tc.dirty, tc.force, tc.prot, tc.allow)
+			got := pullRebaseSkipReason(tc.status, "main", tc.dirty, tc.force, tc.prot, tc.allow)
 			if got != tc.want {
 				t.Fatalf("pullRebaseSkipReason() = %q, want %q", got, tc.want)
 			}
@@ -374,5 +374,19 @@ func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
 	}
 	if results[0].OK || results[0].Outcome != "failed_fetch" {
 		t.Fatalf("expected failed_fetch result, got %#v", results[0])
+	}
+}
+
+func TestPullRebaseSkipReasonUsesConfiguredMainBranch(t *testing.T) {
+	status := &model.RepoStatus{
+		Head:     model.Head{Branch: "develop"},
+		Worktree: &model.Worktree{Dirty: false},
+		Tracking: model.Tracking{Status: model.TrackingBehind, Upstream: "origin/develop"},
+	}
+	if got := pullRebaseSkipReason(status, "develop", false, false, nil, true); got != "" {
+		t.Fatalf("expected configured main branch to allow rebase, got %q", got)
+	}
+	if got := pullRebaseSkipReason(status, "main", false, false, nil, true); got != "upstream \"origin/develop\" is not main" {
+		t.Fatalf("expected branch mismatch reason, got %q", got)
 	}
 }

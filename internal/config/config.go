@@ -29,6 +29,7 @@ const (
 // Defaults holds default values for operations.
 type Defaults struct {
 	RemoteName     string `yaml:"remote_name"`
+	MainBranch     string `yaml:"main_branch"`
 	Concurrency    int    `yaml:"concurrency"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
@@ -53,6 +54,7 @@ func DefaultConfig() Config {
 		RegistryStaleDays: 30,
 		Defaults: Defaults{
 			RemoteName:     "origin",
+			MainBranch:     "main",
 			Concurrency:    8,
 			TimeoutSeconds: 60,
 		},
@@ -208,6 +210,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Defaults.RemoteName == "" {
 		cfg.Defaults.RemoteName = DefaultConfig().Defaults.RemoteName
+	}
+	if cfg.Defaults.MainBranch == "" {
+		cfg.Defaults.MainBranch = DefaultConfig().Defaults.MainBranch
 	}
 
 	return &cfg, nil

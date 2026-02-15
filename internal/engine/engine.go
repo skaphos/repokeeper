@@ -407,6 +407,10 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	}
 
 	entries := e.Registry.Entries
+	mainBranch := "main"
+	if e.Config != nil && strings.TrimSpace(e.Config.Defaults.MainBranch) != "" {
+		mainBranch = strings.TrimSpace(e.Config.Defaults.MainBranch)
+	}
 	if !opts.ContinueOnError {
 		// Preserve deterministic "stop on first failure" semantics by running one
 		// entry at a time through the same Sync logic used for batch mode.
@@ -589,6 +593,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					}
 					if reason := pullRebaseSkipReason(
 						status,
+						mainBranch,
 						opts.RebaseDirty,
 						opts.Force,
 						opts.ProtectedBranches,
@@ -685,6 +690,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				}
 				if reason := pullRebaseSkipReason(
 					status,
+					mainBranch,
 					opts.RebaseDirty,
 					opts.Force,
 					opts.ProtectedBranches,
@@ -774,6 +780,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 
 func pullRebaseSkipReason(
 	status *model.RepoStatus,
+	mainBranch string,
 	rebaseDirty, force bool,
 	protectedBranches []string,
 	allowProtectedRebase bool,
@@ -804,8 +811,12 @@ func pullRebaseSkipReason(
 	if status.Tracking.Upstream == "" || status.Tracking.Status == model.TrackingNone {
 		return "branch is not tracking an upstream"
 	}
-	if !strings.HasSuffix(status.Tracking.Upstream, "/main") {
-		return fmt.Sprintf("upstream %q is not main", status.Tracking.Upstream)
+	mainBranch = strings.TrimSpace(mainBranch)
+	if mainBranch == "" {
+		mainBranch = "main"
+	}
+	if !strings.HasSuffix(status.Tracking.Upstream, "/"+mainBranch) {
+		return fmt.Sprintf("upstream %q is not %s", status.Tracking.Upstream, mainBranch)
 	}
 	if status.Tracking.Status == model.TrackingAhead {
 		return "branch has local commits to push"
