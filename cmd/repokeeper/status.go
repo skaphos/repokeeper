@@ -56,6 +56,7 @@ var statusCmd = &cobra.Command{
 		roots, _ := cmd.Flags().GetString("roots")
 		format, _ := cmd.Flags().GetString("format")
 		only, _ := cmd.Flags().GetString("only")
+		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 
 		adapter := vcs.NewGitAdapter(nil)
 		eng := engine.New(cfg, reg, adapter)
@@ -104,7 +105,7 @@ var statusCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeStatusTable(cmd, report, cwd, []string{cfgRoot})
+			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -122,13 +123,16 @@ func init() {
 	statusCmd.Flags().String("registry", "", "override registry file path")
 	statusCmd.Flags().String("format", "table", "output format: table or json")
 	statusCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
+	statusCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 
 	rootCmd.AddCommand(statusCmd)
 }
 
-func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string) {
+func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool) {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
-	_, _ = fmt.Fprintln(w, "PATH\tBRANCH\tDIRTY\tTRACKING")
+	if !noHeaders {
+		_, _ = fmt.Fprintln(w, "PATH\tBRANCH\tDIRTY\tTRACKING")
+	}
 	for _, repo := range report.Repos {
 		branch := repo.Head.Branch
 		if repo.Head.Detached {

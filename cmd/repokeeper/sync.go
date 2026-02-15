@@ -58,6 +58,7 @@ var syncCmd = &cobra.Command{
 		allowProtectedRebase, _ := cmd.Flags().GetBool("allow-protected-rebase")
 		checkoutMissing, _ := cmd.Flags().GetBool("checkout-missing")
 		format, _ := cmd.Flags().GetString("format")
+		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 		wrap, _ := cmd.Flags().GetBool("wrap")
 		if rebaseDirty && !updateLocal {
 			return fmt.Errorf("--rebase-dirty requires --update-local")
@@ -153,7 +154,7 @@ var syncCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap)
+			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap, noHeaders)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -191,6 +192,7 @@ func init() {
 	syncCmd.Flags().Bool("allow-protected-rebase", false, "when used with --update-local, allow rebase on branches matched by --protected-branches")
 	syncCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
 	syncCmd.Flags().String("format", "table", "output format: table or json")
+	syncCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 
 	rootCmd.AddCommand(syncCmd)
@@ -243,7 +245,7 @@ func syncResultNeedsConfirmation(res engine.SyncResult) bool {
 	return false
 }
 
-func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool) {
+func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool) {
 	statusByPath := make(map[string]model.RepoStatus, len(results))
 	if report != nil {
 		for _, repo := range report.Repos {
@@ -252,7 +254,9 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 	}
 
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
-	_, _ = fmt.Fprintln(w, "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO")
+	if !noHeaders {
+		_, _ = fmt.Fprintln(w, "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO")
+	}
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {

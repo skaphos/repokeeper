@@ -52,7 +52,7 @@ func TestWriters(t *testing.T) {
 	}
 
 	out.Reset()
-	writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}}, "/tmp", nil)
+	writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}}, "/tmp", nil, false)
 	if !strings.Contains(out.String(), "TRACKING") {
 		t.Fatal("expected status header")
 	}
@@ -64,6 +64,7 @@ func TestWriters(t *testing.T) {
 		&model.StatusReport{Repos: []model.RepoStatus{{Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}},
 		"/tmp",
 		nil,
+		false,
 		false,
 	)
 	if !strings.Contains(out.String(), "PATH") || !strings.Contains(out.String(), "TRACKING") || !strings.Contains(out.String(), "ERROR_CLASS") || !strings.Contains(out.String(), "REPO") {
@@ -141,6 +142,42 @@ func TestDescribeSyncAction(t *testing.T) {
 	}
 }
 
+func TestWriteStatusTableNoHeaders(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	writeStatusTable(cmd, &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}},
+		},
+	}, "/tmp", nil, true)
+
+	if strings.Contains(out.String(), "PATH") {
+		t.Fatalf("expected no table headers, got: %q", out.String())
+	}
+}
+
+func TestWriteSyncTableNoHeaders(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	writeSyncTable(
+		cmd,
+		[]engine.SyncResult{{RepoID: "r1", Path: "/repo", OK: true, Outcome: "fetched"}},
+		&model.StatusReport{Repos: []model.RepoStatus{{Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}},
+		"/tmp",
+		nil,
+		false,
+		true,
+	)
+
+	if strings.Contains(out.String(), "ACTION") {
+		t.Fatalf("expected no sync table headers, got: %q", out.String())
+	}
+}
+
 func TestLogHelpers(t *testing.T) {
 	cmd := &cobra.Command{}
 	errOut := &bytes.Buffer{}
@@ -174,7 +211,7 @@ func TestWriteStatusTableUsesRelativePathAndLabel(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp/work", nil)
+	writeStatusTable(cmd, report, "/tmp/work", nil, false)
 
 	got := out.String()
 	if !strings.Contains(got, "repos/repo-a") {
@@ -219,7 +256,7 @@ func TestWriteStatusTableDoesNotTruncatePathBranchOrTracking(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp", nil)
+	writeStatusTable(cmd, report, "/tmp", nil, false)
 
 	got := out.String()
 	if !strings.Contains(got, "workspace/very/long/path/that/should/not/be/truncated/repo") {
@@ -255,7 +292,7 @@ func TestWriteStatusTableStripsEscapeMarkers(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp", nil)
+	writeStatusTable(cmd, report, "/tmp", nil, false)
 
 	got := out.String()
 	if strings.ContainsRune(got, '\xff') {

@@ -54,6 +54,7 @@ var repairUpstreamCmd = &cobra.Command{
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		only, _ := cmd.Flags().GetString("only")
 		format, _ := cmd.Flags().GetString("format")
+		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 
 		var reg *registry.Registry
 		if registryOverride != "" {
@@ -210,7 +211,7 @@ var repairUpstreamCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeRepairUpstreamTable(cmd, results, cwd, []string{cfgRoot})
+			writeRepairUpstreamTable(cmd, results, cwd, []string{cfgRoot}, noHeaders)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -249,9 +250,11 @@ func repairUpstreamMatchesFilter(current, target, filter string) bool {
 	}
 }
 
-func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult, cwd string, roots []string) {
+func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult, cwd string, roots []string, noHeaders bool) {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO")
+	if !noHeaders {
+		_, _ = fmt.Fprintln(w, "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO")
+	}
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
@@ -279,5 +282,6 @@ func init() {
 	repairUpstreamCmd.Flags().Bool("dry-run", true, "preview upstream repairs without executing git changes")
 	repairUpstreamCmd.Flags().String("only", "all", "filter: all, missing, mismatch")
 	repairUpstreamCmd.Flags().String("format", "table", "output format: table or json")
+	repairUpstreamCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	rootCmd.AddCommand(repairUpstreamCmd)
 }
