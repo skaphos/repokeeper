@@ -88,7 +88,7 @@ repokeeper sync
 | `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
 | `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form for a single repository |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository (`--branch` or `--mirror`) |
-| `repokeeper delete <repo-id-or-path>` | Remove a repository from the registry |
+| `repokeeper delete <repo-id-or-path>` | Delete repository files and remove from registry (`--tracking-only` keeps files, ignores path) |
 | `repokeeper edit <repo-id-or-path>` | Update repo metadata/tracking (`--set-upstream`) |
 | `repokeeper repair-upstream` | Repair missing/mismatched upstream tracking across registered repos |
 | `repokeeper repair upstream` | Kubectl-style alias for upstream repair |
@@ -119,6 +119,7 @@ For `status`, `--dry-run` defaults to `true` and only affects remote-mismatch re
 In merge mode, conflicts on the same `repo_id` can be resolved with `--on-conflict skip|bundle|local` (default `bundle`).
 
 `repokeeper import` clones imported entries into the current directory layout by default. Use `--file-only` to disable registry import/cloning. In merge mode against an existing config, clone only applies to merge-selected bundle entries (new repos and bundle-wins conflicts). If a target repo path already exists, import reports conflicting paths unless `--dangerously-delete-existing` is set.
+Paths listed in config `ignored_paths` are skipped during import and will not be re-added to local registry data.
 
 Use `repokeeper import --file-only` to import only the config file without registry data or cloning.
 
@@ -128,6 +129,7 @@ Use `repokeeper repair-upstream --dry-run` to preview upstream tracking fixes, t
 When `repair-upstream --dry-run=false` would modify tracking, RepoKeeper prompts for confirmation by default; use `--yes` for non-interactive runs.
 
 `scan`, `status`, and `sync` accept `--vcs git,hg` (default `git`) to choose one or more repository backends.
+`repokeeper delete --tracking-only` removes the registry entry but keeps files on disk, adds the path to `ignored_paths`, and warns that future scan/import runs will not add it back.
 
 ### Global flags
 

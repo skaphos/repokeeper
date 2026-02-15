@@ -131,6 +131,7 @@ Flags:
 #### `repokeeper scan`
 
 Scans roots for repositories and updates local registry.
+Paths configured in `ignored_paths` are excluded from scan discovery and are not re-added.
 
 Flags:
 
@@ -185,6 +186,7 @@ Removes a repository entry from the registry.
 Flags:
 
 * `--registry <path>` (optional)
+* `--tracking-only` (optional; keep files on disk, remove registry entry, and add path to `ignored_paths`)
 
 #### `repokeeper edit <repo-id-or-path>`
 
@@ -395,6 +397,7 @@ exclude:
   - "**/node_modules/**"
   - "**/.terraform/**"
   - "**/dist/**"
+ignored_paths: []
 registry:
   updated_at: "2026-02-10T16:00:00-06:00"
   repos: []

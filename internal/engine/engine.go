@@ -94,6 +94,10 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 	if err := e.registry.ValidatePaths(); err != nil {
 		return nil, err
 	}
+	ignoredPaths := ignoredPathSet(e.cfg)
+	if len(ignoredPaths) > 0 {
+		e.registry.Entries = filterRegistryEntriesByIgnoredPaths(e.registry.Entries, ignoredPaths)
+	}
 
 	results, err := discovery.Scan(ctx, discovery.Options{
 		Roots:          roots,
@@ -109,7 +113,12 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 	discoveredPaths := make(map[string]struct{}, len(results))
 	var statuses []model.RepoStatus
 	for _, res := range results {
-		discoveredPaths[filepath.Clean(res.Path)] = struct{}{}
+		discoveredPath := filepath.Clean(res.Path)
+		if ignoredPaths[discoveredPath] {
+			// User-marked ignored paths are never re-added by scan.
+			continue
+		}
+		discoveredPaths[discoveredPath] = struct{}{}
 		repoID := res.RepoID
 		if repoID == "" {
 			repoID = "local:" + filepath.ToSlash(res.Path)
@@ -159,6 +168,34 @@ func pathUnderAnyRoot(path string, roots []string) bool {
 		}
 	}
 	return false
+}
+
+func ignoredPathSet(cfg *config.Config) map[string]bool {
+	out := make(map[string]bool)
+	if cfg == nil {
+		return out
+	}
+	for _, p := range cfg.IgnoredPaths {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		out[filepath.Clean(p)] = true
+	}
+	return out
+}
+
+func filterRegistryEntriesByIgnoredPaths(entries []registry.Entry, ignored map[string]bool) []registry.Entry {
+	if len(entries) == 0 || len(ignored) == 0 {
+		return entries
+	}
+	kept := make([]registry.Entry, 0, len(entries))
+	for _, entry := range entries {
+		if ignored[filepath.Clean(entry.Path)] {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	return kept
 }
 
 // StatusOptions configures a status operation.

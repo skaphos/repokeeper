@@ -53,6 +53,29 @@ func TestScanUpdatesRegistry(t *testing.T) {
 	}
 }
 
+func TestScanSkipsIgnoredPaths(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	if out, err := exec.Command("git", "init", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v %s", err, string(out))
+	}
+
+	cfg := &config.Config{Exclude: []string{}, IgnoredPaths: []string{repo}}
+	reg := &registry.Registry{}
+	eng := New(cfg, reg, vcs.NewGitAdapter(nil))
+
+	statuses, err := eng.Scan(context.Background(), ScanOptions{Roots: []string{root}})
+	if err != nil {
+		t.Fatalf("scan failed: %v", err)
+	}
+	if len(statuses) != 0 {
+		t.Fatalf("expected ignored repo omitted from scan statuses, got %d", len(statuses))
+	}
+	if len(reg.Entries) != 0 {
+		t.Fatalf("expected ignored repo omitted from registry, got %+v", reg.Entries)
+	}
+}
+
 func TestFilterAndSortHelpers(t *testing.T) {
 	reg := &registry.Registry{
 		Entries: []registry.Entry{{RepoID: "r1", Status: registry.StatusMissing}},

@@ -209,6 +209,36 @@ func TestCloneImportedReposMarksFailedCloneAsMissing(t *testing.T) {
 	}
 }
 
+func TestDropIgnoredImportEntriesRemovesIgnoredTargets(t *testing.T) {
+	cwd := t.TempDir()
+	cfg := &config.Config{
+		IgnoredPaths: []string{filepath.Join(cwd, "team", "repo-a")},
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID: "github.com/org/repo-a",
+					Path:   "/source/root/team/repo-a",
+					Status: registry.StatusPresent,
+				},
+				{
+					RepoID: "github.com/org/repo-b",
+					Path:   "/source/root/team/repo-b",
+					Status: registry.StatusPresent,
+				},
+			},
+		},
+	}
+
+	dropIgnoredImportEntries(cfg, exportBundle{Root: "/source/root"}, cwd)
+
+	if got := cfg.Registry.FindByRepoID("github.com/org/repo-a"); got != nil {
+		t.Fatalf("expected ignored import entry to be removed, got %+v", got)
+	}
+	if got := cfg.Registry.FindByRepoID("github.com/org/repo-b"); got == nil {
+		t.Fatal("expected non-ignored import entry to be retained")
+	}
+}
+
 func TestImportCommandArgsValidation(t *testing.T) {
 	if importCmd.Args == nil {
 		t.Fatal("expected import command args validator")

@@ -39,6 +39,7 @@ type Config struct {
 	APIVersion        string             `yaml:"apiVersion"`
 	Kind              string             `yaml:"kind"`
 	Exclude           []string           `yaml:"exclude"`
+	IgnoredPaths      []string           `yaml:"ignored_paths,omitempty"`
 	RegistryPath      string             `yaml:"registry_path,omitempty"`
 	Registry          *registry.Registry `yaml:"registry,omitempty"`
 	RegistryStaleDays int                `yaml:"registry_stale_days"`

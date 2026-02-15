@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -266,5 +267,59 @@ func TestDeleteCancelledByPrompt(t *testing.T) {
 	}
 	if _, err := os.Stat(repoPath); err != nil {
 		t.Fatalf("expected repository to remain on disk, stat err=%v", err)
+	}
+}
+
+func TestDeleteTrackingOnlyAddsIgnoredPathAndKeepsRepo(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	repoPath := filepath.Join(t.TempDir(), "repo-track-only")
+	mustRunGit(t, filepath.Dir(repoPath), "init", repoPath)
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{{
+			RepoID: "local:repo-track-only",
+			Path:   repoPath,
+			Status: registry.StatusPresent,
+		}},
+	}
+	if err := config.Save(cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "true")
+	defer func() { _ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes)) }()
+
+	prevTrackingOnly, _ := deleteCmd.Flags().GetBool("tracking-only")
+	_ = deleteCmd.Flags().Set("tracking-only", "true")
+	defer func() { _ = deleteCmd.Flags().Set("tracking-only", boolToFlag(prevTrackingOnly)) }()
+
+	prevDeleteRegistry, _ := deleteCmd.Flags().GetString("registry")
+	_ = deleteCmd.Flags().Set("registry", "")
+	defer func() { _ = deleteCmd.Flags().Set("registry", prevDeleteRegistry) }()
+
+	if err := deleteCmd.RunE(deleteCmd, []string{"local:repo-track-only"}); err != nil {
+		t.Fatalf("tracking-only delete failed: %v", err)
+	}
+
+	cfg, err = config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if cfg.Registry != nil && len(cfg.Registry.Entries) != 0 {
+		t.Fatalf("expected entry removed from registry, got %+v", cfg.Registry.Entries)
+	}
+	if !slices.Contains(cfg.IgnoredPaths, filepath.Clean(repoPath)) {
+		t.Fatalf("expected ignored path %q, got %#v", filepath.Clean(repoPath), cfg.IgnoredPaths)
+	}
+	if _, err := os.Stat(repoPath); err != nil {
+		t.Fatalf("expected repo to remain on disk for tracking-only delete, got %v", err)
 	}
 }

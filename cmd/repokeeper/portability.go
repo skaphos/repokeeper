@@ -189,6 +189,7 @@ var importCmd = &cobra.Command{
 
 		cfg := prepareImportedConfig(mode, existingCfg, hasExistingCfg, bundle.Config)
 		mergeImportedRegistry(&cfg, mode, includeRegistry, bundle.Registry, onConflict)
+		dropIgnoredImportEntries(&cfg, bundle, cwd)
 		if !preserveRegistryPath && mode == importModeReplace {
 			cfg.RegistryPath = ""
 		}
@@ -380,6 +381,7 @@ func cloneImportedEntriesWithProgress(
 	}
 
 	adapter := vcs.NewGitAdapter(nil)
+	ignored := ignoredPathSet(cfg)
 	targets := make(map[string]registry.Entry, len(entries))
 	skipped := make(map[string]registry.Entry)
 	skipReasons := make(map[string]string)
@@ -399,6 +401,12 @@ func cloneImportedEntriesWithProgress(
 			return nil, fmt.Errorf("multiple repos resolve to same target path %q", target)
 		}
 		targets[target] = entry
+
+		if ignored[target] {
+			skipped[target] = entry
+			skipReasons[target] = "path is ignored by local config"
+			continue
+		}
 
 		if entry.Status == registry.StatusMissing {
 			skipped[target] = entry
@@ -492,6 +500,11 @@ func cloneImportedEntriesWithProgress(
 		}
 	}
 	for target, entry := range skipped {
+		if skipReasons[target] == "path is ignored by local config" {
+			removeRegistryEntryByRepoID(cfg.Registry, entry.RepoID)
+			infof(cmd, "skipping import for %s: %s", entry.RepoID, skipReasons[target])
+			continue
+		}
 		entry.Path = target
 		if entry.Status == "" || skipReasons[target] == "no remote URL configured" {
 			entry.Status = registry.StatusMissing
@@ -579,6 +592,20 @@ func setRegistryEntryByRepoID(reg *registry.Registry, entry registry.Entry) {
 	reg.Entries = append(reg.Entries, entry)
 }
 
+func removeRegistryEntryByRepoID(reg *registry.Registry, repoID string) {
+	if reg == nil {
+		return
+	}
+	out := reg.Entries[:0]
+	for _, entry := range reg.Entries {
+		if entry.RepoID == repoID {
+			continue
+		}
+		out = append(out, entry)
+	}
+	reg.Entries = out
+}
+
 func importTargetRelativePath(entry registry.Entry, root string) string {
 	if rel, ok := relWithin(root, entry.Path); ok {
 		// Keep exported layout stable when the path is under the exported config root.
@@ -600,6 +627,42 @@ func importTargetRelativePath(entry registry.Entry, root string) string {
 		return "repo"
 	}
 	return name
+}
+
+func dropIgnoredImportEntries(cfg *config.Config, bundle exportBundle, cwd string) {
+	if cfg == nil || cfg.Registry == nil {
+		return
+	}
+	ignored := ignoredPathSet(cfg)
+	if len(ignored) == 0 {
+		return
+	}
+	kept := make([]registry.Entry, 0, len(cfg.Registry.Entries))
+	for _, entry := range cfg.Registry.Entries {
+		if ignored[filepath.Clean(entry.Path)] {
+			continue
+		}
+		target := filepath.Clean(filepath.Join(cwd, importTargetRelativePath(entry, bundle.Root)))
+		if ignored[target] {
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	cfg.Registry.Entries = kept
+}
+
+func ignoredPathSet(cfg *config.Config) map[string]bool {
+	out := make(map[string]bool)
+	if cfg == nil {
+		return out
+	}
+	for _, p := range cfg.IgnoredPaths {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		out[filepath.Clean(p)] = true
+	}
+	return out
 }
 
 func cloneRegistry(reg *registry.Registry) *registry.Registry {

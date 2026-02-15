@@ -3,6 +3,8 @@ package repokeeper
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/registry"
@@ -27,8 +29,12 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+		trackingOnly, _ := cmd.Flags().GetBool("tracking-only")
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
+		if trackingOnly && registryOverride != "" {
+			return fmt.Errorf("--tracking-only is not supported with --registry override (ignored paths are stored in config)")
+		}
 		var reg *registry.Registry
 		if registryOverride != "" {
 			reg, err = registry.Load(registryOverride)
@@ -47,9 +53,13 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 		if !assumeYes(cmd) {
+			prompt := fmt.Sprintf("Delete %s at %s and remove from registry? [y/N]: ", entry.RepoID, entry.Path)
+			if trackingOnly {
+				prompt = fmt.Sprintf("Stop tracking %s and ignore %s for future scans/imports? [y/N]: ", entry.RepoID, entry.Path)
+			}
 			confirmed, err := confirmWithPrompt(
 				cmd,
-				fmt.Sprintf("Delete %s at %s and remove from registry? [y/N]: ", entry.RepoID, entry.Path),
+				prompt,
 			)
 			if err != nil {
 				return err
@@ -70,8 +80,10 @@ var deleteCmd = &cobra.Command{
 		if idx < 0 {
 			return fmt.Errorf("entry not found for selector %q", args[0])
 		}
-		if err := os.RemoveAll(entry.Path); err != nil {
-			return fmt.Errorf("delete repository path %q: %w", entry.Path, err)
+		if !trackingOnly {
+			if err := os.RemoveAll(entry.Path); err != nil {
+				return fmt.Errorf("delete repository path %q: %w", entry.Path, err)
+			}
 		}
 		reg.Entries = append(reg.Entries[:idx], reg.Entries[idx+1:]...)
 
@@ -81,11 +93,26 @@ var deleteCmd = &cobra.Command{
 			}
 		} else {
 			cfg.Registry = reg
+			if trackingOnly {
+				ignored := filepath.Clean(entry.Path)
+				if !slices.Contains(cfg.IgnoredPaths, ignored) {
+					cfg.IgnoredPaths = append(cfg.IgnoredPaths, ignored)
+				}
+			}
 			if err := config.Save(cfg, cfgPath); err != nil {
 				return err
 			}
 		}
 
+		if trackingOnly {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "stopped tracking %s (%s)\n", entry.RepoID, entry.Path); err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "warning: future scan/import runs will ignore this path and not add it back to the registry"); err != nil {
+				return err
+			}
+			return nil
+		}
 		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "deleted %s (%s)\n", entry.RepoID, entry.Path); err != nil {
 			return err
 		}
@@ -95,5 +122,6 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	deleteCmd.Flags().String("registry", "", "override registry file path")
+	deleteCmd.Flags().Bool("tracking-only", false, "remove from registry only and ignore this path in future scan/import runs")
 	rootCmd.AddCommand(deleteCmd)
 }
