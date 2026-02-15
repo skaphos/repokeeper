@@ -381,7 +381,8 @@ func cloneImportedEntriesWithProgress(
 
 	adapter := vcs.NewGitAdapter(nil)
 	targets := make(map[string]registry.Entry, len(entries))
-	skippedLocal := make(map[string]registry.Entry)
+	skipped := make(map[string]registry.Entry)
+	skipReasons := make(map[string]string)
 	for _, entry := range entries {
 		targetRel := importTargetRelativePath(entry, bundle.Root)
 		target := filepath.Clean(filepath.Join(cwd, targetRel))
@@ -399,17 +400,27 @@ func cloneImportedEntriesWithProgress(
 		}
 		targets[target] = entry
 
+		if entry.Status == registry.StatusMissing {
+			skipped[target] = entry
+			skipReasons[target] = "marked missing in bundle"
+			continue
+		}
+
 		remoteURL := strings.TrimSpace(entry.RemoteURL)
 		if remoteURL == "" {
-			if strings.HasPrefix(strings.TrimSpace(entry.RepoID), "local:") {
-				skippedLocal[target] = entry
-				continue
-			}
-			return nil, fmt.Errorf("cannot clone %q: missing remote_url in bundle", entry.RepoID)
+			skipped[target] = entry
+			skipReasons[target] = "no remote URL configured"
+			continue
+		}
+
+		if entry.Type != "mirror" && strings.TrimSpace(entry.Branch) == "" {
+			skipped[target] = entry
+			skipReasons[target] = "no upstream branch configured"
+			continue
 		}
 	}
 	if !dangerouslyDeleteExisting {
-		conflicts := findImportTargetConflicts(targets, skippedLocal)
+		conflicts := findImportTargetConflicts(targets, skipped)
 		if len(conflicts) > 0 {
 			var lines []string
 			for _, conflict := range conflicts {
@@ -425,7 +436,7 @@ func cloneImportedEntriesWithProgress(
 
 	failures := make([]engine.SyncResult, 0)
 	for target, entry := range targets {
-		if _, skip := skippedLocal[target]; skip {
+		if _, skip := skipped[target]; skip {
 			continue
 		}
 		result := engine.SyncResult{RepoID: entry.RepoID, Path: target, Action: "git clone"}
@@ -473,12 +484,14 @@ func cloneImportedEntriesWithProgress(
 			_ = progress.WriteResult(result)
 		}
 	}
-	for target, entry := range skippedLocal {
+	for target, entry := range skipped {
 		entry.Path = target
-		entry.Status = registry.StatusMissing
+		if entry.Status == "" || skipReasons[target] == "no remote URL configured" {
+			entry.Status = registry.StatusMissing
+		}
 		entry.LastSeen = time.Now()
 		setRegistryEntryByRepoID(cfg.Registry, entry)
-		infof(cmd, "skipping local-only repo %s: missing remote_url", entry.RepoID)
+		infof(cmd, "skipping import clone for %s: %s", entry.RepoID, skipReasons[target])
 	}
 	return failures, nil
 }

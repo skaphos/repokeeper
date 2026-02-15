@@ -46,6 +46,7 @@ func TestCloneImportedReposReportsSpecificTargetConflicts(t *testing.T) {
 					RepoID:    "github.com/org/repo-a",
 					Path:      "/source/root/team/repo-a",
 					RemoteURL: "git@github.com:org/repo-a.git",
+					Branch:    "main",
 					Status:    registry.StatusPresent,
 				},
 			},
@@ -108,7 +109,7 @@ func TestCloneImportedReposSkipsLocalEntriesWithoutRemoteURL(t *testing.T) {
 	}
 }
 
-func TestCloneImportedReposErrorsForNonLocalMissingRemoteURL(t *testing.T) {
+func TestCloneImportedReposSkipsNonLocalMissingRemoteURL(t *testing.T) {
 	cwd := t.TempDir()
 	cfg := &config.Config{
 		Registry: &registry.Registry{
@@ -125,12 +126,52 @@ func TestCloneImportedReposErrorsForNonLocalMissingRemoteURL(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
-	err := cloneImportedRepos(cmd, cfg, bundle, cwd, false)
-	if err == nil {
-		t.Fatal("expected error for non-local repo missing remote_url")
-	}
-	if !strings.Contains(err.Error(), "missing remote_url in bundle") {
+	if err := cloneImportedRepos(cmd, cfg, bundle, cwd, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(cfg.Registry.Entries) != 1 {
+		t.Fatalf("expected one entry, got %d", len(cfg.Registry.Entries))
+	}
+	entry := cfg.Registry.Entries[0]
+	if entry.Path == "" {
+		t.Fatal("expected skipped entry path to be rewritten under import root")
+	}
+}
+
+func TestCloneImportedReposSkipsMissingAndNoUpstreamEntries(t *testing.T) {
+	cwd := t.TempDir()
+	cfg := &config.Config{
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID:    "github.com/org/missing",
+					Path:      "/source/root/team/missing",
+					RemoteURL: "git@github.com:org/missing.git",
+					Branch:    "main",
+					Status:    registry.StatusMissing,
+				},
+				{
+					RepoID:    "github.com/org/no-upstream",
+					Path:      "/source/root/team/no-upstream",
+					RemoteURL: "git@github.com:org/no-upstream.git",
+					Status:    registry.StatusPresent,
+				},
+			},
+		},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	if err := cloneImportedRepos(cmd, cfg, exportBundle{Root: "/source/root"}, cwd, false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := cfg.Registry.FindByRepoID("github.com/org/missing"); got == nil || got.Status != registry.StatusMissing {
+		t.Fatalf("expected missing repo to stay missing, got %+v", got)
+	}
+	if got := cfg.Registry.FindByRepoID("github.com/org/no-upstream"); got == nil || got.Path != filepath.Join(cwd, "team", "no-upstream") {
+		t.Fatalf("expected no-upstream repo path rewrite under import root, got %+v", got)
 	}
 }
 

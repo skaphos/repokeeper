@@ -280,13 +280,15 @@ type syncProgressWriter struct {
 	cwd   string
 	roots []string
 
-	mu      sync.Mutex
-	running map[string]*syncProgressState
+	supportsInPlace bool
+	mu              sync.Mutex
+	running         map[string]*syncProgressState
 }
 
 type syncProgressState struct {
 	displayPath string
 	dots        int
+	lastLen     int
 	stop        chan struct{}
 	done        chan struct{}
 }
@@ -305,11 +307,16 @@ func shouldStreamSyncResults(cmd *cobra.Command, dryRun bool, kind outputKind) b
 }
 
 func newSyncProgressWriter(cmd *cobra.Command, cwd string, roots []string) *syncProgressWriter {
+	supportsInPlace := false
+	if file, ok := cmd.OutOrStdout().(*os.File); ok {
+		supportsInPlace = isTerminalFD(int(file.Fd()))
+	}
 	return &syncProgressWriter{
-		cmd:     cmd,
-		cwd:     cwd,
-		roots:   roots,
-		running: make(map[string]*syncProgressState),
+		cmd:             cmd,
+		cwd:             cwd,
+		roots:           roots,
+		supportsInPlace: supportsInPlace,
+		running:         make(map[string]*syncProgressState),
 	}
 }
 
@@ -328,7 +335,7 @@ func (s *syncProgressWriter) StartResult(res engine.SyncResult) error {
 		return nil
 	}
 	s.running[res.Path] = state
-	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s %s\n", path, strings.Repeat(".", state.dots)); err != nil {
+	if err := s.writeProgressLine(state, strings.Repeat(".", state.dots), false); err != nil {
 		delete(s.running, res.Path)
 		s.mu.Unlock()
 		return err
@@ -355,7 +362,7 @@ func (s *syncProgressWriter) runDots(path string, state *syncProgressState) {
 				return
 			}
 			state.dots++
-			_, _ = fmt.Fprintf(s.cmd.OutOrStdout(), "%s %s\n", state.displayPath, strings.Repeat(".", state.dots))
+			_ = s.writeProgressLine(state, strings.Repeat(".", state.dots), false)
 			s.mu.Unlock()
 		}
 	}
@@ -380,7 +387,8 @@ func (s *syncProgressWriter) WriteResult(res engine.SyncResult) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	action := describeSyncAction(res)
-	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s %s\n", path, syncProgressMessage(s.cmd, res)); err != nil {
+	state := &syncProgressState{displayPath: path}
+	if err := s.writeProgressLine(state, syncProgressMessage(s.cmd, res), true); err != nil {
 		return err
 	}
 	if !res.OK && !strings.HasPrefix(action, "skip") && !isQuiet(s.cmd) && strings.TrimSpace(res.Error) != "" {
@@ -388,6 +396,33 @@ func (s *syncProgressWriter) WriteResult(res engine.SyncResult) error {
 		return err
 	}
 	return nil
+}
+
+func (s *syncProgressWriter) writeProgressLine(state *syncProgressState, message string, newline bool) error {
+	line := fmt.Sprintf("%s %s", state.displayPath, message)
+	if s.supportsInPlace {
+		padding := ""
+		if state.lastLen > len(line) {
+			padding = strings.Repeat(" ", state.lastLen-len(line))
+		}
+		if newline {
+			if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "\r%s%s\n", line, padding); err != nil {
+				return err
+			}
+		} else {
+			if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "\r%s%s", line, padding); err != nil {
+				return err
+			}
+		}
+		state.lastLen = len(line)
+		return nil
+	}
+	if newline {
+		_, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s\n", line)
+		return err
+	}
+	_, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s\n", line)
+	return err
 }
 
 func syncProgressMessage(cmd *cobra.Command, res engine.SyncResult) string {
