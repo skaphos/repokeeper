@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    # Limit Dependabot to direct module dependencies only.
+    # This excludes the tool dependency graph from alerts/PRs.
+    allow:
+      - dependency-type: direct
