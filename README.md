@@ -78,6 +78,7 @@ repokeeper sync
 
 `repokeeper sync --format table` shows `PATH`, a summarized `ACTION` (`fetch`, `fetch + rebase`, `skip ...`), status context (`BRANCH`, `DIRTY`, `TRACKING`), outcome (`OK`, `ERROR_CLASS`, `ERROR`), and `REPO` as the trailing identifier column.
 `repokeeper sync` shows a preflight plan. Confirmation is requested only when the plan includes local-branch-changing actions (`pull --rebase`/stash+rebase) or checkout-missing clones; fetch-only plans run without a prompt. Use `--yes` to skip confirmation when it is required.
+`repokeeper sync` supports `--only diverged` and `--only remote-mismatch` for targeted remediation runs.
 
 `repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 
@@ -92,6 +93,8 @@ repokeeper sync
 Use `repokeeper import --file-only` to import only the config file without registry data or cloning.
 
 Use `repokeeper sync --checkout-missing` to clone registry entries currently marked missing (using their `remote_url`, `branch`, and mirror type).
+
+Use `repokeeper repair-upstream --dry-run` to preview upstream tracking fixes, then `repokeeper repair-upstream --dry-run=false` to apply. Use `--only missing` or `--only mismatch` to focus the repair set.
 
 ### Global flags
 
@@ -153,6 +156,7 @@ Optional local checkout update:
 - branch is not matched by `--protected-branches` (default: `main,master,release/*`) unless `--allow-protected-rebase` is set
 - `--rebase-dirty` stashes changes, rebases, then pops the stash
 - `--push-local` pushes local commits when a branch is ahead (instead of skipping with "local commits to push")
+- `--continue-on-error` keeps processing all repos after per-repo failures (default true)
 - In dry-run/preflight mode, these checks are evaluated up front so the plan calls out which repos are candidates for `fetch + rebase` versus `skip local update (...)`.
 
 ## Documentation

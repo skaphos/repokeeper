@@ -148,7 +148,7 @@ Flags:
 * `--roots …` (optional)
 * `--registry <path>` (optional)
 * `--format table|json` (default table)
-* `--only errors|dirty|clean|gone|missing|all` (default all)
+* `--only errors|dirty|clean|gone|diverged|remote-mismatch|missing|all` (default all)
 
 #### `repokeeper describe <repo-id-or-path>`
 
@@ -193,13 +193,30 @@ Shows a preflight plan and prompts for confirmation before executing unless `--y
 
 Flags:
 
-* `--only errors|dirty|clean|gone|missing|all`
+* `--only errors|dirty|clean|gone|diverged|remote-mismatch|missing|all`
 * `--concurrency <n>` (default: min(8, CPU))
 * `--timeout <duration>` (default 60s/repo)
+* `--continue-on-error` (default true; continue syncing remaining repos after per-repo failures)
 * `--dry-run`
 * `--yes` (skip confirmation prompt and execute immediately)
-* `--update-local` (optional; after fetch, run `pull --rebase` only for clean repos tracking `*/main` and not ahead/diverged)
+* `--update-local` (optional; after fetch, run local branch updates based on tracking state)
+* `--push-local` (optional; when branch is ahead, run `git push` instead of skipping)
+* `--rebase-dirty` (optional; stash, rebase, then pop for dirty worktrees)
+* `--force` (optional; allow rebase when branch is diverged)
+* `--protected-branches` (default `main,master,release/*`; block auto-rebase on matching branches)
+* `--allow-protected-rebase` (optional; override protected branch safeguard)
 * `--checkout-missing` (optional; clone repos marked missing from registry metadata)
+* `--format table|json`
+
+#### `repokeeper repair-upstream`
+
+Inspects registered repositories for missing or mismatched upstream tracking and optionally repairs them.
+
+Flags:
+
+* `--registry <path>` (optional)
+* `--dry-run` (default true; preview only)
+* `--only all|missing|mismatch`
 * `--format table|json`
 
 #### `repokeeper export`
@@ -250,6 +267,70 @@ Non-goals for TUI:
 * If it looks like `htop` for repos, that's good enough.
 
 > Note: TUI is a frontend; it must call the same core engine APIs as CLI. All business logic lives in `internal/engine/`.
+
+### 5.3 Kubectl-Style CLI Alignment (Milestone 6+)
+
+RepoKeeper CLI should align with common `kubectl` conventions where practical, with one intentional delta: preserve colorized table output when terminal capability allows.
+
+#### 5.3.1 Command shape
+
+Target command grammar (additive, backwards-compatible aliases during migration):
+
+* `repokeeper get repos` (status/list view)
+* `repokeeper describe repo <repo-id-or-path>`
+* `repokeeper edit repo <repo-id-or-path>`
+* `repokeeper delete repo <repo-id-or-path>`
+* `repokeeper reconcile repos` (sync/reconciliation workflows)
+* `repokeeper repair upstream` (tracking repair workflows)
+
+Existing commands (`status`, `sync`, `repair-upstream`, etc.) remain supported during migration and should map to the new internal actions.
+
+#### 5.3.2 Output contracts
+
+List-style commands (`get`, `reconcile`, `repair`) should converge on:
+
+* `-o table|wide|json|yaml|name` (phase 1: `table|json`, phase 2 extends format set)
+* `--no-headers`
+* stable sorting and deterministic rows
+* explicit per-row machine outcome fields for automation (example: `outcome=fetched|rebased|pushed|skipped_*|failed_*`)
+
+Table baseline for repos:
+
+* `NAME` (repo id short name), `PATH`, `BRANCH`, `TRACKING`, `DIRTY`, `STATUS`
+
+`-o wide` extends with:
+
+* `PRIMARY_REMOTE`, `UPSTREAM`, `AHEAD`, `BEHIND`, `ERROR_CLASS`
+
+#### 5.3.3 Styling and color policy (intentional delta vs kubectl)
+
+RepoKeeper should keep color by default for human table output when:
+
+* stdout is a TTY,
+* terminal supports ANSI,
+* `--no-color` is not set,
+* `NO_COLOR` is not set.
+
+RepoKeeper should suppress color for machine-focused output (`json`, `yaml`, `name`) regardless of TTY.
+
+Recommended semantic colors:
+
+* green: healthy (`up to date`, success outcomes),
+* yellow: warnings/action-needed (`dirty`, non-fatal skips),
+* red: failures/errors (`diverged`, operation failures),
+* blue: informational states (`mirror`, local-only).
+
+#### 5.3.4 Filter and selector direction
+
+Current `--only` filters remain supported.
+Future selector syntax should move toward kubectl-like field filtering semantics (for example, `--field-selector tracking.status=diverged`), with `--only` retained as shorthand aliases.
+
+#### 5.3.5 Migration strategy
+
+1. Add new kubectl-style command aliases and shared output primitives.
+2. Move documentation/examples to new command forms.
+3. Keep old forms available through at least one minor release cycle.
+4. Emit deprecation notices only after parity is achieved.
 
 ## 6. Data Model
 
