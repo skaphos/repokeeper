@@ -67,6 +67,7 @@ repokeeper sync
 | `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository (`--branch` or `--mirror`) |
 | `repokeeper delete <repo-id-or-path>` | Remove a repository from the registry |
+| `repokeeper edit <repo-id-or-path>` | Update repo metadata/tracking (`--set-upstream`) |
 | `repokeeper sync` | Fetch and prune all repos safely |
 | `repokeeper export` | Export config (and registry) for migration |
 | `repokeeper import` | Import a previously exported bundle |
@@ -78,6 +79,8 @@ repokeeper sync
 `repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 
 `repokeeper add` accepts `--branch <name>` for a single-branch checkout clone or `--mirror` for a full mirror clone (bare, no working tree). Mirror repos are tracked and shown in status as `TRACKING=mirror`.
+
+`repokeeper edit <repo-id-or-path> --set-upstream <remote/branch>` updates both local git tracking and the registry metadata branch.
 
 `repokeeper export --output -` and `repokeeper import` support shell piping (for example: `repokeeper import < repokeeper-export.yaml`).
 

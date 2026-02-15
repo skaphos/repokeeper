@@ -177,6 +177,15 @@ Flags:
 
 * `--registry <path>` (optional)
 
+#### `repokeeper edit <repo-id-or-path>`
+
+Updates per-repo metadata and tracking.
+
+Flags:
+
+* `--set-upstream <remote/branch>` (required; updates git branch upstream and registry branch metadata)
+* `--registry <path>` (optional)
+
 #### `repokeeper sync`
 
 Runs safe fetch/prune on repos (all or selected).
