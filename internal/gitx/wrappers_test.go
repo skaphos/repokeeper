@@ -79,6 +79,22 @@ func TestSetUpstreamWrapper(t *testing.T) {
 	}
 }
 
+func TestSetRemoteURLWrapper(t *testing.T) {
+	mock := &MockRunner{Responses: map[string]MockResponse{
+		"/repo:remote set-url origin git@github.com:org/repo.git": {Output: ""},
+	}}
+	if err := gitx.SetRemoteURL(context.Background(), mock, "/repo", "origin", "git@github.com:org/repo.git"); err != nil {
+		t.Fatalf("expected set remote url success, got %v", err)
+	}
+
+	mock = &MockRunner{Responses: map[string]MockResponse{
+		"/repo:remote set-url origin git@github.com:org/repo.git": {Err: errors.New("set-url failed")},
+	}}
+	if err := gitx.SetRemoteURL(context.Background(), mock, "/repo", "origin", "git@github.com:org/repo.git"); err == nil {
+		t.Fatal("expected set remote url failure")
+	}
+}
+
 func TestStashPopWrapper(t *testing.T) {
 	mock := &MockRunner{Responses: map[string]MockResponse{
 		"/repo:stash pop": {Output: ""},

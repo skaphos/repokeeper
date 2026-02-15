@@ -210,6 +210,8 @@
     - [x] edit.go
     - [x] add.go
     - [x] repair_upstream.go
+    - [x] status.go (remote mismatch git reconcile path)
+    - [x] portability.go (import clone path)
   - [ ] extract remote mismatch logic from status.go to dedicated package
 - [ ] Flag/config consolidation:
   - [x] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions
@@ -237,7 +239,7 @@
 - [ ] `go test -race ./...` passes with no data races
 - [x] Channel buffers capped at reasonable fixed size
 - [x] Engine fields are private with controlled access
-- [ ] All commands use Adapter interface instead of direct GitRunner
+- [x] All commands use Adapter interface instead of direct GitRunner
 - [x] Flag definitions are DRY (single helper per common flag pattern)
 - [ ] Unit test coverage for command handlers >= 70%
 - [ ] Integration tests cover symlink, bare repo, and missing repo scenarios

@@ -54,6 +54,7 @@ func (s *stubAdapter) Push(context.Context, string) error                  { ret
 func (s *stubAdapter) SetUpstream(context.Context, string, string, string) error {
 	return nil
 }
+func (s *stubAdapter) SetRemoteURL(context.Context, string, string, string) error { return nil }
 func (s *stubAdapter) StashPush(context.Context, string, string) (bool, error) {
 	return false, nil
 }

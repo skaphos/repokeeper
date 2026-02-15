@@ -49,6 +49,10 @@ func (p *planAdapter) SetUpstream(_ context.Context, dir, upstream, branch strin
 	p.calls = append(p.calls, "set-upstream:"+dir+":"+upstream+":"+branch)
 	return nil
 }
+func (p *planAdapter) SetRemoteURL(_ context.Context, dir, remote, remoteURL string) error {
+	p.calls = append(p.calls, "set-remote-url:"+dir+":"+remote+":"+remoteURL)
+	return nil
+}
 func (p *planAdapter) StashPush(_ context.Context, dir, _ string) (bool, error) {
 	p.calls = append(p.calls, "stash-push:"+dir)
 	return p.stashCreated, p.stashErrByDir[dir]

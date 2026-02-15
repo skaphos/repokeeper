@@ -232,6 +232,12 @@ func SetUpstream(ctx context.Context, r Runner, dir, upstream, branch string) er
 	return err
 }
 
+// SetRemoteURL updates the URL for a named remote.
+func SetRemoteURL(ctx context.Context, r Runner, dir, remote, remoteURL string) error {
+	_, err := r.Run(ctx, dir, "remote", "set-url", strings.TrimSpace(remote), strings.TrimSpace(remoteURL))
+	return err
+}
+
 // StashPush stashes current worktree changes (including untracked files).
 // Returns true when a stash entry was created.
 func StashPush(ctx context.Context, r Runner, dir, message string) (bool, error) {

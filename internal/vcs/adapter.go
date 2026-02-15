@@ -22,6 +22,7 @@ type Adapter interface {
 	PullRebase(ctx context.Context, dir string) error
 	Push(ctx context.Context, dir string) error
 	SetUpstream(ctx context.Context, dir, upstream, branch string) error
+	SetRemoteURL(ctx context.Context, dir, remote, remoteURL string) error
 	StashPush(ctx context.Context, dir, message string) (bool, error)
 	StashPop(ctx context.Context, dir string) error
 	Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error
@@ -85,6 +86,10 @@ func (g *GitAdapter) Push(ctx context.Context, dir string) error {
 
 func (g *GitAdapter) SetUpstream(ctx context.Context, dir, upstream, branch string) error {
 	return gitx.SetUpstream(ctx, g.Runner, dir, upstream, branch)
+}
+
+func (g *GitAdapter) SetRemoteURL(ctx context.Context, dir, remote, remoteURL string) error {
+	return gitx.SetRemoteURL(ctx, g.Runner, dir, remote, remoteURL)
 }
 
 func (g *GitAdapter) StashPush(ctx context.Context, dir, message string) (bool, error) {

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
@@ -191,7 +190,7 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 		return nil
 	}
 
-	runner := &gitx.GitRunner{}
+	adapter := vcs.NewGitAdapter(nil)
 	targets := make(map[string]registry.Entry, len(cfg.Registry.Entries))
 	skippedLocal := make(map[string]registry.Entry)
 	for _, entry := range cfg.Registry.Entries {
@@ -261,7 +260,7 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 			cloneArgs = append(cloneArgs, "--branch", strings.TrimSpace(entry.Branch), "--single-branch")
 		}
 		cloneArgs = append(cloneArgs, strings.TrimSpace(entry.RemoteURL), target)
-		if _, err := runner.Run(cmd.Context(), "", cloneArgs...); err != nil {
+		if err := adapter.Clone(cmd.Context(), strings.TrimSpace(entry.RemoteURL), target, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
 			return fmt.Errorf("git %s: %w", strings.Join(cloneArgs, " "), err)
 		}
 		entry.Path = target

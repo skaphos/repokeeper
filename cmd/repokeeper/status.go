@@ -10,7 +10,6 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/strutil"
@@ -654,12 +653,12 @@ func applyRemoteMismatchPlans(cmd *cobra.Command, plans []remoteMismatchPlan, re
 			reg.Entries[plan.EntryIndex].LastSeen = time.Now()
 		}
 	case remoteMismatchReconcileGit:
-		runner := &gitx.GitRunner{}
+		adapter := vcs.NewGitAdapter(nil)
 		for _, plan := range plans {
 			if strings.TrimSpace(plan.PrimaryRemote) == "" {
 				continue
 			}
-			if _, err := runner.Run(cmd.Context(), plan.Path, "remote", "set-url", plan.PrimaryRemote, plan.RegistryURL); err != nil {
+			if err := adapter.SetRemoteURL(cmd.Context(), plan.Path, plan.PrimaryRemote, plan.RegistryURL); err != nil {
 				return fmt.Errorf("git remote set-url %s %s (%s): %w", plan.PrimaryRemote, plan.RegistryURL, plan.Path, err)
 			}
 		}
