@@ -250,7 +250,7 @@ type SyncResult struct {
 	// Path is the repository filesystem path the action applies to.
 	Path string
 	// Outcome is the typed sync outcome category.
-	Outcome SyncOutcome
+	Outcome OutcomeKind
 	// OK indicates whether the sync action succeeded.
 	OK bool
 	// Error contains the raw error text when OK is false or an action is skipped.
@@ -261,30 +261,33 @@ type SyncResult struct {
 	Action string
 }
 
-// SyncOutcome is the typed outcome category for a single sync result.
-type SyncOutcome string
+// OutcomeKind is the typed outcome category for a single sync result.
+type OutcomeKind string
+
+// SyncOutcome is retained as an alias for compatibility.
+type SyncOutcome = OutcomeKind
 
 const (
-	SyncOutcomeFailedInvalid         SyncOutcome = "failed_invalid"
-	SyncOutcomeFailedCheckoutMissing SyncOutcome = "failed_checkout_missing"
-	SyncOutcomeCheckoutMissing       SyncOutcome = "checkout_missing"
-	SyncOutcomeFailedFetch           SyncOutcome = "failed_fetch"
-	SyncOutcomeFetched               SyncOutcome = "fetched"
-	SyncOutcomeFailedStash           SyncOutcome = "failed_stash"
-	SyncOutcomeFailedRebase          SyncOutcome = "failed_rebase"
-	SyncOutcomeFailedStashPop        SyncOutcome = "failed_stash_pop"
-	SyncOutcomeFailedPush            SyncOutcome = "failed_push"
-	SyncOutcomePushed                SyncOutcome = "pushed"
-	SyncOutcomeSkippedNoUpstream     SyncOutcome = "skipped_no_upstream"
-	SyncOutcomeSkippedMissing        SyncOutcome = "skipped_missing"
-	SyncOutcomePlannedCheckout       SyncOutcome = "planned_checkout_missing"
-	SyncOutcomePlannedPush           SyncOutcome = "planned_push"
-	SyncOutcomeSkippedLocalUpdate    SyncOutcome = "skipped_local_update"
-	SyncOutcomePlannedFetch          SyncOutcome = "planned_fetch"
-	SyncOutcomeSkipped               SyncOutcome = "skipped"
-	SyncOutcomeRebased               SyncOutcome = "rebased"
-	SyncOutcomeStashedRebased        SyncOutcome = "stashed_rebased"
-	SyncOutcomeFailedInspect         SyncOutcome = "failed_inspect"
+	SyncOutcomeFailedInvalid         OutcomeKind = "failed_invalid"
+	SyncOutcomeFailedCheckoutMissing OutcomeKind = "failed_checkout_missing"
+	SyncOutcomeCheckoutMissing       OutcomeKind = "checkout_missing"
+	SyncOutcomeFailedFetch           OutcomeKind = "failed_fetch"
+	SyncOutcomeFetched               OutcomeKind = "fetched"
+	SyncOutcomeFailedStash           OutcomeKind = "failed_stash"
+	SyncOutcomeFailedRebase          OutcomeKind = "failed_rebase"
+	SyncOutcomeFailedStashPop        OutcomeKind = "failed_stash_pop"
+	SyncOutcomeFailedPush            OutcomeKind = "failed_push"
+	SyncOutcomePushed                OutcomeKind = "pushed"
+	SyncOutcomeSkippedNoUpstream     OutcomeKind = "skipped_no_upstream"
+	SyncOutcomeSkippedMissing        OutcomeKind = "skipped_missing"
+	SyncOutcomePlannedCheckout       OutcomeKind = "planned_checkout_missing"
+	SyncOutcomePlannedPush           OutcomeKind = "planned_push"
+	SyncOutcomeSkippedLocalUpdate    OutcomeKind = "skipped_local_update"
+	SyncOutcomePlannedFetch          OutcomeKind = "planned_fetch"
+	SyncOutcomeSkipped               OutcomeKind = "skipped"
+	SyncOutcomeRebased               OutcomeKind = "rebased"
+	SyncOutcomeStashedRebased        OutcomeKind = "stashed_rebased"
+	SyncOutcomeFailedInspect         OutcomeKind = "failed_inspect"
 
 	SyncErrorDryRun                   = "dry-run"
 	SyncErrorMissing                  = "missing"
@@ -399,7 +402,7 @@ func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult
 	return executed
 }
 
-func failedPlannedSyncResult(executed SyncResult, outcome SyncOutcome, err error) SyncResult {
+func failedPlannedSyncResult(executed SyncResult, outcome OutcomeKind, err error) SyncResult {
 	executed.OK = false
 	executed.Outcome = outcome
 	executed.Error = err.Error()
@@ -883,7 +886,7 @@ func matchesProtectedBranch(branch string, patterns []string) bool {
 	return false
 }
 
-func outcomeForRebase(stashed bool) SyncOutcome {
+func outcomeForRebase(stashed bool) OutcomeKind {
 	if stashed {
 		return SyncOutcomeStashedRebased
 	}
