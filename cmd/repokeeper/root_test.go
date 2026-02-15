@@ -140,3 +140,31 @@ func TestExecuteUsesExitFunc(t *testing.T) {
 		t.Fatalf("expected Execute to pass success code to exit func, got %d", gotCode)
 	}
 }
+
+func TestLogHelpersRespectQuietAndVerbose(t *testing.T) {
+	prevQuiet := flagQuiet
+	prevVerbose := flagVerbose
+	defer func() {
+		flagQuiet = prevQuiet
+		flagVerbose = prevVerbose
+	}()
+
+	cmd := &cobra.Command{}
+	errOut := &bytes.Buffer{}
+	cmd.SetErr(errOut)
+
+	flagQuiet = true
+	flagVerbose = 1
+	infof(cmd, "hidden info")
+	debugf(cmd, "hidden debug")
+	if errOut.Len() != 0 {
+		t.Fatalf("expected no output in quiet mode, got %q", errOut.String())
+	}
+
+	flagQuiet = false
+	flagVerbose = 0
+	debugf(cmd, "still hidden debug")
+	if errOut.Len() != 0 {
+		t.Fatalf("expected debug to stay hidden without verbosity, got %q", errOut.String())
+	}
+}

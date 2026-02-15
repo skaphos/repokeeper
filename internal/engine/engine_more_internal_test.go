@@ -176,3 +176,80 @@ func TestHasRemoteMismatchCases(t *testing.T) {
 		t.Fatal("expected mismatch for differing remotes")
 	}
 }
+
+func TestMatchesProtectedBranch(t *testing.T) {
+	if matchesProtectedBranch("", []string{"main"}) {
+		t.Fatal("expected blank branch to never match")
+	}
+	if matchesProtectedBranch("main", []string{""}) {
+		t.Fatal("expected blank pattern to be ignored")
+	}
+	if !matchesProtectedBranch("release/v1", []string{"release/*"}) {
+		t.Fatal("expected glob match for protected branch")
+	}
+	if matchesProtectedBranch("main", []string{"["}) {
+		t.Fatal("expected invalid glob pattern to be ignored")
+	}
+}
+
+func TestFilterStatusKindsAndSorts(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "repo-clean", Path: "/repos/clean", RemoteURL: "git@github.com:org/clean.git"},
+			{RepoID: "github.com/other/dirty", Path: "/repos/dirty", RemoteURL: "git@github.com:org/dirty.git"},
+			{RepoID: "missing", Path: "/repos/missing", Status: registry.StatusMissing},
+		},
+	}
+	clean := model.RepoStatus{
+		RepoID:   "github.com/org/clean",
+		Path:     "/repos/clean",
+		Worktree: &model.Worktree{Dirty: false},
+		Tracking: model.Tracking{Status: model.TrackingEqual},
+	}
+	dirty := model.RepoStatus{
+		RepoID:   "github.com/other/dirty",
+		Path:     "/repos/dirty",
+		Worktree: &model.Worktree{Dirty: true},
+		Tracking: model.Tracking{Status: model.TrackingDiverged},
+		Error:    "boom",
+	}
+	missing := model.RepoStatus{RepoID: "missing", Path: "/repos/missing", ErrorClass: "missing"}
+	gone := model.RepoStatus{RepoID: "gone", Path: "/repos/gone", Tracking: model.Tracking{Status: model.TrackingGone}}
+
+	if !filterStatus(FilterAll, clean, reg) {
+		t.Fatal("expected all filter to include repo")
+	}
+	if !filterStatus(FilterErrors, dirty, reg) {
+		t.Fatal("expected errors filter to include repo with error")
+	}
+	if !filterStatus(FilterDirty, dirty, reg) {
+		t.Fatal("expected dirty filter to include dirty repo")
+	}
+	if !filterStatus(FilterClean, clean, reg) {
+		t.Fatal("expected clean filter to include clean repo")
+	}
+	if !filterStatus(FilterMissing, missing, reg) {
+		t.Fatal("expected missing filter to include missing repo")
+	}
+	if !filterStatus(FilterGone, gone, reg) {
+		t.Fatal("expected gone filter to include gone repo")
+	}
+	if !filterStatus(FilterDiverged, dirty, reg) {
+		t.Fatal("expected diverged filter to include diverged repo")
+	}
+	if !filterStatus(FilterRemoteMismatch, dirty, reg) {
+		t.Fatal("expected remote mismatch filter to include mismatched repo")
+	}
+
+	repos := []model.RepoStatus{{RepoID: "b"}, {RepoID: "a"}}
+	sortRepoStatuses(repos)
+	if repos[0].RepoID != "a" {
+		t.Fatalf("expected repos sorted by repo id, got %#v", repos)
+	}
+
+	results := []SyncResult{{RepoID: "b"}, {RepoID: "a"}}
+	sortSyncResults(results)
+	if results[0].RepoID != "a" {
+		t.Fatalf("expected sync results sorted by repo id, got %#v", results)
+	}
+}

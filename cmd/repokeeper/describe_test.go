@@ -157,3 +157,32 @@ func TestRunDescribeRepoUnsupportedFormat(t *testing.T) {
 		t.Fatalf("expected unsupported format error, got: %v", err)
 	}
 }
+
+func TestSelectRegistryEntryForDescribeErrorsAndHelpers(t *testing.T) {
+	entries := []registry.Entry{
+		{RepoID: "github.com/org/repo-a", Path: "/tmp/work/repo-a"},
+		{RepoID: "github.com/org/repo-b", Path: "/tmp/root/repo-b"},
+		{RepoID: "github.com/org/repo-c", Path: "/tmp/work/dup"},
+		{RepoID: "github.com/org/repo-d", Path: "/tmp/root/dup"},
+	}
+
+	if _, err := selectRegistryEntryForDescribe(entries, "   ", "/tmp/work", []string{"/tmp/root"}); err == nil {
+		t.Fatal("expected empty selector to error")
+	}
+	if _, err := selectRegistryEntryForDescribe(entries, "missing", "/tmp/work", []string{"/tmp/root"}); err == nil {
+		t.Fatal("expected unknown selector to error")
+	}
+	if _, err := selectRegistryEntryForDescribe(entries, "dup", "/tmp/work", []string{"/tmp/root"}); err == nil {
+		t.Fatal("expected ambiguous selector to error")
+	}
+
+	if got, ok := canonicalPathForMatch("   "); ok || got != "" {
+		t.Fatalf("expected blank canonical path to fail, got %q, %t", got, ok)
+	}
+
+	left := filepath.Clean("/tmp/work/repo-a")
+	right := filepath.Clean("/tmp/work/repo-a")
+	if !samePathForMatch(left, right) {
+		t.Fatalf("expected same paths to match: %q vs %q", left, right)
+	}
+}

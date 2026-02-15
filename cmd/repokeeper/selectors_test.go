@@ -46,3 +46,37 @@ func TestResolveRepoFilter(t *testing.T) {
 		})
 	}
 }
+
+func TestParseFieldSelectorFilter(t *testing.T) {
+	tests := []struct {
+		name    string
+		expr    string
+		want    engine.FilterKind
+		wantErr bool
+	}{
+		{name: "blank selector rejected", expr: "  ", wantErr: true},
+		{name: "invalid missing equals", expr: "tracking.status", wantErr: true},
+		{name: "repo error false unsupported", expr: "repo.error=false", wantErr: true},
+		{name: "repo missing false unsupported", expr: "repo.missing=false", wantErr: true},
+		{name: "remote mismatch false unsupported", expr: "remote.mismatch=false", wantErr: true},
+		{name: "tracking all supported", expr: "tracking.status=all", want: engine.FilterAll},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseFieldSelectorFilter(tc.expr)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got filter %q", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("parseFieldSelectorFilter() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

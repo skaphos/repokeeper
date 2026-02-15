@@ -26,9 +26,18 @@ func TestNeedsUpstreamRepair(t *testing.T) {
 	if !needsUpstreamRepair(repo, "origin/main") {
 		t.Fatal("expected missing tracking to need repair")
 	}
+	if needsUpstreamRepair(repo, "  ") {
+		t.Fatal("expected blank target upstream to skip repair")
+	}
 }
 
 func TestRepairUpstreamMatchesFilter(t *testing.T) {
+	if !repairUpstreamMatchesFilter("origin/main", "origin/main", "") {
+		t.Fatal("expected empty filter to match")
+	}
+	if !repairUpstreamMatchesFilter("origin/main", "origin/main", "all") {
+		t.Fatal("expected all filter to match")
+	}
 	if !repairUpstreamMatchesFilter("", "origin/main", "missing") {
 		t.Fatal("expected missing filter match for empty upstream")
 	}
@@ -40,6 +49,9 @@ func TestRepairUpstreamMatchesFilter(t *testing.T) {
 	}
 	if repairUpstreamMatchesFilter("origin/main", "origin/main", "mismatch") {
 		t.Fatal("did not expect mismatch filter match for equal upstream")
+	}
+	if !repairUpstreamMatchesFilter("origin/main", "origin/main", "unknown") {
+		t.Fatal("expected unknown filters to default to match")
 	}
 }
 
