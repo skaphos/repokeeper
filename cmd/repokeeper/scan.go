@@ -47,6 +47,7 @@ var scanCmd = &cobra.Command{
 		writeRegistry, _ := cmd.Flags().GetBool("write-registry")
 		pruneStale, _ := cmd.Flags().GetBool("prune-stale")
 		format, _ := cmd.Flags().GetString("format")
+		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 
 		adapter := vcs.NewGitAdapter(nil)
 		eng := engine.New(cfg, reg, adapter)
@@ -90,7 +91,7 @@ var scanCmd = &cobra.Command{
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
-			writeScanTable(cmd, statuses)
+			writeScanTable(cmd, statuses, noHeaders)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -104,9 +105,11 @@ var scanCmd = &cobra.Command{
 	},
 }
 
-func writeScanTable(cmd *cobra.Command, statuses []model.RepoStatus) {
+func writeScanTable(cmd *cobra.Command, statuses []model.RepoStatus, noHeaders bool) {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "REPO\tPATH\tBARE\tPRIMARY_REMOTE")
+	if !noHeaders {
+		_, _ = fmt.Fprintln(w, "REPO\tPATH\tBARE\tPRIMARY_REMOTE")
+	}
 	for _, status := range statuses {
 		bare := "no"
 		if status.Bare {
@@ -133,6 +136,7 @@ func init() {
 	scanCmd.Flags().Bool("write-registry", true, "write discovered repos to registry")
 	scanCmd.Flags().Bool("prune-stale", false, "remove registry entries marked missing beyond stale threshold")
 	scanCmd.Flags().StringP("format", "o", "table", "output format: table or json")
+	scanCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 
 	rootCmd.AddCommand(scanCmd)
 }

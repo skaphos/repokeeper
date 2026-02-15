@@ -46,7 +46,7 @@ func TestWriters(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	writeScanTable(cmd, []model.RepoStatus{{RepoID: "r1", Path: "/repo", Bare: true, PrimaryRemote: "origin"}})
+	writeScanTable(cmd, []model.RepoStatus{{RepoID: "r1", Path: "/repo", Bare: true, PrimaryRemote: "origin"}}, false)
 	if !strings.Contains(out.String(), "PRIMARY_REMOTE") {
 		t.Fatal("expected scan header")
 	}
@@ -177,6 +177,17 @@ func TestWriteSyncTableNoHeaders(t *testing.T) {
 
 	if strings.Contains(out.String(), "ACTION") {
 		t.Fatalf("expected no sync table headers, got: %q", out.String())
+	}
+}
+
+func TestWriteScanTableNoHeaders(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	writeScanTable(cmd, []model.RepoStatus{{RepoID: "r1", Path: "/repo"}}, true)
+	if strings.Contains(out.String(), "PRIMARY_REMOTE") {
+		t.Fatalf("expected no scan table headers, got: %q", out.String())
 	}
 }
 
