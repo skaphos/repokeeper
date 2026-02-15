@@ -116,8 +116,8 @@
 - [x] preserve `--no-color` and `NO_COLOR` precedence
 - [ ] normalize semantic color mapping (healthy/warn/error/info)
 - [ ] Selector evolution:
-- [ ] keep `--only` as shorthand
-- [ ] add field-selector style filtering (phase rollout)
+- [x] keep `--only` as shorthand
+- [x] add field-selector style filtering (phase rollout)
 - [ ] `repair-upstream` command:
 - [ ] detect missing/wrong upstream tracking refs
 - [ ] repair to configured/default upstream (`origin/<branch>`) with dry-run support
