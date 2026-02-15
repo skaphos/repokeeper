@@ -27,6 +27,7 @@
 
 ## Commit & Pull Request Guidelines
 - This checkout does not include Git history, so no project-specific commit convention is detectable.
+- All commits must be signed (for example, use `git commit -S` with a configured GPG or SSH signing key).
 - Use concise, imperative subjects (example: “Add registry staleness check”) and include context in the body if needed.
 - For release automation, prefer Conventional Commits so `svu` can infer semantic version bumps:
 - `feat:` -> minor bump
