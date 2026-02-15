@@ -15,11 +15,68 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 var _ = Describe("Engine integration", func() {
+	It("handles symlink discovery according to follow-symlinks setting", func() {
+		base := GinkgoT().TempDir()
+		realRoot := filepath.Join(base, "real-root")
+		repoPath := filepath.Join(realRoot, "repo")
+		linkedRoot := filepath.Join(base, "linked-root")
+
+		Expect(os.MkdirAll(realRoot, 0o755)).To(Succeed())
+		runGit("", "init", repoPath)
+		err := os.Symlink(realRoot, linkedRoot)
+		if err != nil {
+			Skip("symlink not supported on this environment: " + err.Error())
+		}
+
+		cfg := &config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}
+		reg := &registry.Registry{}
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+
+		results, err := eng.Scan(context.Background(), engine.ScanOptions{
+			Roots:          []string{realRoot, linkedRoot},
+			FollowSymlinks: false,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(repoPath)))
+	})
+
+	It("reports bare repository status fields", func() {
+		base := GinkgoT().TempDir()
+		bare := filepath.Join(base, "bare.git")
+		runGit("", "init", "--bare", bare)
+
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, &registry.Registry{}, vcs.NewGitAdapter(nil))
+		status, err := eng.InspectRepo(context.Background(), bare)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(status.Bare).To(BeTrue())
+		Expect(status.Worktree).To(BeNil())
+		Expect(status.Tracking.Status).To(Equal(model.TrackingNone))
+	})
+
+	It("reports missing registry entries in status output", func() {
+		base := GinkgoT().TempDir()
+		missing := filepath.Join(base, "missing-repo")
+
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "missing-repo", Path: missing, Status: registry.StatusMissing},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		report, err := eng.Status(context.Background(), engine.StatusOptions{Filter: engine.FilterAll, Concurrency: 1, Timeout: 5})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(report.Repos).To(HaveLen(1))
+		Expect(report.Repos[0].Error).To(Equal("path missing"))
+		Expect(report.Repos[0].ErrorClass).To(Equal("missing"))
+	})
+
 	It("fetch/prune does not change working tree files", func() {
 		base := GinkgoT().TempDir()
 		remote := filepath.Join(base, "remote.git")
@@ -41,7 +98,7 @@ var _ = Describe("Engine integration", func() {
 
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: work, Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: work, RemoteURL: remote, Status: registry.StatusPresent},
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
@@ -85,7 +142,7 @@ var _ = Describe("Engine integration", func() {
 
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: work, Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: work, RemoteURL: remote, Status: registry.StatusPresent},
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
@@ -98,7 +155,8 @@ var _ = Describe("Engine integration", func() {
 })
 
 func runGit(dir string, args ...string) string {
-	cmd := exec.Command("git", args...)
+	baseArgs := []string{"-c", "commit.gpgsign=false"}
+	cmd := exec.Command("git", append(baseArgs, args...)...)
 	if dir != "" {
 		cmd.Dir = dir
 	}

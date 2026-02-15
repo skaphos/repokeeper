@@ -218,7 +218,7 @@
   - [x] single source of truth for defaults (concurrency, timeout, main_branch) in Config.Defaults
 - [ ] Test coverage expansion:
   - [x] add unit tests for command RunE functions (sync, status, repair_upstream)
-  - [ ] add integration tests for edge cases: symlinks, bare repos, missing repos
+  - [x] add integration tests for edge cases: symlinks, bare repos, missing repos
   - [ ] add table-driven tests for command parsing logic
 - [ ] Documentation:
   - [ ] document flag precedence behavior in root.go or README
@@ -242,7 +242,7 @@
 - [x] All commands use Adapter interface instead of direct GitRunner
 - [x] Flag definitions are DRY (single helper per common flag pattern)
 - [x] Unit test coverage for command handlers >= 70%
-- [ ] Integration tests cover symlink, bare repo, and missing repo scenarios
+- [x] Integration tests cover symlink, bare repo, and missing repo scenarios
 - [ ] All public types have Godoc comments
 
 ### Milestone 7 — Responsive Output & Reflow
