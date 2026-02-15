@@ -2,6 +2,7 @@ package repokeeper
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 )
@@ -142,5 +144,42 @@ func TestImportCommandArgsValidation(t *testing.T) {
 	}
 	if err := importCmd.Args(importCmd, []string{"bundle.yaml"}); err != nil {
 		t.Fatalf("expected one arg to be valid, got: %v", err)
+	}
+}
+
+func TestPopulateExportBranches(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r1", Path: "/repos/r1", Status: registry.StatusPresent},
+			{RepoID: "r2", Path: "/repos/r2", Status: registry.StatusPresent, Branch: "keep-me"},
+			{RepoID: "r3", Path: "/repos/r3", Status: registry.StatusMissing, Branch: "stale"},
+			{RepoID: "r4", Path: "/repos/r4", Type: "mirror", Status: registry.StatusPresent, Branch: "mirror-branch"},
+		},
+	}
+
+	populateExportBranches(context.Background(), reg, func(_ context.Context, path string) (model.Head, error) {
+		switch path {
+		case "/repos/r1":
+			return model.Head{Branch: "feature/a"}, nil
+		case "/repos/r2":
+			return model.Head{}, errors.New("head failed")
+		case "/repos/r4":
+			return model.Head{Branch: "should-not-apply"}, nil
+		default:
+			return model.Head{}, nil
+		}
+	})
+
+	if got, want := reg.Entries[0].Branch, "feature/a"; got != want {
+		t.Fatalf("expected branch %q, got %q", want, got)
+	}
+	if got, want := reg.Entries[1].Branch, "keep-me"; got != want {
+		t.Fatalf("expected existing branch %q to remain, got %q", want, got)
+	}
+	if got, want := reg.Entries[2].Branch, "stale"; got != want {
+		t.Fatalf("expected missing entry branch %q to remain, got %q", want, got)
+	}
+	if got, want := reg.Entries[3].Branch, "mirror-branch"; got != want {
+		t.Fatalf("expected mirror branch %q to remain, got %q", want, got)
 	}
 }

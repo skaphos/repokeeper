@@ -1,6 +1,7 @@
 package repokeeper
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -11,7 +12,9 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )
@@ -58,6 +61,8 @@ var exportCmd = &cobra.Command{
 					cfgCopy.Registry = reg
 				}
 			}
+			cfgCopy.Registry = cloneRegistry(cfgCopy.Registry)
+			populateExportBranches(cmd.Context(), cfgCopy.Registry, vcs.NewGitAdapter(nil).Head)
 			bundle.Registry = cfgCopy.Registry
 		} else {
 			cfgCopy.Registry = nil
@@ -330,4 +335,42 @@ func importTargetRelativePath(entry registry.Entry, roots []string) string {
 		return "repo"
 	}
 	return name
+}
+
+func cloneRegistry(reg *registry.Registry) *registry.Registry {
+	if reg == nil {
+		return nil
+	}
+	clone := *reg
+	clone.Entries = append([]registry.Entry(nil), reg.Entries...)
+	return &clone
+}
+
+func populateExportBranches(
+	ctx context.Context,
+	reg *registry.Registry,
+	headFn func(context.Context, string) (model.Head, error),
+) {
+	if reg == nil || headFn == nil {
+		return
+	}
+	for i := range reg.Entries {
+		entry := reg.Entries[i]
+		if entry.Status != registry.StatusPresent || entry.Type == "mirror" {
+			continue
+		}
+		path := strings.TrimSpace(entry.Path)
+		if path == "" {
+			continue
+		}
+		head, err := headFn(ctx, path)
+		if err != nil || head.Detached {
+			continue
+		}
+		branch := strings.TrimSpace(head.Branch)
+		if branch == "" {
+			continue
+		}
+		reg.Entries[i].Branch = branch
+	}
 }
