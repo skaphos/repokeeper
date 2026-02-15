@@ -205,7 +205,7 @@
   - [x] add validation for upstream format in edit.go (should match `remote/branch` pattern)
   - [x] validate path normalization in `selectRegistryEntryForDescribe` stays within configured roots
 - [ ] API design cleanup:
-  - [ ] make Engine struct fields private, add read-only accessors if needed
+  - [x] make Engine struct fields private, add read-only accessors if needed
   - [x] replace direct `gitx.GitRunner{}` instantiation with Adapter interface (edit.go, add.go, repair_upstream.go)
     - [x] edit.go
     - [x] add.go
@@ -236,7 +236,7 @@
 - [ ] No ignored I/O errors on stdout/stderr writes
 - [ ] `go test -race ./...` passes with no data races
 - [x] Channel buffers capped at reasonable fixed size
-- [ ] Engine fields are private with controlled access
+- [x] Engine fields are private with controlled access
 - [ ] All commands use Adapter interface instead of direct GitRunner
 - [ ] Flag definitions are DRY (single helper per common flag pattern)
 - [ ] Unit test coverage for command handlers >= 70%

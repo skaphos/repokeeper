@@ -117,7 +117,7 @@ func TestSyncRuntime(t *testing.T) {
 		t.Fatalf("unexpected override values: %d %d %q", concurrency, timeout, main)
 	}
 
-	eng.Config.Defaults.MainBranch = ""
+	eng.Config().Defaults.MainBranch = ""
 	_, _, main = eng.syncRuntime(SyncOptions{})
 	if main != "main" {
 		t.Fatalf("expected default main branch fallback, got %q", main)

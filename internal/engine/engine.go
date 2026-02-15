@@ -39,9 +39,9 @@ const maxWorkerChannelBuffer = 100
 
 // Engine is the core orchestrator for RepoKeeper operations.
 type Engine struct {
-	Config   *config.Config
-	Registry *registry.Registry
-	Adapter  vcs.Adapter
+	cfg      *config.Config
+	registry *registry.Registry
+	adapter  vcs.Adapter
 }
 
 // New creates a new Engine with the given configuration.
@@ -50,11 +50,20 @@ func New(cfg *config.Config, reg *registry.Registry, adapter vcs.Adapter) *Engin
 		adapter = vcs.NewGitAdapter(nil)
 	}
 	return &Engine{
-		Config:   cfg,
-		Registry: reg,
-		Adapter:  adapter,
+		cfg:      cfg,
+		registry: reg,
+		adapter:  adapter,
 	}
 }
+
+// Config returns the engine configuration reference.
+func (e *Engine) Config() *config.Config { return e.cfg }
+
+// Registry returns the engine registry reference.
+func (e *Engine) Registry() *registry.Registry { return e.registry }
+
+// Adapter returns the engine VCS adapter.
+func (e *Engine) Adapter() vcs.Adapter { return e.adapter }
 
 // ScanOptions configures a scan operation.
 type ScanOptions struct {
@@ -66,8 +75,8 @@ type ScanOptions struct {
 
 // Scan discovers repos and updates the registry.
 func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus, error) {
-	if e.Registry == nil {
-		e.Registry = &registry.Registry{}
+	if e.registry == nil {
+		e.registry = &registry.Registry{}
 	}
 
 	roots := opts.Roots
@@ -76,10 +85,10 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 	}
 	exclude := opts.Exclude
 	if len(exclude) == 0 {
-		exclude = e.Config.Exclude
+		exclude = e.cfg.Exclude
 	}
 
-	if err := e.Registry.ValidatePaths(); err != nil {
+	if err := e.registry.ValidatePaths(); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +96,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 		Roots:          roots,
 		Exclude:        exclude,
 		FollowSymlinks: opts.FollowSymlinks,
-		Adapter:        e.Adapter,
+		Adapter:        e.adapter,
 	})
 	if err != nil {
 		return nil, err
@@ -100,7 +109,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 		if repoID == "" {
 			repoID = "local:" + filepath.ToSlash(res.Path)
 		}
-		e.Registry.Upsert(registry.Entry{
+		e.registry.Upsert(registry.Entry{
 			RepoID:    repoID,
 			Path:      res.Path,
 			RemoteURL: res.RemoteURL,
@@ -117,7 +126,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 		})
 	}
 	sortRepoStatuses(statuses)
-	e.Registry.UpdatedAt = now
+	e.registry.UpdatedAt = now
 
 	return statuses, nil
 }
@@ -131,20 +140,20 @@ type StatusOptions struct {
 
 // Status inspects all registered repos and returns their status.
 func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusReport, error) {
-	if e.Registry == nil {
+	if e.registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
 
 	concurrency := opts.Concurrency
 	if concurrency <= 0 {
-		concurrency = e.Config.Defaults.Concurrency
+		concurrency = e.cfg.Defaults.Concurrency
 		if concurrency <= 0 {
 			concurrency = 4
 		}
 	}
 	timeoutSeconds := opts.Timeout
 	if timeoutSeconds <= 0 {
-		timeoutSeconds = e.Config.Defaults.TimeoutSeconds
+		timeoutSeconds = e.cfg.Defaults.TimeoutSeconds
 	}
 
 	type result struct {
@@ -152,7 +161,7 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 	}
 
 	// Snapshot entries to decouple worker scheduling from concurrent registry updates.
-	entries := append([]registry.Entry(nil), e.Registry.Entries...)
+	entries := append([]registry.Entry(nil), e.registry.Entries...)
 	results := make([]model.RepoStatus, 0, len(entries))
 	sem := make(chan struct{}, concurrency)
 	out := make(chan result, workerChannelBufferSize(len(entries)))
@@ -206,7 +215,7 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 
 	for i := 0; i < spawned; i++ {
 		res := <-out
-		if filterStatus(opts.Filter, res.status, e.Registry) {
+		if filterStatus(opts.Filter, res.status, e.registry) {
 			results = append(results, res.status)
 		}
 	}
@@ -281,7 +290,7 @@ const (
 // ExecuteSyncPlan executes a previously computed dry-run sync plan.
 // It avoids re-inspecting repo state so sync can analyze once and then apply.
 func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts SyncOptions) ([]SyncResult, error) {
-	if e.Registry == nil {
+	if e.registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
 
@@ -324,7 +333,7 @@ func (e *Engine) executePlannedSyncItem(ctx context.Context, item SyncResult) Sy
 }
 
 func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) SyncResult {
-	entry := findRegistryEntryForSyncResult(e.Registry, executed)
+	entry := findRegistryEntryForSyncResult(e.registry, executed)
 	if entry == nil {
 		executed.OK = false
 		executed.Outcome = SyncOutcomeFailedInvalid
@@ -332,7 +341,7 @@ func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) S
 		executed.ErrorClass = "invalid"
 		return executed
 	}
-	if err := e.Adapter.Clone(ctx, strings.TrimSpace(entry.RemoteURL), entry.Path, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
+	if err := e.adapter.Clone(ctx, strings.TrimSpace(entry.RemoteURL), entry.Path, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
 		executed.OK = false
 		executed.Outcome = SyncOutcomeFailedCheckoutMissing
 		executed.Error = err.Error()
@@ -343,38 +352,38 @@ func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) S
 	executed.Outcome = SyncOutcomeCheckoutMissing
 	entry.Status = registry.StatusPresent
 	entry.LastSeen = time.Now()
-	e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, *entry)
+	e.registry.Entries = replaceRegistryEntry(e.registry.Entries, *entry)
 	return executed
 }
 
 func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult, action string) SyncResult {
 	stashed := false
 	if strings.Contains(action, "git fetch --all") {
-		if err := e.Adapter.Fetch(ctx, executed.Path); err != nil {
+		if err := e.adapter.Fetch(ctx, executed.Path); err != nil {
 			return failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
 		}
 		executed.Outcome = SyncOutcomeFetched
 	}
 	if strings.Contains(action, "stash push") {
-		created, err := e.Adapter.StashPush(ctx, executed.Path, "repokeeper: pre-rebase stash")
+		created, err := e.adapter.StashPush(ctx, executed.Path, "repokeeper: pre-rebase stash")
 		if err != nil {
 			return failedPlannedSyncResult(executed, SyncOutcomeFailedStash, err)
 		}
 		stashed = created
 	}
 	if strings.Contains(action, "pull --rebase") {
-		if err := e.Adapter.PullRebase(ctx, executed.Path); err != nil {
+		if err := e.adapter.PullRebase(ctx, executed.Path); err != nil {
 			return failedPlannedSyncResult(executed, SyncOutcomeFailedRebase, err)
 		}
 		executed.Outcome = outcomeForRebase(stashed)
 	}
 	if strings.Contains(action, "stash pop") && stashed {
-		if err := e.Adapter.StashPop(ctx, executed.Path); err != nil {
+		if err := e.adapter.StashPop(ctx, executed.Path); err != nil {
 			return failedPlannedSyncResult(executed, SyncOutcomeFailedStashPop, err)
 		}
 	}
 	if strings.Contains(action, "git push") {
-		if err := e.Adapter.Push(ctx, executed.Path); err != nil {
+		if err := e.adapter.Push(ctx, executed.Path); err != nil {
 			return failedPlannedSyncResult(executed, SyncOutcomeFailedPush, err)
 		}
 		executed.Outcome = SyncOutcomePushed
@@ -393,13 +402,13 @@ func failedPlannedSyncResult(executed SyncResult, outcome SyncOutcome, err error
 
 // Sync runs fetch/prune on repos matching the filter.
 func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, error) {
-	if e.Registry == nil {
+	if e.registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
 
 	concurrency, timeoutSeconds, mainBranch := e.syncRuntime(opts)
 	// Snapshot entries so concurrent sync workers do not race on shared slices.
-	entries := append([]registry.Entry(nil), e.Registry.Entries...)
+	entries := append([]registry.Entry(nil), e.registry.Entries...)
 	if !opts.ContinueOnError {
 		return e.syncSequentialStopOnError(ctx, opts, entries)
 	}
@@ -445,18 +454,18 @@ func workerChannelBufferSize(entryCount int) int {
 func (e *Engine) syncRuntime(opts SyncOptions) (int, int, string) {
 	concurrency := opts.Concurrency
 	if concurrency <= 0 {
-		concurrency = e.Config.Defaults.Concurrency
+		concurrency = e.cfg.Defaults.Concurrency
 		if concurrency <= 0 {
 			concurrency = 4
 		}
 	}
 	timeoutSeconds := opts.Timeout
 	if timeoutSeconds <= 0 {
-		timeoutSeconds = e.Config.Defaults.TimeoutSeconds
+		timeoutSeconds = e.cfg.Defaults.TimeoutSeconds
 	}
 	mainBranch := "main"
-	if e.Config != nil && strings.TrimSpace(e.Config.Defaults.MainBranch) != "" {
-		mainBranch = strings.TrimSpace(e.Config.Defaults.MainBranch)
+	if e.cfg != nil && strings.TrimSpace(e.cfg.Defaults.MainBranch) != "" {
+		mainBranch = strings.TrimSpace(e.cfg.Defaults.MainBranch)
 	}
 	return concurrency, timeoutSeconds, mainBranch
 }
@@ -583,7 +592,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 			Action:  action,
 		}
 	}
-	if err := e.Adapter.Clone(ctx, remoteURL, entry.Path, branch, mirror); err != nil {
+	if err := e.adapter.Clone(ctx, remoteURL, entry.Path, branch, mirror); err != nil {
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
@@ -596,7 +605,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 	}
 	entry.Status = registry.StatusPresent
 	entry.LastSeen = time.Now()
-	e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, entry)
+	e.registry.Entries = replaceRegistryEntry(e.registry.Entries, entry)
 	return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeCheckoutMissing, OK: true, Action: action}
 }
 
@@ -673,7 +682,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 			return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeSkipped, OK: true, Error: SyncErrorSkipped}
 		}
 	}
-	if err := e.Adapter.Fetch(ctx, entry.Path); err != nil {
+	if err := e.adapter.Fetch(ctx, entry.Path); err != nil {
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
@@ -691,7 +700,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 		return inspectFailureResult(entry, err)
 	}
 	if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
-		if err := e.Adapter.Push(ctx, entry.Path); err != nil {
+		if err := e.adapter.Push(ctx, entry.Path); err != nil {
 			return SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
@@ -736,7 +745,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 	var err error
 	if rebaseDirty && status.Worktree != nil && status.Worktree.Dirty {
 		// Stash only when needed so we do not create unnecessary stash entries.
-		stashed, err = e.Adapter.StashPush(ctx, entry.Path, "repokeeper: pre-rebase stash")
+		stashed, err = e.adapter.StashPush(ctx, entry.Path, "repokeeper: pre-rebase stash")
 		if err != nil {
 			return SyncResult{
 				RepoID:     entry.RepoID,
@@ -752,7 +761,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 			action = "git stash push -u -m \"repokeeper: pre-rebase stash\" && " + action
 		}
 	}
-	if err := e.Adapter.PullRebase(ctx, entry.Path); err != nil {
+	if err := e.adapter.PullRebase(ctx, entry.Path); err != nil {
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
@@ -764,7 +773,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 		}
 	}
 	if stashed {
-		if err := e.Adapter.StashPop(ctx, entry.Path); err != nil {
+		if err := e.adapter.StashPop(ctx, entry.Path); err != nil {
 			return SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
@@ -875,9 +884,9 @@ func outcomeForRebase(stashed bool) SyncOutcome {
 
 // InspectRepo gathers the full status for a single repository path.
 func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatus, error) {
-	bare, _ := e.Adapter.IsBare(ctx, path)
+	bare, _ := e.adapter.IsBare(ctx, path)
 
-	remotes, err := e.Adapter.Remotes(ctx, path)
+	remotes, err := e.adapter.Remotes(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -885,7 +894,7 @@ func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatu
 	for _, r := range remotes {
 		remoteNames = append(remoteNames, r.Name)
 	}
-	primary := e.Adapter.PrimaryRemote(remoteNames)
+	primary := e.adapter.PrimaryRemote(remoteNames)
 	var remoteURL string
 	for _, r := range remotes {
 		if r.Name == primary {
@@ -893,30 +902,30 @@ func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatu
 			break
 		}
 	}
-	repoID := e.Adapter.NormalizeURL(remoteURL)
+	repoID := e.adapter.NormalizeURL(remoteURL)
 	if repoID == "" {
 		repoID = "local:" + filepath.ToSlash(path)
 	}
 
-	head, err := e.Adapter.Head(ctx, path)
+	head, err := e.adapter.Head(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 	var worktree *model.Worktree
 	if !bare {
-		worktree, err = e.Adapter.WorktreeStatus(ctx, path)
+		worktree, err = e.adapter.WorktreeStatus(ctx, path)
 		if err != nil {
 			return nil, err
 		}
 	}
 	tracking := model.Tracking{Status: model.TrackingNone}
 	if !bare {
-		tracking, err = e.Adapter.TrackingStatus(ctx, path)
+		tracking, err = e.adapter.TrackingStatus(ctx, path)
 		if err != nil {
 			return nil, err
 		}
 	}
-	hasSubmodules, _ := e.Adapter.HasSubmodules(ctx, path)
+	hasSubmodules, _ := e.adapter.HasSubmodules(ctx, path)
 
 	return &model.RepoStatus{
 		RepoID:        repoID,
