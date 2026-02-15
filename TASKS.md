@@ -150,6 +150,24 @@
 - [ ] Protected branches are never rebased automatically unless explicitly overridden.
 - [ ] Milestone remains open as new CLI ergonomics and automation gaps are identified.
 
+### Milestone 7 — Responsive Output & Reflow
+
+- [ ] Replace stdlib `text/tabwriter` with `github.com/liggitt/tabwriter` to align kubectl-style table behavior
+- [ ] Evaluate kubectl printer-stack compatibility (`k8s.io/cli-runtime/pkg/printers`) without taking Kubernetes object dependencies
+- [ ] Width-aware table rendering for narrow terminals (kubectl-style reflow behavior)
+- [ ] Adaptive column strategy by view (`get/status`, `reconcile/sync`, `repair`) with deterministic priority
+- [ ] Smart truncation rules and optional wrapping that preserve key identifiers (`PATH`, `REPO`, `ACTION`)
+- [ ] Dynamic header/column compaction for small widths while keeping `-o json` stable
+- [ ] Add output selectors: `-o jsonpath=...` and `-o custom-columns=...` (custom headers/column maps)
+- [ ] Snapshot tests across terminal widths (for example: 80, 100, 120, 160 cols)
+- [ ] Ensure color and readability parity in compact/reflow modes
+
+**Acceptance:**
+
+- [ ] Table output remains readable and actionable on small terminal windows without horizontal scrolling for common cases
+- [ ] Output remains deterministic across width classes for automation-safe parsing in machine formats
+- [ ] Milestone 6 remains free of terminal reflow scope
+
 ### Milestone 9 — Multi-VCS adapters (stretch)
 
 - [x] Add VCS adapter abstraction (Git-first, but extensible)
