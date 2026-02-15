@@ -521,6 +521,37 @@ func TestParseImportModeAndConflictPolicy(t *testing.T) {
 	}
 }
 
+func TestSelectMergeCloneEntriesPolicy(t *testing.T) {
+	local := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo-a", Path: "/local/a", RemoteURL: "git@github.com:org/repo-a.git", Branch: "main"},
+			{RepoID: "github.com/org/repo-b", Path: "/local/b", RemoteURL: "git@github.com:org/repo-b.git", Branch: "main"},
+		},
+	}
+	bundled := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo-a", Path: "/bundle/a", RemoteURL: "git@github.com:org/repo-a.git", Branch: "feature/a"},
+			{RepoID: "github.com/org/repo-b", Path: "/local/b", RemoteURL: "git@github.com:org/repo-b.git", Branch: "main"},
+			{RepoID: "github.com/org/repo-c", Path: "/bundle/c", RemoteURL: "git@github.com:org/repo-c.git", Branch: "main"},
+		},
+	}
+
+	skip := selectMergeCloneEntries(local, bundled, importConflictPolicySkip)
+	if len(skip) != 1 || skip[0].RepoID != "github.com/org/repo-c" {
+		t.Fatalf("expected skip policy to clone only new repo, got %+v", skip)
+	}
+
+	localPolicy := selectMergeCloneEntries(local, bundled, importConflictPolicyLocal)
+	if len(localPolicy) != 1 || localPolicy[0].RepoID != "github.com/org/repo-c" {
+		t.Fatalf("expected local policy to clone only new repo, got %+v", localPolicy)
+	}
+
+	bundlePolicy := selectMergeCloneEntries(local, bundled, importConflictPolicyBundle)
+	if len(bundlePolicy) != 2 {
+		t.Fatalf("expected bundle policy to clone new+conflicted repos, got %+v", bundlePolicy)
+	}
+}
+
 func TestExportCommandRunEWritesFile(t *testing.T) {
 	cfgPath := writeEmptyConfig(t)
 	cleanup := withConfigAndCWD(t, cfgPath)

@@ -118,7 +118,7 @@ For `status`, `--dry-run` defaults to `true` and only affects remote-mismatch re
 
 In merge mode, conflicts on the same `repo_id` can be resolved with `--on-conflict skip|bundle|local` (default `bundle`).
 
-`repokeeper import` does not clone by default (`--clone=false`). Use `--clone` to clone imported entries into the current directory layout. If a target repo path already exists, import reports conflicting paths unless `--dangerously-delete-existing` is set.
+`repokeeper import` does not clone by default (`--clone=false`). Use `--clone` to clone imported entries into the current directory layout. In merge mode against an existing config, clone only applies to merge-selected bundle entries (new repos and bundle-wins conflicts). If a target repo path already exists, import reports conflicting paths unless `--dangerously-delete-existing` is set.
 
 Use `repokeeper import --file-only` to import only the config file without registry data or cloning.
 

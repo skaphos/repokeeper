@@ -182,11 +182,13 @@ var importCmd = &cobra.Command{
 		if !preserveRegistryPath && mode == importModeReplace {
 			cfg.RegistryPath = ""
 		}
-		if mode == importModeMerge && hasExistingCfg && cloneRepos {
-			return fmt.Errorf("--clone with --mode=merge is not supported for existing configs; run reconcile --checkout-missing after import")
-		}
 		if cloneRepos {
-			if err := cloneImportedRepos(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting); err != nil {
+			if mode == importModeMerge && hasExistingCfg {
+				entriesToClone := selectMergeCloneEntries(existingCfg.Registry, bundle.Registry, onConflict)
+				if err := cloneImportedEntries(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting, entriesToClone); err != nil {
+					return err
+				}
+			} else if err := cloneImportedRepos(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting); err != nil {
 				return err
 			}
 		}
@@ -316,14 +318,31 @@ func registryEntriesConflict(local, incoming registry.Entry) bool {
 }
 
 func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool) error {
-	if cfg == nil || cfg.Registry == nil || len(cfg.Registry.Entries) == 0 {
+	return cloneImportedEntries(cmd, cfg, bundle, cwd, dangerouslyDeleteExisting, nil)
+}
+
+func cloneImportedEntries(
+	cmd *cobra.Command,
+	cfg *config.Config,
+	bundle exportBundle,
+	cwd string,
+	dangerouslyDeleteExisting bool,
+	entries []registry.Entry,
+) error {
+	if cfg == nil || cfg.Registry == nil {
+		return nil
+	}
+	if entries == nil {
+		entries = cfg.Registry.Entries
+	}
+	if len(entries) == 0 {
 		return nil
 	}
 
 	adapter := vcs.NewGitAdapter(nil)
-	targets := make(map[string]registry.Entry, len(cfg.Registry.Entries))
+	targets := make(map[string]registry.Entry, len(entries))
 	skippedLocal := make(map[string]registry.Entry)
-	for _, entry := range cfg.Registry.Entries {
+	for _, entry := range entries {
 		targetRel := importTargetRelativePath(entry, nil)
 		target := filepath.Clean(filepath.Join(cwd, targetRel))
 
@@ -406,6 +425,28 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 		infof(cmd, "skipping local-only repo %s: missing remote_url", entry.RepoID)
 	}
 	return nil
+}
+
+func selectMergeCloneEntries(local, bundled *registry.Registry, policy importConflictPolicy) []registry.Entry {
+	if bundled == nil || len(bundled.Entries) == 0 {
+		return nil
+	}
+	selected := make([]registry.Entry, 0, len(bundled.Entries))
+	for _, incoming := range bundled.Entries {
+		if local == nil {
+			selected = append(selected, incoming)
+			continue
+		}
+		existing := local.FindByRepoID(incoming.RepoID)
+		if existing == nil {
+			selected = append(selected, incoming)
+			continue
+		}
+		if policy == importConflictPolicyBundle && registryEntriesConflict(*existing, incoming) {
+			selected = append(selected, incoming)
+		}
+	}
+	return selected
 }
 
 type importConflict struct {
