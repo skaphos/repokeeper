@@ -99,12 +99,14 @@ var statusCmd = &cobra.Command{
 
 		switch strings.ToLower(format) {
 		case "json":
+			setColorOutputMode(cmd, format)
 			data, err := json.MarshalIndent(report, "", "  ")
 			if err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
+			setColorOutputMode(cmd, format)
 			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
@@ -172,7 +174,7 @@ const (
 )
 
 func colorize(value, color string) string {
-	if flagNoColor || value == "" || color == "" {
+	if !colorOutputEnabled || value == "" || color == "" {
 		return value
 	}
 	// Hide ANSI sequences from tabwriter width calculations so columns align.

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -15,8 +16,12 @@ var (
 	flagQuiet   bool
 	flagConfig  string
 	flagNoColor bool
+	// colorOutputEnabled is set per command execution based on output format and TTY detection.
+	colorOutputEnabled bool
 	// exitCode tracks the highest severity observed during a command run.
 	exitCode int
+	// isTerminalFD is overridable in tests.
+	isTerminalFD = term.IsTerminal
 )
 
 var rootCmd = &cobra.Command{
@@ -48,6 +53,7 @@ func Execute() {
 // ExecuteWithExitCode runs the root command and returns a shell-friendly exit code.
 func ExecuteWithExitCode() int {
 	exitCode = 0
+	colorOutputEnabled = false
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 3
@@ -74,4 +80,19 @@ func debugf(cmd *cobra.Command, format string, args ...any) {
 		return
 	}
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
+}
+
+func setColorOutputMode(cmd *cobra.Command, format string) {
+	colorOutputEnabled = shouldUseColorOutput(cmd, format)
+}
+
+func shouldUseColorOutput(cmd *cobra.Command, format string) bool {
+	if flagNoColor || strings.ToLower(strings.TrimSpace(format)) != "table" {
+		return false
+	}
+	file, ok := cmd.OutOrStdout().(*os.File)
+	if !ok {
+		return false
+	}
+	return isTerminalFD(int(file.Fd()))
 }

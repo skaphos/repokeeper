@@ -140,12 +140,14 @@ var syncCmd = &cobra.Command{
 
 		switch strings.ToLower(format) {
 		case "json":
+			setColorOutputMode(cmd, format)
 			data, err := json.MarshalIndent(results, "", "  ")
 			if err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
+			setColorOutputMode(cmd, format)
 			report, err := eng.Status(cmd.Context(), engine.StatusOptions{
 				Filter:      engine.FilterAll,
 				Concurrency: concurrency,
