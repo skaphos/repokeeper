@@ -89,14 +89,18 @@
 
 ### Milestone 5 — TUI (phase 2)
 
-- [ ] `repokeeper tui` view + filter + selection
-- [ ] Trigger sync for selected repos
-- [ ] Progress updates + detail view
-- [ ] Keybindings: `/` filter, `space` select, `a` select all, `s` sync, `enter` details, `q` quit
+- [ ] k9s-style primary repo list as default view
+- [ ] keyboard-first navigation (`j`/`k` + arrows), filter mode, and selection set
+- [ ] filter repos by id/path/branch/tracking/error state
+- [ ] contextual actions from list/details (sync, edit metadata, repair upstream)
+- [ ] trigger batch actions for selected repos
+- [ ] progress updates + detail/action view
+- [ ] keybindings baseline: `/` filter, `space` select, `a` select all, `s` sync, `e` edit, `r` repair upstream, `enter` details/actions, `q` quit
 
 **Acceptance:**
 
-- [ ] Use TUI as primary "dashboard" without losing CLI automation
+- [ ] Use TUI as primary operations dashboard without losing CLI automation parity
+- [ ] Core interaction model feels familiar to k9s users (list-first, filter-first, action-driven)
 
 ### Milestone 6 — CLI Improvements (Ongoing)
 

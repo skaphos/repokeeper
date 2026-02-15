@@ -248,23 +248,22 @@ Flags:
 
 Interactive terminal UI built with Bubble Tea + Bubbles + Lipgloss ([GitHub][1]).
 
-**Design principle:** The TUI should be **dead simple** — a thin presentation layer over the same engine APIs the CLI uses. No custom widgets or complex layouts. Lean on Bubbles' pre-built components (table, list, spinner, text input) and Lipgloss for styling. The goal is a functional dashboard, not a beautiful one.
+**Design principle:** The TUI should follow a **k9s-style interaction model**: one primary repo list, keyboard-first filtering/navigation, and contextual actions on selected rows. Keep it as a thin presentation layer over existing engine APIs.
 
-Features (keep minimal):
+Core interaction model:
 
-* Filterable table of repos showing: name, branch, dirty/clean, tracking status, last sync
-* `/` to filter/search by repo name or path
-* `space` to select/deselect repos, `a` to select all
-* `s` to sync selected repos (or all if none selected)
-* `enter` to view repo details (status, errors, remotes)
-* `q` to quit
-* Live progress spinner during sync operations
+* Primary, filterable repo list as the default view.
+* `/` enters filter mode; filter by repo id, path, branch, tracking state, and error class.
+* Arrow keys / `j` / `k` navigate rows; `enter` opens a repo detail/action view.
+* `space` toggles selection, `a` selects all visible rows.
+* Action keys trigger repo operations from the list or detail view (sync, edit metadata, repair upstream, open path).
+* Batch actions operate on current selection and stream progress in-place.
 
 Non-goals for TUI:
 
-* No split panes, no resizable layouts, no mouse support.
-* No theming beyond basic Lipgloss colors.
-* If it looks like `htop` for repos, that's good enough.
+* No independent business logic; all operations route through engine/CLI primitives.
+* No mandatory mouse support.
+* No complex plugin system in milestone 5.
 
 > Note: TUI is a frontend; it must call the same core engine APIs as CLI. All business logic lives in `internal/engine/`.
 
@@ -590,11 +589,11 @@ Config loading: YAML (either viper or lightweight YAML parsing).
 
 Bubble Tea implements the Elm architecture (Model → Update → View):
 
-* **Model:** flat list of `RepoStatus` rows + selection set + filter string + sync-in-progress state.
-* **Update:** receives messages from engine worker results (repo synced, repo errored, etc.).
-* **View:** single full-screen table using Bubbles `table` component. Lipgloss for row coloring (red=error, yellow=dirty, green=clean). No split panes.
+* **Model:** repo list state (`[]RepoStatus`), active filters, cursor position, selection set, active view (`list` or `details`), and action progress/errors.
+* **Update:** routes key events to list/filter/action reducers and receives async engine results (sync/update/repair completion).
+* **View:** k9s-style list-first presentation with compact status columns plus contextual detail/action panel on demand.
 
-Use Bubbles components exclusively — no custom widgets. ([GitHub][5])
+Prefer Bubbles components for list/table/text input/spinner; allow small custom view composition where needed for action menus and details. ([GitHub][5])
 
 ## 9. Future: Cross-Machine Registry Sync
 
