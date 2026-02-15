@@ -127,7 +127,11 @@ func TestWriteRepairUpstreamTableCompactsColumnsOnTinyTTY(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pipe setup failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close reader: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)

@@ -28,7 +28,11 @@ func captureStatusTableOutputAtWidth(t *testing.T, width int) string {
 	if err != nil {
 		t.Fatalf("pipe setup failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close reader: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)
@@ -73,7 +77,11 @@ func captureSyncTableOutputAtWidth(t *testing.T, width int) string {
 	if err != nil {
 		t.Fatalf("pipe setup failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close reader: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)
@@ -145,7 +153,11 @@ func TestWriteStatusTableTruncatesOnNarrowTTY(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pipe setup failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close reader: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)
@@ -197,7 +209,11 @@ func TestWriteStatusTableCompactsColumnsOnTinyTTY(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pipe setup failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close reader: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)
@@ -247,7 +263,11 @@ func TestWriteSyncTableCompactsColumnsOnTinyTTY(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pipe setup failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close reader: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)
@@ -302,7 +322,11 @@ func TestWriteStatusTableTinyModeRetainsSemanticColor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pipe setup failed: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			t.Fatalf("close reader: %v", err)
+		}
+	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)
