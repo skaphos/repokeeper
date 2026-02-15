@@ -40,7 +40,7 @@ var repairUpstreamAliasCmd = &cobra.Command{
 func init() {
 	getReposCmd.Flags().String("roots", "", "additional roots to scan (optional)")
 	getReposCmd.Flags().String("registry", "", "override registry file path")
-	getReposCmd.Flags().String("format", "table", "output format: table or json")
+	getReposCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
 	getReposCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
 	getReposCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	getCmd.AddCommand(getReposCmd)
@@ -58,7 +58,7 @@ func init() {
 	reconcileReposCmd.Flags().String("protected-branches", "main,master,release/*", "comma-separated branch patterns to protect from auto-rebase during --update-local")
 	reconcileReposCmd.Flags().Bool("allow-protected-rebase", false, "when used with --update-local, allow rebase on branches matched by --protected-branches")
 	reconcileReposCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
-	reconcileReposCmd.Flags().String("format", "table", "output format: table or json")
+	reconcileReposCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
 	reconcileReposCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	reconcileReposCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 	reconcileCmd.AddCommand(reconcileReposCmd)
@@ -66,7 +66,7 @@ func init() {
 	repairUpstreamAliasCmd.Flags().String("registry", "", "override registry file path")
 	repairUpstreamAliasCmd.Flags().Bool("dry-run", true, "preview upstream repairs without executing git changes")
 	repairUpstreamAliasCmd.Flags().String("only", "all", "filter: all, missing, mismatch")
-	repairUpstreamAliasCmd.Flags().String("format", "table", "output format: table or json")
+	repairUpstreamAliasCmd.Flags().StringP("format", "o", "table", "output format: table or json")
 	repairUpstreamAliasCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	repairCmd.AddCommand(repairUpstreamAliasCmd)
 

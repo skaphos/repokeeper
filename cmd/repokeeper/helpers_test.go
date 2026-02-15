@@ -52,7 +52,7 @@ func TestWriters(t *testing.T) {
 	}
 
 	out.Reset()
-	writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}}, "/tmp", nil, false)
+	writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}}, "/tmp", nil, false, false)
 	if !strings.Contains(out.String(), "TRACKING") {
 		t.Fatal("expected status header")
 	}
@@ -64,6 +64,7 @@ func TestWriters(t *testing.T) {
 		&model.StatusReport{Repos: []model.RepoStatus{{Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}},
 		"/tmp",
 		nil,
+		false,
 		false,
 		false,
 	)
@@ -151,7 +152,7 @@ func TestWriteStatusTableNoHeaders(t *testing.T) {
 		Repos: []model.RepoStatus{
 			{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}},
 		},
-	}, "/tmp", nil, true)
+	}, "/tmp", nil, true, false)
 
 	if strings.Contains(out.String(), "PATH") {
 		t.Fatalf("expected no table headers, got: %q", out.String())
@@ -171,6 +172,7 @@ func TestWriteSyncTableNoHeaders(t *testing.T) {
 		nil,
 		false,
 		true,
+		false,
 	)
 
 	if strings.Contains(out.String(), "ACTION") {
@@ -211,7 +213,7 @@ func TestWriteStatusTableUsesRelativePathAndLabel(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp/work", nil, false)
+	writeStatusTable(cmd, report, "/tmp/work", nil, false, false)
 
 	got := out.String()
 	if !strings.Contains(got, "repos/repo-a") {
@@ -256,7 +258,7 @@ func TestWriteStatusTableDoesNotTruncatePathBranchOrTracking(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp", nil, false)
+	writeStatusTable(cmd, report, "/tmp", nil, false, false)
 
 	got := out.String()
 	if !strings.Contains(got, "workspace/very/long/path/that/should/not/be/truncated/repo") {
@@ -292,7 +294,7 @@ func TestWriteStatusTableStripsEscapeMarkers(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp", nil, false)
+	writeStatusTable(cmd, report, "/tmp", nil, false, false)
 
 	got := out.String()
 	if strings.ContainsRune(got, '\xff') {

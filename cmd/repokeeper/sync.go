@@ -156,7 +156,18 @@ var syncCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap, noHeaders)
+			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap, noHeaders, false)
+		case "wide":
+			setColorOutputMode(cmd, format)
+			report, err := eng.Status(cmd.Context(), engine.StatusOptions{
+				Filter:      engine.FilterAll,
+				Concurrency: concurrency,
+				Timeout:     timeout,
+			})
+			if err != nil {
+				return err
+			}
+			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap, noHeaders, true)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -193,7 +204,7 @@ func init() {
 	syncCmd.Flags().String("protected-branches", "main,master,release/*", "comma-separated branch patterns to protect from auto-rebase during --update-local")
 	syncCmd.Flags().Bool("allow-protected-rebase", false, "when used with --update-local, allow rebase on branches matched by --protected-branches")
 	syncCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
-	syncCmd.Flags().String("format", "table", "output format: table or json")
+	syncCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
 	syncCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 
@@ -247,7 +258,7 @@ func syncResultNeedsConfirmation(res engine.SyncResult) bool {
 	return false
 }
 
-func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool) {
+func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) {
 	statusByPath := make(map[string]model.RepoStatus, len(results))
 	if report != nil {
 		for _, repo := range report.Repos {
@@ -257,7 +268,11 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
 	if !noHeaders {
-		_, _ = fmt.Fprintln(w, "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO")
+		headers := "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO"
+		if wide {
+			headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND"
+		}
+		_, _ = fmt.Fprintln(w, headers)
 	}
 	for _, res := range results {
 		ok := "yes"
@@ -290,7 +305,35 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 				tracking = colorize("mirror", ansiBlue)
 			}
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		if !wide {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				path,
+				describeSyncAction(res),
+				branch,
+				dirty,
+				tracking,
+				ok,
+				res.ErrorClass,
+				formatCell(res.Error, wrap, 36),
+				res.RepoID)
+			continue
+		}
+
+		ahead := "-"
+		if repo.Tracking.Ahead != nil {
+			ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
+		}
+		behind := "-"
+		if repo.Tracking.Behind != nil {
+			behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
+		}
+		primaryRemote := ""
+		upstream := ""
+		if found {
+			primaryRemote = repo.PrimaryRemote
+			upstream = repo.Tracking.Upstream
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
 			describeSyncAction(res),
 			branch,
@@ -299,7 +342,11 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			ok,
 			res.ErrorClass,
 			formatCell(res.Error, wrap, 36),
-			res.RepoID)
+			res.RepoID,
+			primaryRemote,
+			upstream,
+			ahead,
+			behind)
 	}
 	_ = w.Flush()
 }

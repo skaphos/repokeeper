@@ -107,7 +107,10 @@ var statusCmd = &cobra.Command{
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
 			setColorOutputMode(cmd, format)
-			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders)
+			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false)
+		case "wide":
+			setColorOutputMode(cmd, format)
+			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -123,17 +126,21 @@ var statusCmd = &cobra.Command{
 func init() {
 	statusCmd.Flags().String("roots", "", "additional roots to scan (optional)")
 	statusCmd.Flags().String("registry", "", "override registry file path")
-	statusCmd.Flags().String("format", "table", "output format: table or json")
+	statusCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
 	statusCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
 	statusCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 
 	rootCmd.AddCommand(statusCmd)
 }
 
-func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool) {
+func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) {
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
 	if !noHeaders {
-		_, _ = fmt.Fprintln(w, "PATH\tBRANCH\tDIRTY\tTRACKING")
+		headers := "PATH\tBRANCH\tDIRTY\tTRACKING"
+		if wide {
+			headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
+		}
+		_, _ = fmt.Fprintln(w, headers)
 	}
 	for _, repo := range report.Repos {
 		branch := repo.Head.Branch
@@ -156,11 +163,35 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		if repo.Type == "mirror" {
 			tracking = colorize("mirror", ansiBlue)
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+		if !wide {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+				path,
+				branch,
+				dirty,
+				tracking)
+			continue
+		}
+		ahead := "-"
+		if repo.Tracking.Ahead != nil {
+			ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
+		}
+		behind := "-"
+		if repo.Tracking.Behind != nil {
+			behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
+		}
+		_, _ = fmt.Fprintf(
+			w,
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
 			branch,
 			dirty,
-			tracking)
+			tracking,
+			repo.PrimaryRemote,
+			repo.Tracking.Upstream,
+			ahead,
+			behind,
+			repo.ErrorClass,
+		)
 	}
 	_ = w.Flush()
 }

@@ -87,7 +87,7 @@ func setColorOutputMode(cmd *cobra.Command, format string) {
 }
 
 func shouldUseColorOutput(cmd *cobra.Command, format string) bool {
-	if flagNoColor || strings.ToLower(strings.TrimSpace(format)) != "table" {
+	if flagNoColor || !isTabularFormat(format) {
 		return false
 	}
 	file, ok := cmd.OutOrStdout().(*os.File)
@@ -95,4 +95,13 @@ func shouldUseColorOutput(cmd *cobra.Command, format string) bool {
 		return false
 	}
 	return isTerminalFD(int(file.Fd()))
+}
+
+func isTabularFormat(format string) bool {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "table", "wide":
+		return true
+	default:
+		return false
+	}
 }

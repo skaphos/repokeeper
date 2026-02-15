@@ -111,10 +111,10 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 
 func init() {
 	describeCmd.Flags().String("registry", "", "override registry file path")
-	describeCmd.Flags().String("format", "table", "output format: table or json")
+	describeCmd.Flags().StringP("format", "o", "table", "output format: table or json")
 
 	describeRepoCmd.Flags().String("registry", "", "override registry file path")
-	describeRepoCmd.Flags().String("format", "table", "output format: table or json")
+	describeRepoCmd.Flags().StringP("format", "o", "table", "output format: table or json")
 	describeCmd.AddCommand(describeRepoCmd)
 
 	rootCmd.AddCommand(describeCmd)
