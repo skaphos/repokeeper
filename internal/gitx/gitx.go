@@ -226,6 +226,12 @@ func Push(ctx context.Context, r Runner, dir string) error {
 	return err
 }
 
+// SetUpstream configures the current local branch to track the given upstream.
+func SetUpstream(ctx context.Context, r Runner, dir, upstream, branch string) error {
+	_, err := r.Run(ctx, dir, "branch", "--set-upstream-to", strings.TrimSpace(upstream), strings.TrimSpace(branch))
+	return err
+}
+
 // StashPush stashes current worktree changes (including untracked files).
 // Returns true when a stash entry was created.
 func StashPush(ctx context.Context, r Runner, dir, message string) (bool, error) {

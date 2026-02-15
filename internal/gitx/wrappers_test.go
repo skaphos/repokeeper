@@ -63,6 +63,22 @@ func TestStashPushWrapper(t *testing.T) {
 	}
 }
 
+func TestSetUpstreamWrapper(t *testing.T) {
+	mock := &MockRunner{Responses: map[string]MockResponse{
+		"/repo:branch --set-upstream-to origin/main main": {Output: ""},
+	}}
+	if err := gitx.SetUpstream(context.Background(), mock, "/repo", "origin/main", "main"); err != nil {
+		t.Fatalf("expected setupstream success, got %v", err)
+	}
+
+	mock = &MockRunner{Responses: map[string]MockResponse{
+		"/repo:branch --set-upstream-to origin/main main": {Err: errors.New("set-upstream failed")},
+	}}
+	if err := gitx.SetUpstream(context.Background(), mock, "/repo", "origin/main", "main"); err == nil {
+		t.Fatal("expected setupstream failure")
+	}
+}
+
 func TestStashPopWrapper(t *testing.T) {
 	mock := &MockRunner{Responses: map[string]MockResponse{
 		"/repo:stash pop": {Output: ""},

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
@@ -72,8 +71,7 @@ var editCmd = &cobra.Command{
 			return fmt.Errorf("cannot set upstream on detached HEAD for %q", entry.RepoID)
 		}
 
-		runner := &gitx.GitRunner{}
-		if _, err := runner.Run(cmd.Context(), entry.Path, "branch", "--set-upstream-to", setUpstream, head.Branch); err != nil {
+		if err := adapter.SetUpstream(cmd.Context(), entry.Path, setUpstream, head.Branch); err != nil {
 			return fmt.Errorf("git branch --set-upstream-to %s %s: %w", setUpstream, head.Branch, err)
 		}
 

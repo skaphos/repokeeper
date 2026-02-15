@@ -45,6 +45,10 @@ func (p *planAdapter) Push(_ context.Context, dir string) error {
 	p.calls = append(p.calls, "push:"+dir)
 	return p.pushErrByDir[dir]
 }
+func (p *planAdapter) SetUpstream(_ context.Context, dir, upstream, branch string) error {
+	p.calls = append(p.calls, "set-upstream:"+dir+":"+upstream+":"+branch)
+	return nil
+}
 func (p *planAdapter) StashPush(_ context.Context, dir, _ string) (bool, error) {
 	p.calls = append(p.calls, "stash-push:"+dir)
 	return p.stashCreated, p.stashErrByDir[dir]
