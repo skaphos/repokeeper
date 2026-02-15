@@ -416,10 +416,11 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				}
 				if reason := pullRebaseSkipReason(status); reason != "" {
 					out <- result{res: SyncResult{
-						RepoID: entry.RepoID,
-						Path:   entry.Path,
-						OK:     true,
-						Error:  "skipped-local-update: " + reason,
+						RepoID:     entry.RepoID,
+						Path:       entry.Path,
+						OK:         true,
+						ErrorClass: "skipped",
+						Error:      "skipped-local-update: " + reason,
 					}}
 					return
 				}
@@ -470,8 +471,11 @@ func pullRebaseSkipReason(status *model.RepoStatus) string {
 	if status.Worktree == nil || status.Worktree.Dirty {
 		return "dirty working tree"
 	}
-	if status.Tracking.Upstream == "" || status.Tracking.Status == model.TrackingNone || status.Tracking.Status == model.TrackingGone {
-		return "no usable upstream"
+	if status.Tracking.Status == model.TrackingGone {
+		return "upstream no longer exists"
+	}
+	if status.Tracking.Upstream == "" || status.Tracking.Status == model.TrackingNone {
+		return "branch is not tracking an upstream"
 	}
 	if !strings.HasSuffix(status.Tracking.Upstream, "/main") {
 		return fmt.Sprintf("upstream %q is not main", status.Tracking.Upstream)
