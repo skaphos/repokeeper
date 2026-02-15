@@ -44,6 +44,7 @@ func init() {
 	addRepoFilterFlags(getReposCmd)
 	addNoHeadersFlag(getReposCmd)
 	getReposCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
+	addVCSFlag(getReposCmd)
 	getCmd.AddCommand(getReposCmd)
 
 	addRepoFilterFlags(reconcileReposCmd)
@@ -62,6 +63,7 @@ func init() {
 	addFormatFlag(reconcileReposCmd, "output format: table, wide, or json")
 	addNoHeadersFlag(reconcileReposCmd)
 	reconcileReposCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
+	addVCSFlag(reconcileReposCmd)
 	reconcileCmd.AddCommand(reconcileReposCmd)
 
 	repairUpstreamAliasCmd.Flags().String("registry", "", "override registry file path")

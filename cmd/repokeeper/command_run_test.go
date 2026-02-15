@@ -111,6 +111,38 @@ func TestStatusRunECustomColumns(t *testing.T) {
 	}
 }
 
+func TestStatusRunEInvalidVCSSelection(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	statusCmd.SetOut(out)
+	statusCmd.SetErr(errOut)
+	defer statusCmd.SetOut(os.Stdout)
+	defer statusCmd.SetErr(os.Stderr)
+	prevFormat, _ := statusCmd.Flags().GetString("format")
+	prevOnly, _ := statusCmd.Flags().GetString("only")
+	prevFieldSelector, _ := statusCmd.Flags().GetString("field-selector")
+	prevVCS, _ := statusCmd.Flags().GetString("vcs")
+	defer func() {
+		_ = statusCmd.Flags().Set("format", prevFormat)
+		_ = statusCmd.Flags().Set("only", prevOnly)
+		_ = statusCmd.Flags().Set("field-selector", prevFieldSelector)
+		_ = statusCmd.Flags().Set("vcs", prevVCS)
+	}()
+
+	_ = statusCmd.Flags().Set("format", "json")
+	_ = statusCmd.Flags().Set("only", "all")
+	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("vcs", "git,svn")
+	err := statusCmd.RunE(statusCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "unsupported vcs") {
+		t.Fatalf("expected unsupported vcs error, got %v", err)
+	}
+}
+
 func TestSyncRunEJSONMissingFilter(t *testing.T) {
 	cfgPath, _ := writeTestConfigAndRegistry(t)
 	cleanup := withTestConfig(t, cfgPath)

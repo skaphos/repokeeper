@@ -13,7 +13,6 @@ import (
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
-	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
 
@@ -53,7 +52,10 @@ var scanCmd = &cobra.Command{
 		}
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 
-		adapter := vcs.NewGitAdapter(nil)
+		adapter, err := selectedAdapterForCommand(cmd)
+		if err != nil {
+			return err
+		}
 		eng := engine.New(cfg, reg, adapter)
 		scanRoots := strutil.SplitCSV(roots)
 		if len(scanRoots) == 0 {
@@ -136,6 +138,7 @@ func init() {
 	scanCmd.Flags().Bool("prune-stale", false, "remove registry entries marked missing beyond stale threshold")
 	addFormatFlag(scanCmd, "output format: table or json")
 	addNoHeadersFlag(scanCmd)
+	addVCSFlag(scanCmd)
 
 	rootCmd.AddCommand(scanCmd)
 }

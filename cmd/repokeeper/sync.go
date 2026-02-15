@@ -14,7 +14,6 @@ import (
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
-	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +74,11 @@ var syncCmd = &cobra.Command{
 			return err
 		}
 
-		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+		adapter, err := selectedAdapterForCommand(cmd)
+		if err != nil {
+			return err
+		}
+		eng := engine.New(cfg, reg, adapter)
 		plan, err := eng.Sync(cmd.Context(), engine.SyncOptions{
 			Filter:               filter,
 			Concurrency:          concurrency,
@@ -185,6 +188,7 @@ func init() {
 	addFormatFlag(syncCmd, "output format: table, wide, or json")
 	addNoHeadersFlag(syncCmd)
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
+	addVCSFlag(syncCmd)
 
 }
 

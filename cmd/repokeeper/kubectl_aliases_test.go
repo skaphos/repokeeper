@@ -47,6 +47,7 @@ func TestKubectlAliasFlagParity(t *testing.T) {
 				"field-selector",
 				"no-headers",
 				"wrap",
+				"vcs",
 			},
 		},
 		{
@@ -70,6 +71,7 @@ func TestKubectlAliasFlagParity(t *testing.T) {
 				"format",
 				"no-headers",
 				"wrap",
+				"vcs",
 			},
 		},
 		{

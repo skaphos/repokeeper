@@ -93,7 +93,10 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 
-		adapter := vcs.NewGitAdapter(nil)
+		adapter, err := selectedAdapterForCommand(cmd)
+		if err != nil {
+			return err
+		}
 		eng := engine.New(cfg, reg, adapter)
 
 		if roots != "" {
@@ -221,6 +224,7 @@ func init() {
 	statusCmd.Flags().Bool("dry-run", true, "preview reconcile actions without modifying registry or git remotes")
 	addNoHeadersFlag(statusCmd)
 	statusCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
+	addVCSFlag(statusCmd)
 
 }
 
