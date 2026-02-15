@@ -436,6 +436,28 @@ var _ = Describe("Engine", func() {
 		Expect(results[0].ErrorClass).To(Equal("network"))
 	})
 
+	It("stops after first failure when continue-on-error is disabled", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
+				{RepoID: "repo2", Path: "/repo2", RemoteURL: "git@github.com:org/repo2.git", Status: registry.StatusPresent},
+			},
+		}
+		runner := &mockRunner{responses: map[string]mockResponse{
+			"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {err: errors.New("could not resolve host")},
+		}}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{
+			Concurrency:     2,
+			Timeout:         1,
+			ContinueOnError: false,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].RepoID).To(Equal("repo1"))
+		Expect(results[0].OK).To(BeFalse())
+	})
+
 	It("runs local rebase update when enabled and repo is behind main", func() {
 		runner := &mockRunner{responses: map[string]mockResponse{
 			"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},

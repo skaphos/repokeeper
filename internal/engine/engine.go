@@ -223,6 +223,7 @@ type SyncOptions struct {
 	Filter               FilterKind
 	Concurrency          int
 	Timeout              int // seconds per repo
+	ContinueOnError      bool
 	DryRun               bool
 	UpdateLocal          bool
 	PushLocal            bool
@@ -271,6 +272,36 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	}
 
 	entries := e.Registry.Entries
+	if !opts.ContinueOnError {
+		results := make([]SyncResult, 0, len(entries))
+		for _, entry := range entries {
+			entry := entry
+			subReg := &registry.Registry{Entries: []registry.Entry{entry}}
+			sub := &Engine{
+				Config:   e.Config,
+				Registry: subReg,
+				Adapter:  e.Adapter,
+			}
+			subOpts := opts
+			subOpts.ContinueOnError = true
+			subOpts.Concurrency = 1
+			subResults, err := sub.Sync(ctx, subOpts)
+			if err != nil {
+				return results, err
+			}
+			results = append(results, subResults...)
+			for _, updated := range subReg.Entries {
+				e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, updated)
+			}
+			if len(subResults) > 0 && !subResults[len(subResults)-1].OK {
+				sortSyncResults(results)
+				return results, nil
+			}
+		}
+		sortSyncResults(results)
+		return results, nil
+	}
+
 	sem := make(chan struct{}, concurrency)
 	out := make(chan result, len(entries))
 	spawned := 0

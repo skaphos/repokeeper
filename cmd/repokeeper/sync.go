@@ -20,6 +20,8 @@ import (
 var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Run safe fetch/prune on registered repositories",
+	// @todo(milestone6): keep as compatibility alias once `reconcile repos` lands;
+	// consolidate shared table/json rendering with get/reconcile command group.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		debugf(cmd, "starting sync")
 		cwd, err := os.Getwd()
@@ -45,6 +47,7 @@ var syncCmd = &cobra.Command{
 		only, _ := cmd.Flags().GetString("only")
 		concurrency, _ := cmd.Flags().GetInt("concurrency")
 		timeout, _ := cmd.Flags().GetInt("timeout")
+		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		yes, _ := cmd.Flags().GetBool("yes")
 		updateLocal, _ := cmd.Flags().GetBool("update-local")
@@ -75,6 +78,7 @@ var syncCmd = &cobra.Command{
 			Filter:               engine.FilterKind(only),
 			Concurrency:          concurrency,
 			Timeout:              timeout,
+			ContinueOnError:      continueOnError,
 			DryRun:               true,
 			UpdateLocal:          updateLocal,
 			PushLocal:            pushLocal,
@@ -112,6 +116,7 @@ var syncCmd = &cobra.Command{
 				Filter:               engine.FilterKind(only),
 				Concurrency:          concurrency,
 				Timeout:              timeout,
+				ContinueOnError:      continueOnError,
 				DryRun:               false,
 				UpdateLocal:          updateLocal,
 				PushLocal:            pushLocal,
@@ -175,6 +180,7 @@ func init() {
 	syncCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
 	syncCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
 	syncCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
+	syncCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	syncCmd.Flags().Bool("yes", false, "accept sync plan and execute without confirmation")
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
