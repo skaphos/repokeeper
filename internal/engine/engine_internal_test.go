@@ -47,6 +47,12 @@ func TestFilterAndSortHelpers(t *testing.T) {
 	if !filterStatus(FilterDiverged, model.RepoStatus{Tracking: model.Tracking{Status: model.TrackingDiverged}}, reg) {
 		t.Fatal("expected diverged filter match")
 	}
+	if !matchesProtectedBranch("main", []string{"main", "release/*"}) {
+		t.Fatal("expected protected branch match")
+	}
+	if matchesProtectedBranch("feature/one", []string{"main", "release/*"}) {
+		t.Fatal("did not expect feature branch to match protected patterns")
+	}
 
 	repos := []model.RepoStatus{{RepoID: "b", Path: "/2"}, {RepoID: "a", Path: "/1"}}
 	sortRepoStatuses(repos)

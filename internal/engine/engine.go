@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -218,14 +219,16 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 
 // SyncOptions configures a sync operation.
 type SyncOptions struct {
-	Filter          FilterKind
-	Concurrency     int
-	Timeout         int // seconds per repo
-	DryRun          bool
-	UpdateLocal     bool
-	RebaseDirty     bool
-	Force           bool
-	CheckoutMissing bool
+	Filter               FilterKind
+	Concurrency          int
+	Timeout              int // seconds per repo
+	DryRun               bool
+	UpdateLocal          bool
+	RebaseDirty          bool
+	Force                bool
+	ProtectedBranches    []string
+	AllowProtectedRebase bool
+	CheckoutMissing      bool
 }
 
 // SyncResult records the outcome for a single repo sync.
@@ -389,7 +392,13 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						}}
 						return
 					}
-					if reason := pullRebaseSkipReason(status, opts.RebaseDirty, opts.Force); reason != "" {
+					if reason := pullRebaseSkipReason(
+						status,
+						opts.RebaseDirty,
+						opts.Force,
+						opts.ProtectedBranches,
+						opts.AllowProtectedRebase,
+					); reason != "" {
 						out <- result{res: SyncResult{
 							RepoID:     entry.RepoID,
 							Path:       entry.Path,
@@ -452,7 +461,13 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					}}
 					return
 				}
-				if reason := pullRebaseSkipReason(status, opts.RebaseDirty, opts.Force); reason != "" {
+				if reason := pullRebaseSkipReason(
+					status,
+					opts.RebaseDirty,
+					opts.Force,
+					opts.ProtectedBranches,
+					opts.AllowProtectedRebase,
+				); reason != "" {
 					out <- result{res: SyncResult{
 						RepoID:     entry.RepoID,
 						Path:       entry.Path,
@@ -529,7 +544,12 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	return results, nil
 }
 
-func pullRebaseSkipReason(status *model.RepoStatus, rebaseDirty, force bool) string {
+func pullRebaseSkipReason(
+	status *model.RepoStatus,
+	rebaseDirty, force bool,
+	protectedBranches []string,
+	allowProtectedRebase bool,
+) string {
 	if status == nil {
 		return "unknown status"
 	}
@@ -538,6 +558,9 @@ func pullRebaseSkipReason(status *model.RepoStatus, rebaseDirty, force bool) str
 	}
 	if status.Head.Detached {
 		return "detached HEAD"
+	}
+	if matchesProtectedBranch(status.Head.Branch, protectedBranches) && !allowProtectedRebase {
+		return fmt.Sprintf("branch %q is protected", status.Head.Branch)
 	}
 	if status.Worktree == nil {
 		return "dirty state unknown"
@@ -564,6 +587,23 @@ func pullRebaseSkipReason(status *model.RepoStatus, rebaseDirty, force bool) str
 		return "already up to date"
 	}
 	return ""
+}
+
+func matchesProtectedBranch(branch string, patterns []string) bool {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return false
+	}
+	for _, pattern := range patterns {
+		p := strings.TrimSpace(pattern)
+		if p == "" {
+			continue
+		}
+		if ok, err := path.Match(p, branch); err == nil && ok {
+			return true
+		}
+	}
+	return false
 }
 
 // InspectRepo gathers the full status for a single repository path.

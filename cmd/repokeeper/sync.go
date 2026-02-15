@@ -50,6 +50,8 @@ var syncCmd = &cobra.Command{
 		updateLocal, _ := cmd.Flags().GetBool("update-local")
 		rebaseDirty, _ := cmd.Flags().GetBool("rebase-dirty")
 		force, _ := cmd.Flags().GetBool("force")
+		protectedBranchesRaw, _ := cmd.Flags().GetString("protected-branches")
+		allowProtectedRebase, _ := cmd.Flags().GetBool("allow-protected-rebase")
 		checkoutMissing, _ := cmd.Flags().GetBool("checkout-missing")
 		format, _ := cmd.Flags().GetString("format")
 		wrap, _ := cmd.Flags().GetBool("wrap")
@@ -66,14 +68,16 @@ var syncCmd = &cobra.Command{
 
 		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
 		plan, err := eng.Sync(cmd.Context(), engine.SyncOptions{
-			Filter:          engine.FilterKind(only),
-			Concurrency:     concurrency,
-			Timeout:         timeout,
-			DryRun:          true,
-			UpdateLocal:     updateLocal,
-			RebaseDirty:     rebaseDirty,
-			Force:           force,
-			CheckoutMissing: checkoutMissing,
+			Filter:               engine.FilterKind(only),
+			Concurrency:          concurrency,
+			Timeout:              timeout,
+			DryRun:               true,
+			UpdateLocal:          updateLocal,
+			RebaseDirty:          rebaseDirty,
+			Force:                force,
+			ProtectedBranches:    splitCSV(protectedBranchesRaw),
+			AllowProtectedRebase: allowProtectedRebase,
+			CheckoutMissing:      checkoutMissing,
 		})
 		if err != nil {
 			return err
@@ -100,14 +104,16 @@ var syncCmd = &cobra.Command{
 		results := plan
 		if !dryRun {
 			results, err = eng.Sync(cmd.Context(), engine.SyncOptions{
-				Filter:          engine.FilterKind(only),
-				Concurrency:     concurrency,
-				Timeout:         timeout,
-				DryRun:          false,
-				UpdateLocal:     updateLocal,
-				RebaseDirty:     rebaseDirty,
-				Force:           force,
-				CheckoutMissing: checkoutMissing,
+				Filter:               engine.FilterKind(only),
+				Concurrency:          concurrency,
+				Timeout:              timeout,
+				DryRun:               false,
+				UpdateLocal:          updateLocal,
+				RebaseDirty:          rebaseDirty,
+				Force:                force,
+				ProtectedBranches:    splitCSV(protectedBranchesRaw),
+				AllowProtectedRebase: allowProtectedRebase,
+				CheckoutMissing:      checkoutMissing,
 			})
 			if err != nil {
 				return err
@@ -168,6 +174,8 @@ func init() {
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
 	syncCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
 	syncCmd.Flags().Bool("force", false, "when used with --update-local, allow rebase even when branch tracking state is diverged")
+	syncCmd.Flags().String("protected-branches", "main,master,release/*", "comma-separated branch patterns to protect from auto-rebase during --update-local")
+	syncCmd.Flags().Bool("allow-protected-rebase", false, "when used with --update-local, allow rebase on branches matched by --protected-branches")
 	syncCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
 	syncCmd.Flags().String("format", "table", "output format: table or json")
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")

@@ -514,4 +514,50 @@ var _ = Describe("Engine", func() {
 		Expect(forced[0].OK).To(BeTrue())
 		Expect(forced[0].Action).To(Equal("git pull --rebase --no-recurse-submodules"))
 	})
+
+	It("skips protected branch local rebase unless explicitly allowed", func() {
+		runner := &mockRunner{responses: map[string]mockResponse{
+			"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
+			"/repo1:rev-parse --is-bare-repository":    {out: "false"},
+			"/repo1:remote":                            {out: "origin"},
+			"/repo1:remote get-url origin":             {out: "git@github.com:org/repo1.git"},
+			"/repo1:symbolic-ref --quiet --short HEAD": {out: "main"},
+			"/repo1:status --porcelain=v1":             {out: ""},
+			"/repo1:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+				out: "main|origin/main|[behind 1]|<",
+			},
+			"/repo1:rev-list --left-right --count main...origin/main":                       {out: "0\t1"},
+			"/repo1:config --file .gitmodules --get-regexp submodule":                       {err: errors.New("none")},
+			"/repo1:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {out: ""},
+		}}
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+
+		skipped, err := eng.Sync(context.Background(), engine.SyncOptions{
+			Concurrency:       1,
+			Timeout:           1,
+			UpdateLocal:       true,
+			ProtectedBranches: []string{"main", "release/*"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(skipped).To(HaveLen(1))
+		Expect(skipped[0].OK).To(BeTrue())
+		Expect(skipped[0].Error).To(ContainSubstring(`skipped-local-update: branch "main" is protected`))
+
+		allowed, err := eng.Sync(context.Background(), engine.SyncOptions{
+			Concurrency:          1,
+			Timeout:              1,
+			UpdateLocal:          true,
+			ProtectedBranches:    []string{"main", "release/*"},
+			AllowProtectedRebase: true,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(allowed).To(HaveLen(1))
+		Expect(allowed[0].OK).To(BeTrue())
+		Expect(allowed[0].Action).To(Equal("git pull --rebase --no-recurse-submodules"))
+	})
 })

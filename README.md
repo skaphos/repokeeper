@@ -149,6 +149,7 @@ Optional local checkout update:
 - branch tracks `*/main`
 - branch is not ahead
 - branch is not diverged unless `--force` is set
+- branch is not matched by `--protected-branches` (default: `main,master,release/*`) unless `--allow-protected-rebase` is set
 - `--rebase-dirty` stashes changes, rebases, then pops the stash
 - In dry-run/preflight mode, these checks are evaluated up front so the plan calls out which repos are candidates for `fetch + rebase` versus `skip local update (...)`.
 
