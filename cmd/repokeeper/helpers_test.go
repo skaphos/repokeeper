@@ -69,6 +69,13 @@ func TestWriters(t *testing.T) {
 	if !strings.Contains(out.String(), "PATH") || !strings.Contains(out.String(), "TRACKING") || !strings.Contains(out.String(), "ERROR_CLASS") {
 		t.Fatal("expected sync header")
 	}
+
+	errOut := &bytes.Buffer{}
+	cmd.SetErr(errOut)
+	writeSyncPlan(cmd, []engine.SyncResult{{RepoID: "r1", Path: "/repo", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"}}, "/tmp", nil)
+	if !strings.Contains(errOut.String(), "Planned sync operations:") {
+		t.Fatal("expected sync plan heading")
+	}
 }
 
 func TestLogHelpers(t *testing.T) {
@@ -202,5 +209,29 @@ func TestDisplayRepoPathPrefersCWDThenRoot(t *testing.T) {
 	}
 	if got := displayRepoPath("/opt/repo", "/tmp/work", []string{"/tmp/root"}); got != "/opt/repo" {
 		t.Fatalf("expected absolute fallback path, got %q", got)
+	}
+}
+
+func TestConfirmSyncExecution(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.SetIn(strings.NewReader("yes\n"))
+	cmd.SetErr(&bytes.Buffer{})
+	ok, err := confirmSyncExecution(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected confirmation to be accepted")
+	}
+
+	cmd = &cobra.Command{}
+	cmd.SetIn(strings.NewReader("n\n"))
+	cmd.SetErr(&bytes.Buffer{})
+	ok, err = confirmSyncExecution(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected confirmation to be rejected")
 	}
 }

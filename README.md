@@ -73,6 +73,7 @@ repokeeper sync
 | `repokeeper version` | Print version and build info |
 
 `repokeeper sync --format table` mirrors the `status` columns (`PATH`, `BRANCH`, `DIRTY`, `TRACKING`) and appends sync outcome columns (`OK`, `ERROR_CLASS`, `ERROR`, `ACTION`).
+`repokeeper sync` shows a preflight plan and prompts for confirmation before execution; use `--yes` to skip the prompt.
 
 `repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 

@@ -180,6 +180,7 @@ Flags:
 #### `repokeeper sync`
 
 Runs safe fetch/prune on repos (all or selected).
+Shows a preflight plan and prompts for confirmation before executing unless `--yes` is passed.
 
 Flags:
 
@@ -187,6 +188,7 @@ Flags:
 * `--concurrency <n>` (default: min(8, CPU))
 * `--timeout <duration>` (default 60s/repo)
 * `--dry-run`
+* `--yes` (skip confirmation prompt and execute immediately)
 * `--update-local` (optional; after fetch, run `pull --rebase` only for clean repos tracking `*/main` and not ahead/diverged)
 * `--checkout-missing` (optional; clone repos marked missing from registry metadata)
 * `--format table|json`
