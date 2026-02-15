@@ -394,6 +394,9 @@ func describeSyncAction(res engine.SyncResult) string {
 	// Prefer explicit skip reasons from the engine over heuristic action parsing.
 	if strings.HasPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix) {
 		reason := strings.TrimSpace(strings.TrimPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix))
+		if reason == "already up to date" {
+			return "fetch"
+		}
 		if reason == "" {
 			return "skip local update"
 		}

@@ -567,6 +567,14 @@ func TestDescribeSyncActionAdditionalBranches(t *testing.T) {
 		want string
 	}{
 		{name: "hg pull maps to fetch", in: engine.SyncResult{Action: "hg pull"}, want: "fetch"},
+		{
+			name: "already up to date skip is suppressed",
+			in: engine.SyncResult{
+				Action: "git fetch --all --prune --prune-tags --no-recurse-submodules",
+				Error:  engine.SyncErrorSkippedLocalUpdatePrefix + "already up to date",
+			},
+			want: "fetch",
+		},
 		{name: "skip generic", in: engine.SyncResult{Error: engine.SyncErrorSkipped}, want: "skip"},
 		{name: "skip missing", in: engine.SyncResult{Error: engine.SyncErrorMissing}, want: "skip missing"},
 		{name: "skip local update no reason", in: engine.SyncResult{Error: engine.SyncErrorSkippedLocalUpdatePrefix}, want: "skip local update"},
