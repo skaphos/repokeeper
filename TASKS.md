@@ -219,11 +219,11 @@
 - [ ] Test coverage expansion:
   - [x] add unit tests for command RunE functions (sync, status, repair_upstream)
   - [x] add integration tests for edge cases: symlinks, bare repos, missing repos
-  - [ ] add table-driven tests for command parsing logic
+  - [x] add table-driven tests for command parsing logic
 - [ ] Documentation:
-  - [ ] document flag precedence behavior in root.go or README
+  - [x] document flag precedence behavior in root.go or README
   - [x] add Godoc comments on public types (SyncResult fields, model types)
-  - [ ] clarify `--dry-run` default behavior in status command
+  - [x] clarify `--dry-run` default behavior in status command
 - [ ] Code organization:
   - [x] extract table rendering and confirmation logic from commands to reusable modules
   - [x] replace deep parameter lists with options structs (e.g., `PullRebaseOptions`)

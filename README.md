@@ -86,6 +86,7 @@ Use `-o wide` (or `--format wide`) on `status`/`get repos` and `sync`/`reconcile
 `repokeeper sync` supports `--only diverged` and `--only remote-mismatch` for targeted remediation runs.
 `repokeeper status --only diverged` now includes a diverged reason and recommended action in table output, and adds a machine-readable `diverged` guidance array in JSON output.
 `repokeeper status --only remote-mismatch --reconcile-remote-mismatch registry|git --dry-run=false` can explicitly reconcile mismatched remotes by updating either registry `remote_url` values or live git remote URLs. Apply mode prompts unless `--yes` is passed.
+For `status`, `--dry-run` defaults to `true` and only affects remote-mismatch reconcile actions (preview vs apply); regular status reporting itself never mutates repos.
 
 `repokeeper describe` and `repokeeper describe repo` both accept a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 
@@ -125,6 +126,17 @@ Runtime commands (`scan`, `status`, `sync`) resolve config in this order:
 - Linux: `$XDG_CONFIG_HOME/repokeeper/config.yaml` (default `~/.config/repokeeper/config.yaml`)
 - macOS: `~/Library/Application Support/repokeeper/config.yaml`
 - Windows: `%APPDATA%\\repokeeper\\config.yaml`
+
+Flag precedence (highest to lowest):
+1. Explicit command flags (`--config`, `--only`, `--field-selector`, etc.)
+2. Environment variables where supported (`REPOKEEPER_CONFIG`, `NO_COLOR`)
+3. Values loaded from the resolved config file
+4. Built-in command defaults
+
+Selector precedence:
+1. `--field-selector` when set
+2. `--only` when `--field-selector` is not set
+3. Providing both in one command is rejected
 
 Example config:
 
