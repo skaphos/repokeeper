@@ -217,7 +217,7 @@
   - [x] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions
   - [x] single source of truth for defaults (concurrency, timeout, main_branch) in Config.Defaults
 - [ ] Test coverage expansion:
-  - [ ] add unit tests for command RunE functions (sync, status, repair_upstream)
+  - [x] add unit tests for command RunE functions (sync, status, repair_upstream)
   - [ ] add integration tests for edge cases: symlinks, bare repos, missing repos
   - [ ] add table-driven tests for command parsing logic
 - [ ] Documentation:
@@ -241,7 +241,7 @@
 - [x] Engine fields are private with controlled access
 - [x] All commands use Adapter interface instead of direct GitRunner
 - [x] Flag definitions are DRY (single helper per common flag pattern)
-- [ ] Unit test coverage for command handlers >= 70%
+- [x] Unit test coverage for command handlers >= 70%
 - [ ] Integration tests cover symlink, bare repo, and missing repo scenarios
 - [ ] All public types have Godoc comments
 
