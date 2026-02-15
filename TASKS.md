@@ -104,24 +104,24 @@
 - [x] keep `--only` as shorthand
 - [x] add field-selector style filtering (phase rollout)
 - [ ] `repair-upstream` command:
-- [ ] detect missing/wrong upstream tracking refs
-- [ ] repair to configured/default upstream (`origin/<branch>`) with dry-run support
+- [x] detect missing/wrong upstream tracking refs
+- [x] repair to configured/default upstream (`origin/<branch>`) with dry-run support
 - [ ] diverged-focused reporting:
 - [ ] add machine-readable and table views for repos in `diverged` state
 - [ ] include reason and recommended action (`manual`, `--force`, etc.)
 - [ ] remote mismatch detection:
-- [ ] report registry `remote_url` vs live git remote mismatch
+- [x] report registry `remote_url` vs live git remote mismatch
 - [ ] optional reconcile mode to update registry or git remote (explicit flag)
 - [ ] `sync --continue-on-error`:
 - [x] continue processing all repos while accumulating failures
 - [x] summarize failed repos/actions at end with deterministic ordering
 - [ ] richer exit code model for automation:
-- [ ] preserve existing high-level codes but add structured per-repo outcomes in JSON
-- [ ] outcome categories: `fetched`, `rebased`, `skipped_no_upstream`, `skipped_diverged`, `failed`, etc.
+- [x] preserve existing high-level codes but add structured per-repo outcomes in JSON
+- [x] outcome categories: `fetched`, `rebased`, `skipped_no_upstream`, `skipped_diverged`, `failed`, etc.
 - [ ] protected-branch safeguards:
-- [ ] block auto-rebase on protected branch patterns by default
-- [ ] allow explicit override flag for emergency runs
-- [ ] document safeguards in `README.md` and `DESIGN.md`
+- [x] block auto-rebase on protected branch patterns by default
+- [x] allow explicit override flag for emergency runs
+- [x] document safeguards in `README.md` and `DESIGN.md`
 
 **Acceptance:**
 
