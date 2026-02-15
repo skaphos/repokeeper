@@ -206,10 +206,10 @@
   - [x] validate path normalization in `selectRegistryEntryForDescribe` stays within configured roots
 - [ ] API design cleanup:
   - [ ] make Engine struct fields private, add read-only accessors if needed
-  - [ ] replace direct `gitx.GitRunner{}` instantiation with Adapter interface (edit.go, add.go, repair_upstream.go)
+  - [x] replace direct `gitx.GitRunner{}` instantiation with Adapter interface (edit.go, add.go, repair_upstream.go)
     - [x] edit.go
     - [x] add.go
-    - [ ] repair_upstream.go
+    - [x] repair_upstream.go
   - [ ] extract remote mismatch logic from status.go to dedicated package
 - [ ] Flag/config consolidation:
   - [ ] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions

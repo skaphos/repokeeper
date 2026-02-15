@@ -68,7 +68,8 @@ var repairUpstreamCmd = &cobra.Command{
 			}
 		}
 
-		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+		adapter := vcs.NewGitAdapter(nil)
+		eng := engine.New(cfg, reg, adapter)
 		report, err := eng.Status(cmd.Context(), engine.StatusOptions{
 			Filter:      engine.FilterAll,
 			Concurrency: cfg.Defaults.Concurrency,
@@ -86,7 +87,6 @@ var repairUpstreamCmd = &cobra.Command{
 		entries := append([]registry.Entry(nil), reg.Entries...)
 		sortutil.SortRegistryEntries(entries)
 
-		runner := &gitx.GitRunner{}
 		results := make([]repairUpstreamResult, 0, len(entries))
 		registryMutated := false
 		confirmationChecked := false
@@ -177,7 +177,7 @@ var repairUpstreamCmd = &cobra.Command{
 				}
 			}
 
-			if _, err := runner.Run(cmd.Context(), entry.Path, "branch", "--set-upstream-to", targetUpstream, repo.Head.Branch); err != nil {
+			if err := adapter.SetUpstream(cmd.Context(), entry.Path, targetUpstream, repo.Head.Branch); err != nil {
 				res.OK = false
 				res.Action = "failed"
 				res.ErrorClass = gitx.ClassifyError(err)
