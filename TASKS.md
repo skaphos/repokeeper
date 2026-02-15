@@ -248,13 +248,13 @@
 ### Milestone 7 — Responsive Output & Reflow
 
 - [x] Replace stdlib `text/tabwriter` with `github.com/liggitt/tabwriter` to align kubectl-style table behavior
-- [ ] Evaluate kubectl printer-stack compatibility (`k8s.io/cli-runtime/pkg/printers`) without taking Kubernetes object dependencies
+- [x] Non-goal: do not adopt Kubernetes printer stack dependencies (`k8s.io/cli-runtime/pkg/printers`)
 - [x] Width-aware table rendering for narrow terminals (kubectl-style reflow behavior)
 - [x] Adaptive column strategy by view (`get/status`, `reconcile/sync`, `repair`) with deterministic priority
 - [x] Smart truncation rules and optional wrapping that preserve key identifiers (`PATH`, `REPO`, `ACTION`)
 - [x] Dynamic header/column compaction for small widths while keeping `-o json` stable
 - [x] Add output selector: `-o custom-columns=...` (custom headers/column maps)
-- [ ] @todo Evaluate `-o jsonpath=...` support later; deferred for now due low operator value
+- [x] Non-goal: `-o jsonpath=...` support removed; keep selector surface to `custom-columns`
 - [x] Snapshot tests across terminal widths (for example: 80, 100, 120, 160 cols)
 - [ ] Ensure color and readability parity in compact/reflow modes
 
