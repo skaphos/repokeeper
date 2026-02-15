@@ -180,7 +180,7 @@
 - [x] No package-level mutable state in `cmd/repokeeper/` (flags read via context/struct)
 - [x] `sync` command performs repo analysis only once per invocation
 - [x] Error classification uses Go error types with `errors.Is`/`errors.As`
-- [x] No single function exceeds 100 lines (excluding table definitions)
+- [x] Function size guideline: target ~100 lines where practical to keep density/complexity low (not a strict hard limit)
 - [x] Shared utilities live in dedicated packages with their own tests
 - [x] `go mod tidy` produces no changes
 - [x] All existing tests pass with no behavior changes

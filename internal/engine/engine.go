@@ -35,6 +35,8 @@ const (
 	FilterMissing        FilterKind = "missing"
 )
 
+const maxWorkerChannelBuffer = 100
+
 // Engine is the core orchestrator for RepoKeeper operations.
 type Engine struct {
 	Config   *config.Config
@@ -149,16 +151,17 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 		status model.RepoStatus
 	}
 
-	entries := e.Registry.Entries
+	// Snapshot entries to decouple worker scheduling from concurrent registry updates.
+	entries := append([]registry.Entry(nil), e.Registry.Entries...)
 	results := make([]model.RepoStatus, 0, len(entries))
 	sem := make(chan struct{}, concurrency)
-	out := make(chan result, len(entries))
+	out := make(chan result, workerChannelBufferSize(len(entries)))
 	spawned := 0
 
 	for _, entry := range entries {
 		sem <- struct{}{}
 		spawned++
-		go func() {
+		go func(entry registry.Entry) {
 			defer func() { <-sem }()
 			if entry.Status == registry.StatusMissing {
 				out <- result{status: model.RepoStatus{
@@ -198,7 +201,7 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 				status.Type = entry.Type
 			}
 			out <- result{status: *status}
-		}()
+		}(entry)
 	}
 
 	for i := 0; i < spawned; i++ {
@@ -395,13 +398,14 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	}
 
 	concurrency, timeoutSeconds, mainBranch := e.syncRuntime(opts)
-	entries := e.Registry.Entries
+	// Snapshot entries so concurrent sync workers do not race on shared slices.
+	entries := append([]registry.Entry(nil), e.Registry.Entries...)
 	if !opts.ContinueOnError {
 		return e.syncSequentialStopOnError(ctx, opts, entries)
 	}
 
 	sem := make(chan struct{}, concurrency)
-	out := make(chan SyncResult, len(entries))
+	out := make(chan SyncResult, workerChannelBufferSize(len(entries)))
 	spawned := 0
 	results := make([]SyncResult, 0, len(entries))
 
@@ -415,10 +419,10 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		}
 		sem <- struct{}{}
 		spawned++
-		go func() {
+		go func(entry registry.Entry) {
 			defer func() { <-sem }()
 			out <- e.runSyncEntry(ctx, entry, opts, timeoutSeconds, mainBranch)
-		}()
+		}(entry)
 	}
 
 	for i := 0; i < spawned; i++ {
@@ -426,6 +430,16 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	}
 	sortSyncResults(results)
 	return results, nil
+}
+
+func workerChannelBufferSize(entryCount int) int {
+	if entryCount <= 0 {
+		return 1
+	}
+	if entryCount > maxWorkerChannelBuffer {
+		return maxWorkerChannelBuffer
+	}
+	return entryCount
 }
 
 func (e *Engine) syncRuntime(opts SyncOptions) (int, int, string) {
