@@ -98,6 +98,37 @@
 
 - [ ] Use TUI as primary "dashboard" without losing CLI automation
 
+### Milestone 6 — CLI Improvements (Ongoing)
+
+- [ ] `repair-upstream` command:
+- [ ] detect missing/wrong upstream tracking refs
+- [ ] repair to configured/default upstream (`origin/<branch>`) with dry-run support
+- [ ] diverged-focused reporting:
+- [ ] add machine-readable and table views for repos in `diverged` state
+- [ ] include reason and recommended action (`manual`, `--force`, etc.)
+- [ ] remote mismatch detection:
+- [ ] report registry `remote_url` vs live git remote mismatch
+- [ ] optional reconcile mode to update registry or git remote (explicit flag)
+- [ ] `sync --continue-on-error`:
+- [ ] continue processing all repos while accumulating failures
+- [ ] summarize failed repos/actions at end with deterministic ordering
+- [ ] richer exit code model for automation:
+- [ ] preserve existing high-level codes but add structured per-repo outcomes in JSON
+- [ ] outcome categories: `fetched`, `rebased`, `skipped_no_upstream`, `skipped_diverged`, `failed`, etc.
+- [ ] protected-branch safeguards:
+- [ ] block auto-rebase on protected branch patterns by default
+- [ ] allow explicit override flag for emergency runs
+- [ ] document safeguards in `README.md` and `DESIGN.md`
+
+**Acceptance:**
+
+- [ ] Operators can run one command to identify and repair upstream drift safely.
+- [ ] Diverged and remote-mismatch repos are clearly surfaced without digging through logs.
+- [ ] Batch sync runs complete across all repos even with partial failures (`--continue-on-error`).
+- [ ] CI/automation can rely on stable outcome fields and exit behavior for policy decisions.
+- [ ] Protected branches are never rebased automatically unless explicitly overridden.
+- [ ] Milestone remains open as new CLI ergonomics and automation gaps are identified.
+
 ### Milestone 9 — Multi-VCS adapters (stretch)
 
 - [x] Add VCS adapter abstraction (Git-first, but extensible)
