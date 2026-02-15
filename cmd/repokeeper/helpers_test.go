@@ -566,6 +566,7 @@ func TestDescribeSyncActionAdditionalBranches(t *testing.T) {
 		in   engine.SyncResult
 		want string
 	}{
+		{name: "hg pull maps to fetch", in: engine.SyncResult{Action: "hg pull"}, want: "fetch"},
 		{name: "skip generic", in: engine.SyncResult{Error: engine.SyncErrorSkipped}, want: "skip"},
 		{name: "skip missing", in: engine.SyncResult{Error: engine.SyncErrorMissing}, want: "skip missing"},
 		{name: "skip local update no reason", in: engine.SyncResult{Error: engine.SyncErrorSkippedLocalUpdatePrefix}, want: "skip local update"},

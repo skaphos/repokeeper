@@ -414,6 +414,8 @@ func describeSyncAction(res engine.SyncResult) string {
 	switch {
 	case strings.Contains(normalized, "stash") && strings.Contains(normalized, "rebase"):
 		return "stash & rebase"
+	case strings.Contains(normalized, "hg pull"):
+		return "fetch"
 	case strings.Contains(normalized, "fetch --all") && strings.Contains(normalized, "git push"):
 		return "fetch + push"
 	case strings.Contains(normalized, "fetch --all") && strings.Contains(normalized, "pull --rebase"):

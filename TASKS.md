@@ -270,15 +270,21 @@
 - [x] Mercurial (hg) adapter: discovery, status, safe sync (`hg pull`; local update explicitly unsupported)
 - [x] CLI flags to select VCS types (e.g., `--vcs git,hg`)
 - [x] Update docs + compatibility matrix per VCS tool versions
-- [ ] Gather user feedback from milestone 6/7 usage and prioritize improvements
-- [ ] Implement highest-impact UX and automation improvements from feedback
-- [ ] Re-run docs/help cleanup after feedback-driven changes
+- [x] Gather user feedback from milestone 6/7 usage and prioritize improvements
+- [x] Implement highest-impact UX and automation improvements from feedback
+- [x] Re-run docs/help cleanup after feedback-driven changes
+
+Feedback captured and prioritized:
+- [x] P1: Drop low-value VCS surface (`bzr`) and simplify adapter selection to `git,hg`.
+- [x] P1: Keep Git default behavior unchanged while making mixed-root support explicit via `--vcs`.
+- [x] P1: Improve sync UX clarity for non-Git repos (`hg pull` safe fetch, explicit skip reason for `--update-local`).
+- [x] P2: Align command/help text to "repositories" language instead of Git-only wording where behavior is multi-VCS.
 
 **Acceptance:**
 
 - [x] Git remains default; Hg optional and clearly documented as experimental
 - [x] Adapter selection works without regressions to Git behavior
-- [ ] Feedback items are captured, triaged, and reflected in shipped improvements
+- [x] Feedback items are captured, triaged, and reflected in shipped improvements
 
 ### Milestone 9 — TUI (phase 2)
 
