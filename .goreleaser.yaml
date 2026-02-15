@@ -42,19 +42,17 @@ changelog:
       - "^test:"
       - "^ci:"
 
-brews:
+homebrew_casks:
   - repository:
       owner: skaphos
       name: homebrew-tools
+      branch: main
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
     homepage: "https://github.com/skaphos/repokeeper"
     description: "Track and manage many Git repositories from a single config"
     license: "MIT"
-    install: |
-      bin.install "repokeeper"
-    test: |
-      system "#{bin}/repokeeper", "version"
+    binaries:
+      - repokeeper
 
 snapshot:
   version_template: "{{ .Tag }}-next"

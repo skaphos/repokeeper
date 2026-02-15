@@ -15,11 +15,13 @@ RepoKeeper inventories your git repos, reports drift and broken tracking, and pe
 
 ## Install
 
-### Homebrew (macOS/Linux)
+See [INSTALL.md](INSTALL.md) for full install and upgrade instructions.
+
+### Homebrew (cask)
 
 ```bash
 brew tap skaphos/tools
-brew install skaphos/tools/repokeeper
+brew install --cask skaphos/tools/repokeeper
 ```
 
 ### From release binaries
@@ -153,6 +155,7 @@ Optional local checkout update:
 - [TASKS.md](TASKS.md) — implementation milestones and task tracking
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow and PR expectations
 - [RELEASE.md](RELEASE.md) — release and tagging process
+- [INSTALL.md](INSTALL.md) — installation and upgrade paths
 
 ## Development
 

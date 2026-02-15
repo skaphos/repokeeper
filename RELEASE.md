@@ -38,7 +38,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`, which runs GoReleas
 
 - Builds release artifacts
 - Publishes a GitHub Release
-- Updates Homebrew formula in `github.com/skaphos/homebrew-tools` (`Formula/repokeeper.rb`) when `HOMEBREW_TAP_GITHUB_TOKEN` is configured
+- Updates Homebrew cask in `github.com/skaphos/homebrew-tools` (`Casks/repokeeper.rb`) when `HOMEBREW_TAP_GITHUB_TOKEN` is configured
 
 No manual GoReleaser invocation is required for normal releases.
 

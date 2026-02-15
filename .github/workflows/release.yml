@@ -36,7 +36,7 @@ jobs:
         run: |
           if [ -z "${HOMEBREW_TOKEN}" ]; then
             echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
-            echo "::warning::GitHub App token was not minted; skipping Homebrew formula publish."
+            echo "::warning::GitHub App token was not minted; skipping Homebrew cask publish."
             exit 0
           fi
 
@@ -47,7 +47,7 @@ jobs:
             echo "args=release --clean" >> "$GITHUB_OUTPUT"
           else
             echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
-            echo "::warning::GitHub App token cannot access skaphos/homebrew-tools; skipping Homebrew formula publish."
+            echo "::warning::GitHub App token cannot access skaphos/homebrew-tools; skipping Homebrew cask publish."
           fi
       - uses: goreleaser/goreleaser-action@v6
         with:
