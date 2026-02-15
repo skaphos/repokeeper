@@ -195,7 +195,7 @@
 - [ ] Concurrency safety:
   - [x] fix race condition: goroutines in `Status()` access `e.Registry` without synchronization (engine.go:158-201)
   - [x] copy registry entry data before passing to goroutines
-  - [ ] address channel leak risk in `syncSequentialStopOnError()` on early return (engine.go:446-475)
+  - [x] address channel leak risk in `syncSequentialStopOnError()` on early return (engine.go:446-475)
   - [ ] add mutex or value-based updates for registry entry mutation during sync
 - [ ] Memory/performance:
   - [x] reduce unbounded channel buffer sizes from `len(entries)` to fixed cap (e.g., 100) in engine.go

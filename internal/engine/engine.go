@@ -462,28 +462,25 @@ func (e *Engine) syncRuntime(opts SyncOptions) (int, int, string) {
 }
 
 func (e *Engine) syncSequentialStopOnError(ctx context.Context, opts SyncOptions, entries []registry.Entry) ([]SyncResult, error) {
-	// Preserve deterministic "stop on first failure" semantics by running one
-	// entry at a time through the same Sync logic used for batch mode.
+	// Preserve deterministic "stop on first failure" semantics with direct
+	// per-entry execution (no goroutines/channels in this path).
+	_, timeoutSeconds, mainBranch := e.syncRuntime(opts)
 	results := make([]SyncResult, 0, len(entries))
 	for _, entry := range entries {
-		subReg := &registry.Registry{Entries: []registry.Entry{entry}}
-		sub := &Engine{
-			Config:   e.Config,
-			Registry: subReg,
-			Adapter:  e.Adapter,
+		queue, immediate := e.prepareSyncEntry(ctx, entry, opts)
+		if immediate != nil {
+			results = append(results, *immediate)
+			if !immediate.OK {
+				sortSyncResults(results)
+				return results, nil
+			}
 		}
-		subOpts := opts
-		subOpts.ContinueOnError = true
-		subOpts.Concurrency = 1
-		subResults, err := sub.Sync(ctx, subOpts)
-		if err != nil {
-			return results, err
+		if !queue {
+			continue
 		}
-		results = append(results, subResults...)
-		for _, updated := range subReg.Entries {
-			e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, updated)
-		}
-		if len(subResults) > 0 && !subResults[len(subResults)-1].OK {
+		res := e.runSyncEntry(ctx, entry, opts, timeoutSeconds, mainBranch)
+		results = append(results, res)
+		if !res.OK {
 			sortSyncResults(results)
 			return results, nil
 		}
