@@ -106,6 +106,7 @@ jobs:
               failure) failed=$((failed + 1)) ;;
               skipped) skipped=$((skipped + 1)) ;;
               cancelled) cancelled=$((cancelled + 1)) ;;
+              *) failed=$((failed + 1)) ;;
             esac
           done
 
