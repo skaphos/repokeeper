@@ -235,14 +235,38 @@ type SyncOptions struct {
 type SyncResult struct {
 	RepoID     string
 	Path       string
-	Outcome    string
+	Outcome    SyncOutcome
 	OK         bool
 	Error      string
 	ErrorClass string
 	Action     string
 }
 
+// SyncOutcome is the typed outcome category for a single sync result.
+type SyncOutcome string
+
 const (
+	SyncOutcomeFailedInvalid         SyncOutcome = "failed_invalid"
+	SyncOutcomeFailedCheckoutMissing SyncOutcome = "failed_checkout_missing"
+	SyncOutcomeCheckoutMissing       SyncOutcome = "checkout_missing"
+	SyncOutcomeFailedFetch           SyncOutcome = "failed_fetch"
+	SyncOutcomeFetched               SyncOutcome = "fetched"
+	SyncOutcomeFailedStash           SyncOutcome = "failed_stash"
+	SyncOutcomeFailedRebase          SyncOutcome = "failed_rebase"
+	SyncOutcomeFailedStashPop        SyncOutcome = "failed_stash_pop"
+	SyncOutcomeFailedPush            SyncOutcome = "failed_push"
+	SyncOutcomePushed                SyncOutcome = "pushed"
+	SyncOutcomeSkippedNoUpstream     SyncOutcome = "skipped_no_upstream"
+	SyncOutcomeSkippedMissing        SyncOutcome = "skipped_missing"
+	SyncOutcomePlannedCheckout       SyncOutcome = "planned_checkout_missing"
+	SyncOutcomePlannedPush           SyncOutcome = "planned_push"
+	SyncOutcomeSkippedLocalUpdate    SyncOutcome = "skipped_local_update"
+	SyncOutcomePlannedFetch          SyncOutcome = "planned_fetch"
+	SyncOutcomeSkipped               SyncOutcome = "skipped"
+	SyncOutcomeRebased               SyncOutcome = "rebased"
+	SyncOutcomeStashedRebased        SyncOutcome = "stashed_rebased"
+	SyncOutcomeFailedInspect         SyncOutcome = "failed_inspect"
+
 	SyncErrorDryRun                   = "dry-run"
 	SyncErrorMissing                  = "missing"
 	SyncErrorSkipped                  = "skipped"
@@ -278,17 +302,17 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 			entry := findRegistryEntryForSyncResult(e.Registry, item)
 			if entry == nil {
 				executed.OK = false
-				executed.Outcome = "failed_invalid"
+				executed.Outcome = SyncOutcomeFailedInvalid
 				executed.Error = "registry entry not found for planned clone"
 				executed.ErrorClass = "invalid"
 			} else if err := e.Adapter.Clone(ctx, strings.TrimSpace(entry.RemoteURL), entry.Path, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
 				executed.OK = false
-				executed.Outcome = "failed_checkout_missing"
+				executed.Outcome = SyncOutcomeFailedCheckoutMissing
 				executed.Error = err.Error()
 				executed.ErrorClass = gitx.ClassifyError(err)
 			} else {
 				executed.OK = true
-				executed.Outcome = "checkout_missing"
+				executed.Outcome = SyncOutcomeCheckoutMissing
 				entry.Status = registry.StatusPresent
 				entry.LastSeen = time.Now()
 				e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, *entry)
@@ -304,7 +328,7 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 		if strings.Contains(action, "git fetch --all") {
 			if err := e.Adapter.Fetch(ctx, item.Path); err != nil {
 				executed.OK = false
-				executed.Outcome = "failed_fetch"
+				executed.Outcome = SyncOutcomeFailedFetch
 				executed.Error = err.Error()
 				executed.ErrorClass = gitx.ClassifyError(err)
 				results = append(results, executed)
@@ -313,14 +337,14 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 				}
 				continue
 			}
-			executed.Outcome = "fetched"
+			executed.Outcome = SyncOutcomeFetched
 		}
 
 		if strings.Contains(action, "stash push") {
 			created, err := e.Adapter.StashPush(ctx, item.Path, "repokeeper: pre-rebase stash")
 			if err != nil {
 				executed.OK = false
-				executed.Outcome = "failed_stash"
+				executed.Outcome = SyncOutcomeFailedStash
 				executed.Error = err.Error()
 				executed.ErrorClass = gitx.ClassifyError(err)
 				results = append(results, executed)
@@ -335,7 +359,7 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 		if strings.Contains(action, "pull --rebase") {
 			if err := e.Adapter.PullRebase(ctx, item.Path); err != nil {
 				executed.OK = false
-				executed.Outcome = "failed_rebase"
+				executed.Outcome = SyncOutcomeFailedRebase
 				executed.Error = err.Error()
 				executed.ErrorClass = gitx.ClassifyError(err)
 				results = append(results, executed)
@@ -350,7 +374,7 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 		if strings.Contains(action, "stash pop") && stashed {
 			if err := e.Adapter.StashPop(ctx, item.Path); err != nil {
 				executed.OK = false
-				executed.Outcome = "failed_stash_pop"
+				executed.Outcome = SyncOutcomeFailedStashPop
 				executed.Error = err.Error()
 				executed.ErrorClass = gitx.ClassifyError(err)
 				results = append(results, executed)
@@ -364,7 +388,7 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 		if strings.Contains(action, "git push") {
 			if err := e.Adapter.Push(ctx, item.Path); err != nil {
 				executed.OK = false
-				executed.Outcome = "failed_push"
+				executed.Outcome = SyncOutcomeFailedPush
 				executed.Error = err.Error()
 				executed.ErrorClass = gitx.ClassifyError(err)
 				results = append(results, executed)
@@ -373,7 +397,7 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 				}
 				continue
 			}
-			executed.Outcome = "pushed"
+			executed.Outcome = SyncOutcomePushed
 		}
 
 		executed.OK = true
@@ -496,7 +520,7 @@ func (e *Engine) prepareSyncEntry(ctx context.Context, entry registry.Entry, opt
 		res := SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
-			Outcome:    "skipped_no_upstream",
+			Outcome:    SyncOutcomeSkippedNoUpstream,
 			OK:         true,
 			ErrorClass: "skipped",
 			Error:      SyncErrorSkippedNoUpstream,
@@ -533,7 +557,7 @@ func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry regist
 
 func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions) SyncResult {
 	if !opts.CheckoutMissing {
-		return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped_missing", OK: false, Error: SyncErrorMissing}
+		return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeSkippedMissing, OK: false, Error: SyncErrorMissing}
 	}
 	// Missing entries are recoverable only when we have enough material to
 	// perform a fresh clone into the recorded path.
@@ -542,7 +566,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
-			Outcome:    "failed_invalid",
+			Outcome:    SyncOutcomeFailedInvalid,
 			OK:         false,
 			Error:      SyncErrorMissingRemoteForCheckout,
 			ErrorClass: "invalid",
@@ -562,7 +586,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 		return SyncResult{
 			RepoID:  entry.RepoID,
 			Path:    entry.Path,
-			Outcome: "planned_checkout_missing",
+			Outcome: SyncOutcomePlannedCheckout,
 			OK:      true,
 			Error:   SyncErrorDryRun,
 			Action:  action,
@@ -572,7 +596,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
-			Outcome:    "failed_checkout_missing",
+			Outcome:    SyncOutcomeFailedCheckoutMissing,
 			OK:         false,
 			Error:      err.Error(),
 			ErrorClass: gitx.ClassifyError(err),
@@ -582,7 +606,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 	entry.Status = registry.StatusPresent
 	entry.LastSeen = time.Now()
 	e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, entry)
-	return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "checkout_missing", OK: true, Action: action}
+	return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeCheckoutMissing, OK: true, Action: action}
 }
 
 func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions, timeoutSeconds int, mainBranch string) SyncResult {
@@ -612,7 +636,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 			return SyncResult{
 				RepoID:  entry.RepoID,
 				Path:    entry.Path,
-				Outcome: "planned_push",
+				Outcome: SyncOutcomePlannedPush,
 				OK:      true,
 				Error:   SyncErrorDryRun,
 				Action:  action,
@@ -629,7 +653,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 			return SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
-				Outcome:    "skipped_local_update",
+				Outcome:    SyncOutcomeSkippedLocalUpdate,
 				OK:         true,
 				ErrorClass: "skipped",
 				Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
@@ -641,7 +665,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 	return SyncResult{
 		RepoID:  entry.RepoID,
 		Path:    entry.Path,
-		Outcome: "planned_fetch",
+		Outcome: SyncOutcomePlannedFetch,
 		OK:      true,
 		Error:   SyncErrorDryRun,
 		Action:  action,
@@ -655,21 +679,21 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 			return inspectFailureResult(entry, err)
 		}
 		if status.Tracking.Status != model.TrackingGone {
-			return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped", OK: true, Error: SyncErrorSkipped}
+			return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeSkipped, OK: true, Error: SyncErrorSkipped}
 		}
 	}
 	if err := e.Adapter.Fetch(ctx, entry.Path); err != nil {
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
-			Outcome:    "failed_fetch",
+			Outcome:    SyncOutcomeFailedFetch,
 			OK:         false,
 			Error:      err.Error(),
 			ErrorClass: gitx.ClassifyError(err),
 		}
 	}
 	if !opts.UpdateLocal {
-		return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "fetched", OK: true}
+		return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeFetched, OK: true}
 	}
 	status, err := e.InspectRepo(ctx, entry.Path)
 	if err != nil {
@@ -680,7 +704,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 			return SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
-				Outcome:    "failed_push",
+				Outcome:    SyncOutcomeFailedPush,
 				OK:         false,
 				Error:      err.Error(),
 				ErrorClass: gitx.ClassifyError(err),
@@ -690,7 +714,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 		return SyncResult{
 			RepoID:  entry.RepoID,
 			Path:    entry.Path,
-			Outcome: "pushed",
+			Outcome: SyncOutcomePushed,
 			OK:      true,
 			Action:  "git push",
 		}
@@ -706,7 +730,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
-			Outcome:    "skipped_local_update",
+			Outcome:    SyncOutcomeSkippedLocalUpdate,
 			OK:         true,
 			ErrorClass: "skipped",
 			Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
@@ -726,7 +750,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 			return SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
-				Outcome:    "failed_stash",
+				Outcome:    SyncOutcomeFailedStash,
 				OK:         false,
 				Error:      err.Error(),
 				ErrorClass: gitx.ClassifyError(err),
@@ -741,7 +765,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
-			Outcome:    "failed_rebase",
+			Outcome:    SyncOutcomeFailedRebase,
 			OK:         false,
 			Error:      err.Error(),
 			ErrorClass: gitx.ClassifyError(err),
@@ -753,7 +777,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 			return SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
-				Outcome:    "failed_stash_pop",
+				Outcome:    SyncOutcomeFailedStashPop,
 				OK:         false,
 				Error:      err.Error(),
 				ErrorClass: gitx.ClassifyError(err),
@@ -775,7 +799,7 @@ func inspectFailureResult(entry registry.Entry, err error) SyncResult {
 	return SyncResult{
 		RepoID:     entry.RepoID,
 		Path:       entry.Path,
-		Outcome:    "failed_inspect",
+		Outcome:    SyncOutcomeFailedInspect,
 		OK:         false,
 		Error:      err.Error(),
 		ErrorClass: gitx.ClassifyError(err),
@@ -851,11 +875,11 @@ func matchesProtectedBranch(branch string, patterns []string) bool {
 	return false
 }
 
-func outcomeForRebase(stashed bool) string {
+func outcomeForRebase(stashed bool) SyncOutcome {
 	if stashed {
-		return "stashed_rebased"
+		return SyncOutcomeStashedRebased
 	}
-	return "rebased"
+	return SyncOutcomeRebased
 }
 
 // InspectRepo gathers the full status for a single repository path.

@@ -21,11 +21,11 @@ type planAdapter struct {
 	calls         []string
 }
 
-func (p *planAdapter) Name() string { return "plan" }
-func (p *planAdapter) IsRepo(context.Context, string) (bool, error) { return true, nil }
-func (p *planAdapter) IsBare(context.Context, string) (bool, error) { return false, nil }
+func (p *planAdapter) Name() string                                            { return "plan" }
+func (p *planAdapter) IsRepo(context.Context, string) (bool, error)            { return true, nil }
+func (p *planAdapter) IsBare(context.Context, string) (bool, error)            { return false, nil }
 func (p *planAdapter) Remotes(context.Context, string) ([]model.Remote, error) { return nil, nil }
-func (p *planAdapter) Head(context.Context, string) (model.Head, error) { return model.Head{}, nil }
+func (p *planAdapter) Head(context.Context, string) (model.Head, error)        { return model.Head{}, nil }
 func (p *planAdapter) WorktreeStatus(context.Context, string) (*model.Worktree, error) {
 	return &model.Worktree{}, nil
 }
@@ -57,8 +57,8 @@ func (p *planAdapter) Clone(_ context.Context, _ string, targetPath, _ string, _
 	p.calls = append(p.calls, "clone:"+targetPath)
 	return p.cloneErrByDir[targetPath]
 }
-func (p *planAdapter) NormalizeURL(rawURL string) string      { return rawURL }
-func (p *planAdapter) PrimaryRemote(_ []string) string         { return "origin" }
+func (p *planAdapter) NormalizeURL(rawURL string) string { return rawURL }
+func (p *planAdapter) PrimaryRemote(_ []string) string   { return "origin" }
 
 func TestPullRebaseSkipReasonTable(t *testing.T) {
 	tests := []struct {
@@ -331,20 +331,20 @@ func TestExecuteSyncPlanAppliesPlannedActions(t *testing.T) {
 	if len(results) != len(plan) {
 		t.Fatalf("expected %d results, got %d", len(plan), len(results))
 	}
-	outcome := map[string]string{}
+	outcome := map[string]SyncOutcome{}
 	for _, res := range results {
 		outcome[res.RepoID] = res.Outcome
 	}
-	if outcome["fetch"] != "fetched" {
+	if outcome["fetch"] != SyncOutcomeFetched {
 		t.Fatalf("expected fetched outcome, got %q", outcome["fetch"])
 	}
-	if outcome["rebase"] != "stashed_rebased" {
+	if outcome["rebase"] != SyncOutcomeStashedRebased {
 		t.Fatalf("expected stashed_rebased outcome, got %q", outcome["rebase"])
 	}
-	if outcome["push"] != "pushed" {
+	if outcome["push"] != SyncOutcomePushed {
 		t.Fatalf("expected pushed outcome, got %q", outcome["push"])
 	}
-	if outcome["clone"] != "checkout_missing" {
+	if outcome["clone"] != SyncOutcomeCheckoutMissing {
 		t.Fatalf("expected checkout_missing outcome, got %q", outcome["clone"])
 	}
 	if reg.Entries[0].Status != registry.StatusPresent {
@@ -373,7 +373,7 @@ func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("expected execution to stop after first failure, got %d results", len(results))
 	}
-	if results[0].OK || results[0].Outcome != "failed_fetch" {
+	if results[0].OK || results[0].Outcome != SyncOutcomeFailedFetch {
 		t.Fatalf("expected failed_fetch result, got %#v", results[0])
 	}
 }

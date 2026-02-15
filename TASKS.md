@@ -166,7 +166,7 @@
   - [x] extract common sorting lambda (`RepoID` then `Path`) into named comparator functions
 - [ ] Magic string constants:
   - [x] define constants for error state strings (`"missing"`, `"skipped-local-update:"`, etc.)
-  - [ ] consider typed outcome enum for `SyncResult.Outcome`
+  - [x] consider typed outcome enum for `SyncResult.Outcome`
 - [ ] Remove outdated loop capture pattern:
 - [x] remove `entry := entry` captures in goroutine loops (unnecessary since Go 1.22)
 - [ ] Configurable main branch assumption:
