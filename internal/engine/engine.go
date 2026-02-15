@@ -307,6 +307,13 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 		return nil, errors.New("registry not loaded")
 	}
 
+	if opts.ContinueOnError {
+		return e.executeSyncPlanConcurrent(ctx, plan, opts), nil
+	}
+	return e.executeSyncPlanSequential(ctx, plan, opts), nil
+}
+
+func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResult, opts SyncOptions) []SyncResult {
 	results := make([]SyncResult, 0, len(plan))
 	for _, item := range plan {
 		// Non-dry-run execution only applies actions that were explicitly planned.
@@ -326,7 +333,42 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 	}
 
 	sortSyncResults(results)
-	return results, nil
+	return results
+}
+
+func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResult, opts SyncOptions) []SyncResult {
+	concurrency, timeoutSeconds, _ := e.syncRuntime(opts)
+	sem := make(chan struct{}, concurrency)
+	out := make(chan SyncResult, workerChannelBufferSize(len(plan)))
+	spawned := 0
+	results := make([]SyncResult, 0, len(plan))
+
+	for _, item := range plan {
+		// Only planned actions are executed. Precomputed non-dry-run items pass through.
+		if item.Error != SyncErrorDryRun {
+			results = append(results, item)
+			continue
+		}
+		sem <- struct{}{}
+		spawned++
+		go func(item SyncResult) {
+			defer func() { <-sem }()
+
+			repoCtx := ctx
+			if timeoutSeconds > 0 {
+				var cancel context.CancelFunc
+				repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+				defer cancel()
+			}
+			out <- e.executePlannedSyncItem(repoCtx, item)
+		}(item)
+	}
+
+	for i := 0; i < spawned; i++ {
+		results = append(results, <-out)
+	}
+	sortSyncResults(results)
+	return results
 }
 
 func shouldStopSyncExecution(result SyncResult, opts SyncOptions) bool {
@@ -489,20 +531,32 @@ func workerChannelBufferSize(entryCount int) int {
 }
 
 func (e *Engine) syncRuntime(opts SyncOptions) (int, int, string) {
+	defaults := config.DefaultConfig().Defaults
+
 	concurrency := opts.Concurrency
 	if concurrency <= 0 {
-		concurrency = e.cfg.Defaults.Concurrency
+		if e.cfg != nil && e.cfg.Defaults.Concurrency > 0 {
+			concurrency = e.cfg.Defaults.Concurrency
+		} else {
+			concurrency = defaults.Concurrency
+		}
 		if concurrency <= 0 {
 			concurrency = 4
 		}
 	}
 	timeoutSeconds := opts.Timeout
 	if timeoutSeconds <= 0 {
-		timeoutSeconds = e.cfg.Defaults.TimeoutSeconds
+		if e.cfg != nil && e.cfg.Defaults.TimeoutSeconds > 0 {
+			timeoutSeconds = e.cfg.Defaults.TimeoutSeconds
+		} else {
+			timeoutSeconds = defaults.TimeoutSeconds
+		}
 	}
 	mainBranch := "main"
 	if e.cfg != nil && strings.TrimSpace(e.cfg.Defaults.MainBranch) != "" {
 		mainBranch = strings.TrimSpace(e.cfg.Defaults.MainBranch)
+	} else if strings.TrimSpace(defaults.MainBranch) != "" {
+		mainBranch = strings.TrimSpace(defaults.MainBranch)
 	}
 	return concurrency, timeoutSeconds, mainBranch
 }

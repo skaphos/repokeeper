@@ -118,6 +118,8 @@ var syncCmd = &cobra.Command{
 		results := plan
 		if !dryRun {
 			results, err = eng.ExecuteSyncPlan(cmd.Context(), plan, engine.SyncOptions{
+				Concurrency:     concurrency,
+				Timeout:         timeout,
 				ContinueOnError: continueOnError,
 			})
 			if err != nil {
