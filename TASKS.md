@@ -236,7 +236,7 @@
 **Acceptance:**
 
 - [ ] No ignored I/O errors on stdout/stderr writes
-- [ ] `go test -race ./...` passes with no data races
+- [x] `go test -race ./...` passes with no data races
 - [x] Channel buffers capped at reasonable fixed size
 - [x] Engine fields are private with controlled access
 - [x] All commands use Adapter interface instead of direct GitRunner
