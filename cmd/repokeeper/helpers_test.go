@@ -372,3 +372,22 @@ func TestSyncPlanNeedsConfirmation(t *testing.T) {
 		t.Fatal("expected clone plan to require confirmation")
 	}
 }
+
+func TestWriteSyncFailureSummary(t *testing.T) {
+	cmd := &cobra.Command{}
+	errOut := &bytes.Buffer{}
+	cmd.SetErr(errOut)
+
+	writeSyncFailureSummary(cmd, []engine.SyncResult{
+		{RepoID: "ok", Path: "/repos/ok", OK: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "bad", Path: "/repos/bad", OK: false, ErrorClass: "network", Error: "timeout", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+	}, "/repos", nil)
+
+	got := errOut.String()
+	if !strings.Contains(got, "Failed sync operations:") {
+		t.Fatalf("expected summary heading, got: %q", got)
+	}
+	if !strings.Contains(got, "bad") || strings.Contains(got, "ok") {
+		t.Fatalf("expected only failing repo in summary, got: %q", got)
+	}
+}

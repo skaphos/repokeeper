@@ -190,6 +190,7 @@ var syncCmd = &cobra.Command{
 				raiseExitCode(1)
 			}
 		}
+		writeSyncFailureSummary(cmd, results, cwd, []string{cfgRoot})
 		infof(cmd, "sync completed: %d repos", len(results))
 		return nil
 	},
@@ -404,4 +405,33 @@ func describeSyncAction(res engine.SyncResult) string {
 		return "-"
 	}
 	return action
+}
+
+func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cwd string, roots []string) {
+	failed := make([]engine.SyncResult, 0, len(results))
+	for _, res := range results {
+		if res.OK {
+			continue
+		}
+		failed = append(failed, res)
+	}
+	if len(failed) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Failed sync operations:")
+	w := tabwriter.NewWriter(cmd.ErrOrStderr(), 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "PATH\tACTION\tERROR_CLASS\tERROR\tREPO")
+	for _, res := range failed {
+		_, _ = fmt.Fprintf(
+			w,
+			"%s\t%s\t%s\t%s\t%s\n",
+			displayRepoPath(res.Path, cwd, roots),
+			describeSyncAction(res),
+			res.ErrorClass,
+			res.Error,
+			res.RepoID,
+		)
+	}
+	_ = w.Flush()
 }
