@@ -175,6 +175,40 @@ func TestCloneImportedReposSkipsMissingAndNoUpstreamEntries(t *testing.T) {
 	}
 }
 
+func TestCloneImportedReposMarksFailedCloneAsMissing(t *testing.T) {
+	cwd := t.TempDir()
+	cfg := &config.Config{
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID:    "github.com/org/fails",
+					Path:      "/source/root/team/fails",
+					RemoteURL: "/does/not/exist",
+					Branch:    "main",
+					Status:    registry.StatusPresent,
+				},
+			},
+		},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	failures, err := cloneImportedReposWithProgress(cmd, cfg, exportBundle{Root: "/source/root"}, cwd, false, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(failures) != 1 {
+		t.Fatalf("expected one clone failure, got %d", len(failures))
+	}
+	entry := cfg.Registry.FindByRepoID("github.com/org/fails")
+	if entry == nil {
+		t.Fatal("expected registry entry after failed clone")
+	}
+	if entry.Status != registry.StatusMissing {
+		t.Fatalf("expected failed clone to mark entry missing, got %q", entry.Status)
+	}
+}
+
 func TestImportCommandArgsValidation(t *testing.T) {
 	if importCmd.Args == nil {
 		t.Fatal("expected import command args validator")

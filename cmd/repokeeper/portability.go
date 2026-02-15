@@ -469,6 +469,10 @@ func cloneImportedEntriesWithProgress(
 			result.OK = false
 			result.ErrorClass = "unknown"
 			result.Error = fmt.Sprintf("git %q: %v", strings.Join(cloneArgs, " "), err)
+			entry.Path = target
+			entry.Status = registry.StatusMissing
+			entry.LastSeen = time.Now()
+			setRegistryEntryByRepoID(cfg.Registry, entry)
 			failures = append(failures, result)
 			if progress != nil {
 				_ = progress.WriteResult(result)
