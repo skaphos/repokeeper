@@ -168,7 +168,7 @@
   - [ ] define constants for error state strings (`"missing"`, `"skipped-local-update:"`, etc.)
   - [ ] consider typed outcome enum for `SyncResult.Outcome`
 - [ ] Remove outdated loop capture pattern:
-  - [ ] remove `entry := entry` captures in goroutine loops (unnecessary since Go 1.22)
+- [x] remove `entry := entry` captures in goroutine loops (unnecessary since Go 1.22)
 - [ ] Configurable main branch assumption:
   - [ ] make hardcoded `/main` suffix check in `pullRebaseSkipReason` configurable
   - [ ] add `defaults.main_branch` config option or use protected-branches pattern

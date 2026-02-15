@@ -158,7 +158,6 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 	spawned := 0
 
 	for _, entry := range entries {
-		entry := entry
 		sem <- struct{}{}
 		spawned++
 		go func() {
@@ -413,7 +412,6 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		// entry at a time through the same Sync logic used for batch mode.
 		results := make([]SyncResult, 0, len(entries))
 		for _, entry := range entries {
-			entry := entry
 			subReg := &registry.Registry{Entries: []registry.Entry{entry}}
 			sub := &Engine{
 				Config:   e.Config,
@@ -446,7 +444,6 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	results := make([]SyncResult, 0, len(entries))
 
 	for _, entry := range entries {
-		entry := entry
 		if opts.Filter == FilterMissing && entry.Status != registry.StatusMissing {
 			continue
 		}
