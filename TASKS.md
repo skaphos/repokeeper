@@ -344,7 +344,7 @@
 - [x] bare repo detection and status reporting
 - [x] registry staleness (delete a repo path, re-scan, verify `missing` status)
 - [x] Integration tests tagged with `//go:build integration`
-- [ ] integration test: run from nested subdirectory and verify nearest `.repokeeper.yaml` is used
+- [x] integration test: run from nested subdirectory and verify nearest `.repokeeper.yaml` is used
 
 ### Linting & code quality
 

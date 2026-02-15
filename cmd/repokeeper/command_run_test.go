@@ -217,3 +217,95 @@ func TestDescribeRunEPaths(t *testing.T) {
 		t.Fatal("expected missing registry file error")
 	}
 }
+
+func TestStatusUsesNearestConfigFromNestedCWD(t *testing.T) {
+	tmp := t.TempDir()
+	parentCfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	childRoot := filepath.Join(tmp, "workspace")
+	childCfgPath := filepath.Join(childRoot, ".repokeeper.yaml")
+	nested := filepath.Join(childRoot, "a", "b", "c")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+
+	parentCfg := config.DefaultConfig()
+	parentCfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:   "github.com/org/parent-missing",
+				Path:     filepath.Join(tmp, "parent-missing"),
+				Status:   registry.StatusMissing,
+				LastSeen: time.Now(),
+			},
+		},
+	}
+	if err := config.Save(&parentCfg, parentCfgPath); err != nil {
+		t.Fatalf("save parent config: %v", err)
+	}
+
+	childCfg := config.DefaultConfig()
+	childCfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:   "github.com/org/child-missing",
+				Path:     filepath.Join(childRoot, "child-missing"),
+				Status:   registry.StatusMissing,
+				LastSeen: time.Now(),
+			},
+		},
+	}
+	if err := config.Save(&childCfg, childCfgPath); err != nil {
+		t.Fatalf("save child config: %v", err)
+	}
+
+	prevConfig, _ := rootCmd.PersistentFlags().GetString("config")
+	if err := rootCmd.PersistentFlags().Set("config", ""); err != nil {
+		t.Fatalf("clear config flag: %v", err)
+	}
+	prevEnv, hadEnv := os.LookupEnv("REPOKEEPER_CONFIG")
+	if err := os.Unsetenv("REPOKEEPER_CONFIG"); err != nil {
+		t.Fatalf("unset REPOKEEPER_CONFIG: %v", err)
+	}
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(nested); err != nil {
+		t.Fatalf("chdir nested: %v", err)
+	}
+	defer func() {
+		_ = rootCmd.PersistentFlags().Set("config", prevConfig)
+		if hadEnv {
+			_ = os.Setenv("REPOKEEPER_CONFIG", prevEnv)
+		} else {
+			_ = os.Unsetenv("REPOKEEPER_CONFIG")
+		}
+		_ = os.Chdir(origWD)
+	}()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	statusCmd.SetOut(out)
+	statusCmd.SetErr(errOut)
+	defer statusCmd.SetOut(os.Stdout)
+	defer statusCmd.SetErr(os.Stderr)
+	_ = statusCmd.Flags().Set("registry", "")
+	_ = statusCmd.Flags().Set("format", "json")
+	_ = statusCmd.Flags().Set("only", "missing")
+	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
+	_ = statusCmd.Flags().Set("dry-run", "true")
+	_ = statusCmd.Flags().Set("no-headers", "false")
+
+	if err := statusCmd.RunE(statusCmd, nil); err != nil {
+		t.Fatalf("status from nested cwd failed: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "\"repo_id\": \"github.com/org/child-missing\"") {
+		t.Fatalf("expected child config repo in output, got: %q", got)
+	}
+	if strings.Contains(got, "\"repo_id\": \"github.com/org/parent-missing\"") {
+		t.Fatalf("did not expect parent config repo in output, got: %q", got)
+	}
+}
