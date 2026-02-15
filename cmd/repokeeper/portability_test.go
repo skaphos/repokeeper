@@ -430,11 +430,94 @@ func TestImportCommandRunERequiresForceWhenConfigExists(t *testing.T) {
 	importCmd.SetIn(bytes.NewBuffer(data))
 	importCmd.SetContext(context.Background())
 	_ = importCmd.Flags().Set("force", "false")
+	_ = importCmd.Flags().Set("mode", "replace")
 	_ = importCmd.Flags().Set("file-only", "true")
 
 	err = importCmd.RunE(importCmd, []string{"-"})
 	if err == nil || !strings.Contains(err.Error(), "config already exists") {
 		t.Fatalf("expected force-required error, got: %v", err)
+	}
+}
+
+func TestImportCommandRunEMergeDoesNotRequireForceWhenConfigExists(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	bundle := exportBundle{Version: 1, Config: config.DefaultConfig()}
+	data, err := yaml.Marshal(&bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	importCmd.SetIn(bytes.NewBuffer(data))
+	importCmd.SetContext(context.Background())
+	_ = importCmd.Flags().Set("force", "false")
+	_ = importCmd.Flags().Set("mode", "merge")
+	_ = importCmd.Flags().Set("file-only", "true")
+
+	if err := importCmd.RunE(importCmd, []string{"-"}); err != nil {
+		t.Fatalf("expected merge import without force to succeed, got: %v", err)
+	}
+}
+
+func TestMergeImportedRegistryPolicyTable(t *testing.T) {
+	mkCfg := func() *config.Config {
+		return &config.Config{
+			Registry: &registry.Registry{
+				Entries: []registry.Entry{
+					{RepoID: "github.com/org/repo", Path: "/local/repo", RemoteURL: "git@github.com:org/repo.git", Branch: "main", Type: "checkout", Status: registry.StatusPresent},
+				},
+			},
+		}
+	}
+	incoming := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo", Path: "/bundle/repo", RemoteURL: "git@github.com:org/repo.git", Branch: "feature/a", Type: "checkout", Status: registry.StatusPresent},
+			{RepoID: "github.com/org/new", Path: "/bundle/new", RemoteURL: "git@github.com:org/new.git", Branch: "main", Type: "checkout", Status: registry.StatusPresent},
+		},
+	}
+
+	cfg := mkCfg()
+	mergeImportedRegistry(cfg, importModeMerge, true, incoming, importConflictPolicyBundle)
+	if got := cfg.Registry.FindByRepoID("github.com/org/repo").Path; got != "/bundle/repo" {
+		t.Fatalf("expected bundle policy to overwrite path, got %q", got)
+	}
+	if got := cfg.Registry.FindByRepoID("github.com/org/new"); got == nil {
+		t.Fatal("expected new repo appended in merge mode")
+	}
+
+	cfg = mkCfg()
+	mergeImportedRegistry(cfg, importModeMerge, true, incoming, importConflictPolicyLocal)
+	if got := cfg.Registry.FindByRepoID("github.com/org/repo").Path; got != "/local/repo" {
+		t.Fatalf("expected local policy to keep local path, got %q", got)
+	}
+
+	cfg = mkCfg()
+	mergeImportedRegistry(cfg, importModeMerge, true, incoming, importConflictPolicySkip)
+	if got := cfg.Registry.FindByRepoID("github.com/org/repo").Path; got != "/local/repo" {
+		t.Fatalf("expected skip policy to keep local path, got %q", got)
+	}
+}
+
+func TestParseImportModeAndConflictPolicy(t *testing.T) {
+	if mode, err := parseImportMode("merge"); err != nil || mode != importModeMerge {
+		t.Fatalf("expected merge mode, got %q (%v)", mode, err)
+	}
+	if mode, err := parseImportMode("replace"); err != nil || mode != importModeReplace {
+		t.Fatalf("expected replace mode, got %q (%v)", mode, err)
+	}
+	if _, err := parseImportMode("weird"); err == nil {
+		t.Fatal("expected invalid mode to error")
+	}
+
+	if policy, err := parseImportConflictPolicy("bundle"); err != nil || policy != importConflictPolicyBundle {
+		t.Fatalf("expected bundle policy, got %q (%v)", policy, err)
+	}
+	if policy, err := parseImportConflictPolicy("local"); err != nil || policy != importConflictPolicyLocal {
+		t.Fatalf("expected local policy, got %q (%v)", policy, err)
+	}
+	if _, err := parseImportConflictPolicy("oops"); err == nil {
+		t.Fatal("expected invalid policy to error")
 	}
 }
 

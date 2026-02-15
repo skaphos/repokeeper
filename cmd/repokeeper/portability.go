@@ -25,6 +25,21 @@ type exportBundle struct {
 	Registry   *registry.Registry `yaml:"registry,omitempty"`
 }
 
+type importMode string
+
+const (
+	importModeMerge   importMode = "merge"
+	importModeReplace importMode = "replace"
+)
+
+type importConflictPolicy string
+
+const (
+	importConflictPolicySkip   importConflictPolicy = "skip"
+	importConflictPolicyBundle importConflictPolicy = "bundle"
+	importConflictPolicyLocal  importConflictPolicy = "local"
+)
+
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export config (and optionally registry) for reuse on another machine",
@@ -96,6 +111,16 @@ var importCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		force, _ := cmd.Flags().GetBool("force")
+		modeRaw, _ := cmd.Flags().GetString("mode")
+		mode, err := parseImportMode(modeRaw)
+		if err != nil {
+			return err
+		}
+		onConflictRaw, _ := cmd.Flags().GetString("on-conflict")
+		onConflict, err := parseImportConflictPolicy(onConflictRaw)
+		if err != nil {
+			return err
+		}
 		includeRegistry, _ := cmd.Flags().GetBool("include-registry")
 		preserveRegistryPath, _ := cmd.Flags().GetBool("preserve-registry-path")
 		cloneRepos, _ := cmd.Flags().GetBool("clone")
@@ -144,20 +169,21 @@ var importCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, err := os.Stat(cfgPath); err == nil && !force {
+		existingCfg, hasExistingCfg, err := loadExistingConfig(cfgPath)
+		if err != nil {
+			return err
+		}
+		if mode == importModeReplace && hasExistingCfg && !force {
 			return fmt.Errorf("config already exists at %q (use --force to overwrite)", cfgPath)
 		}
 
-		cfg := bundle.Config
-		if includeRegistry {
-			if cfg.Registry == nil && bundle.Registry != nil {
-				cfg.Registry = bundle.Registry
-			}
-		} else {
-			cfg.Registry = nil
-		}
-		if !preserveRegistryPath {
+		cfg := prepareImportedConfig(mode, existingCfg, hasExistingCfg, bundle.Config)
+		mergeImportedRegistry(&cfg, mode, includeRegistry, bundle.Registry, onConflict)
+		if !preserveRegistryPath && mode == importModeReplace {
 			cfg.RegistryPath = ""
+		}
+		if mode == importModeMerge && hasExistingCfg && cloneRepos {
+			return fmt.Errorf("--clone with --mode=merge is not supported for existing configs; run reconcile --checkout-missing after import")
 		}
 		if cloneRepos {
 			if err := cloneImportedRepos(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting); err != nil {
@@ -177,14 +203,116 @@ func init() {
 	exportCmd.Flags().Bool("include-registry", true, "include registry in the export bundle")
 
 	importCmd.Flags().Bool("force", false, "overwrite existing config file")
+	importCmd.Flags().String("mode", string(importModeMerge), "import mode: merge or replace")
+	importCmd.Flags().String("on-conflict", string(importConflictPolicyBundle), "when mode=merge and repo_id exists locally: skip, bundle, or local")
 	importCmd.Flags().Bool("include-registry", true, "import bundled registry when present")
 	importCmd.Flags().Bool("preserve-registry-path", false, "keep bundled registry_path (resolved relative to imported config file)")
-	importCmd.Flags().Bool("clone", true, "clone repos from imported registry into target paths under the current directory")
+	importCmd.Flags().Bool("clone", false, "clone repos from imported registry into target paths under the current directory")
 	importCmd.Flags().Bool("dangerously-delete-existing", false, "dangerous: delete conflicting target repo paths before cloning")
 	importCmd.Flags().Bool("file-only", false, "import config file only (disable registry import and cloning)")
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
+}
+
+func parseImportMode(raw string) (importMode, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", string(importModeMerge):
+		return importModeMerge, nil
+	case string(importModeReplace):
+		return importModeReplace, nil
+	default:
+		return "", fmt.Errorf("invalid --mode %q (supported: merge,replace)", raw)
+	}
+}
+
+func parseImportConflictPolicy(raw string) (importConflictPolicy, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", string(importConflictPolicyBundle):
+		return importConflictPolicyBundle, nil
+	case string(importConflictPolicySkip):
+		return importConflictPolicySkip, nil
+	case string(importConflictPolicyLocal):
+		return importConflictPolicyLocal, nil
+	default:
+		return "", fmt.Errorf("invalid --on-conflict %q (supported: skip,bundle,local)", raw)
+	}
+}
+
+func loadExistingConfig(cfgPath string) (config.Config, bool, error) {
+	var empty config.Config
+	if _, err := os.Stat(cfgPath); err != nil {
+		if os.IsNotExist(err) {
+			return empty, false, nil
+		}
+		return empty, false, err
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return empty, false, err
+	}
+	return *cfg, true, nil
+}
+
+func prepareImportedConfig(mode importMode, existing config.Config, hasExisting bool, bundled config.Config) config.Config {
+	if mode == importModeMerge && hasExisting {
+		return existing
+	}
+	return bundled
+}
+
+func mergeImportedRegistry(
+	cfg *config.Config,
+	mode importMode,
+	includeRegistry bool,
+	bundled *registry.Registry,
+	policy importConflictPolicy,
+) {
+	if cfg == nil {
+		return
+	}
+	if !includeRegistry {
+		if mode == importModeReplace {
+			cfg.Registry = nil
+		}
+		return
+	}
+	if mode == importModeReplace {
+		cfg.Registry = cloneRegistry(bundled)
+		return
+	}
+	// Merge mode: keep existing registry and merge bundled entries by repo_id.
+	if cfg.Registry == nil {
+		cfg.Registry = &registry.Registry{}
+	}
+	if bundled == nil {
+		return
+	}
+	for _, incoming := range bundled.Entries {
+		existing := cfg.Registry.FindByRepoID(incoming.RepoID)
+		if existing == nil {
+			cfg.Registry.Entries = append(cfg.Registry.Entries, incoming)
+			continue
+		}
+		if !registryEntriesConflict(*existing, incoming) {
+			*existing = incoming
+			continue
+		}
+		switch policy {
+		case importConflictPolicyBundle:
+			*existing = incoming
+		case importConflictPolicySkip, importConflictPolicyLocal:
+			// Keep local entry as-is.
+		}
+	}
+	cfg.Registry.UpdatedAt = time.Now()
+}
+
+func registryEntriesConflict(local, incoming registry.Entry) bool {
+	return strings.TrimSpace(local.Path) != strings.TrimSpace(incoming.Path) ||
+		strings.TrimSpace(local.RemoteURL) != strings.TrimSpace(incoming.RemoteURL) ||
+		strings.TrimSpace(local.Branch) != strings.TrimSpace(incoming.Branch) ||
+		strings.TrimSpace(local.Type) != strings.TrimSpace(incoming.Type)
 }
 
 func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool) error {

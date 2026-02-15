@@ -114,7 +114,11 @@ For `status`, `--dry-run` defaults to `true` and only affects remote-mismatch re
 
 `repokeeper export --output -` and `repokeeper import` support shell piping (for example: `repokeeper import < repokeeper-export.yaml`).
 
-`repokeeper import` now clones repos from the imported registry by default (`--clone=true`). If a target repo path already exists, import reports the conflicting paths unless `--dangerously-delete-existing` is set, which removes conflicting target paths before cloning.
+`repokeeper import` defaults to merge mode (`--mode=merge`) so existing local config/registry can be synchronized with an exported bundle without overwrite. Use `--mode=replace --force` for the previous full-replace behavior.
+
+In merge mode, conflicts on the same `repo_id` can be resolved with `--on-conflict skip|bundle|local` (default `bundle`).
+
+`repokeeper import` does not clone by default (`--clone=false`). Use `--clone` to clone imported entries into the current directory layout. If a target repo path already exists, import reports conflicting paths unless `--dangerously-delete-existing` is set.
 
 Use `repokeeper import --file-only` to import only the config file without registry data or cloning.
 
