@@ -339,11 +339,11 @@
 
 ### Integration tests
 
-- [ ] fetch/prune doesn't change working tree files
-- [ ] upstream gone detection
-- [ ] bare repo detection and status reporting
-- [ ] registry staleness (delete a repo path, re-scan, verify `missing` status)
-- [ ] Integration tests tagged with `//go:build integration`
+- [x] fetch/prune doesn't change working tree files
+- [x] upstream gone detection
+- [x] bare repo detection and status reporting
+- [x] registry staleness (delete a repo path, re-scan, verify `missing` status)
+- [x] Integration tests tagged with `//go:build integration`
 - [ ] integration test: run from nested subdirectory and verify nearest `.repokeeper.yaml` is used
 
 ### Linting & code quality

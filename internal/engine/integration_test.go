@@ -152,6 +152,76 @@ var _ = Describe("Engine integration", func() {
 		out := strings.TrimSpace(runGit(work, "for-each-ref", "refs/remotes/origin/feature"))
 		Expect(out).To(BeEmpty())
 	})
+
+	It("reports tracking gone after upstream branch is deleted", func() {
+		base := GinkgoT().TempDir()
+		remote := filepath.Join(base, "remote.git")
+		work := filepath.Join(base, "work")
+		other := filepath.Join(base, "other")
+
+		runGit("", "init", "--bare", remote)
+		runGit("", "clone", remote, work)
+		runGit("", "clone", remote, other)
+
+		runGit(work, "config", "user.email", "test@example.com")
+		runGit(work, "config", "user.name", "RepoKeeper Test")
+		writeFile(filepath.Join(work, "file.txt"), "base\n")
+		runGit(work, "add", "file.txt")
+		runGit(work, "commit", "-m", "base")
+		runGit(work, "branch", "-M", "main")
+		runGit(work, "push", "-u", "origin", "main")
+
+		// Create a replacement default branch so deleting origin/main is allowed.
+		runGit(other, "config", "user.email", "test@example.com")
+		runGit(other, "config", "user.name", "RepoKeeper Test")
+		runGit(other, "fetch", "origin", "main")
+		runGit(other, "checkout", "-b", "keep", "origin/main")
+		runGit(other, "push", "-u", "origin", "keep")
+		runGit("", "--git-dir", remote, "symbolic-ref", "HEAD", "refs/heads/keep")
+		runGit(other, "push", "origin", "--delete", "main")
+
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "repo1", Path: work, RemoteURL: remote, Status: registry.StatusPresent},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		_, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 5})
+		Expect(err).NotTo(HaveOccurred())
+
+		report, err := eng.Status(context.Background(), engine.StatusOptions{Filter: engine.FilterAll, Concurrency: 1, Timeout: 5})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(report.Repos).To(HaveLen(1))
+		Expect(report.Repos[0].Tracking.Upstream).To(Equal("origin/main"))
+		Expect(report.Repos[0].Tracking.Status).To(Equal(model.TrackingGone))
+	})
+
+	It("marks deleted repository paths as missing after re-scan", func() {
+		base := GinkgoT().TempDir()
+		repoPath := filepath.Join(base, "repo")
+		runGit("", "init", repoPath)
+
+		cfg := &config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}
+		reg := &registry.Registry{}
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+
+		_, err := eng.Scan(context.Background(), engine.ScanOptions{
+			Roots:          []string{base},
+			FollowSymlinks: false,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reg.Entries).To(HaveLen(1))
+		Expect(reg.Entries[0].Status).To(Equal(registry.StatusPresent))
+
+		Expect(os.RemoveAll(repoPath)).To(Succeed())
+		_, err = eng.Scan(context.Background(), engine.ScanOptions{
+			Roots:          []string{base},
+			FollowSymlinks: false,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reg.Entries).To(HaveLen(1))
+		Expect(reg.Entries[0].Status).To(Equal(registry.StatusMissing))
+	})
 })
 
 func runGit(dir string, args ...string) string {
