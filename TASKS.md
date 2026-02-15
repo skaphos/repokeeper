@@ -20,7 +20,7 @@
 - [x] `repokeeper init` defaults to `.repokeeper.yaml` in the current directory
 - [x] runtime commands resolve nearest `.repokeeper.yaml` by walking parent directories
 - [x] `repokeeper status --help`
-- [ ] `golangci-lint run ./...` passes
+- [ ] `go tool golangci-lint run ./...` passes
 - [ ] `ginkgo ./...` runs (even if no tests yet)
 
 ### Milestone 1 — Discovery + registry
@@ -84,7 +84,7 @@
 
 - [x] Actionable output for "what broke and where"
 - [x] Exit codes are correct and tested
-- [ ] `golangci-lint run ./...` passes with zero issues
+- [ ] `go tool golangci-lint run ./...` passes with zero issues
 - [ ] Overall test coverage >= 80%
 
 ### Milestone 6 — CLI Improvements (Ongoing)

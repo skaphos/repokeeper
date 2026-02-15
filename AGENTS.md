@@ -9,9 +9,9 @@
 
 ## Build, Test, and Development Commands
 - `go build -o repokeeper .`: build the local binary.
-- `ginkgo ./...`: run the Ginkgo test suite.
+- `go tool ginkgo ./...`: run the Ginkgo test suite.
 - `go test -coverprofile=coverage.out ./...`: run tests with coverage output.
-- `golangci-lint run ./...`: run linting (gofmt/goimports and static checks).
+- `go tool golangci-lint run ./...`: run linting (gofmt/goimports and static checks; v2 config).
 - `goreleaser build --snapshot --clean`: snapshot build for all platforms.
 
 ## Coding Style & Naming Conventions
@@ -23,7 +23,7 @@
 ## Testing Guidelines
 - Frameworks: Ginkgo v2 + Gomega (see `go.mod`).
 - Prefer small, focused specs; keep fixtures in the same package when possible.
-- Run locally with `ginkgo ./...`; coverage with `go test -coverprofile=coverage.out ./...`.
+- Run locally with `go tool ginkgo ./...`; coverage with `go test -coverprofile=coverage.out ./...`.
 
 ## Commit & Pull Request Guidelines
 - This checkout does not include Git history, so no project-specific commit convention is detectable.
