@@ -129,3 +129,31 @@ func TestShouldStreamSyncResults(t *testing.T) {
 		t.Fatal("did not expect sync command table output to stream by default")
 	}
 }
+
+func TestSyncProgressMessageKinds(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	runtimeStateFor(cmd).colorOutputEnabled = false
+
+	if got := syncProgressMessage(cmd, engine.SyncResult{
+		Outcome: engine.SyncOutcomeFetched,
+		OK:      true,
+		Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules",
+	}); got != "updated! (fetch)" {
+		t.Fatalf("unexpected updated progress message: %q", got)
+	}
+
+	if got := syncProgressMessage(cmd, engine.SyncResult{
+		OK:    true,
+		Error: engine.SyncErrorSkippedNoUpstream,
+	}); got != "skip no upstream" {
+		t.Fatalf("unexpected skipped progress message: %q", got)
+	}
+
+	if got := syncProgressMessage(cmd, engine.SyncResult{
+		OK:         false,
+		ErrorClass: "network",
+		Error:      engine.SyncErrorFetchNetwork,
+	}); got != "failed (network)" {
+		t.Fatalf("unexpected failed progress message: %q", got)
+	}
+}

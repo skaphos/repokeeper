@@ -6,8 +6,9 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
-	"github.com/liggitt/tabwriter"
 	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
@@ -119,18 +120,25 @@ var syncCmd = &cobra.Command{
 		results := plan
 		streamResults := shouldStreamSyncResults(cmd, dryRun, mode.kind)
 		if !dryRun {
-			var streamWriter *syncTableStreamWriter
+			var streamWriter *syncProgressWriter
 			if streamResults {
-				streamWriter, err = newSyncTableStreamWriter(cmd, cwd, []string{cfgRoot}, wrap, noHeaders, mode.kind == outputKindWide)
+				streamWriter = newSyncProgressWriter(cmd, cwd, []string{cfgRoot})
 				if err != nil {
 					return err
 				}
 			}
 
-			results, err = eng.ExecuteSyncPlanWithCallback(cmd.Context(), plan, engine.SyncOptions{
+			results, err = eng.ExecuteSyncPlanWithCallbacks(cmd.Context(), plan, engine.SyncOptions{
 				Concurrency:     concurrency,
 				Timeout:         timeout,
 				ContinueOnError: continueOnError,
+			}, func(res engine.SyncResult) {
+				if streamWriter == nil {
+					return
+				}
+				if streamErr := streamWriter.StartResult(res); streamErr != nil {
+					logOutputWriteFailure(cmd, "sync stream start", streamErr)
+				}
 			}, func(res engine.SyncResult) {
 				if streamWriter == nil {
 					return
@@ -267,18 +275,20 @@ const (
 	syncTableModeTiny
 )
 
-type syncTableStreamWriter struct {
-	cmd       *cobra.Command
-	w         *tabwriter.Writer
-	mode      syncTableMode
-	wide      bool
-	wrap      bool
-	cwd       string
-	roots     []string
-	pathMax   int
-	actionMax int
-	branchMax int
-	repoMax   int
+type syncProgressWriter struct {
+	cmd   *cobra.Command
+	cwd   string
+	roots []string
+
+	mu      sync.Mutex
+	running map[string]*syncProgressState
+}
+
+type syncProgressState struct {
+	displayPath string
+	dots        int
+	stop        chan struct{}
+	done        chan struct{}
 }
 
 func shouldStreamSyncResults(cmd *cobra.Command, dryRun bool, kind outputKind) bool {
@@ -294,89 +304,108 @@ func shouldStreamSyncResults(cmd *cobra.Command, dryRun bool, kind outputKind) b
 	return cmd.Parent().Name() == "reconcile"
 }
 
-func newSyncTableStreamWriter(cmd *cobra.Command, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) (*syncTableStreamWriter, error) {
-	mode := syncTableModeFor(cmd, wide)
-	w := tableutil.New(cmd.OutOrStdout(), true)
-	headers := syncTableHeaders(mode, wide)
-	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
-		return nil, err
+func newSyncProgressWriter(cmd *cobra.Command, cwd string, roots []string) *syncProgressWriter {
+	return &syncProgressWriter{
+		cmd:     cmd,
+		cwd:     cwd,
+		roots:   roots,
+		running: make(map[string]*syncProgressState),
 	}
-	if err := w.Flush(); err != nil {
-		return nil, err
-	}
-	return &syncTableStreamWriter{
-		cmd:       cmd,
-		w:         w,
-		mode:      mode,
-		wide:      wide,
-		wrap:      wrap,
-		cwd:       cwd,
-		roots:     roots,
-		pathMax:   adaptiveCellLimit(cmd, 0, 48, 32),
-		actionMax: adaptiveCellLimit(cmd, 0, 22, 16),
-		branchMax: adaptiveCellLimit(cmd, 0, 24, 16),
-		repoMax:   adaptiveCellLimit(cmd, 0, 32, 20),
-	}, nil
 }
 
-func (s *syncTableStreamWriter) WriteResult(res engine.SyncResult) error {
-	ok := "yes"
-	if !res.OK {
-		ok = "no"
-	}
-	path := formatCell(displayRepoPath(res.Path, s.cwd, s.roots), s.wrap, s.pathMax)
-	action := formatCell(describeSyncAction(res), s.wrap, s.actionMax)
-	branch := "-"
-	dirty := "-"
-	tracking := string(model.TrackingNone)
-	repoID := formatCell(res.RepoID, s.wrap, s.repoMax)
-
-	if !s.wide {
-		switch s.mode {
-		case syncTableModeTiny:
-			if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\n", path, action, ok, formatCell(res.Error, s.wrap, 28)); err != nil {
-				return err
-			}
-		case syncTableModeCompact:
-			if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\t%s\n", path, action, ok, formatCell(res.Error, s.wrap, 32), repoID); err != nil {
-				return err
-			}
-		default:
-			branch = formatCell(branch, s.wrap, s.branchMax)
-			if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-				path,
-				action,
-				branch,
-				dirty,
-				tracking,
-				ok,
-				res.ErrorClass,
-				formatCell(res.Error, s.wrap, 36),
-				repoID); err != nil {
-				return err
-			}
-		}
-		return s.w.Flush()
+func (s *syncProgressWriter) StartResult(res engine.SyncResult) error {
+	path := displayRepoPath(res.Path, s.cwd, s.roots)
+	state := &syncProgressState{
+		displayPath: path,
+		stop:        make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 
-	branch = formatCell(branch, s.wrap, s.branchMax)
-	if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-		path,
-		action,
-		branch,
-		dirty,
-		tracking,
-		ok,
-		res.ErrorClass,
-		formatCell(res.Error, s.wrap, 36),
-		repoID,
-		"",
-		"",
-		"-",
-		"-"); err != nil {
+	s.mu.Lock()
+	if _, exists := s.running[res.Path]; exists {
+		s.mu.Unlock()
+		return nil
+	}
+	s.running[res.Path] = state
+	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s ... working\n", path); err != nil {
+		delete(s.running, res.Path)
+		s.mu.Unlock()
 		return err
 	}
-	return s.w.Flush()
+	s.mu.Unlock()
+
+	go s.runDots(res.Path, state)
+	return nil
+}
+
+func (s *syncProgressWriter) runDots(path string, state *syncProgressState) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	defer close(state.done)
+
+	for {
+		select {
+		case <-state.stop:
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			if _, exists := s.running[path]; !exists {
+				s.mu.Unlock()
+				return
+			}
+			state.dots++
+			_, _ = fmt.Fprintf(s.cmd.OutOrStdout(), "%s ... %s\n", state.displayPath, strings.Repeat(".", state.dots))
+			s.mu.Unlock()
+		}
+	}
+}
+
+func (s *syncProgressWriter) WriteResult(res engine.SyncResult) error {
+	path := displayRepoPath(res.Path, s.cwd, s.roots)
+
+	var done <-chan struct{}
+	s.mu.Lock()
+	if state, exists := s.running[res.Path]; exists {
+		delete(s.running, res.Path)
+		close(state.stop)
+		done = state.done
+		path = state.displayPath
+	}
+	s.mu.Unlock()
+	if done != nil {
+		<-done
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	action := describeSyncAction(res)
+	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s ... %s\n", path, syncProgressMessage(s.cmd, res)); err != nil {
+		return err
+	}
+	if !res.OK && !strings.HasPrefix(action, "skip") && !isQuiet(s.cmd) && strings.TrimSpace(res.Error) != "" {
+		_, err := fmt.Fprintf(s.cmd.ErrOrStderr(), "error: %s: %s\n", path, res.Error)
+		return err
+	}
+	return nil
+}
+
+func syncProgressMessage(cmd *cobra.Command, res engine.SyncResult) string {
+	action := describeSyncAction(res)
+	if strings.HasPrefix(action, "skip") {
+		return termstyle.Colorize(runtimeStateFor(cmd).colorOutputEnabled, action, termstyle.Warn)
+	}
+	if !res.OK {
+		out := "failed"
+		if res.ErrorClass != "" {
+			out = fmt.Sprintf("failed (%s)", res.ErrorClass)
+		}
+		return termstyle.Colorize(runtimeStateFor(cmd).colorOutputEnabled, out, termstyle.Error)
+	}
+	out := "updated!"
+	if action != "" {
+		out += " (" + action + ")"
+	}
+	return termstyle.Colorize(runtimeStateFor(cmd).colorOutputEnabled, out, termstyle.Healthy)
 }
 
 func syncTableModeFor(cmd *cobra.Command, wide bool) syncTableMode {

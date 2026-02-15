@@ -269,6 +269,9 @@ type SyncResult struct {
 // terminal output without additional synchronization.
 type SyncResultCallback func(SyncResult)
 
+// SyncStartCallback is invoked when a planned repo action begins execution.
+type SyncStartCallback func(SyncResult)
+
 // OutcomeKind is the typed outcome category for a single sync result.
 type OutcomeKind string
 
@@ -320,24 +323,33 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 // ExecuteSyncPlanWithCallback executes a previously computed dry-run sync plan
 // and invokes callback for each completed result in completion order.
 func (e *Engine) ExecuteSyncPlanWithCallback(ctx context.Context, plan []SyncResult, opts SyncOptions, callback SyncResultCallback) ([]SyncResult, error) {
+	return e.ExecuteSyncPlanWithCallbacks(ctx, plan, opts, nil, callback)
+}
+
+// ExecuteSyncPlanWithCallbacks executes a planned sync and invokes onStart
+// before each repo action begins and onComplete after each repo action ends.
+func (e *Engine) ExecuteSyncPlanWithCallbacks(ctx context.Context, plan []SyncResult, opts SyncOptions, onStart SyncStartCallback, onComplete SyncResultCallback) ([]SyncResult, error) {
 	if e.registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
 
 	if opts.ContinueOnError {
-		return e.executeSyncPlanConcurrent(ctx, plan, opts, callback), nil
+		return e.executeSyncPlanConcurrent(ctx, plan, opts, onStart, onComplete), nil
 	}
-	return e.executeSyncPlanSequential(ctx, plan, opts, callback), nil
+	return e.executeSyncPlanSequential(ctx, plan, opts, onStart, onComplete), nil
 }
 
-func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResult, opts SyncOptions, callback SyncResultCallback) []SyncResult {
+func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResult, opts SyncOptions, onStart SyncStartCallback, onComplete SyncResultCallback) []SyncResult {
 	results := make([]SyncResult, 0, len(plan))
 	for _, item := range plan {
+		if onStart != nil {
+			onStart(item)
+		}
 		// Non-dry-run execution only applies actions that were explicitly planned.
 		if item.Error != SyncErrorDryRun {
 			results = append(results, item)
-			if callback != nil {
-				callback(item)
+			if onComplete != nil {
+				onComplete(item)
 			}
 			if shouldStopSyncExecution(item, opts) {
 				break
@@ -347,8 +359,8 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 
 		executed := e.executePlannedSyncItem(ctx, item)
 		results = append(results, executed)
-		if callback != nil {
-			callback(executed)
+		if onComplete != nil {
+			onComplete(executed)
 		}
 		if shouldStopSyncExecution(executed, opts) {
 			break
@@ -359,7 +371,7 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 	return results
 }
 
-func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResult, opts SyncOptions, callback SyncResultCallback) []SyncResult {
+func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResult, opts SyncOptions, onStart SyncStartCallback, onComplete SyncResultCallback) []SyncResult {
 	concurrency, timeoutSeconds := e.syncRuntime(opts)
 	sem := make(chan struct{}, concurrency)
 	out := make(chan SyncResult, workerChannelBufferSize(len(plan)))
@@ -367,11 +379,14 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 	results := make([]SyncResult, 0, len(plan))
 
 	for _, item := range plan {
+		if onStart != nil {
+			onStart(item)
+		}
 		// Only planned actions are executed. Precomputed non-dry-run items pass through.
 		if item.Error != SyncErrorDryRun {
 			results = append(results, item)
-			if callback != nil {
-				callback(item)
+			if onComplete != nil {
+				onComplete(item)
 			}
 			continue
 		}
@@ -393,8 +408,8 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 	for i := 0; i < spawned; i++ {
 		res := <-out
 		results = append(results, res)
-		if callback != nil {
-			callback(res)
+		if onComplete != nil {
+			onComplete(res)
 		}
 	}
 	sortSyncResults(results)
