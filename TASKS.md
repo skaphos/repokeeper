@@ -212,7 +212,7 @@
     - [x] repair_upstream.go
   - [ ] extract remote mismatch logic from status.go to dedicated package
 - [ ] Flag/config consolidation:
-  - [ ] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions
+  - [x] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions
   - [ ] single source of truth for defaults (concurrency, timeout, main_branch) in Config.Defaults
 - [ ] Test coverage expansion:
   - [ ] add unit tests for command RunE functions (sync, status, repair_upstream)
@@ -238,7 +238,7 @@
 - [x] Channel buffers capped at reasonable fixed size
 - [x] Engine fields are private with controlled access
 - [ ] All commands use Adapter interface instead of direct GitRunner
-- [ ] Flag definitions are DRY (single helper per common flag pattern)
+- [x] Flag definitions are DRY (single helper per common flag pattern)
 - [ ] Unit test coverage for command handlers >= 70%
 - [ ] Integration tests cover symlink, bare repo, and missing repo scenarios
 - [ ] All public types have Godoc comments

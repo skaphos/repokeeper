@@ -284,7 +284,7 @@ func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult
 func init() {
 	repairUpstreamCmd.Flags().String("registry", "", "override registry file path")
 	repairUpstreamCmd.Flags().Bool("dry-run", true, "preview upstream repairs without executing git changes")
-	repairUpstreamCmd.Flags().String("only", "all", "filter: all, missing, mismatch")
-	repairUpstreamCmd.Flags().StringP("format", "o", "table", "output format: table or json")
-	repairUpstreamCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
+	addUpstreamRepairFilterFlag(repairUpstreamCmd)
+	addFormatFlag(repairUpstreamCmd, "output format: table or json")
+	addNoHeadersFlag(repairUpstreamCmd)
 }

@@ -135,8 +135,8 @@ func init() {
 	scanCmd.Flags().Bool("follow-symlinks", false, "follow symbolic links during scan")
 	scanCmd.Flags().Bool("write-registry", true, "write discovered repos to registry")
 	scanCmd.Flags().Bool("prune-stale", false, "remove registry entries marked missing beyond stale threshold")
-	scanCmd.Flags().StringP("format", "o", "table", "output format: table or json")
-	scanCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
+	addFormatFlag(scanCmd, "output format: table or json")
+	addNoHeadersFlag(scanCmd)
 
 	rootCmd.AddCommand(scanCmd)
 }

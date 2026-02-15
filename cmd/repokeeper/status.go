@@ -227,12 +227,11 @@ var statusCmd = &cobra.Command{
 func init() {
 	statusCmd.Flags().String("roots", "", "additional roots to scan (optional)")
 	statusCmd.Flags().String("registry", "", "override registry file path")
-	statusCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
-	statusCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
-	statusCmd.Flags().String("field-selector", "", "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true")
+	addFormatFlag(statusCmd, "output format: table, wide, or json")
+	addRepoFilterFlags(statusCmd)
 	statusCmd.Flags().String("reconcile-remote-mismatch", "none", "optional reconcile mode for remote mismatch: none, registry, git")
 	statusCmd.Flags().Bool("dry-run", true, "preview reconcile actions without modifying registry or git remotes")
-	statusCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
+	addNoHeadersFlag(statusCmd)
 
 }
 

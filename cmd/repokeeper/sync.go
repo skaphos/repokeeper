@@ -180,8 +180,7 @@ var syncCmd = &cobra.Command{
 }
 
 func init() {
-	syncCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
-	syncCmd.Flags().String("field-selector", "", "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true")
+	addRepoFilterFlags(syncCmd)
 	syncCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
 	syncCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
 	syncCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
@@ -193,8 +192,8 @@ func init() {
 	syncCmd.Flags().String("protected-branches", "main,master,release/*", "comma-separated branch patterns to protect from auto-rebase during --update-local")
 	syncCmd.Flags().Bool("allow-protected-rebase", false, "when used with --update-local, allow rebase on branches matched by --protected-branches")
 	syncCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
-	syncCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
-	syncCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
+	addFormatFlag(syncCmd, "output format: table, wide, or json")
+	addNoHeadersFlag(syncCmd)
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 
 }
