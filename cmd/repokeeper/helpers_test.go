@@ -455,3 +455,104 @@ func TestWriteSyncFailureSummary(t *testing.T) {
 		t.Fatalf("expected only failing repo in summary, got: %q", got)
 	}
 }
+
+func TestColorizeAndTrackingDisplayBranches(t *testing.T) {
+	prevColor := colorOutputEnabled
+	defer func() { colorOutputEnabled = prevColor }()
+
+	colorOutputEnabled = false
+	if got := colorize("up", ansiGreen); got != "up" {
+		t.Fatalf("expected uncolored output when disabled, got %q", got)
+	}
+
+	colorOutputEnabled = true
+	colored := colorize("up", ansiGreen)
+	if !strings.Contains(colored, ansiGreen) || !strings.Contains(colored, ansiReset) {
+		t.Fatalf("expected ansi-wrapped output, got %q", colored)
+	}
+	if got := displayTrackingStatus(model.TrackingDiverged); !strings.Contains(got, "diverged") {
+		t.Fatalf("expected diverged tracking label, got %q", got)
+	}
+	if got := displayTrackingStatus(model.TrackingGone); !strings.Contains(got, "gone") {
+		t.Fatalf("expected gone tracking label, got %q", got)
+	}
+	if got := displayTrackingStatus(model.TrackingNone); got != "none" {
+		t.Fatalf("expected plain tracking status for none, got %q", got)
+	}
+}
+
+func TestTruncateASCIIBranches(t *testing.T) {
+	if got := truncateASCII("abcdef", 3); got != "abc" {
+		t.Fatalf("expected hard truncate for short max, got %q", got)
+	}
+	if got := truncateASCII("abc", 10); got != "abc" {
+		t.Fatalf("expected no truncate for short value, got %q", got)
+	}
+}
+
+func TestStatusWarningsAndWideMirrorRow(t *testing.T) {
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				RepoID: "github.com/org/mirror",
+				Path:   "/tmp/mirror",
+				Type:   "mirror",
+				Head:   model.Head{Branch: "main"},
+				Tracking: model.Tracking{
+					Status:   model.TrackingEqual,
+					Upstream: "origin/main",
+				},
+			},
+		},
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{Status: registry.StatusMoved}}}
+	if !statusHasWarningsOrErrors(report, reg) {
+		t.Fatal("expected moved registry status to trigger warnings")
+	}
+
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+	writeStatusTable(cmd, report, "/tmp", nil, false, true)
+	got := out.String()
+	if !strings.Contains(got, "PRIMARY_REMOTE") || !strings.Contains(got, "UPSTREAM") {
+		t.Fatalf("expected wide headers, got: %q", got)
+	}
+	if !strings.Contains(got, "mirror") {
+		t.Fatalf("expected mirror row labeling, got: %q", got)
+	}
+}
+
+func TestDescribeSyncActionAdditionalBranches(t *testing.T) {
+	cases := []struct {
+		name string
+		in   engine.SyncResult
+		want string
+	}{
+		{name: "skip generic", in: engine.SyncResult{Error: "skipped"}, want: "skip"},
+		{name: "skip missing", in: engine.SyncResult{Error: "missing"}, want: "skip missing"},
+		{name: "skip local update no reason", in: engine.SyncResult{Error: "skipped-local-update:"}, want: "skip local update"},
+		{name: "empty action success defaults fetch", in: engine.SyncResult{OK: true}, want: "fetch"},
+		{name: "empty action failure defaults dash", in: engine.SyncResult{OK: false}, want: "-"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := describeSyncAction(tc.in); got != tc.want {
+				t.Fatalf("describeSyncAction() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestConfirmSyncExecutionEOF(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.SetIn(strings.NewReader("y"))
+	cmd.SetErr(&bytes.Buffer{})
+	ok, err := confirmSyncExecution(cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected EOF-terminated yes to be accepted")
+	}
+}
