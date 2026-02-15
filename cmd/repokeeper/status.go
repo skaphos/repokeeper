@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
@@ -129,12 +129,7 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 		// Sort once here so both table and JSON output stay predictable.
-		sort.SliceStable(report.Repos, func(i, j int) bool {
-			if report.Repos[i].RepoID == report.Repos[j].RepoID {
-				return report.Repos[i].Path < report.Repos[j].Path
-			}
-			return report.Repos[i].RepoID < report.Repos[j].RepoID
-		})
+		sortutil.SortRepoStatuses(report.Repos)
 		plans := buildRemoteMismatchPlans(report.Repos, reg, adapter, reconcileMode)
 		if len(plans) > 0 {
 			writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone)
@@ -173,12 +168,7 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			sort.SliceStable(report.Repos, func(i, j int) bool {
-				if report.Repos[i].RepoID == report.Repos[j].RepoID {
-					return report.Repos[i].Path < report.Repos[j].Path
-				}
-				return report.Repos[i].RepoID < report.Repos[j].RepoID
-			})
+			sortutil.SortRepoStatuses(report.Repos)
 		}
 
 		switch strings.ToLower(format) {

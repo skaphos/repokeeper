@@ -3,11 +3,11 @@ package repokeeper
 import (
 	"fmt"
 	"os"
-	"sort"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -44,12 +44,7 @@ var initCmd = &cobra.Command{
 		if _, err := eng.Scan(cmd.Context(), engine.ScanOptions{Roots: []string{config.ConfigRoot(cfgPath)}}); err != nil {
 			return err
 		}
-		sort.SliceStable(cfg.Registry.Entries, func(i, j int) bool {
-			if cfg.Registry.Entries[i].RepoID == cfg.Registry.Entries[j].RepoID {
-				return cfg.Registry.Entries[i].Path < cfg.Registry.Entries[j].Path
-			}
-			return cfg.Registry.Entries[i].RepoID < cfg.Registry.Entries[j].RepoID
-		})
+		sortutil.SortRegistryEntries(cfg.Registry.Entries)
 		if err := config.Save(&cfg, cfgPath); err != nil {
 			return err
 		}

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -84,12 +84,7 @@ var repairUpstreamCmd = &cobra.Command{
 		}
 
 		entries := append([]registry.Entry(nil), reg.Entries...)
-		sort.SliceStable(entries, func(i, j int) bool {
-			if entries[i].RepoID == entries[j].RepoID {
-				return entries[i].Path < entries[j].Path
-			}
-			return entries[i].RepoID < entries[j].RepoID
-		})
+		sortutil.SortRegistryEntries(entries)
 
 		runner := &gitx.GitRunner{}
 		results := make([]repairUpstreamResult, 0, len(entries))

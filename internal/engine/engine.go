@@ -17,6 +17,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
@@ -975,13 +976,7 @@ func hasRemoteMismatch(status model.RepoStatus, entry registry.Entry) bool {
 }
 
 func sortRepoStatuses(statuses []model.RepoStatus) {
-	// Group logically by repo identity first, then path for multiple checkouts.
-	sort.SliceStable(statuses, func(i, j int) bool {
-		if statuses[i].RepoID == statuses[j].RepoID {
-			return statuses[i].Path < statuses[j].Path
-		}
-		return statuses[i].RepoID < statuses[j].RepoID
-	})
+	sortutil.SortRepoStatuses(statuses)
 }
 
 func sortSyncResults(results []SyncResult) {
