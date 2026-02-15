@@ -43,6 +43,27 @@ After extracting, place `repokeeper` (or `repokeeper.exe` on Windows) somewhere 
 go install github.com/skaphos/repokeeper@latest
 ```
 
+## From local source checkout
+
+Install from a cloned repository:
+
+```bash
+cd /path/to/repokeeper
+go install .
+```
+
+Uninstall:
+
+```bash
+go clean -i github.com/skaphos/repokeeper
+```
+
+Or manually remove the binary:
+
+```bash
+rm "$(go env GOPATH)/bin/repokeeper"
+```
+
 ## Migration from old Homebrew formula install
 
 RepoKeeper previously shipped as a Homebrew formula. If you installed that older package, switch to the cask:

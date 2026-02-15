@@ -111,7 +111,7 @@
 - [x] include reason and recommended action (`manual`, `--force`, etc.)
 - [ ] remote mismatch detection:
 - [x] report registry `remote_url` vs live git remote mismatch
-- [ ] optional reconcile mode to update registry or git remote (explicit flag)
+- [x] optional reconcile mode to update registry or git remote (explicit flag)
 - [ ] `sync --continue-on-error`:
 - [x] continue processing all repos while accumulating failures
 - [x] summarize failed repos/actions at end with deterministic ordering
