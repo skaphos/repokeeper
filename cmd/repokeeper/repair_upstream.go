@@ -261,29 +261,72 @@ func repairUpstreamMatchesFilter(current, target, filter string) bool {
 }
 
 func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult, cwd string, roots []string, noHeaders bool) error {
+	type repairTableMode int
+	const (
+		repairTableModeFull repairTableMode = iota
+		repairTableModeCompact
+		repairTableModeTiny
+	)
+
+	mode := repairTableModeFull
+	if width, hasWidth := tableWidth(cmd); hasWidth {
+		switch {
+		case width < tinyTableWidth:
+			mode = repairTableModeTiny
+		case width < narrowTableWidth:
+			mode = repairTableModeCompact
+		}
+	}
+
 	w := tableutil.New(cmd.OutOrStdout(), false)
-	if err := tableutil.PrintHeaders(w, noHeaders, "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO"); err != nil {
+	headers := "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO"
+	if mode == repairTableModeCompact {
+		headers = "PATH\tACTION\tBRANCH\tOK\tERROR\tREPO"
+	}
+	if mode == repairTableModeTiny {
+		headers = "PATH\tACTION\tOK\tERROR"
+	}
+	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
 	}
+	pathMax := adaptiveCellLimit(cmd, 0, 48, 32)
+	actionMax := adaptiveCellLimit(cmd, 0, 22, 16)
+	branchMax := adaptiveCellLimit(cmd, 0, 24, 16)
+	repoMax := adaptiveCellLimit(cmd, 0, 32, 20)
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
 			ok = "no"
 		}
-		if _, err := fmt.Fprintf(
-			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			displayRepoPath(res.Path, cwd, roots),
-			res.Action,
-			res.LocalBranch,
-			res.CurrentUpstream,
-			res.TargetUpstream,
-			ok,
-			res.ErrorClass,
-			res.Error,
-			res.RepoID,
-		); err != nil {
-			return err
+		path := formatCell(displayRepoPath(res.Path, cwd, roots), false, pathMax)
+		action := formatCell(res.Action, false, actionMax)
+		branch := formatCell(res.LocalBranch, false, branchMax)
+		repoID := formatCell(res.RepoID, false, repoMax)
+		switch mode {
+		case repairTableModeTiny:
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", path, action, ok, formatCell(res.Error, false, 28)); err != nil {
+				return err
+			}
+		case repairTableModeCompact:
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", path, action, branch, ok, formatCell(res.Error, false, 32), repoID); err != nil {
+				return err
+			}
+		default:
+			if _, err := fmt.Fprintf(
+				w,
+				"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				path,
+				action,
+				branch,
+				res.CurrentUpstream,
+				res.TargetUpstream,
+				ok,
+				res.ErrorClass,
+				res.Error,
+				repoID,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	return w.Flush()

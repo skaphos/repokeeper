@@ -3,6 +3,7 @@ package repokeeper
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -109,6 +110,53 @@ func TestWriteRepairUpstreamTableNoHeaders(t *testing.T) {
 
 	if strings.Contains(out.String(), "ACTION") {
 		t.Fatalf("expected no table headers, got: %q", out.String())
+	}
+}
+
+func TestWriteRepairUpstreamTableCompactsColumnsOnTinyTTY(t *testing.T) {
+	prevIsTerminalFD := isTerminalFD
+	prevGetTerminalSize := getTerminalSize
+	defer func() {
+		isTerminalFD = prevIsTerminalFD
+		getTerminalSize = prevGetTerminalSize
+	}()
+	isTerminalFD = func(int) bool { return true }
+	getTerminalSize = func(int) (int, int, error) { return 70, 24, nil }
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe setup failed: %v", err)
+	}
+	defer reader.Close()
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(writer)
+	if err := writeRepairUpstreamTable(cmd, []repairUpstreamResult{
+		{
+			RepoID:          "github.com/org/repo",
+			Path:            "/tmp/work/repo",
+			LocalBranch:     "main",
+			CurrentUpstream: "origin/main",
+			TargetUpstream:  "origin/main",
+			Action:          "unchanged",
+			OK:              true,
+		},
+	}, "/tmp/work", nil, false); err != nil {
+		t.Fatalf("writeRepairUpstreamTable returned error: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "PATH") || !strings.Contains(got, "ACTION") || !strings.Contains(got, "OK") || !strings.Contains(got, "ERROR") {
+		t.Fatalf("expected tiny repair headers, got: %q", got)
+	}
+	if strings.Contains(got, "BRANCH") || strings.Contains(got, "REPO") || strings.Contains(got, "CURRENT") {
+		t.Fatalf("expected tiny mode to compact repair columns, got: %q", got)
 	}
 }
 

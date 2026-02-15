@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/spf13/cobra"
 )
@@ -85,5 +86,107 @@ func TestWriteStatusTableTruncatesOnNarrowTTY(t *testing.T) {
 	}
 	if strings.Contains(got, "feature/really-long-branch-name-for-narrow-terminals") {
 		t.Fatalf("expected branch truncation for narrow tty, got: %q", got)
+	}
+}
+
+func TestWriteStatusTableCompactsColumnsOnTinyTTY(t *testing.T) {
+	prevIsTerminalFD := isTerminalFD
+	prevGetTerminalSize := getTerminalSize
+	defer func() {
+		isTerminalFD = prevIsTerminalFD
+		getTerminalSize = prevGetTerminalSize
+	}()
+	isTerminalFD = func(int) bool { return true }
+	getTerminalSize = func(int) (int, int, error) { return 70, 24, nil }
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe setup failed: %v", err)
+	}
+	defer reader.Close()
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(writer)
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				Path: "/tmp/repo",
+				Head: model.Head{Branch: "main"},
+				Tracking: model.Tracking{
+					Status: model.TrackingEqual,
+				},
+				Worktree: &model.Worktree{Dirty: false},
+			},
+		},
+	}
+	if err := writeStatusTable(cmd, report, "/tmp", nil, false, false); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "PATH") || !strings.Contains(got, "TRACKING") {
+		t.Fatalf("expected compact headers, got: %q", got)
+	}
+	if strings.Contains(got, "BRANCH") || strings.Contains(got, "DIRTY") {
+		t.Fatalf("expected tiny mode to drop BRANCH/DIRTY, got: %q", got)
+	}
+}
+
+func TestWriteSyncTableCompactsColumnsOnTinyTTY(t *testing.T) {
+	prevIsTerminalFD := isTerminalFD
+	prevGetTerminalSize := getTerminalSize
+	defer func() {
+		isTerminalFD = prevIsTerminalFD
+		getTerminalSize = prevGetTerminalSize
+	}()
+	isTerminalFD = func(int) bool { return true }
+	getTerminalSize = func(int) (int, int, error) { return 70, 24, nil }
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe setup failed: %v", err)
+	}
+	defer reader.Close()
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(writer)
+	results := []engine.SyncResult{
+		{
+			RepoID: "github.com/org/repo",
+			Path:   "/tmp/repo",
+			OK:     false,
+			Error:  "simulated failure",
+			Action: "git fetch --all --prune --prune-tags --no-recurse-submodules",
+		},
+	}
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{Path: "/tmp/repo", Tracking: model.Tracking{Status: model.TrackingNone}},
+		},
+	}
+	if err := writeSyncTable(cmd, results, report, "/tmp", nil, false, false, false); err != nil {
+		t.Fatalf("writeSyncTable returned error: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read output: %v", err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "PATH") || !strings.Contains(got, "ACTION") || !strings.Contains(got, "OK") || !strings.Contains(got, "ERROR") {
+		t.Fatalf("expected tiny sync headers, got: %q", got)
+	}
+	if strings.Contains(got, "REPO") || strings.Contains(got, "BRANCH") || strings.Contains(got, "TRACKING") {
+		t.Fatalf("expected tiny mode to compact sync columns, got: %q", got)
 	}
 }

@@ -226,6 +226,13 @@ func syncResultNeedsConfirmation(res engine.SyncResult) bool {
 }
 
 func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) error {
+	type syncTableMode int
+	const (
+		syncTableModeFull syncTableMode = iota
+		syncTableModeCompact
+		syncTableModeTiny
+	)
+
 	statusByPath := make(map[string]model.RepoStatus, len(results))
 	if report != nil {
 		for _, repo := range report.Repos {
@@ -235,7 +242,23 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 	}
 
 	w := tableutil.New(cmd.OutOrStdout(), true)
+	mode := syncTableModeFull
+	if !wide {
+		width, hasWidth := tableWidth(cmd)
+		switch {
+		case hasWidth && width < tinyTableWidth:
+			mode = syncTableModeTiny
+		case hasWidth && width < narrowTableWidth:
+			mode = syncTableModeCompact
+		}
+	}
 	headers := "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO"
+	if mode == syncTableModeCompact {
+		headers = "PATH\tACTION\tOK\tERROR\tREPO"
+	}
+	if mode == syncTableModeTiny {
+		headers = "PATH\tACTION\tOK\tERROR"
+	}
 	if wide {
 		headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND"
 	}
@@ -283,6 +306,28 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 		branch = formatCell(branch, wrap, branchMax)
 		repoID := formatCell(res.RepoID, wrap, repoMax)
 		if !wide {
+			switch mode {
+			case syncTableModeTiny:
+				if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+					path,
+					action,
+					ok,
+					formatCell(res.Error, wrap, 28)); err != nil {
+					return err
+				}
+				continue
+			case syncTableModeCompact:
+				if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+					path,
+					action,
+					ok,
+					formatCell(res.Error, wrap, 32),
+					repoID); err != nil {
+					return err
+				}
+				continue
+			default:
+			}
 			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				path,
 				action,

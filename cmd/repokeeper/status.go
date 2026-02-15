@@ -218,9 +218,28 @@ func init() {
 
 func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) error {
 	w := tableutil.New(cmd.OutOrStdout(), true)
-	headers := "PATH\tBRANCH\tDIRTY\tTRACKING"
+	showBranch := true
+	showDirty := true
+	if !wide {
+		width, hasWidth := tableWidth(cmd)
+		switch {
+		case hasWidth && width < tinyTableWidth:
+			showBranch = false
+			showDirty = false
+		case hasWidth && width < narrowTableWidth:
+			showDirty = false
+		}
+	}
+	headers := "PATH"
+	if showBranch {
+		headers += "\tBRANCH"
+	}
+	if showDirty {
+		headers += "\tDIRTY"
+	}
+	headers += "\tTRACKING"
 	if wide {
-		headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
+		headers = "PATH\tBRANCH\tDIRTY\tTRACKING\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
 	}
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
@@ -251,11 +270,15 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			tracking = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "mirror", termstyle.Info)
 		}
 		if !wide {
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
-				path,
-				branch,
-				dirty,
-				tracking); err != nil {
+			row := []string{path}
+			if showBranch {
+				row = append(row, branch)
+			}
+			if showDirty {
+				row = append(row, dirty)
+			}
+			row = append(row, tracking)
+			if _, err := fmt.Fprintf(w, "%s\n", strings.Join(row, "\t")); err != nil {
 				return err
 			}
 			continue
