@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
-	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -103,18 +103,15 @@ var scanCmd = &cobra.Command{
 }
 
 func writeScanTable(cmd *cobra.Command, statuses []model.RepoStatus, noHeaders bool) error {
-	w := tableutil.New(cmd.OutOrStdout(), false)
-	tableutil.PrintHeaders(w, noHeaders, "REPO\tPATH\tBARE\tPRIMARY_REMOTE")
+	rows := make([][]string, 0, len(statuses))
 	for _, status := range statuses {
 		bare := "no"
 		if status.Bare {
 			bare = "yes"
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status.RepoID, status.Path, bare, status.PrimaryRemote); err != nil {
-			return err
-		}
+		rows = append(rows, []string{status.RepoID, status.Path, bare, status.PrimaryRemote})
 	}
-	return w.Flush()
+	return cliio.WriteTable(cmd.OutOrStdout(), false, noHeaders, []string{"REPO", "PATH", "BARE", "PRIMARY_REMOTE"}, rows)
 }
 
 func hasRegistryWarnings(reg *registry.Registry) bool {

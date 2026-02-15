@@ -1,14 +1,13 @@
 package repokeeper
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strings"
 
+	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
@@ -186,20 +185,15 @@ func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roo
 	if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "Planned sync operations:"); err != nil {
 		return err
 	}
-	w := tableutil.New(cmd.ErrOrStderr(), false)
-	tableutil.PrintHeaders(w, false, "PATH\tACTION\tREPO")
+	rows := make([][]string, 0, len(plan))
 	for _, res := range plan {
-		if _, err := fmt.Fprintf(
-			w,
-			"%s\t%s\t%s\n",
+		rows = append(rows, []string{
 			displayRepoPath(res.Path, cwd, roots),
 			describeSyncAction(res),
 			res.RepoID,
-		); err != nil {
-			return err
-		}
+		})
 	}
-	return w.Flush()
+	return cliio.WriteTable(cmd.ErrOrStderr(), false, false, []string{"PATH", "ACTION", "REPO"}, rows)
 }
 
 func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
@@ -207,16 +201,7 @@ func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
 }
 
 func confirmWithPrompt(cmd *cobra.Command, prompt string) (bool, error) {
-	if _, err := fmt.Fprint(cmd.ErrOrStderr(), prompt); err != nil {
-		return false, err
-	}
-	reader := bufio.NewReader(cmd.InOrStdin())
-	line, err := reader.ReadString('\n')
-	if err != nil && err != io.EOF {
-		return false, err
-	}
-	choice := strings.ToLower(strings.TrimSpace(line))
-	return choice == "y" || choice == "yes", nil
+	return cliio.PromptYesNo(cmd.ErrOrStderr(), cmd.InOrStdin(), prompt)
 }
 
 func syncPlanNeedsConfirmation(plan []engine.SyncResult) bool {
@@ -404,20 +389,15 @@ func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cw
 	if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "Failed sync operations:"); err != nil {
 		return err
 	}
-	w := tableutil.New(cmd.ErrOrStderr(), false)
-	tableutil.PrintHeaders(w, false, "PATH\tACTION\tERROR_CLASS\tERROR\tREPO")
+	rows := make([][]string, 0, len(failed))
 	for _, res := range failed {
-		if _, err := fmt.Fprintf(
-			w,
-			"%s\t%s\t%s\t%s\t%s\n",
+		rows = append(rows, []string{
 			displayRepoPath(res.Path, cwd, roots),
 			describeSyncAction(res),
 			res.ErrorClass,
 			res.Error,
 			res.RepoID,
-		); err != nil {
-			return err
-		}
+		})
 	}
-	return w.Flush()
+	return cliio.WriteTable(cmd.ErrOrStderr(), false, false, []string{"PATH", "ACTION", "ERROR_CLASS", "ERROR", "REPO"}, rows)
 }

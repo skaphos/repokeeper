@@ -225,7 +225,7 @@
   - [x] add Godoc comments on public types (SyncResult fields, model types)
   - [ ] clarify `--dry-run` default behavior in status command
 - [ ] Code organization:
-  - [ ] extract table rendering and confirmation logic from commands to reusable modules
+  - [x] extract table rendering and confirmation logic from commands to reusable modules
   - [x] replace deep parameter lists with options structs (e.g., `PullRebaseOptions`)
   - [x] create typed `OutcomeKind` enum for `SyncResult.Outcome`
 - [ ] Minor cleanup:

@@ -7,11 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/remotemismatch"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/remotemismatch"
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
@@ -527,25 +528,24 @@ func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd
 	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "Remote mismatch reconcile (%s):\n", modeLabel); err != nil {
 		return err
 	}
-	w := tableutil.New(cmd.ErrOrStderr(), false)
-	if _, err := fmt.Fprintln(w, "PATH\tACTION\tPRIMARY_REMOTE\tGIT_REMOTE_URL\tREGISTRY_REMOTE_URL\tREPO"); err != nil {
-		return err
-	}
+	rows := make([][]string, 0, len(plans))
 	for _, plan := range plans {
-		if _, err := fmt.Fprintf(
-			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\n",
+		rows = append(rows, []string{
 			displayRepoPath(plan.Path, cwd, roots),
 			plan.Action,
 			plan.PrimaryRemote,
 			plan.RepoRemoteURL,
 			plan.RegistryURL,
 			plan.RepoID,
-		); err != nil {
-			return err
-		}
+		})
 	}
-	return w.Flush()
+	return cliio.WriteTable(
+		cmd.ErrOrStderr(),
+		false,
+		false,
+		[]string{"PATH", "ACTION", "PRIMARY_REMOTE", "GIT_REMOTE_URL", "REGISTRY_REMOTE_URL", "REPO"},
+		rows,
+	)
 }
 
 func applyRemoteMismatchPlans(cmd *cobra.Command, plans []remoteMismatchPlan, reg *registry.Registry, mode remoteMismatchReconcileMode) error {
