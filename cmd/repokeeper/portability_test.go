@@ -1,6 +1,7 @@
 package repokeeper
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestImportTargetRelativePath(t *testing.T) {
@@ -290,4 +292,166 @@ func TestSetRegistryEntryByRepoID(t *testing.T) {
 
 	// Ensure nil registry is safe.
 	setRegistryEntryByRepoID(nil, registry.Entry{RepoID: "ignored"})
+}
+
+func TestExportCommandRunEToStdoutWithoutRegistry(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	exportCmd.SetOut(out)
+	exportCmd.SetContext(context.Background())
+	defer exportCmd.SetOut(nil)
+
+	_ = exportCmd.Flags().Set("include-registry", "false")
+	_ = exportCmd.Flags().Set("output", "-")
+
+	if err := exportCmd.RunE(exportCmd, nil); err != nil {
+		t.Fatalf("export run failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "version: 1") || !strings.Contains(got, "config:") {
+		t.Fatalf("expected exported yaml output, got: %q", got)
+	}
+}
+
+func TestImportCommandRunEFileOnlyFromStdin(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	prevConfig, _ := rootCmd.PersistentFlags().GetString("config")
+	if err := rootCmd.PersistentFlags().Set("config", cfgPath); err != nil {
+		t.Fatalf("set config flag: %v", err)
+	}
+	defer func() { _ = rootCmd.PersistentFlags().Set("config", prevConfig) }()
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	bundle := exportBundle{
+		Version: 1,
+		Config:  config.DefaultConfig(),
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo", Path: "/tmp/repo", RemoteURL: "git@github.com:org/repo.git", Status: registry.StatusPresent},
+			},
+		},
+	}
+	data, err := yaml.Marshal(&bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+
+	in := bytes.NewBuffer(data)
+	importCmd.SetIn(in)
+	importCmd.SetContext(context.Background())
+	_ = importCmd.Flags().Set("force", "true")
+	_ = importCmd.Flags().Set("file-only", "true")
+	_ = importCmd.Flags().Set("clone", "true")
+	_ = importCmd.Flags().Set("include-registry", "true")
+	_ = importCmd.Flags().Set("preserve-registry-path", "true")
+
+	if err := importCmd.RunE(importCmd, []string{"-"}); err != nil {
+		t.Fatalf("import run failed: %v", err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load imported config: %v", err)
+	}
+	if cfg.Registry != nil {
+		t.Fatalf("expected file-only import to omit registry, got %+v", cfg.Registry)
+	}
+}
+
+func TestImportCommandRunERejectsBlankBundleArg(t *testing.T) {
+	importCmd.SetContext(context.Background())
+	err := importCmd.RunE(importCmd, []string{"   "})
+	if err == nil || !strings.Contains(err.Error(), "bundle-file cannot be empty") {
+		t.Fatalf("expected blank bundle arg error, got: %v", err)
+	}
+}
+
+func TestExportCommandRunELoadsRegistryFromRegistryPath(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	regPath := filepath.Join(tmp, "registry.yaml")
+
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo-a", Path: filepath.Join(tmp, "repo-a"), Status: registry.StatusPresent},
+		},
+	}
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("save registry: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Registry = nil
+	cfg.RegistryPath = "registry.yaml"
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	exportCmd.SetOut(out)
+	exportCmd.SetContext(context.Background())
+	defer exportCmd.SetOut(nil)
+	_ = exportCmd.Flags().Set("include-registry", "true")
+	_ = exportCmd.Flags().Set("output", "-")
+
+	if err := exportCmd.RunE(exportCmd, nil); err != nil {
+		t.Fatalf("export run failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "repo_id: github.com/org/repo-a") {
+		t.Fatalf("expected exported registry entry, got: %q", got)
+	}
+}
+
+func TestImportCommandRunERequiresForceWhenConfigExists(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	bundle := exportBundle{Version: 1, Config: config.DefaultConfig()}
+	data, err := yaml.Marshal(&bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	importCmd.SetIn(bytes.NewBuffer(data))
+	importCmd.SetContext(context.Background())
+	_ = importCmd.Flags().Set("force", "false")
+	_ = importCmd.Flags().Set("file-only", "true")
+
+	err = importCmd.RunE(importCmd, []string{"-"})
+	if err == nil || !strings.Contains(err.Error(), "config already exists") {
+		t.Fatalf("expected force-required error, got: %v", err)
+	}
+}
+
+func TestExportCommandRunEWritesFile(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	outputFile := filepath.Join(t.TempDir(), "bundle.yaml")
+	exportCmd.SetContext(context.Background())
+	_ = exportCmd.Flags().Set("include-registry", "false")
+	_ = exportCmd.Flags().Set("output", outputFile)
+
+	if err := exportCmd.RunE(exportCmd, nil); err != nil {
+		t.Fatalf("export run failed: %v", err)
+	}
+	if _, err := os.Stat(outputFile); err != nil {
+		t.Fatalf("expected export file at %s: %v", outputFile, err)
+	}
 }

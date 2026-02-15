@@ -2,10 +2,15 @@ package repokeeper
 
 import (
 	"bytes"
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 )
 
@@ -100,5 +105,199 @@ func TestWriteRepairUpstreamTableNoHeaders(t *testing.T) {
 
 	if strings.Contains(out.String(), "ACTION") {
 		t.Fatalf("expected no table headers, got: %q", out.String())
+	}
+}
+
+func TestRepairUpstreamRunEDryRunMissingRegistryEntry(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	repairUpstreamCmd.SetOut(out)
+	repairUpstreamCmd.SetErr(errOut)
+	repairUpstreamCmd.SetContext(context.Background())
+	defer repairUpstreamCmd.SetOut(nil)
+	defer repairUpstreamCmd.SetErr(nil)
+
+	_ = repairUpstreamCmd.Flags().Set("registry", "")
+	_ = repairUpstreamCmd.Flags().Set("dry-run", "true")
+	_ = repairUpstreamCmd.Flags().Set("only", "all")
+	_ = repairUpstreamCmd.Flags().Set("format", "json")
+	_ = repairUpstreamCmd.Flags().Set("no-headers", "false")
+
+	if err := repairUpstreamCmd.RunE(repairUpstreamCmd, nil); err != nil {
+		t.Fatalf("repair-upstream dry-run failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "\"repo_id\": \"github.com/org/repo-missing\"") {
+		t.Fatalf("expected missing repo in output, got: %q", got)
+	}
+	if !strings.Contains(got, "\"action\": \"skip missing\"") {
+		t.Fatalf("expected skip-missing action in output, got: %q", got)
+	}
+}
+
+func TestRepairUpstreamRunEDryRunMixedRepoStates(t *testing.T) {
+	tmp := t.TempDir()
+
+	repoRepair := filepath.Join(tmp, "repo-repair")
+	mustRunGit(t, filepath.Dir(repoRepair), "init", repoRepair)
+	mustRunGit(t, repoRepair, "commit", "--allow-empty", "-m", "init")
+	mustRunGit(t, repoRepair, "remote", "add", "origin", "git@github.com:org/repo-repair.git")
+
+	repoNoRemote := filepath.Join(tmp, "repo-noremote")
+	mustRunGit(t, filepath.Dir(repoNoRemote), "init", repoNoRemote)
+	mustRunGit(t, repoNoRemote, "commit", "--allow-empty", "-m", "init")
+
+	repoDetached := filepath.Join(tmp, "repo-detached")
+	mustRunGit(t, filepath.Dir(repoDetached), "init", repoDetached)
+	mustRunGit(t, repoDetached, "commit", "--allow-empty", "-m", "init")
+	mustRunGit(t, repoDetached, "remote", "add", "origin", "git@github.com:org/repo-detached.git")
+	mustRunGit(t, repoDetached, "checkout", "--detach", "HEAD")
+
+	notRepoDir := filepath.Join(tmp, "not-repo")
+	if err := os.MkdirAll(notRepoDir, 0o755); err != nil {
+		t.Fatalf("mkdir non-repo dir: %v", err)
+	}
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo-repair", Path: repoRepair, RemoteURL: "git@github.com:org/repo-repair.git", Status: registry.StatusPresent},
+			{RepoID: "github.com/org/repo-noremote", Path: repoNoRemote, RemoteURL: "git@github.com:org/repo-noremote.git", Status: registry.StatusPresent},
+			{RepoID: "github.com/org/repo-detached", Path: repoDetached, RemoteURL: "git@github.com:org/repo-detached.git", Status: registry.StatusPresent},
+			{RepoID: "github.com/org/repo-bad", Path: notRepoDir, RemoteURL: "git@github.com:org/repo-bad.git", Status: registry.StatusPresent},
+		},
+	}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	repairUpstreamCmd.SetOut(out)
+	repairUpstreamCmd.SetErr(errOut)
+	repairUpstreamCmd.SetContext(context.Background())
+	defer repairUpstreamCmd.SetOut(nil)
+	defer repairUpstreamCmd.SetErr(nil)
+
+	_ = repairUpstreamCmd.Flags().Set("registry", "")
+	_ = repairUpstreamCmd.Flags().Set("dry-run", "true")
+	_ = repairUpstreamCmd.Flags().Set("only", "all")
+	_ = repairUpstreamCmd.Flags().Set("format", "json")
+	_ = repairUpstreamCmd.Flags().Set("no-headers", "false")
+
+	if err := repairUpstreamCmd.RunE(repairUpstreamCmd, nil); err != nil {
+		t.Fatalf("repair-upstream dry-run failed: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"\"action\": \"would repair\"", "\"action\": \"skip no remote\"", "\"action\": \"skip detached\"", "\"action\": \"skip status error\""} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected %s in output, got: %q", want, got)
+		}
+	}
+}
+
+func TestRepairUpstreamRunECancelledConfirmation(t *testing.T) {
+	tmp := t.TempDir()
+	repoRepair := filepath.Join(tmp, "repo-repair")
+	mustRunGit(t, filepath.Dir(repoRepair), "init", repoRepair)
+	mustRunGit(t, repoRepair, "commit", "--allow-empty", "-m", "init")
+	mustRunGit(t, repoRepair, "remote", "add", "origin", "git@github.com:org/repo-repair.git")
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo-repair", Path: repoRepair, RemoteURL: "git@github.com:org/repo-repair.git", Status: registry.StatusPresent},
+		},
+	}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	in := bytes.NewBufferString("n\n")
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	repairUpstreamCmd.SetIn(in)
+	repairUpstreamCmd.SetOut(out)
+	repairUpstreamCmd.SetErr(errOut)
+	repairUpstreamCmd.SetContext(context.Background())
+	defer repairUpstreamCmd.SetIn(nil)
+	defer repairUpstreamCmd.SetOut(nil)
+	defer repairUpstreamCmd.SetErr(nil)
+
+	_ = repairUpstreamCmd.Flags().Set("dry-run", "false")
+	_ = repairUpstreamCmd.Flags().Set("only", "all")
+	_ = repairUpstreamCmd.Flags().Set("format", "json")
+	_ = repairUpstreamCmd.Flags().Set("registry", "")
+
+	if err := repairUpstreamCmd.RunE(repairUpstreamCmd, nil); err != nil {
+		t.Fatalf("repair-upstream non-dry-run failed: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "Proceed with upstream tracking repairs?") {
+		t.Fatalf("expected confirmation prompt, got: %q", errOut.String())
+	}
+}
+
+func TestRepairUpstreamRunERepairedNonDryRun(t *testing.T) {
+	tmp := t.TempDir()
+	remote := filepath.Join(tmp, "remote.git")
+	mustRunGit(t, tmp, "init", "--bare", remote)
+
+	work := filepath.Join(tmp, "work")
+	mustRunGit(t, tmp, "clone", remote, work)
+	mustRunGit(t, work, "checkout", "-b", "main")
+	mustRunGit(t, work, "commit", "--allow-empty", "-m", "init")
+	mustRunGit(t, work, "push", "-u", "origin", "main")
+	mustRunGit(t, work, "branch", "--unset-upstream", "main")
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:    "github.com/org/repo-repair",
+				Path:      work,
+				RemoteURL: remote,
+				Status:    registry.StatusPresent,
+				Branch:    "main",
+			},
+		},
+	}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	in := bytes.NewBufferString("y\n")
+	repairUpstreamCmd.SetIn(in)
+	repairUpstreamCmd.SetOut(out)
+	repairUpstreamCmd.SetContext(context.Background())
+	defer repairUpstreamCmd.SetIn(nil)
+	defer repairUpstreamCmd.SetOut(nil)
+
+	_ = repairUpstreamCmd.Flags().Set("registry", "")
+	_ = repairUpstreamCmd.Flags().Set("dry-run", "false")
+	_ = repairUpstreamCmd.Flags().Set("only", "all")
+	_ = repairUpstreamCmd.Flags().Set("format", "json")
+	_ = repairUpstreamCmd.Flags().Set("no-headers", "false")
+	_ = repairUpstreamCmd.Flags().Set("yes", "false")
+
+	if err := repairUpstreamCmd.RunE(repairUpstreamCmd, nil); err != nil {
+		t.Fatalf("repair-upstream non-dry-run failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "\"action\": \"repaired\"") {
+		t.Fatalf("expected repaired action in output, got: %q", got)
 	}
 }
