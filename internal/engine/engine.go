@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
@@ -42,6 +43,8 @@ type Engine struct {
 	cfg      *config.Config
 	registry *registry.Registry
 	adapter  vcs.Adapter
+
+	registryMu sync.Mutex
 }
 
 // New creates a new Engine with the given configuration.
@@ -109,7 +112,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 		if repoID == "" {
 			repoID = "local:" + filepath.ToSlash(res.Path)
 		}
-		e.registry.Upsert(registry.Entry{
+		e.upsertRegistryEntry(registry.Entry{
 			RepoID:    repoID,
 			Path:      res.Path,
 			RemoteURL: res.RemoteURL,
@@ -126,7 +129,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 		})
 	}
 	sortRepoStatuses(statuses)
-	e.registry.UpdatedAt = now
+	e.setRegistryUpdatedAt(now)
 
 	return statuses, nil
 }
@@ -362,7 +365,7 @@ func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) S
 	executed.Outcome = SyncOutcomeCheckoutMissing
 	entry.Status = registry.StatusPresent
 	entry.LastSeen = time.Now()
-	e.registry.Entries = replaceRegistryEntry(e.registry.Entries, *entry)
+	e.replaceRegistryEntry(*entry)
 	return executed
 }
 
@@ -615,7 +618,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 	}
 	entry.Status = registry.StatusPresent
 	entry.LastSeen = time.Now()
-	e.registry.Entries = replaceRegistryEntry(e.registry.Entries, entry)
+	e.replaceRegistryEntry(entry)
 	return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeCheckoutMissing, OK: true, Action: action}
 }
 
@@ -949,6 +952,33 @@ func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatu
 		Tracking:      tracking,
 		Submodules:    model.Submodules{HasSubmodules: hasSubmodules},
 	}, nil
+}
+
+func (e *Engine) upsertRegistryEntry(entry registry.Entry) {
+	e.registryMu.Lock()
+	defer e.registryMu.Unlock()
+	if e.registry == nil {
+		e.registry = &registry.Registry{}
+	}
+	e.registry.Upsert(entry)
+}
+
+func (e *Engine) replaceRegistryEntry(entry registry.Entry) {
+	e.registryMu.Lock()
+	defer e.registryMu.Unlock()
+	if e.registry == nil {
+		e.registry = &registry.Registry{}
+	}
+	e.registry.Entries = replaceRegistryEntry(e.registry.Entries, entry)
+}
+
+func (e *Engine) setRegistryUpdatedAt(ts time.Time) {
+	e.registryMu.Lock()
+	defer e.registryMu.Unlock()
+	if e.registry == nil {
+		e.registry = &registry.Registry{}
+	}
+	e.registry.UpdatedAt = ts
 }
 
 func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Registry) bool {
