@@ -96,33 +96,33 @@
 - [x] converge list commands on shared columns and `-o` semantics
 - [x] add `--no-headers` and deterministic sort behavior everywhere
 - [x] implement `-o wide` for repo list/reconcile views
-- [ ] Color/styling policy hardening:
+- [x] Color/styling policy hardening:
 - [x] auto-color only for TTY table output; disable color for machine formats
 - [x] preserve `--no-color` and `NO_COLOR` precedence
 - [x] normalize semantic color mapping (healthy/warn/error/info)
-- [ ] Selector evolution:
+- [x] Selector evolution:
 - [x] keep `--only` as shorthand
 - [x] add field-selector style filtering (phase rollout)
-- [ ] `repair-upstream` command:
+- [x] `repair-upstream` command:
 - [x] detect missing/wrong upstream tracking refs
 - [x] repair to configured/default upstream (`origin/<branch>`) with dry-run support
-- [ ] diverged-focused reporting:
+- [x] diverged-focused reporting:
 - [x] add machine-readable and table views for repos in `diverged` state
 - [x] include reason and recommended action (`manual`, `--force`, etc.)
-- [ ] remote mismatch detection:
+- [x] remote mismatch detection:
 - [x] report registry `remote_url` vs live git remote mismatch
 - [x] optional reconcile mode to update registry or git remote (explicit flag)
-- [ ] `sync --continue-on-error`:
+- [x] `sync --continue-on-error`:
 - [x] continue processing all repos while accumulating failures
 - [x] summarize failed repos/actions at end with deterministic ordering
-- [ ] richer exit code model for automation:
+- [x] richer exit code model for automation:
 - [x] preserve existing high-level codes but add structured per-repo outcomes in JSON
 - [x] outcome categories: `fetched`, `rebased`, `skipped_no_upstream`, `skipped_diverged`, `failed`, etc.
-- [ ] protected-branch safeguards:
+- [x] protected-branch safeguards:
 - [x] block auto-rebase on protected branch patterns by default
 - [x] allow explicit override flag for emergency runs
 - [x] document safeguards in `README.md` and `DESIGN.md`
-- [ ] confirmation policy for mutating actions:
+- [x] confirmation policy for mutating actions:
 - [x] require user confirmation for repo/state-mutating actions by default
 - [x] add `--yes` global bypass for non-interactive/automation use
 - [x] ensure fetch-only/no-op actions do not require confirmation
