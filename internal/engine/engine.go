@@ -241,6 +241,15 @@ type SyncResult struct {
 	Action     string
 }
 
+const (
+	SyncErrorDryRun                   = "dry-run"
+	SyncErrorMissing                  = "missing"
+	SyncErrorSkipped                  = "skipped"
+	SyncErrorSkippedNoUpstream        = "skipped-no-upstream"
+	SyncErrorMissingRemoteForCheckout = "missing remote_url for checkout"
+	SyncErrorSkippedLocalUpdatePrefix = "skipped-local-update: "
+)
+
 // ExecuteSyncPlan executes a previously computed dry-run sync plan.
 // It avoids re-inspecting repo state so sync can analyze once and then apply.
 func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts SyncOptions) ([]SyncResult, error) {
@@ -251,7 +260,7 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 	results := make([]SyncResult, 0, len(plan))
 	for _, item := range plan {
 		// Non-dry-run execution only applies actions that were explicitly planned.
-		if item.Error != "dry-run" {
+		if item.Error != SyncErrorDryRun {
 			results = append(results, item)
 			if !item.OK && !opts.ContinueOnError {
 				break
@@ -444,7 +453,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		}
 		if entry.Status == registry.StatusMissing {
 			if !opts.CheckoutMissing {
-				results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped_missing", OK: false, Error: "missing"})
+				results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped_missing", OK: false, Error: SyncErrorMissing})
 				continue
 			}
 			// Missing entries are recoverable only when we have enough material to
@@ -456,7 +465,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					Path:       entry.Path,
 					Outcome:    "failed_invalid",
 					OK:         false,
-					Error:      "missing remote_url for checkout",
+					Error:      SyncErrorMissingRemoteForCheckout,
 					ErrorClass: "invalid",
 				})
 				continue
@@ -477,7 +486,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					Path:    entry.Path,
 					Outcome: "planned_checkout_missing",
 					OK:      true,
-					Error:   "dry-run",
+					Error:   SyncErrorDryRun,
 					Action:  action,
 				})
 				continue
@@ -539,7 +548,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				Outcome:    "skipped_no_upstream",
 				OK:         true,
 				ErrorClass: "skipped",
-				Error:      "skipped-no-upstream",
+				Error:      SyncErrorSkippedNoUpstream,
 			})
 			continue
 		}
@@ -577,7 +586,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 							Path:    entry.Path,
 							Outcome: "planned_push",
 							OK:      true,
-							Error:   "dry-run",
+							Error:   SyncErrorDryRun,
 							Action:  action,
 						}}
 						return
@@ -596,7 +605,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 							Outcome:    "skipped_local_update",
 							OK:         true,
 							ErrorClass: "skipped",
-							Error:      "skipped-local-update: " + reason,
+							Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
 							Action:     action,
 						}}
 						return
@@ -608,7 +617,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					Path:    entry.Path,
 					Outcome: "planned_fetch",
 					OK:      true,
-					Error:   "dry-run",
+					Error:   SyncErrorDryRun,
 					Action:  action,
 				}}
 				return
@@ -627,7 +636,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					return
 				}
 				if status.Tracking.Status != model.TrackingGone {
-					out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped", OK: true, Error: "skipped"}}
+					out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped", OK: true, Error: SyncErrorSkipped}}
 					return
 				}
 			}
@@ -693,7 +702,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						Outcome:    "skipped_local_update",
 						OK:         true,
 						ErrorClass: "skipped",
-						Error:      "skipped-local-update: " + reason,
+						Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
 					}}
 					return
 				}

@@ -123,7 +123,7 @@ func TestDescribeSyncAction(t *testing.T) {
 			name: "skip no upstream",
 			in: engine.SyncResult{
 				OK:    true,
-				Error: "skipped-no-upstream",
+				Error: engine.SyncErrorSkippedNoUpstream,
 			},
 			want: "skip no upstream",
 		},
@@ -360,7 +360,7 @@ func TestConfirmSyncExecution(t *testing.T) {
 func TestSyncPlanNeedsConfirmation(t *testing.T) {
 	fetchOnly := []engine.SyncResult{
 		{RepoID: "r1", Path: "/repo", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
-		{RepoID: "r2", Path: "/repo2", Error: "skipped-no-upstream"},
+		{RepoID: "r2", Path: "/repo2", Error: engine.SyncErrorSkippedNoUpstream},
 	}
 	if syncPlanNeedsConfirmation(fetchOnly) {
 		t.Fatal("expected fetch-only plan to skip confirmation")
@@ -539,9 +539,9 @@ func TestDescribeSyncActionAdditionalBranches(t *testing.T) {
 		in   engine.SyncResult
 		want string
 	}{
-		{name: "skip generic", in: engine.SyncResult{Error: "skipped"}, want: "skip"},
-		{name: "skip missing", in: engine.SyncResult{Error: "missing"}, want: "skip missing"},
-		{name: "skip local update no reason", in: engine.SyncResult{Error: "skipped-local-update:"}, want: "skip local update"},
+		{name: "skip generic", in: engine.SyncResult{Error: engine.SyncErrorSkipped}, want: "skip"},
+		{name: "skip missing", in: engine.SyncResult{Error: engine.SyncErrorMissing}, want: "skip missing"},
+		{name: "skip local update no reason", in: engine.SyncResult{Error: engine.SyncErrorSkippedLocalUpdatePrefix}, want: "skip local update"},
 		{name: "empty action success defaults fetch", in: engine.SyncResult{OK: true}, want: "fetch"},
 		{name: "empty action failure defaults dash", in: engine.SyncResult{OK: false}, want: "-"},
 	}

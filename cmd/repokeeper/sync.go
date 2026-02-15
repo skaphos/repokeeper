@@ -167,14 +167,14 @@ var syncCmd = &cobra.Command{
 		for _, res := range results {
 			if !res.OK {
 				// Missing repos are warning-level; operational failures are error-level.
-				if res.Error == "missing" {
+				if res.Error == engine.SyncErrorMissing {
 					raiseExitCode(cmd, 1)
 					continue
 				}
 				raiseExitCode(cmd, 2)
 				continue
 			}
-			if strings.HasPrefix(res.Error, "skipped-local-update:") {
+			if strings.HasPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix) {
 				raiseExitCode(cmd, 1)
 			}
 		}
@@ -356,20 +356,20 @@ func describeSyncAction(res engine.SyncResult) string {
 	action := strings.TrimSpace(res.Action)
 
 	// Prefer explicit skip reasons from the engine over heuristic action parsing.
-	if strings.HasPrefix(res.Error, "skipped-local-update:") {
-		reason := strings.TrimSpace(strings.TrimPrefix(res.Error, "skipped-local-update:"))
+	if strings.HasPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix) {
+		reason := strings.TrimSpace(strings.TrimPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix))
 		if reason == "" {
 			return "skip local update"
 		}
 		return "skip local update (" + reason + ")"
 	}
-	if res.Error == "skipped-no-upstream" {
+	if res.Error == engine.SyncErrorSkippedNoUpstream {
 		return "skip no upstream"
 	}
-	if res.Error == "skipped" {
+	if res.Error == engine.SyncErrorSkipped {
 		return "skip"
 	}
-	if res.Error == "missing" {
+	if res.Error == engine.SyncErrorMissing {
 		return "skip missing"
 	}
 
