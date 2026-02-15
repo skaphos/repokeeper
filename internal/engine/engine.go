@@ -43,6 +43,9 @@ type Engine struct {
 
 // New creates a new Engine with the given configuration.
 func New(cfg *config.Config, reg *registry.Registry, adapter vcs.Adapter) *Engine {
+	if adapter == nil {
+		adapter = vcs.NewGitAdapter(nil)
+	}
 	return &Engine{
 		Config:   cfg,
 		Registry: reg,
@@ -60,9 +63,6 @@ type ScanOptions struct {
 
 // Scan discovers repos and updates the registry.
 func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus, error) {
-	if e.Adapter == nil {
-		e.Adapter = vcs.NewGitAdapter(nil)
-	}
 	if e.Registry == nil {
 		e.Registry = &registry.Registry{}
 	}
@@ -128,9 +128,6 @@ type StatusOptions struct {
 
 // Status inspects all registered repos and returns their status.
 func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusReport, error) {
-	if e.Adapter == nil {
-		e.Adapter = vcs.NewGitAdapter(nil)
-	}
 	if e.Registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
@@ -247,9 +244,6 @@ type SyncResult struct {
 // ExecuteSyncPlan executes a previously computed dry-run sync plan.
 // It avoids re-inspecting repo state so sync can analyze once and then apply.
 func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts SyncOptions) ([]SyncResult, error) {
-	if e.Adapter == nil {
-		e.Adapter = vcs.NewGitAdapter(nil)
-	}
 	if e.Registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
@@ -382,9 +376,6 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 
 // Sync runs fetch/prune on repos matching the filter.
 func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, error) {
-	if e.Adapter == nil {
-		e.Adapter = vcs.NewGitAdapter(nil)
-	}
 	if e.Registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
@@ -856,9 +847,6 @@ func outcomeForRebase(stashed bool) string {
 
 // InspectRepo gathers the full status for a single repository path.
 func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatus, error) {
-	if e.Adapter == nil {
-		e.Adapter = vcs.NewGitAdapter(nil)
-	}
 	bare, _ := e.Adapter.IsBare(ctx, path)
 
 	remotes, err := e.Adapter.Remotes(ctx, path)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 )
@@ -388,5 +389,12 @@ func TestPullRebaseSkipReasonUsesConfiguredMainBranch(t *testing.T) {
 	}
 	if got := pullRebaseSkipReason(status, "main", false, false, nil, true); got != "upstream \"origin/develop\" is not main" {
 		t.Fatalf("expected branch mismatch reason, got %q", got)
+	}
+}
+
+func TestNewInitializesDefaultAdapter(t *testing.T) {
+	eng := New(&config.Config{}, &registry.Registry{}, nil)
+	if eng.Adapter == nil {
+		t.Fatal("expected engine.New to set default adapter when nil")
 	}
 }

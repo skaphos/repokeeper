@@ -157,8 +157,8 @@
   - [ ] extract dry-run planning, execution, and result collection into separate methods
   - [ ] reduce goroutine body complexity (currently handles 8+ distinct code paths)
 - [ ] Eliminate repeated nil-guard pattern:
-  - [ ] initialize `Adapter` in `engine.New()` constructor with sensible default
-  - [ ] remove redundant `if e.Adapter == nil` checks from `Scan`, `Status`, `Sync`, `InspectRepo`
+  - [x] initialize `Adapter` in `engine.New()` constructor with sensible default
+  - [x] remove redundant `if e.Adapter == nil` checks from `Scan`, `Status`, `Sync`, `InspectRepo`
 - [ ] Extract shared utilities:
   - [ ] move `splitCSV()` from `scan.go` to a shared `internal/cli` or `internal/strutil` package
   - [ ] extract ANSI color constants and `colorize()` to shared package
