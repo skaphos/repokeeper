@@ -24,7 +24,7 @@ var initCmd = &cobra.Command{
 			return err
 		}
 
-		cfgPath, err := config.InitConfigPath(flagConfig, cwd)
+		cfgPath, err := config.InitConfigPath(configOverride(cmd), cwd)
 		if err != nil {
 			return err
 		}

@@ -14,6 +14,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func withConfigFlag(t *testing.T, cfgPath string) func() {
+	t.Helper()
+	prevConfig, _ := rootCmd.PersistentFlags().GetString("config")
+	if err := rootCmd.PersistentFlags().Set("config", cfgPath); err != nil {
+		t.Fatalf("set config flag: %v", err)
+	}
+	return func() {
+		_ = rootCmd.PersistentFlags().Set("config", prevConfig)
+	}
+}
+
 func TestDescribeRepoSubcommandExists(t *testing.T) {
 	cmd, _, err := rootCmd.Find([]string{"describe", "repo", "example"})
 	if err != nil {
@@ -78,9 +89,8 @@ func TestRunDescribeRepoWithMissingRegistryEntry(t *testing.T) {
 		t.Fatalf("save registry: %v", err)
 	}
 
-	prevConfig := flagConfig
-	flagConfig = cfgPath
-	defer func() { flagConfig = prevConfig }()
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
 
 	out := &bytes.Buffer{}
 	cmd := &cobra.Command{}
@@ -135,9 +145,8 @@ func TestRunDescribeRepoUnsupportedFormat(t *testing.T) {
 		t.Fatalf("save registry: %v", err)
 	}
 
-	prevConfig := flagConfig
-	flagConfig = cfgPath
-	defer func() { flagConfig = prevConfig }()
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("registry", "", "")
@@ -191,9 +200,8 @@ func TestSelectRegistryEntryForDescribeErrorsAndHelpers(t *testing.T) {
 
 func TestRunDescribeRepoErrorsForMissingConfig(t *testing.T) {
 	tmp := t.TempDir()
-	prevConfig := flagConfig
-	flagConfig = filepath.Join(tmp, ".repokeeper.yaml")
-	defer func() { flagConfig = prevConfig }()
+	restoreConfig := withConfigFlag(t, filepath.Join(tmp, ".repokeeper.yaml"))
+	defer restoreConfig()
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("registry", "", "")
@@ -224,9 +232,8 @@ func TestRunDescribeRepoErrorsWithoutRegistry(t *testing.T) {
 		t.Fatalf("save config: %v", err)
 	}
 
-	prevConfig := flagConfig
-	flagConfig = cfgPath
-	defer func() { flagConfig = prevConfig }()
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("registry", "", "")
@@ -260,9 +267,8 @@ func TestRunDescribeRepoRegistryOverrideLoadError(t *testing.T) {
 		t.Fatalf("write invalid registry: %v", err)
 	}
 
-	prevConfig := flagConfig
-	flagConfig = cfgPath
-	defer func() { flagConfig = prevConfig }()
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("registry", "", "")
@@ -302,9 +308,8 @@ func TestRunDescribeRepoSelectorNotFound(t *testing.T) {
 		t.Fatalf("save registry: %v", err)
 	}
 
-	prevConfig := flagConfig
-	flagConfig = cfgPath
-	defer func() { flagConfig = prevConfig }()
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
 
 	cmd := &cobra.Command{}
 	cmd.Flags().String("registry", "", "")
@@ -343,9 +348,8 @@ func TestRunDescribeRepoInspectErrorPopulatesOutput(t *testing.T) {
 		t.Fatalf("save config: %v", err)
 	}
 
-	prevConfig := flagConfig
-	flagConfig = cfgPath
-	defer func() { flagConfig = prevConfig }()
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
 
 	out := &bytes.Buffer{}
 	cmd := &cobra.Command{}

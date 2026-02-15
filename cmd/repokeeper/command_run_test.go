@@ -43,8 +43,10 @@ func writeTestConfigAndRegistry(t *testing.T) (cfgPath string, regPath string) {
 
 func withTestConfig(t *testing.T, cfgPath string) func() {
 	t.Helper()
-	prevConfig := flagConfig
-	flagConfig = cfgPath
+	prevConfig, _ := rootCmd.PersistentFlags().GetString("config")
+	if err := rootCmd.PersistentFlags().Set("config", cfgPath); err != nil {
+		t.Fatalf("set config flag: %v", err)
+	}
 
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -55,7 +57,7 @@ func withTestConfig(t *testing.T, cfgPath string) func() {
 	}
 
 	return func() {
-		flagConfig = prevConfig
+		_ = rootCmd.PersistentFlags().Set("config", prevConfig)
 		_ = os.Chdir(origWD)
 	}
 }

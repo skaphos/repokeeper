@@ -55,7 +55,7 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgPath, err := config.ResolveConfigPath(flagConfig, cwd)
+		cfgPath, err := config.ResolveConfigPath(configOverride(cmd), cwd)
 		if err != nil {
 			return err
 		}
@@ -139,7 +139,7 @@ var statusCmd = &cobra.Command{
 			writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone)
 		}
 		if reconcileMode != remoteMismatchReconcileNone && !dryRun {
-			if !flagYes {
+			if !assumeYes(cmd) {
 				confirmed, err := confirmWithPrompt(cmd, "Proceed with remote mismatch reconciliation? [y/N]: ")
 				if err != nil {
 					return err

@@ -143,8 +143,8 @@
 ### Milestone 6.1 — Code Quality & Refactoring
 
 - [ ] Global state elimination:
-  - [ ] replace package-level flag variables (`flagVerbose`, `flagQuiet`, `exitCode`, etc.) with a command context struct
-  - [ ] enable isolated unit testing of commands without state leakage
+  - [x] replace package-level flag variables (`flagVerbose`, `flagQuiet`, `exitCode`, etc.) with a command context struct
+  - [x] enable isolated unit testing of commands without state leakage
 - [ ] Duplicate sync execution:
 - [x] refactor `sync` command to reuse dry-run plan instead of calling `eng.Sync()` twice
 - [x] add `Execute(plan)` method to engine that accepts a pre-computed plan
@@ -178,14 +178,13 @@
 **Acceptance:**
 
 - [ ] No package-level mutable state in `cmd/repokeeper/` (flags read via context/struct)
-- [ ] `sync` command performs repo analysis only once per invocation
 - [x] `sync` command performs repo analysis only once per invocation
 - [ ] Error classification uses Go error types with `errors.Is`/`errors.As`
 - [ ] No single function exceeds 100 lines (excluding table definitions)
 - [ ] Shared utilities live in dedicated packages with their own tests
 - [x] `go mod tidy` produces no changes
-- [ ] All existing tests pass with no behavior changes
-- [ ] Coverage remains >= 80%
+- [x] All existing tests pass with no behavior changes
+- [x] Coverage remains >= 80%
 
 ### Milestone 7 — Responsive Output & Reflow
 

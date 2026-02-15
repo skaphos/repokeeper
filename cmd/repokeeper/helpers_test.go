@@ -196,9 +196,15 @@ func TestLogHelpers(t *testing.T) {
 	cmd := &cobra.Command{}
 	errOut := &bytes.Buffer{}
 	cmd.SetErr(errOut)
+	prevQuiet, _ := rootCmd.PersistentFlags().GetBool("quiet")
+	prevVerbose, _ := rootCmd.PersistentFlags().GetCount("verbose")
+	defer func() {
+		_ = rootCmd.PersistentFlags().Set("quiet", boolToFlag(prevQuiet))
+		_ = rootCmd.PersistentFlags().Set("verbose", countToFlag(prevVerbose))
+	}()
 
-	flagQuiet = false
-	flagVerbose = 1
+	_ = rootCmd.PersistentFlags().Set("quiet", "false")
+	_ = rootCmd.PersistentFlags().Set("verbose", "1")
 	infof(cmd, "hello %s", "info")
 	debugf(cmd, "hello %s", "debug")
 	if !strings.Contains(errOut.String(), "hello info") || !strings.Contains(errOut.String(), "hello debug") {
@@ -211,9 +217,9 @@ func TestWriteStatusTableUsesRelativePathAndLabel(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	prevNoColor := flagNoColor
-	flagNoColor = true
-	defer func() { flagNoColor = prevNoColor }()
+	prevNoColor, _ := rootCmd.PersistentFlags().GetBool("no-color")
+	_ = rootCmd.PersistentFlags().Set("no-color", "true")
+	defer func() { _ = rootCmd.PersistentFlags().Set("no-color", boolToFlag(prevNoColor)) }()
 
 	report := &model.StatusReport{
 		Repos: []model.RepoStatus{
@@ -251,9 +257,9 @@ func TestWriteStatusTableDoesNotTruncatePathBranchOrTracking(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	prevNoColor := flagNoColor
-	flagNoColor = true
-	defer func() { flagNoColor = prevNoColor }()
+	prevNoColor, _ := rootCmd.PersistentFlags().GetBool("no-color")
+	_ = rootCmd.PersistentFlags().Set("no-color", "true")
+	defer func() { _ = rootCmd.PersistentFlags().Set("no-color", boolToFlag(prevNoColor)) }()
 
 	branch := "feature/really-long-branch-name-for-testing"
 	path := "/tmp/workspace/very/long/path/that/should/not/be/truncated/repo"
@@ -289,9 +295,9 @@ func TestWriteStatusTableStripsEscapeMarkers(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	prevNoColor := flagNoColor
-	flagNoColor = false
-	defer func() { flagNoColor = prevNoColor }()
+	prevNoColor, _ := rootCmd.PersistentFlags().GetBool("no-color")
+	_ = rootCmd.PersistentFlags().Set("no-color", "false")
+	defer func() { _ = rootCmd.PersistentFlags().Set("no-color", boolToFlag(prevNoColor)) }()
 
 	report := &model.StatusReport{
 		Repos: []model.RepoStatus{

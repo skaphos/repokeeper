@@ -2,6 +2,7 @@ package repokeeper
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"testing"
 
@@ -9,9 +10,9 @@ import (
 )
 
 func TestNOColorEnvSetsFlag(t *testing.T) {
-	prev := flagNoColor
-	flagNoColor = false
-	defer func() { flagNoColor = prev }()
+	prev, _ := rootCmd.PersistentFlags().GetBool("no-color")
+	_ = rootCmd.PersistentFlags().Set("no-color", "false")
+	defer func() { _ = rootCmd.PersistentFlags().Set("no-color", boolToFlag(prev)) }()
 
 	if err := os.Setenv("NO_COLOR", "1"); err != nil {
 		t.Fatal(err)
@@ -22,7 +23,8 @@ func TestNOColorEnvSetsFlag(t *testing.T) {
 		t.Fatal("expected persistent pre-run handler")
 	}
 	rootCmd.PersistentPreRun(rootCmd, nil)
-	if !flagNoColor {
+	got, _ := rootCmd.PersistentFlags().GetBool("no-color")
+	if !got {
 		t.Fatal("expected NO_COLOR to enable no-color mode")
 	}
 }
@@ -41,16 +43,16 @@ func TestRaiseExitCodeMonotonic(t *testing.T) {
 }
 
 func TestShouldUseColorOutput(t *testing.T) {
-	prevNoColor := flagNoColor
+	prevNoColor, _ := rootCmd.PersistentFlags().GetBool("no-color")
 	prevTTY := isTerminalFD
 	defer func() {
-		flagNoColor = prevNoColor
+		_ = rootCmd.PersistentFlags().Set("no-color", boolToFlag(prevNoColor))
 		isTerminalFD = prevTTY
 	}()
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(&bytes.Buffer{})
-	flagNoColor = false
+	_ = rootCmd.PersistentFlags().Set("no-color", "false")
 	isTerminalFD = func(_ int) bool { return true }
 	if shouldUseColorOutput(cmd, "table") {
 		t.Fatal("expected non-file output stream to disable color")
@@ -73,20 +75,20 @@ func TestShouldUseColorOutput(t *testing.T) {
 		t.Fatal("expected non-table formats to disable color")
 	}
 
-	flagNoColor = true
+	_ = rootCmd.PersistentFlags().Set("no-color", "true")
 	if shouldUseColorOutput(cmd, "table") {
 		t.Fatal("expected --no-color to disable color output")
 	}
 }
 
 func TestSetColorOutputMode(t *testing.T) {
-	prevNoColor := flagNoColor
+	prevNoColor, _ := rootCmd.PersistentFlags().GetBool("no-color")
 	prevTTY := isTerminalFD
 	cmd := &cobra.Command{}
 	state := runtimeStateFor(cmd)
 	prevColor := state.colorOutputEnabled
 	defer func() {
-		flagNoColor = prevNoColor
+		_ = rootCmd.PersistentFlags().Set("no-color", boolToFlag(prevNoColor))
 		isTerminalFD = prevTTY
 		runtimeStateFor(cmd).colorOutputEnabled = prevColor
 	}()
@@ -102,7 +104,7 @@ func TestSetColorOutputMode(t *testing.T) {
 
 	cmd.SetOut(tmp)
 
-	flagNoColor = false
+	_ = rootCmd.PersistentFlags().Set("no-color", "false")
 	isTerminalFD = func(_ int) bool { return true }
 	setColorOutputMode(cmd, "table")
 	if !runtimeStateFor(cmd).colorOutputEnabled {
@@ -145,29 +147,40 @@ func TestExecuteUsesExitFunc(t *testing.T) {
 }
 
 func TestLogHelpersRespectQuietAndVerbose(t *testing.T) {
-	prevQuiet := flagQuiet
-	prevVerbose := flagVerbose
+	prevQuiet, _ := rootCmd.PersistentFlags().GetBool("quiet")
+	prevVerbose, _ := rootCmd.PersistentFlags().GetCount("verbose")
 	defer func() {
-		flagQuiet = prevQuiet
-		flagVerbose = prevVerbose
+		_ = rootCmd.PersistentFlags().Set("quiet", boolToFlag(prevQuiet))
+		_ = rootCmd.PersistentFlags().Set("verbose", countToFlag(prevVerbose))
 	}()
 
 	cmd := &cobra.Command{}
 	errOut := &bytes.Buffer{}
 	cmd.SetErr(errOut)
 
-	flagQuiet = true
-	flagVerbose = 1
+	_ = rootCmd.PersistentFlags().Set("quiet", "true")
+	_ = rootCmd.PersistentFlags().Set("verbose", "1")
 	infof(cmd, "hidden info")
 	debugf(cmd, "hidden debug")
 	if errOut.Len() != 0 {
 		t.Fatalf("expected no output in quiet mode, got %q", errOut.String())
 	}
 
-	flagQuiet = false
-	flagVerbose = 0
+	_ = rootCmd.PersistentFlags().Set("quiet", "false")
+	_ = rootCmd.PersistentFlags().Set("verbose", "0")
 	debugf(cmd, "still hidden debug")
 	if errOut.Len() != 0 {
 		t.Fatalf("expected debug to stay hidden without verbosity, got %q", errOut.String())
 	}
+}
+
+func boolToFlag(v bool) string {
+	if v {
+		return "true"
+	}
+	return "false"
+}
+
+func countToFlag(v int) string {
+	return fmt.Sprintf("%d", v)
 }

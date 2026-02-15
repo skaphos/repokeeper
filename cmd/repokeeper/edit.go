@@ -22,7 +22,7 @@ var editCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgPath, err := config.ResolveConfigPath(flagConfig, cwd)
+		cfgPath, err := config.ResolveConfigPath(configOverride(cmd), cwd)
 		if err != nil {
 			return err
 		}
