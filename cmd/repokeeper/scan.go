@@ -85,13 +85,10 @@ var scanCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
-				return err
-			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			logOutputWriteFailure(cmd, "scan json", err)
 		case "table":
-			if err := writeScanTable(cmd, statuses, noHeaders); err != nil {
-				return err
-			}
+			logOutputWriteFailure(cmd, "scan table", writeScanTable(cmd, statuses, noHeaders))
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}

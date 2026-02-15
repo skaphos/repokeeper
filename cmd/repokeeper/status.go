@@ -121,9 +121,7 @@ var statusCmd = &cobra.Command{
 		}
 		plans := buildRemoteMismatchPlans(report.Repos, reg, adapter, reconcileMode)
 		if len(plans) > 0 {
-			if err := writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone); err != nil {
-				return err
-			}
+			logOutputWriteFailure(cmd, "status remote mismatch plan", writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone))
 		}
 		if reconcileMode != remoteMismatchReconcileNone && !dryRun {
 			if !assumeYes(cmd) {
@@ -178,31 +176,22 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
-				return err
-			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			logOutputWriteFailure(cmd, "status json", err)
 		case "table":
 			setColorOutputMode(cmd, format)
 			if filter == engine.FilterDiverged {
-				if err := writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false); err != nil {
-					return err
-				}
+				logOutputWriteFailure(cmd, "status diverged table", writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false))
 				break
 			}
-			if err := writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false); err != nil {
-				return err
-			}
+			logOutputWriteFailure(cmd, "status table", writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false))
 		case "wide":
 			setColorOutputMode(cmd, format)
 			if filter == engine.FilterDiverged {
-				if err := writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true); err != nil {
-					return err
-				}
+				logOutputWriteFailure(cmd, "status diverged wide", writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true))
 				break
 			}
-			if err := writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true); err != nil {
-				return err
-			}
+			logOutputWriteFailure(cmd, "status wide", writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true))
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}

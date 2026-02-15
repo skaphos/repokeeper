@@ -191,7 +191,7 @@
 - [ ] Error handling improvements:
   - [x] handle I/O errors from `fmt.Fprintf`/`fmt.Fprintln` on critical output paths (sync.go, status.go, scan.go)
   - [x] log or propagate `tabwriter.Flush()` errors instead of discarding
-  - [ ] consider structured error return for output failures
+  - [x] log output write failures at debug level (no exit code change; broken pipes are normal CLI behavior)
 - [ ] Concurrency safety:
   - [x] fix race condition: goroutines in `Status()` access `e.Registry` without synchronization (engine.go:158-201)
   - [x] copy registry entry data before passing to goroutines

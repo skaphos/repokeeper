@@ -97,9 +97,7 @@ var syncCmd = &cobra.Command{
 			}
 			return plan[i].RepoID < plan[j].RepoID
 		})
-		if err := writeSyncPlan(cmd, plan, cwd, []string{cfgRoot}); err != nil {
-			return err
-		}
+		logOutputWriteFailure(cmd, "sync plan", writeSyncPlan(cmd, plan, cwd, []string{cfgRoot}))
 		if !yes && syncPlanNeedsConfirmation(plan) {
 			confirmed, err := confirmSyncExecution(cmd)
 			if err != nil {
@@ -134,19 +132,14 @@ var syncCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
-				return err
-			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			logOutputWriteFailure(cmd, "sync json", err)
 		case "table":
 			setColorOutputMode(cmd, format)
-			if err := writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false); err != nil {
-				return err
-			}
+			logOutputWriteFailure(cmd, "sync table", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false))
 		case "wide":
 			setColorOutputMode(cmd, format)
-			if err := writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true); err != nil {
-				return err
-			}
+			logOutputWriteFailure(cmd, "sync wide", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true))
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -164,9 +157,7 @@ var syncCmd = &cobra.Command{
 				raiseExitCode(cmd, 1)
 			}
 		}
-		if err := writeSyncFailureSummary(cmd, results, cwd, []string{cfgRoot}); err != nil {
-			return err
-		}
+		logOutputWriteFailure(cmd, "sync failure summary", writeSyncFailureSummary(cmd, results, cwd, []string{cfgRoot}))
 		infof(cmd, "sync completed: %d repos", len(results))
 		return nil
 	},
