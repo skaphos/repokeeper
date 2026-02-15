@@ -253,7 +253,8 @@
 - [x] Adaptive column strategy by view (`get/status`, `reconcile/sync`, `repair`) with deterministic priority
 - [x] Smart truncation rules and optional wrapping that preserve key identifiers (`PATH`, `REPO`, `ACTION`)
 - [x] Dynamic header/column compaction for small widths while keeping `-o json` stable
-- [ ] Add output selectors: `-o jsonpath=...` and `-o custom-columns=...` (custom headers/column maps)
+- [x] Add output selector: `-o custom-columns=...` (custom headers/column maps)
+- [ ] @todo Evaluate `-o jsonpath=...` support later; deferred for now due low operator value
 - [x] Snapshot tests across terminal widths (for example: 80, 100, 120, 160 cols)
 - [ ] Ensure color and readability parity in compact/reflow modes
 

@@ -58,6 +58,10 @@ var syncCmd = &cobra.Command{
 		allowProtectedRebase, _ := cmd.Flags().GetBool("allow-protected-rebase")
 		checkoutMissing, _ := cmd.Flags().GetBool("checkout-missing")
 		format, _ := cmd.Flags().GetString("format")
+		mode, err := parseOutputMode(format)
+		if err != nil {
+			return err
+		}
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 		wrap, _ := cmd.Flags().GetBool("wrap")
 		if rebaseDirty && !updateLocal {
@@ -124,20 +128,23 @@ var syncCmd = &cobra.Command{
 			})
 		}
 
-		switch strings.ToLower(format) {
-		case "json":
-			setColorOutputMode(cmd, format)
+		switch mode.kind {
+		case outputKindJSON:
+			setColorOutputMode(cmd, string(mode.kind))
 			data, err := json.MarshalIndent(results, "", "  ")
 			if err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 			logOutputWriteFailure(cmd, "sync json", err)
-		case "table":
-			setColorOutputMode(cmd, format)
+		case outputKindCustomColumns:
+			setColorOutputMode(cmd, string(mode.kind))
+			logOutputWriteFailure(cmd, "sync custom-columns", writeCustomColumnsOutput(cmd, results, mode.expr, noHeaders))
+		case outputKindTable:
+			setColorOutputMode(cmd, string(mode.kind))
 			logOutputWriteFailure(cmd, "sync table", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false))
-		case "wide":
-			setColorOutputMode(cmd, format)
+		case outputKindWide:
+			setColorOutputMode(cmd, string(mode.kind))
 			logOutputWriteFailure(cmd, "sync wide", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true))
 		default:
 			return fmt.Errorf("unsupported format %q", format)

@@ -84,6 +84,33 @@ func TestStatusRunEUnsupportedFormat(t *testing.T) {
 	}
 }
 
+func TestStatusRunECustomColumns(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	statusCmd.SetOut(out)
+	statusCmd.SetErr(errOut)
+	defer statusCmd.SetOut(os.Stdout)
+	defer statusCmd.SetErr(os.Stderr)
+
+	_ = statusCmd.Flags().Set("format", "custom-columns=REPO:.repo_id,ERROR:.error_class")
+	_ = statusCmd.Flags().Set("only", "missing")
+	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("registry", "")
+	if err := statusCmd.RunE(statusCmd, nil); err != nil {
+		t.Fatalf("status custom-columns failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "REPO") || !strings.Contains(out.String(), "ERROR") {
+		t.Fatalf("expected custom-column headers, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "github.com/org/repo-missing") || !strings.Contains(out.String(), "missing") {
+		t.Fatalf("expected custom-column data, got %q", out.String())
+	}
+}
+
 func TestSyncRunEJSONMissingFilter(t *testing.T) {
 	cfgPath, _ := writeTestConfigAndRegistry(t)
 	cleanup := withTestConfig(t, cfgPath)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/cliio"
@@ -48,6 +47,10 @@ var scanCmd = &cobra.Command{
 		writeRegistry, _ := cmd.Flags().GetBool("write-registry")
 		pruneStale, _ := cmd.Flags().GetBool("prune-stale")
 		format, _ := cmd.Flags().GetString("format")
+		mode, err := parseOutputMode(format)
+		if err != nil {
+			return err
+		}
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 
 		adapter := vcs.NewGitAdapter(nil)
@@ -79,15 +82,17 @@ var scanCmd = &cobra.Command{
 			}
 		}
 
-		switch strings.ToLower(format) {
-		case "json":
+		switch mode.kind {
+		case outputKindJSON:
 			data, err := json.MarshalIndent(statuses, "", "  ")
 			if err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 			logOutputWriteFailure(cmd, "scan json", err)
-		case "table":
+		case outputKindCustomColumns:
+			logOutputWriteFailure(cmd, "scan custom-columns", writeCustomColumnsOutput(cmd, statuses, mode.expr, noHeaders))
+		case outputKindTable:
 			logOutputWriteFailure(cmd, "scan table", writeScanTable(cmd, statuses, noHeaders))
 		default:
 			return fmt.Errorf("unsupported format %q", format)

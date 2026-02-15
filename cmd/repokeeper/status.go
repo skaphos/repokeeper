@@ -75,6 +75,10 @@ var statusCmd = &cobra.Command{
 
 		roots, _ := cmd.Flags().GetString("roots")
 		format, _ := cmd.Flags().GetString("format")
+		mode, err := parseOutputMode(format)
+		if err != nil {
+			return err
+		}
 		only, _ := cmd.Flags().GetString("only")
 		fieldSelector, _ := cmd.Flags().GetString("field-selector")
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
@@ -160,34 +164,37 @@ var statusCmd = &cobra.Command{
 			}
 		}
 
-		switch strings.ToLower(format) {
-		case "json":
-			setColorOutputMode(cmd, format)
-			output := any(report)
-			if filter == engine.FilterDiverged {
-				output = struct {
-					*model.StatusReport
-					Diverged []divergedAdvice `json:"diverged"`
-				}{
-					StatusReport: report,
-					Diverged:     buildDivergedAdvice(report.Repos),
-				}
+		output := any(report)
+		if filter == engine.FilterDiverged {
+			output = struct {
+				*model.StatusReport
+				Diverged []divergedAdvice `json:"diverged"`
+			}{
+				StatusReport: report,
+				Diverged:     buildDivergedAdvice(report.Repos),
 			}
+		}
+		switch mode.kind {
+		case outputKindJSON:
+			setColorOutputMode(cmd, string(mode.kind))
 			data, err := json.MarshalIndent(output, "", "  ")
 			if err != nil {
 				return err
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 			logOutputWriteFailure(cmd, "status json", err)
-		case "table":
-			setColorOutputMode(cmd, format)
+		case outputKindCustomColumns:
+			setColorOutputMode(cmd, string(mode.kind))
+			logOutputWriteFailure(cmd, "status custom-columns", writeCustomColumnsOutput(cmd, output, mode.expr, noHeaders))
+		case outputKindTable:
+			setColorOutputMode(cmd, string(mode.kind))
 			if filter == engine.FilterDiverged {
 				logOutputWriteFailure(cmd, "status diverged table", writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false))
 				break
 			}
 			logOutputWriteFailure(cmd, "status table", writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false))
-		case "wide":
-			setColorOutputMode(cmd, format)
+		case outputKindWide:
+			setColorOutputMode(cmd, string(mode.kind))
 			if filter == engine.FilterDiverged {
 				logOutputWriteFailure(cmd, "status diverged wide", writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true))
 				break

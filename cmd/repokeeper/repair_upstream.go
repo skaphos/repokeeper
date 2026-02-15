@@ -53,6 +53,10 @@ var repairUpstreamCmd = &cobra.Command{
 		yes, _ := cmd.Flags().GetBool("yes")
 		only, _ := cmd.Flags().GetString("only")
 		format, _ := cmd.Flags().GetString("format")
+		mode, err := parseOutputMode(format)
+		if err != nil {
+			return err
+		}
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 
 		var reg *registry.Registry
@@ -209,8 +213,8 @@ var repairUpstreamCmd = &cobra.Command{
 			}
 		}
 
-		switch strings.ToLower(format) {
-		case "json":
+		switch mode.kind {
+		case outputKindJSON:
 			data, err := json.MarshalIndent(results, "", "  ")
 			if err != nil {
 				return err
@@ -218,7 +222,11 @@ var repairUpstreamCmd = &cobra.Command{
 			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
 				return err
 			}
-		case "table":
+		case outputKindCustomColumns:
+			if err := writeCustomColumnsOutput(cmd, results, mode.expr, noHeaders); err != nil {
+				return err
+			}
+		case outputKindTable:
 			if err := writeRepairUpstreamTable(cmd, results, cwd, []string{cfgRoot}, noHeaders); err != nil {
 				return err
 			}

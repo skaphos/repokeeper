@@ -94,8 +94,12 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 	}
 
 	format, _ := cmd.Flags().GetString("format")
-	switch strings.ToLower(format) {
-	case "json":
+	mode, err := parseOutputMode(format)
+	if err != nil {
+		return err
+	}
+	switch mode.kind {
+	case outputKindJSON:
 		data, err := json.MarshalIndent(repo, "", "  ")
 		if err != nil {
 			return err
@@ -103,7 +107,11 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 		if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
 			return err
 		}
-	case "table":
+	case outputKindCustomColumns:
+		if err := writeCustomColumnsOutput(cmd, repo, mode.expr, false); err != nil {
+			return err
+		}
+	case outputKindTable:
 		if err := writeStatusDetails(cmd, repo, cwd, []string{cfgRoot}); err != nil {
 			return err
 		}
