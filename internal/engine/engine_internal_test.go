@@ -44,6 +44,9 @@ func TestFilterAndSortHelpers(t *testing.T) {
 	if !filterStatus(FilterErrors, model.RepoStatus{Error: "boom"}, reg) {
 		t.Fatal("expected errors filter match")
 	}
+	if !filterStatus(FilterDiverged, model.RepoStatus{Tracking: model.Tracking{Status: model.TrackingDiverged}}, reg) {
+		t.Fatal("expected diverged filter match")
+	}
 
 	repos := []model.RepoStatus{{RepoID: "b", Path: "/2"}, {RepoID: "a", Path: "/1"}}
 	sortRepoStatuses(repos)

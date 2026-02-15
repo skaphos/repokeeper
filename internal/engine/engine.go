@@ -23,12 +23,13 @@ import (
 type FilterKind string
 
 const (
-	FilterAll     FilterKind = "all"
-	FilterErrors  FilterKind = "errors"
-	FilterDirty   FilterKind = "dirty"
-	FilterClean   FilterKind = "clean"
-	FilterGone    FilterKind = "gone"
-	FilterMissing FilterKind = "missing"
+	FilterAll      FilterKind = "all"
+	FilterErrors   FilterKind = "errors"
+	FilterDirty    FilterKind = "dirty"
+	FilterClean    FilterKind = "clean"
+	FilterGone     FilterKind = "gone"
+	FilterDiverged FilterKind = "diverged"
+	FilterMissing  FilterKind = "missing"
 )
 
 // Engine is the core orchestrator for RepoKeeper operations.
@@ -329,7 +330,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		if opts.Filter == FilterGone && entry.Status != registry.StatusPresent {
 			continue
 		}
-		if opts.Filter == FilterDirty || opts.Filter == FilterClean || opts.Filter == FilterGone {
+		if opts.Filter == FilterDirty || opts.Filter == FilterClean || opts.Filter == FilterGone || opts.Filter == FilterDiverged {
 			status, err := e.InspectRepo(ctx, entry.Path)
 			if err != nil {
 				results = append(results, SyncResult{
@@ -348,6 +349,9 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				continue
 			}
 			if opts.Filter == FilterGone && status.Tracking.Status != model.TrackingGone {
+				continue
+			}
+			if opts.Filter == FilterDiverged && status.Tracking.Status != model.TrackingDiverged {
 				continue
 			}
 		}
@@ -639,6 +643,8 @@ func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Regist
 		return status.Worktree != nil && !status.Worktree.Dirty
 	case FilterGone:
 		return status.Tracking.Status == model.TrackingGone
+	case FilterDiverged:
+		return status.Tracking.Status == model.TrackingDiverged
 	case FilterErrors:
 		return status.Error != ""
 	default:
