@@ -37,6 +37,31 @@ func TestNeedsUpstreamRepair(t *testing.T) {
 	}
 }
 
+func TestResolveUpstreamTargetBranch(t *testing.T) {
+	cfg := &config.Config{Defaults: config.Defaults{MainBranch: "main"}}
+	repo := model.RepoStatus{
+		Head:     model.Head{Branch: "feature/a"},
+		Tracking: model.Tracking{Upstream: "origin/master"},
+	}
+
+	if got := resolveUpstreamTargetBranch(registry.Entry{Branch: "release"}, repo, cfg); got != "release" {
+		t.Fatalf("expected entry branch override, got %q", got)
+	}
+	if got := resolveUpstreamTargetBranch(registry.Entry{}, repo, cfg); got != "master" {
+		t.Fatalf("expected tracking-derived branch, got %q", got)
+	}
+
+	repo.Tracking.Upstream = ""
+	if got := resolveUpstreamTargetBranch(registry.Entry{}, repo, cfg); got != "main" {
+		t.Fatalf("expected config fallback branch, got %q", got)
+	}
+
+	cfg.Defaults.MainBranch = ""
+	if got := resolveUpstreamTargetBranch(registry.Entry{}, repo, cfg); got != "feature/a" {
+		t.Fatalf("expected head fallback branch, got %q", got)
+	}
+}
+
 func TestRepairUpstreamMatchesFilter(t *testing.T) {
 	if !repairUpstreamMatchesFilter("origin/main", "origin/main", "") {
 		t.Fatal("expected empty filter to match")

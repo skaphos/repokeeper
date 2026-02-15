@@ -141,10 +141,7 @@ var repairUpstreamCmd = &cobra.Command{
 				continue
 			}
 
-			targetBranch := strings.TrimSpace(entry.Branch)
-			if targetBranch == "" {
-				targetBranch = strings.TrimSpace(repo.Head.Branch)
-			}
+			targetBranch := resolveUpstreamTargetBranch(entry, repo, cfg)
 			if targetBranch == "" {
 				res.Action = "skip no branch"
 				results = append(results, res)
@@ -253,6 +250,21 @@ func needsUpstreamRepair(repo model.RepoStatus, targetUpstream string) bool {
 		return true
 	}
 	return repo.Tracking.Status == model.TrackingNone
+}
+
+func resolveUpstreamTargetBranch(entry registry.Entry, repo model.RepoStatus, cfg *config.Config) string {
+	if branch := strings.TrimSpace(entry.Branch); branch != "" {
+		return branch
+	}
+	if branch := trackingBranchFromUpstream(strings.TrimSpace(repo.Tracking.Upstream)); branch != "" {
+		return branch
+	}
+	if cfg != nil {
+		if branch := strings.TrimSpace(cfg.Defaults.MainBranch); branch != "" {
+			return branch
+		}
+	}
+	return strings.TrimSpace(repo.Head.Branch)
 }
 
 func repairUpstreamMatchesFilter(current, target, filter string) bool {
