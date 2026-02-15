@@ -418,6 +418,28 @@ func TestPullRebaseSkipReasonUsesConfiguredMainBranch(t *testing.T) {
 	}
 }
 
+func TestSyncFailureMessageFetchClasses(t *testing.T) {
+	cases := []struct {
+		class string
+		want  string
+	}{
+		{class: "auth", want: SyncErrorFetchAuth},
+		{class: "network", want: SyncErrorFetchNetwork},
+		{class: "timeout", want: SyncErrorFetchTimeout},
+		{class: "corrupt", want: SyncErrorFetchCorrupt},
+		{class: "missing_remote", want: SyncErrorFetchMissingRemote},
+		{class: "unknown", want: SyncErrorFetchFailed},
+	}
+	for _, tc := range cases {
+		if got := syncFailureMessage(SyncOutcomeFailedFetch, tc.class, errors.New("raw")); got != tc.want {
+			t.Fatalf("syncFailureMessage(fetch,%q) = %q, want %q", tc.class, got, tc.want)
+		}
+	}
+	if got := syncFailureMessage(SyncOutcomeFailedPush, "network", errors.New("raw push")); got != "raw push" {
+		t.Fatalf("expected non-fetch outcome to preserve raw error, got %q", got)
+	}
+}
+
 func TestNewInitializesDefaultAdapter(t *testing.T) {
 	eng := New(&config.Config{}, &registry.Registry{}, nil)
 	if eng.Adapter() == nil {

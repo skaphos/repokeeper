@@ -324,6 +324,9 @@ func TestExecuteSyncPlanStopsOnFailure(t *testing.T) {
 	if len(results) != 1 || results[0].OK {
 		t.Fatalf("expected stop on first failure, got %+v", results)
 	}
+	if results[0].ErrorClass != "timeout" || results[0].Error != SyncErrorFetchTimeout {
+		t.Fatalf("expected normalized fetch failure, got class=%q error=%q", results[0].ErrorClass, results[0].Error)
+	}
 }
 
 func TestExecuteSyncPlanStopsOnNonDryRunFailure(t *testing.T) {

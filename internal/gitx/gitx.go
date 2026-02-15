@@ -210,32 +210,32 @@ func HasSubmodules(ctx context.Context, r Runner, dir string) (bool, error) {
 
 // Fetch runs a safe fetch with submodule recursion disabled.
 func Fetch(ctx context.Context, r Runner, dir string) error {
-	_, err := r.Run(ctx, dir, "-c", "fetch.recurseSubmodules=false", "fetch", "--all", "--prune", "--prune-tags", "--no-recurse-submodules")
-	return err
+	out, err := r.Run(ctx, dir, "-c", "fetch.recurseSubmodules=false", "fetch", "--all", "--prune", "--prune-tags", "--no-recurse-submodules")
+	return wrapRunError("git fetch", out, err)
 }
 
 // PullRebase runs a safe pull --rebase with submodule recursion disabled.
 func PullRebase(ctx context.Context, r Runner, dir string) error {
-	_, err := r.Run(ctx, dir, "-c", "fetch.recurseSubmodules=false", "pull", "--rebase", "--no-recurse-submodules")
-	return err
+	out, err := r.Run(ctx, dir, "-c", "fetch.recurseSubmodules=false", "pull", "--rebase", "--no-recurse-submodules")
+	return wrapRunError("git pull --rebase", out, err)
 }
 
 // Push publishes local commits on the current branch to its upstream.
 func Push(ctx context.Context, r Runner, dir string) error {
-	_, err := r.Run(ctx, dir, "push")
-	return err
+	out, err := r.Run(ctx, dir, "push")
+	return wrapRunError("git push", out, err)
 }
 
 // SetUpstream configures the current local branch to track the given upstream.
 func SetUpstream(ctx context.Context, r Runner, dir, upstream, branch string) error {
-	_, err := r.Run(ctx, dir, "branch", "--set-upstream-to", strings.TrimSpace(upstream), strings.TrimSpace(branch))
-	return err
+	out, err := r.Run(ctx, dir, "branch", "--set-upstream-to", strings.TrimSpace(upstream), strings.TrimSpace(branch))
+	return wrapRunError("git branch --set-upstream-to", out, err)
 }
 
 // SetRemoteURL updates the URL for a named remote.
 func SetRemoteURL(ctx context.Context, r Runner, dir, remote, remoteURL string) error {
-	_, err := r.Run(ctx, dir, "remote", "set-url", strings.TrimSpace(remote), strings.TrimSpace(remoteURL))
-	return err
+	out, err := r.Run(ctx, dir, "remote", "set-url", strings.TrimSpace(remote), strings.TrimSpace(remoteURL))
+	return wrapRunError("git remote set-url", out, err)
 }
 
 // StashPush stashes current worktree changes (including untracked files).
@@ -247,15 +247,15 @@ func StashPush(ctx context.Context, r Runner, dir, message string) (bool, error)
 	}
 	out, err := r.Run(ctx, dir, args...)
 	if err != nil {
-		return false, err
+		return false, wrapRunError("git stash push", out, err)
 	}
 	return !strings.Contains(strings.ToLower(out), "no local changes to save"), nil
 }
 
 // StashPop reapplies the most recent stash entry.
 func StashPop(ctx context.Context, r Runner, dir string) error {
-	_, err := r.Run(ctx, dir, "stash", "pop")
-	return err
+	out, err := r.Run(ctx, dir, "stash", "pop")
+	return wrapRunError("git stash pop", out, err)
 }
 
 // Clone runs a clone operation. Branch is ignored for mirror clones.
@@ -267,6 +267,17 @@ func Clone(ctx context.Context, r Runner, remoteURL, targetPath, branch string, 
 		args = append(args, "--branch", strings.TrimSpace(branch), "--single-branch")
 	}
 	args = append(args, remoteURL, targetPath)
-	_, err := r.Run(ctx, "", args...)
-	return err
+	out, err := r.Run(ctx, "", args...)
+	return wrapRunError("git clone", out, err)
+}
+
+func wrapRunError(op, output string, err error) error {
+	if err == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(output)
+	if trimmed == "" {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	return fmt.Errorf("%s: %s: %w", op, trimmed, err)
 }

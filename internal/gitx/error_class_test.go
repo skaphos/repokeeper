@@ -23,6 +23,7 @@ func TestClassifyError(t *testing.T) {
 		{name: "missing remote sentinel", err: fmt.Errorf("wrapped: %w", gitx.ErrMissingRemoteRef), want: "missing_remote"},
 		{name: "auth", err: errors.New("permission denied (publickey)"), want: "auth"},
 		{name: "network", err: errors.New("Could not resolve host: github.com"), want: "network"},
+		{name: "timeout text", err: errors.New("network timeout"), want: "timeout"},
 		{name: "corrupt", err: errors.New("fatal: not a git repository"), want: "corrupt"},
 		{name: "missing remote", err: errors.New("fatal: couldn't find remote ref main"), want: "missing_remote"},
 		{name: "unknown", err: errors.New("something odd"), want: "unknown"},

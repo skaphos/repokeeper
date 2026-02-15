@@ -298,6 +298,12 @@ const (
 	SyncErrorSkippedNoUpstream        = "skipped-no-upstream"
 	SyncErrorMissingRemoteForCheckout = "missing remote_url for checkout"
 	SyncErrorSkippedLocalUpdatePrefix = "skipped-local-update: "
+	SyncErrorFetchFailed              = "sync-fetch-failed"
+	SyncErrorFetchAuth                = "sync-fetch-auth"
+	SyncErrorFetchNetwork             = "sync-fetch-network"
+	SyncErrorFetchTimeout             = "sync-fetch-timeout"
+	SyncErrorFetchCorrupt             = "sync-fetch-corrupt"
+	SyncErrorFetchMissingRemote       = "sync-fetch-missing-remote"
 )
 
 // ExecuteSyncPlan executes a previously computed dry-run sync plan.
@@ -450,9 +456,29 @@ func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult
 func failedPlannedSyncResult(executed SyncResult, outcome OutcomeKind, err error) SyncResult {
 	executed.OK = false
 	executed.Outcome = outcome
-	executed.Error = err.Error()
 	executed.ErrorClass = gitx.ClassifyError(err)
+	executed.Error = syncFailureMessage(outcome, executed.ErrorClass, err)
 	return executed
+}
+
+func syncFailureMessage(outcome OutcomeKind, class string, err error) string {
+	if outcome == SyncOutcomeFailedFetch {
+		switch class {
+		case "auth":
+			return SyncErrorFetchAuth
+		case "network":
+			return SyncErrorFetchNetwork
+		case "timeout":
+			return SyncErrorFetchTimeout
+		case "corrupt":
+			return SyncErrorFetchCorrupt
+		case "missing_remote":
+			return SyncErrorFetchMissingRemote
+		default:
+			return SyncErrorFetchFailed
+		}
+	}
+	return err.Error()
 }
 
 func supportsLocalUpdate(ctx context.Context, adapter vcs.Adapter, dir string) (bool, string, error) {
@@ -788,13 +814,14 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 		}
 	}
 	if err := e.adapter.Fetch(ctx, entry.Path); err != nil {
+		class := gitx.ClassifyError(err)
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
 			Outcome:    SyncOutcomeFailedFetch,
 			OK:         false,
-			Error:      err.Error(),
-			ErrorClass: gitx.ClassifyError(err),
+			Error:      syncFailureMessage(SyncOutcomeFailedFetch, class, err),
+			ErrorClass: class,
 		}
 	}
 	if !opts.UpdateLocal {

@@ -45,6 +45,8 @@ func ClassifyError(err error) string {
 		return "auth"
 	case containsAny(msg, "could not resolve host", "network is unreachable", "connection timed out", "failed to connect", "temporary failure in name resolution", "tls handshake timeout"):
 		return "network"
+	case containsAny(msg, "timeout", "timed out", "deadline exceeded"):
+		return "timeout"
 	case containsAny(msg, "not a git repository", "bad object", "corrupt", "object file"):
 		return "corrupt"
 	case containsAny(msg, "repository not found", "couldn't find remote ref", "remote ref does not exist", "no such remote"):
