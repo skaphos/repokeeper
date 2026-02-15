@@ -201,7 +201,6 @@ func init() {
 	syncCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
 	syncCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
-	syncCmd.Flags().Bool("yes", false, "accept sync plan and execute without confirmation")
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
 	syncCmd.Flags().Bool("push-local", false, "when used with --update-local, push branches that are ahead of upstream")
 	syncCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
@@ -232,7 +231,11 @@ func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roo
 }
 
 func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
-	_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Proceed with local updates? [y/N]: ")
+	return confirmWithPrompt(cmd, "Proceed with local updates? [y/N]: ")
+}
+
+func confirmWithPrompt(cmd *cobra.Command, prompt string) (bool, error) {
+	_, _ = fmt.Fprint(cmd.ErrOrStderr(), prompt)
 	reader := bufio.NewReader(cmd.InOrStdin())
 	line, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
@@ -301,16 +304,16 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			}
 			if repo.Worktree != nil {
 				if repo.Worktree.Dirty {
-					dirty = colorize("yes", ansiBrown)
+					dirty = colorize("yes", ansiWarn)
 				} else {
-					dirty = colorize("no", ansiGreen)
+					dirty = colorize("no", ansiHealthy)
 				}
 			}
 			tracking = displayTrackingStatus(repo.Tracking.Status)
 			if repo.Type == "mirror" {
 				// Mirror repos do not have branch tracking semantics in the same way
 				// as a non-bare checkout.
-				tracking = colorize("mirror", ansiBlue)
+				tracking = colorize("mirror", ansiInfo)
 			}
 		}
 		if !wide {

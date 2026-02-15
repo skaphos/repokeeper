@@ -84,6 +84,7 @@ repokeeper sync
 Use `-o wide` (or `--format wide`) on `status`/`get repos` and `sync`/`reconcile repos` for additional remote/upstream/ahead/behind context.
 `repokeeper sync` shows a preflight plan. Confirmation is requested only when the plan includes local-branch-changing actions (`pull --rebase`/stash+rebase) or checkout-missing clones; fetch-only plans run without a prompt. Use `--yes` to skip confirmation when it is required.
 `repokeeper sync` supports `--only diverged` and `--only remote-mismatch` for targeted remediation runs.
+`repokeeper status --only diverged` now includes a diverged reason and recommended action in table output, and adds a machine-readable `diverged` guidance array in JSON output.
 
 `repokeeper describe` and `repokeeper describe repo` both accept a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 
@@ -100,6 +101,7 @@ Use `repokeeper import --file-only` to import only the config file without regis
 Use `repokeeper sync --checkout-missing` to clone registry entries currently marked missing (using their `remote_url`, `branch`, and mirror type).
 
 Use `repokeeper repair-upstream --dry-run` to preview upstream tracking fixes, then `repokeeper repair-upstream --dry-run=false` to apply. Use `--only missing` or `--only mismatch` to focus the repair set.
+When `repair-upstream --dry-run=false` would modify tracking, RepoKeeper prompts for confirmation by default; use `--yes` for non-interactive runs.
 
 ### Global flags
 
@@ -107,6 +109,7 @@ Use `repokeeper repair-upstream --dry-run` to preview upstream tracking fixes, t
 - `--quiet` / `-q` — suppress non-essential output
 - `--config <path>` — override config file location
 - `--no-color` — disable colored output (also respects `NO_COLOR` env var)
+- `--yes` — accept mutating actions without interactive confirmation
 
 ## Configuration
 

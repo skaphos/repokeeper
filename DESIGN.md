@@ -95,6 +95,7 @@ All commands that can change repo metadata must support `--dry-run` (prints inte
 * `--quiet` / `-q` — suppress non-essential output; only errors and requested data.
 * `--config <path>` — override config file location (default resolution: nearest local `.repokeeper.yaml`, then platform config dir fallback; see §6.2.1).
 * `--no-color` — disable colored output (also respected via `NO_COLOR` env var).
+* `--yes` — accept mutating actions without interactive confirmation.
 
 #### Exit codes
 
@@ -149,6 +150,8 @@ Flags:
 * `--registry <path>` (optional)
 * `-o, --format table|wide|json` (default table)
 * `--only errors|dirty|clean|gone|diverged|remote-mismatch|missing|all` (default all)
+
+When filtered to `diverged`, table/wide output includes `REASON` and `RECOMMENDED_ACTION`, and JSON adds a `diverged` guidance array for automation-friendly remediation hints.
 
 #### `repokeeper describe <repo-id-or-path>`
 
@@ -215,6 +218,7 @@ Flags:
 Alias form: `repokeeper repair upstream`
 
 Inspects registered repositories for missing or mismatched upstream tracking and optionally repairs them.
+When running with `--dry-run=false`, the command prompts before applying repairs unless `--yes` is passed.
 
 Flags:
 

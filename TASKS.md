@@ -99,7 +99,7 @@
 - [ ] Color/styling policy hardening:
 - [x] auto-color only for TTY table output; disable color for machine formats
 - [x] preserve `--no-color` and `NO_COLOR` precedence
-- [ ] normalize semantic color mapping (healthy/warn/error/info)
+- [x] normalize semantic color mapping (healthy/warn/error/info)
 - [ ] Selector evolution:
 - [x] keep `--only` as shorthand
 - [x] add field-selector style filtering (phase rollout)
@@ -107,8 +107,8 @@
 - [x] detect missing/wrong upstream tracking refs
 - [x] repair to configured/default upstream (`origin/<branch>`) with dry-run support
 - [ ] diverged-focused reporting:
-- [ ] add machine-readable and table views for repos in `diverged` state
-- [ ] include reason and recommended action (`manual`, `--force`, etc.)
+- [x] add machine-readable and table views for repos in `diverged` state
+- [x] include reason and recommended action (`manual`, `--force`, etc.)
 - [ ] remote mismatch detection:
 - [x] report registry `remote_url` vs live git remote mismatch
 - [ ] optional reconcile mode to update registry or git remote (explicit flag)
@@ -123,22 +123,68 @@
 - [x] allow explicit override flag for emergency runs
 - [x] document safeguards in `README.md` and `DESIGN.md`
 - [ ] confirmation policy for mutating actions:
-- [ ] require user confirmation for repo/state-mutating actions by default
-- [ ] add `--yes` global bypass for non-interactive/automation use
-- [ ] ensure fetch-only/no-op actions do not require confirmation
+- [x] require user confirmation for repo/state-mutating actions by default
+- [x] add `--yes` global bypass for non-interactive/automation use
+- [x] ensure fetch-only/no-op actions do not require confirmation
 
 **Acceptance:**
 
-- [ ] RepoKeeper commands feel familiar to kubectl-heavy users without breaking existing workflows.
-- [ ] Output formats are consistent across list/reconcile/repair commands.
-- [ ] Color behavior is predictable: rich in interactive terminals, clean for machine-readable output.
-- [ ] Operators can run one command to identify and repair upstream drift safely.
-- [ ] Diverged and remote-mismatch repos are clearly surfaced without digging through logs.
-- [ ] Batch sync runs complete across all repos even with partial failures (`--continue-on-error`).
-- [ ] CI/automation can rely on stable outcome fields and exit behavior for policy decisions.
-- [ ] Protected branches are never rebased automatically unless explicitly overridden.
-- [ ] Mutating actions always require confirmation unless `--yes` is explicitly passed.
+- [x] RepoKeeper commands feel familiar to kubectl-heavy users without breaking existing workflows.
+- [x] Output formats are consistent across list/reconcile/repair commands.
+- [x] Color behavior is predictable: rich in interactive terminals, clean for machine-readable output.
+- [x] Operators can run one command to identify and repair upstream drift safely.
+- [x] Diverged and remote-mismatch repos are clearly surfaced without digging through logs.
+- [x] Batch sync runs complete across all repos even with partial failures (`--continue-on-error`).
+- [x] CI/automation can rely on stable outcome fields and exit behavior for policy decisions.
+- [x] Protected branches are never rebased automatically unless explicitly overridden.
+- [x] Mutating actions always require confirmation unless `--yes` is explicitly passed.
 - [ ] Milestone remains open as new CLI ergonomics and automation gaps are identified.
+
+### Milestone 6.1 — Code Quality & Refactoring
+
+- [ ] Global state elimination:
+  - [ ] replace package-level flag variables (`flagVerbose`, `flagQuiet`, `exitCode`, etc.) with a command context struct
+  - [ ] enable isolated unit testing of commands without state leakage
+- [ ] Duplicate sync execution:
+  - [ ] refactor `sync` command to reuse dry-run plan instead of calling `eng.Sync()` twice
+  - [ ] add `Execute(plan)` method to engine that accepts a pre-computed plan
+- [ ] Typed error classification:
+  - [ ] replace string-based error classification in `gitx/error_class.go` with sentinel errors or error types
+  - [ ] define `ErrAuth`, `ErrNetwork`, `ErrCorrupt`, `ErrMissingRemote` typed errors
+  - [ ] update `ClassifyError` to use `errors.Is`/`errors.As` instead of string matching
+- [ ] Engine method decomposition:
+  - [ ] break `Sync()` method (~400 lines) into smaller focused functions
+  - [ ] extract dry-run planning, execution, and result collection into separate methods
+  - [ ] reduce goroutine body complexity (currently handles 8+ distinct code paths)
+- [ ] Eliminate repeated nil-guard pattern:
+  - [ ] initialize `Adapter` in `engine.New()` constructor with sensible default
+  - [ ] remove redundant `if e.Adapter == nil` checks from `Scan`, `Status`, `Sync`, `InspectRepo`
+- [ ] Extract shared utilities:
+  - [ ] move `splitCSV()` from `scan.go` to a shared `internal/cli` or `internal/strutil` package
+  - [ ] extract ANSI color constants and `colorize()` to shared package
+  - [ ] create reusable table writer abstraction to deduplicate `writeStatusTable`, `writeSyncTable`, `writeSyncPlan`
+  - [ ] extract common sorting lambda (`RepoID` then `Path`) into named comparator functions
+- [ ] Magic string constants:
+  - [ ] define constants for error state strings (`"missing"`, `"skipped-local-update:"`, etc.)
+  - [ ] consider typed outcome enum for `SyncResult.Outcome`
+- [ ] Remove outdated loop capture pattern:
+  - [ ] remove `entry := entry` captures in goroutine loops (unnecessary since Go 1.22)
+- [ ] Configurable main branch assumption:
+  - [ ] make hardcoded `/main` suffix check in `pullRebaseSkipReason` configurable
+  - [ ] add `defaults.main_branch` config option or use protected-branches pattern
+- [ ] Dependency cleanup:
+  - [ ] run `go mod tidy` to fix `golang.org/x/term` direct/indirect status
+
+**Acceptance:**
+
+- [ ] No package-level mutable state in `cmd/repokeeper/` (flags read via context/struct)
+- [ ] `sync` command performs repo analysis only once per invocation
+- [ ] Error classification uses Go error types with `errors.Is`/`errors.As`
+- [ ] No single function exceeds 100 lines (excluding table definitions)
+- [ ] Shared utilities live in dedicated packages with their own tests
+- [ ] `go mod tidy` produces no changes
+- [ ] All existing tests pass with no behavior changes
+- [ ] Coverage remains >= 80%
 
 ### Milestone 7 — Responsive Output & Reflow
 

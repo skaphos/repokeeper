@@ -50,6 +50,7 @@ var repairUpstreamCmd = &cobra.Command{
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		yes, _ := cmd.Flags().GetBool("yes")
 		only, _ := cmd.Flags().GetString("only")
 		format, _ := cmd.Flags().GetString("format")
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
@@ -93,6 +94,7 @@ var repairUpstreamCmd = &cobra.Command{
 		runner := &gitx.GitRunner{}
 		results := make([]repairUpstreamResult, 0, len(entries))
 		registryMutated := false
+		confirmationChecked := false
 
 		for _, entry := range entries {
 			res := repairUpstreamResult{
@@ -167,6 +169,17 @@ var repairUpstreamCmd = &cobra.Command{
 				res.Action = "would repair"
 				results = append(results, res)
 				continue
+			}
+			if !yes && !confirmationChecked {
+				confirmed, err := confirmWithPrompt(cmd, "Proceed with upstream tracking repairs? [y/N]: ")
+				if err != nil {
+					return err
+				}
+				confirmationChecked = true
+				if !confirmed {
+					infof(cmd, "repair-upstream cancelled")
+					return nil
+				}
 			}
 
 			if _, err := runner.Run(cmd.Context(), entry.Path, "branch", "--set-upstream-to", targetUpstream, repo.Head.Branch); err != nil {

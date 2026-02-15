@@ -17,6 +17,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type divergedAdvice struct {
+	RepoID            string `json:"repo_id"`
+	Path              string `json:"path"`
+	Branch            string `json:"branch"`
+	Upstream          string `json:"upstream"`
+	Reason            string `json:"reason"`
+	RecommendedAction string `json:"recommended_action"`
+}
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Report repo health for all registered repositories",
@@ -103,16 +112,34 @@ var statusCmd = &cobra.Command{
 		switch strings.ToLower(format) {
 		case "json":
 			setColorOutputMode(cmd, format)
-			data, err := json.MarshalIndent(report, "", "  ")
+			output := any(report)
+			if filter == engine.FilterDiverged {
+				output = struct {
+					*model.StatusReport
+					Diverged []divergedAdvice `json:"diverged"`
+				}{
+					StatusReport: report,
+					Diverged:     buildDivergedAdvice(report.Repos),
+				}
+			}
+			data, err := json.MarshalIndent(output, "", "  ")
 			if err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
 			setColorOutputMode(cmd, format)
+			if filter == engine.FilterDiverged {
+				writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false)
+				break
+			}
 			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false)
 		case "wide":
 			setColorOutputMode(cmd, format)
+			if filter == engine.FilterDiverged {
+				writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true)
+				break
+			}
 			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
@@ -157,15 +184,15 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		dirty := "-"
 		if repo.Worktree != nil {
 			if repo.Worktree.Dirty {
-				dirty = colorize("yes", ansiBrown)
+				dirty = colorize("yes", ansiWarn)
 			} else {
-				dirty = colorize("no", ansiGreen)
+				dirty = colorize("no", ansiHealthy)
 			}
 		}
 		tracking := displayTrackingStatus(repo.Tracking.Status)
 		if repo.Type == "mirror" {
 			// Mirrors are bare repos; tracking labels are not meaningful per branch.
-			tracking = colorize("mirror", ansiBlue)
+			tracking = colorize("mirror", ansiInfo)
 		}
 		if !wide {
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
@@ -200,12 +227,72 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 	_ = w.Flush()
 }
 
+func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) {
+	adviceByPath := make(map[string]divergedAdvice, len(report.Repos))
+	for _, advice := range buildDivergedAdvice(report.Repos) {
+		adviceByPath[advice.Path] = advice
+	}
+
+	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
+	if !noHeaders {
+		headers := "PATH\tBRANCH\tTRACKING\tREASON\tRECOMMENDED_ACTION"
+		if wide {
+			headers = "PATH\tBRANCH\tTRACKING\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tREASON\tRECOMMENDED_ACTION"
+		}
+		_, _ = fmt.Fprintln(w, headers)
+	}
+	for _, repo := range report.Repos {
+		advice, ok := adviceByPath[repo.Path]
+		if !ok {
+			continue
+		}
+		branch := repo.Head.Branch
+		if repo.Head.Detached {
+			branch = "detached:" + branch
+		}
+		path := displayRepoPath(repo.Path, cwd, roots)
+		tracking := displayTrackingStatus(repo.Tracking.Status)
+		if !wide {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", path, branch, tracking, advice.Reason, advice.RecommendedAction)
+			continue
+		}
+		ahead := "-"
+		if repo.Tracking.Ahead != nil {
+			ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
+		}
+		behind := "-"
+		if repo.Tracking.Behind != nil {
+			behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
+		}
+		_, _ = fmt.Fprintf(
+			w,
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			path,
+			branch,
+			tracking,
+			repo.PrimaryRemote,
+			repo.Tracking.Upstream,
+			ahead,
+			behind,
+			advice.Reason,
+			advice.RecommendedAction,
+		)
+	}
+	_ = w.Flush()
+}
+
 const (
 	ansiReset = "\x1b[0m"
 	ansiGreen = "\x1b[32m"
 	ansiBrown = "\x1b[33m"
 	ansiRed   = "\x1b[31m"
 	ansiBlue  = "\x1b[34m"
+
+	// Semantic color aliases for consistent status/sync styling.
+	ansiHealthy = ansiGreen
+	ansiWarn    = ansiBrown
+	ansiError   = ansiRed
+	ansiInfo    = ansiBlue
 )
 
 func colorize(value, color string) string {
@@ -220,11 +307,11 @@ func colorize(value, color string) string {
 func displayTrackingStatus(status model.TrackingStatus) string {
 	switch status {
 	case model.TrackingEqual:
-		return colorize("up to date", ansiGreen)
+		return colorize("up to date", ansiHealthy)
 	case model.TrackingDiverged:
-		return colorize(string(status), ansiRed)
+		return colorize(string(status), ansiError)
 	case model.TrackingGone:
-		return colorize(string(status), ansiRed)
+		return colorize(string(status), ansiError)
 	default:
 		return string(status)
 	}
@@ -325,6 +412,38 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 	if repo.Error != "" {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ERROR: %s\n", repo.Error)
 	}
+}
+
+func buildDivergedAdvice(repos []model.RepoStatus) []divergedAdvice {
+	advice := make([]divergedAdvice, 0, len(repos))
+	for _, repo := range repos {
+		if repo.Tracking.Status != model.TrackingDiverged {
+			continue
+		}
+		reason, action := divergedReasonAndAction(repo)
+		advice = append(advice, divergedAdvice{
+			RepoID:            repo.RepoID,
+			Path:              repo.Path,
+			Branch:            repo.Head.Branch,
+			Upstream:          repo.Tracking.Upstream,
+			Reason:            reason,
+			RecommendedAction: action,
+		})
+	}
+	return advice
+}
+
+func divergedReasonAndAction(repo model.RepoStatus) (string, string) {
+	if repo.Tracking.Status != model.TrackingDiverged {
+		return "", ""
+	}
+	if repo.Worktree != nil && repo.Worktree.Dirty {
+		return "local and upstream histories diverged with uncommitted changes", "commit or stash changes, then resolve with manual rebase/merge"
+	}
+	if repo.Tracking.Ahead != nil && repo.Tracking.Behind != nil {
+		return fmt.Sprintf("branch is %d ahead and %d behind upstream", *repo.Tracking.Ahead, *repo.Tracking.Behind), "resolve manually, or run reconcile with --update-local --force if acceptable"
+	}
+	return "local and upstream histories diverged", "resolve manually, or run reconcile with --update-local --force if acceptable"
 }
 
 func displayTrackingStatusNoColor(status model.TrackingStatus) string {

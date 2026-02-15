@@ -557,6 +557,23 @@ func TestConfirmSyncExecutionEOF(t *testing.T) {
 	}
 }
 
+func TestConfirmWithPrompt(t *testing.T) {
+	cmd := &cobra.Command{}
+	errOut := &bytes.Buffer{}
+	cmd.SetErr(errOut)
+	cmd.SetIn(strings.NewReader("no\n"))
+	ok, err := confirmWithPrompt(cmd, "Proceed? [y/N]: ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected prompt rejection")
+	}
+	if !strings.Contains(errOut.String(), "Proceed? [y/N]: ") {
+		t.Fatalf("expected custom prompt output, got %q", errOut.String())
+	}
+}
+
 func TestWriteSyncTableWideBranches(t *testing.T) {
 	out := &bytes.Buffer{}
 	cmd := &cobra.Command{}
@@ -606,5 +623,45 @@ func TestWriteSyncTableWideBranches(t *testing.T) {
 	}
 	if !strings.Contains(got, "mirror") {
 		t.Fatalf("expected mirror tracking label, got: %q", got)
+	}
+}
+
+func TestDivergedAdviceAndTable(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	ahead := 2
+	behind := 1
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				RepoID:        "github.com/org/repo-a",
+				Path:          "/tmp/repo-a",
+				Head:          model.Head{Branch: "main"},
+				PrimaryRemote: "origin",
+				Worktree:      &model.Worktree{Dirty: true},
+				Tracking: model.Tracking{
+					Status:   model.TrackingDiverged,
+					Upstream: "origin/main",
+					Ahead:    &ahead,
+					Behind:   &behind,
+				},
+			},
+		},
+	}
+
+	advice := buildDivergedAdvice(report.Repos)
+	if len(advice) != 1 {
+		t.Fatalf("expected one diverged advice row, got %d", len(advice))
+	}
+	if advice[0].Reason == "" || advice[0].RecommendedAction == "" {
+		t.Fatalf("expected diverged reason and recommendation, got %#v", advice[0])
+	}
+
+	writeDivergedStatusTable(cmd, report, "/tmp", nil, false, true)
+	got := out.String()
+	if !strings.Contains(got, "RECOMMENDED_ACTION") || !strings.Contains(got, "commit or stash changes") {
+		t.Fatalf("expected diverged guidance columns, got: %q", got)
 	}
 }

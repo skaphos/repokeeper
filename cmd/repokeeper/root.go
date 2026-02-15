@@ -16,6 +16,7 @@ var (
 	flagQuiet   bool
 	flagConfig  string
 	flagNoColor bool
+	flagYes     bool
 	// colorOutputEnabled is set per command execution based on output format and TTY detection.
 	colorOutputEnabled bool
 	// exitCode tracks the highest severity observed during a command run.
@@ -43,6 +44,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&flagQuiet, "quiet", "q", false, "suppress non-essential output")
 	rootCmd.PersistentFlags().StringVar(&flagConfig, "config", "", "override config file path")
 	rootCmd.PersistentFlags().BoolVar(&flagNoColor, "no-color", false, "disable colored output")
+	rootCmd.PersistentFlags().BoolVar(&flagYes, "yes", false, "accept mutating actions without interactive confirmation")
 }
 
 // Execute runs the root command.
