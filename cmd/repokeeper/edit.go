@@ -96,7 +96,9 @@ var editCmd = &cobra.Command{
 			}
 		}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "set upstream for %s (%s) to %s\n", entry.RepoID, entry.Path, setUpstream)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "set upstream for %s (%s) to %s\n", entry.RepoID, entry.Path, setUpstream); err != nil {
+			return err
+		}
 		return nil
 	},
 }

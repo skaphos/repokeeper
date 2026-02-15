@@ -209,18 +209,22 @@ var repairUpstreamCmd = &cobra.Command{
 			}
 		}
 
-		switch strings.ToLower(format) {
-		case "json":
-			data, err := json.MarshalIndent(results, "", "  ")
-			if err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
-		case "table":
-			writeRepairUpstreamTable(cmd, results, cwd, []string{cfgRoot}, noHeaders)
-		default:
-			return fmt.Errorf("unsupported format %q", format)
+	switch strings.ToLower(format) {
+	case "json":
+		data, err := json.MarshalIndent(results, "", "  ")
+		if err != nil {
+			return err
 		}
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
+			return err
+		}
+	case "table":
+		if err := writeRepairUpstreamTable(cmd, results, cwd, []string{cfgRoot}, noHeaders); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported format %q", format)
+	}
 
 		for _, res := range results {
 			if !res.OK {
@@ -256,15 +260,17 @@ func repairUpstreamMatchesFilter(current, target, filter string) bool {
 	}
 }
 
-func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult, cwd string, roots []string, noHeaders bool) {
+func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult, cwd string, roots []string, noHeaders bool) error {
 	w := tableutil.New(cmd.OutOrStdout(), false)
-	tableutil.PrintHeaders(w, noHeaders, "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO")
+	if err := tableutil.PrintHeaders(w, noHeaders, "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO"); err != nil {
+		return err
+	}
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
 			ok = "no"
 		}
-		_, _ = fmt.Fprintf(
+		if _, err := fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			displayRepoPath(res.Path, cwd, roots),
@@ -276,9 +282,11 @@ func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult
 			res.ErrorClass,
 			res.Error,
 			res.RepoID,
-		)
+		); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }
 
 func init() {

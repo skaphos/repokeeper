@@ -239,7 +239,9 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 	if wide {
 		headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND"
 	}
-	tableutil.PrintHeaders(w, noHeaders, headers)
+	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
+		return err
+	}
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {

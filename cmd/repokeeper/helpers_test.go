@@ -406,7 +406,9 @@ func TestWriteStatusDetailsAndHelpers(t *testing.T) {
 		Error:      "boom",
 		ErrorClass: "network",
 	}
-	writeStatusDetails(cmd, repo, "/tmp", nil)
+	if err := writeStatusDetails(cmd, repo, "/tmp", nil); err != nil {
+		t.Fatalf("writeStatusDetails returned error: %v", err)
+	}
 
 	got := out.String()
 	if !strings.Contains(got, "PATH: work/repo") {

@@ -55,7 +55,9 @@ func ExecuteWithExitCode() int {
 	state := &runtimeState{}
 	rootCmd.SetContext(context.WithValue(context.Background(), runtimeStateKey{}, state))
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
+			return 3
+		}
 		return 3
 	}
 	return state.exitCode
@@ -73,14 +75,22 @@ func infof(cmd *cobra.Command, format string, args ...any) {
 	if isQuiet(cmd) {
 		return
 	}
-	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...); err != nil {
+		if _, fallbackErr := fmt.Fprintf(os.Stderr, "repokeeper: output write failure (info): %v\n", err); fallbackErr != nil {
+			return
+		}
+	}
 }
 
 func debugf(cmd *cobra.Command, format string, args ...any) {
 	if isQuiet(cmd) || verbosity(cmd) <= 0 {
 		return
 	}
-	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...)
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...); err != nil {
+		if _, fallbackErr := fmt.Fprintf(os.Stderr, "repokeeper: output write failure (debug): %v\n", err); fallbackErr != nil {
+			return
+		}
+	}
 }
 
 func setColorOutputMode(cmd *cobra.Command, format string) {

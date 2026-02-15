@@ -129,7 +129,9 @@ var addCmd = &cobra.Command{
 			}
 		}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "added %s (%s) at %s\n", repoID, repoType, targetAbs)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "added %s (%s) at %s\n", repoID, repoType, targetAbs); err != nil {
+			return err
+		}
 		return nil
 	},
 }

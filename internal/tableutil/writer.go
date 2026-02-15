@@ -16,9 +16,10 @@ func New(out io.Writer, stripEscape bool) *tabwriter.Writer {
 }
 
 // PrintHeaders writes a tab-separated header row unless disabled.
-func PrintHeaders(w io.Writer, noHeaders bool, headers string) {
+func PrintHeaders(w io.Writer, noHeaders bool, headers string) error {
 	if noHeaders {
-		return
+		return nil
 	}
-	_, _ = fmt.Fprintln(w, headers)
+	_, err := fmt.Fprintln(w, headers)
+	return err
 }

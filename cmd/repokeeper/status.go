@@ -222,7 +222,9 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 	if wide {
 		headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
 	}
-	tableutil.PrintHeaders(w, noHeaders, headers)
+	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
+		return err
+	}
 	for _, repo := range report.Repos {
 		branch := repo.Head.Branch
 		if repo.Head.Detached {
@@ -293,7 +295,9 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 	if wide {
 		headers = "PATH\tBRANCH\tTRACKING\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tREASON\tRECOMMENDED_ACTION"
 	}
-	tableutil.PrintHeaders(w, noHeaders, headers)
+	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
+		return err
+	}
 	for _, repo := range report.Repos {
 		advice, ok := adviceByPath[repo.Path]
 		if !ok {
@@ -398,15 +402,25 @@ func statusHasWarningsOrErrors(report *model.StatusReport, reg *registry.Registr
 	return false
 }
 
-func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, roots []string) {
+func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, roots []string) error {
 	// Detail output is intentionally color-free and key/value stable for scripting.
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH: %s\n", displayRepoPath(repo.Path, cwd, roots))
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH_ABS: %s\n", repo.Path)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "REPO: %s\n", repo.RepoID)
-	if repo.Type != "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "TYPE: %s\n", repo.Type)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "PATH: %s\n", displayRepoPath(repo.Path, cwd, roots)); err != nil {
+		return err
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BARE: %t\n", repo.Bare)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "PATH_ABS: %s\n", repo.Path); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO: %s\n", repo.RepoID); err != nil {
+		return err
+	}
+	if repo.Type != "" {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "TYPE: %s\n", repo.Type); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "BARE: %t\n", repo.Bare); err != nil {
+		return err
+	}
 	branch := repo.Head.Branch
 	if repo.Head.Detached {
 		branch = "detached:" + branch
@@ -414,7 +428,9 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 	if repo.Type == "mirror" {
 		branch = "-"
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BRANCH: %s\n", branch)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "BRANCH: %s\n", branch); err != nil {
+		return err
+	}
 	dirty := "-"
 	if repo.Worktree != nil {
 		if repo.Worktree.Dirty {
@@ -423,29 +439,44 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 			dirty = "no"
 		}
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "DIRTY: %s\n", dirty)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "DIRTY: %s\n", dirty); err != nil {
+		return err
+	}
 	tracking := displayTrackingStatusNoColor(repo.Tracking.Status)
 	if repo.Type == "mirror" {
 		tracking = "mirror"
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "TRACKING: %s\n", tracking)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "UPSTREAM: %s\n", repo.Tracking.Upstream)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "TRACKING: %s\n", tracking); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "UPSTREAM: %s\n", repo.Tracking.Upstream); err != nil {
+		return err
+	}
 	ahead := "-"
 	if repo.Tracking.Ahead != nil {
 		ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "AHEAD: %s\n", ahead)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "AHEAD: %s\n", ahead); err != nil {
+		return err
+	}
 	behind := "-"
 	if repo.Tracking.Behind != nil {
 		behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "BEHIND: %s\n", behind)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "BEHIND: %s\n", behind); err != nil {
+		return err
+	}
 	if repo.ErrorClass != "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ERROR_CLASS: %s\n", repo.ErrorClass)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "ERROR_CLASS: %s\n", repo.ErrorClass); err != nil {
+			return err
+		}
 	}
 	if repo.Error != "" {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ERROR: %s\n", repo.Error)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "ERROR: %s\n", repo.Error); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func buildDivergedAdvice(repos []model.RepoStatus) []divergedAdvice {

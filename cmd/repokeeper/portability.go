@@ -74,7 +74,9 @@ var exportCmd = &cobra.Command{
 			return err
 		}
 		if outputPath == "-" {
-			_, _ = cmd.OutOrStdout().Write(data)
+			if _, err := cmd.OutOrStdout().Write(data); err != nil {
+				return err
+			}
 			return nil
 		}
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {

@@ -100,9 +100,13 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
+			return err
+		}
 	case "table":
-		writeStatusDetails(cmd, repo, cwd, []string{cfgRoot})
+		if err := writeStatusDetails(cmd, repo, cwd, []string{cfgRoot}); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unsupported format %q", format)
 	}

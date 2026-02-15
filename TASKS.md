@@ -188,7 +188,7 @@
 
 ### Milestone 6.2 — Hardening & Technical Debt
 
-- [ ] Error handling improvements:
+- [x] Error handling improvements:
   - [x] handle I/O errors from `fmt.Fprintf`/`fmt.Fprintln` on critical output paths (sync.go, status.go, scan.go)
   - [x] log or propagate `tabwriter.Flush()` errors instead of discarding
   - [x] log output write failures at debug level (no exit code change; broken pipes are normal CLI behavior)
@@ -235,7 +235,7 @@
 
 **Acceptance:**
 
-- [ ] No ignored I/O errors on stdout/stderr writes
+- [x] No ignored I/O errors on stdout/stderr writes
 - [x] `go test -race ./...` passes with no data races
 - [x] Channel buffers capped at reasonable fixed size
 - [x] Engine fields are private with controlled access

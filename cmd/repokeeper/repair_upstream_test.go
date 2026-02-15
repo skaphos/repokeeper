@@ -65,7 +65,7 @@ func TestWriteRepairUpstreamTable(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	writeRepairUpstreamTable(cmd, []repairUpstreamResult{
+	if err := writeRepairUpstreamTable(cmd, []repairUpstreamResult{
 		{
 			RepoID:          "github.com/org/repo",
 			Path:            "/tmp/work/repo",
@@ -75,7 +75,9 @@ func TestWriteRepairUpstreamTable(t *testing.T) {
 			Action:          "would repair",
 			OK:              true,
 		},
-	}, "/tmp/work", nil, false)
+	}, "/tmp/work", nil, false); err != nil {
+		t.Fatalf("writeRepairUpstreamTable returned error: %v", err)
+	}
 
 	got := out.String()
 	if !strings.Contains(got, "PATH") || !strings.Contains(got, "TARGET") || !strings.Contains(got, "REPO") {
@@ -91,7 +93,7 @@ func TestWriteRepairUpstreamTableNoHeaders(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	writeRepairUpstreamTable(cmd, []repairUpstreamResult{
+	if err := writeRepairUpstreamTable(cmd, []repairUpstreamResult{
 		{
 			RepoID:          "github.com/org/repo",
 			Path:            "/tmp/work/repo",
@@ -101,7 +103,9 @@ func TestWriteRepairUpstreamTableNoHeaders(t *testing.T) {
 			Action:          "unchanged",
 			OK:              true,
 		},
-	}, "/tmp/work", nil, true)
+	}, "/tmp/work", nil, true); err != nil {
+		t.Fatalf("writeRepairUpstreamTable returned error: %v", err)
+	}
 
 	if strings.Contains(out.String(), "ACTION") {
 		t.Fatalf("expected no table headers, got: %q", out.String())

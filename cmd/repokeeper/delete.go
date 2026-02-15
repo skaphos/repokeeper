@@ -70,7 +70,9 @@ var deleteCmd = &cobra.Command{
 			}
 		}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "deleted %s (%s)\n", entry.RepoID, entry.Path)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "deleted %s (%s)\n", entry.RepoID, entry.Path); err != nil {
+			return err
+		}
 		return nil
 	},
 }

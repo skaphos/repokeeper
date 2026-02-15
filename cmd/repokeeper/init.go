@@ -48,7 +48,9 @@ var initCmd = &cobra.Command{
 		if err := config.Save(&cfg, cfgPath); err != nil {
 			return err
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Wrote config to %s\n", cfgPath)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Wrote config to %s\n", cfgPath); err != nil {
+			return err
+		}
 		return nil
 	},
 }

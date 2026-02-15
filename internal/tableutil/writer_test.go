@@ -7,12 +7,16 @@ import (
 
 func TestPrintHeaders(t *testing.T) {
 	buf := &bytes.Buffer{}
-	PrintHeaders(buf, true, "A\tB")
+	if err := PrintHeaders(buf, true, "A\tB"); err != nil {
+		t.Fatalf("unexpected header error: %v", err)
+	}
 	if buf.Len() != 0 {
 		t.Fatalf("expected no output when disabled, got %q", buf.String())
 	}
 
-	PrintHeaders(buf, false, "A\tB")
+	if err := PrintHeaders(buf, false, "A\tB"); err != nil {
+		t.Fatalf("unexpected header error: %v", err)
+	}
 	if got := buf.String(); got != "A\tB\n" {
 		t.Fatalf("unexpected header output: %q", got)
 	}
@@ -21,8 +25,12 @@ func TestPrintHeaders(t *testing.T) {
 func TestNew(t *testing.T) {
 	buf := &bytes.Buffer{}
 	w := New(buf, true)
-	_, _ = w.Write([]byte("A\tB\n"))
-	_ = w.Flush()
+	if _, err := w.Write([]byte("A\tB\n")); err != nil {
+		t.Fatalf("unexpected write error: %v", err)
+	}
+	if err := w.Flush(); err != nil {
+		t.Fatalf("unexpected flush error: %v", err)
+	}
 	if buf.Len() == 0 {
 		t.Fatal("expected writer output")
 	}
