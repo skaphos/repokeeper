@@ -56,7 +56,12 @@ var statusCmd = &cobra.Command{
 		roots, _ := cmd.Flags().GetString("roots")
 		format, _ := cmd.Flags().GetString("format")
 		only, _ := cmd.Flags().GetString("only")
+		fieldSelector, _ := cmd.Flags().GetString("field-selector")
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
+		filter, err := resolveRepoFilter(only, fieldSelector)
+		if err != nil {
+			return err
+		}
 
 		adapter := vcs.NewGitAdapter(nil)
 		eng := engine.New(cfg, reg, adapter)
@@ -82,7 +87,7 @@ var statusCmd = &cobra.Command{
 		}
 
 		report, err := eng.Status(cmd.Context(), engine.StatusOptions{
-			Filter:      engine.FilterKind(only),
+			Filter:      filter,
 			Concurrency: cfg.Defaults.Concurrency,
 			Timeout:     cfg.Defaults.TimeoutSeconds,
 		})
@@ -128,6 +133,7 @@ func init() {
 	statusCmd.Flags().String("registry", "", "override registry file path")
 	statusCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
 	statusCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
+	statusCmd.Flags().String("field-selector", "", "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true")
 	statusCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 
 	rootCmd.AddCommand(statusCmd)

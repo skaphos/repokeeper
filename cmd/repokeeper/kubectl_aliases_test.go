@@ -44,6 +44,7 @@ func TestKubectlAliasFlagParity(t *testing.T) {
 				"registry",
 				"format",
 				"only",
+				"field-selector",
 				"no-headers",
 			},
 		},
@@ -52,6 +53,7 @@ func TestKubectlAliasFlagParity(t *testing.T) {
 			cmd:  reconcileReposCmd,
 			flags: []string{
 				"only",
+				"field-selector",
 				"concurrency",
 				"timeout",
 				"continue-on-error",

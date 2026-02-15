@@ -42,10 +42,12 @@ func init() {
 	getReposCmd.Flags().String("registry", "", "override registry file path")
 	getReposCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
 	getReposCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
+	getReposCmd.Flags().String("field-selector", "", "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true")
 	getReposCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	getCmd.AddCommand(getReposCmd)
 
 	reconcileReposCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
+	reconcileReposCmd.Flags().String("field-selector", "", "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true")
 	reconcileReposCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
 	reconcileReposCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
 	reconcileReposCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")

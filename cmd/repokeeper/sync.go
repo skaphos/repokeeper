@@ -45,6 +45,7 @@ var syncCmd = &cobra.Command{
 		}
 
 		only, _ := cmd.Flags().GetString("only")
+		fieldSelector, _ := cmd.Flags().GetString("field-selector")
 		concurrency, _ := cmd.Flags().GetInt("concurrency")
 		timeout, _ := cmd.Flags().GetInt("timeout")
 		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
@@ -66,6 +67,10 @@ var syncCmd = &cobra.Command{
 		if pushLocal && !updateLocal {
 			return fmt.Errorf("--push-local requires --update-local")
 		}
+		filter, err := resolveRepoFilter(only, fieldSelector)
+		if err != nil {
+			return err
+		}
 
 		if concurrency == 0 {
 			concurrency = cfg.Defaults.Concurrency
@@ -76,7 +81,7 @@ var syncCmd = &cobra.Command{
 
 		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
 		plan, err := eng.Sync(cmd.Context(), engine.SyncOptions{
-			Filter:               engine.FilterKind(only),
+			Filter:               filter,
 			Concurrency:          concurrency,
 			Timeout:              timeout,
 			ContinueOnError:      continueOnError,
@@ -114,7 +119,7 @@ var syncCmd = &cobra.Command{
 		results := plan
 		if !dryRun {
 			results, err = eng.Sync(cmd.Context(), engine.SyncOptions{
-				Filter:               engine.FilterKind(only),
+				Filter:               filter,
 				Concurrency:          concurrency,
 				Timeout:              timeout,
 				ContinueOnError:      continueOnError,
@@ -192,6 +197,7 @@ var syncCmd = &cobra.Command{
 
 func init() {
 	syncCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
+	syncCmd.Flags().String("field-selector", "", "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true")
 	syncCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
 	syncCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
 	syncCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
