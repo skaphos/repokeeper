@@ -426,10 +426,11 @@ func TestWriteStatusDetailsAndHelpers(t *testing.T) {
 }
 
 func TestColorizeGuardBranches(t *testing.T) {
-	prevColor := colorOutputEnabled
-	defer func() { colorOutputEnabled = prevColor }()
+	state := runtimeStateFor(rootCmd)
+	prevColor := state.colorOutputEnabled
+	defer func() { runtimeStateFor(rootCmd).colorOutputEnabled = prevColor }()
 
-	colorOutputEnabled = true
+	runtimeStateFor(rootCmd).colorOutputEnabled = true
 	if got := colorize("", ansiGreen); got != "" {
 		t.Fatalf("expected empty value passthrough, got %q", got)
 	}
@@ -458,15 +459,16 @@ func TestWriteSyncFailureSummary(t *testing.T) {
 }
 
 func TestColorizeAndTrackingDisplayBranches(t *testing.T) {
-	prevColor := colorOutputEnabled
-	defer func() { colorOutputEnabled = prevColor }()
+	state := runtimeStateFor(rootCmd)
+	prevColor := state.colorOutputEnabled
+	defer func() { runtimeStateFor(rootCmd).colorOutputEnabled = prevColor }()
 
-	colorOutputEnabled = false
+	runtimeStateFor(rootCmd).colorOutputEnabled = false
 	if got := colorize("up", ansiGreen); got != "up" {
 		t.Fatalf("expected uncolored output when disabled, got %q", got)
 	}
 
-	colorOutputEnabled = true
+	runtimeStateFor(rootCmd).colorOutputEnabled = true
 	colored := colorize("up", ansiGreen)
 	if !strings.Contains(colored, ansiGreen) || !strings.Contains(colored, ansiReset) {
 		t.Fatalf("expected ansi-wrapped output, got %q", colored)

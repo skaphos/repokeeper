@@ -217,7 +217,7 @@ var statusCmd = &cobra.Command{
 		}
 
 		if statusHasWarningsOrErrors(report, reg) {
-			raiseExitCode(1)
+			raiseExitCode(cmd, 1)
 		}
 		infof(cmd, "status completed: %d repos", len(report.Repos))
 		return nil
@@ -369,7 +369,7 @@ const (
 )
 
 func colorize(value, color string) string {
-	if !colorOutputEnabled || value == "" || color == "" {
+	if !runtimeStateFor(rootCmd).colorOutputEnabled || value == "" || color == "" {
 		return value
 	}
 	// Hide ANSI sequences from tabwriter width calculations so columns align.

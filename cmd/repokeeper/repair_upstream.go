@@ -229,7 +229,7 @@ var repairUpstreamCmd = &cobra.Command{
 
 		for _, res := range results {
 			if !res.OK {
-				raiseExitCode(2)
+				raiseExitCode(cmd, 2)
 			}
 		}
 		return nil

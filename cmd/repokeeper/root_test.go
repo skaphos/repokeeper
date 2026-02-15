@@ -28,13 +28,15 @@ func TestNOColorEnvSetsFlag(t *testing.T) {
 }
 
 func TestRaiseExitCodeMonotonic(t *testing.T) {
-	exitCode = 0
-	raiseExitCode(1)
-	raiseExitCode(0)
-	raiseExitCode(2)
-	raiseExitCode(1)
-	if exitCode != 2 {
-		t.Fatalf("expected highest exit code to win, got %d", exitCode)
+	cmd := &cobra.Command{}
+	state := runtimeStateFor(cmd)
+	state.exitCode = 0
+	raiseExitCode(cmd, 1)
+	raiseExitCode(cmd, 0)
+	raiseExitCode(cmd, 2)
+	raiseExitCode(cmd, 1)
+	if got := runtimeStateFor(cmd).exitCode; got != 2 {
+		t.Fatalf("expected highest exit code to win, got %d", got)
 	}
 }
 
@@ -80,11 +82,13 @@ func TestShouldUseColorOutput(t *testing.T) {
 func TestSetColorOutputMode(t *testing.T) {
 	prevNoColor := flagNoColor
 	prevTTY := isTerminalFD
-	prevColor := colorOutputEnabled
+	cmd := &cobra.Command{}
+	state := runtimeStateFor(cmd)
+	prevColor := state.colorOutputEnabled
 	defer func() {
 		flagNoColor = prevNoColor
 		isTerminalFD = prevTTY
-		colorOutputEnabled = prevColor
+		runtimeStateFor(cmd).colorOutputEnabled = prevColor
 	}()
 
 	tmp, err := os.CreateTemp("", "repokeeper-color-mode-*")
@@ -96,18 +100,17 @@ func TestSetColorOutputMode(t *testing.T) {
 		_ = os.Remove(tmp.Name())
 	}()
 
-	cmd := &cobra.Command{}
 	cmd.SetOut(tmp)
 
 	flagNoColor = false
 	isTerminalFD = func(_ int) bool { return true }
 	setColorOutputMode(cmd, "table")
-	if !colorOutputEnabled {
+	if !runtimeStateFor(cmd).colorOutputEnabled {
 		t.Fatal("expected color output mode to be enabled")
 	}
 
 	setColorOutputMode(cmd, "json")
-	if colorOutputEnabled {
+	if runtimeStateFor(cmd).colorOutputEnabled {
 		t.Fatal("expected color output mode to be disabled for json")
 	}
 }

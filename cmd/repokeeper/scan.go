@@ -98,7 +98,7 @@ var scanCmd = &cobra.Command{
 
 		if hasRegistryWarnings(reg) {
 			// Missing/moved entries are warning-level conditions for scan/status flows.
-			raiseExitCode(1)
+			raiseExitCode(cmd, 1)
 		}
 		infof(cmd, "scan completed: %d repos", len(statuses))
 		return nil

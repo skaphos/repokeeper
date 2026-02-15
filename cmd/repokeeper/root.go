@@ -2,6 +2,7 @@
 package repokeeper
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -17,15 +18,18 @@ var (
 	flagConfig  string
 	flagNoColor bool
 	flagYes     bool
-	// colorOutputEnabled is set per command execution based on output format and TTY detection.
-	colorOutputEnabled bool
-	// exitCode tracks the highest severity observed during a command run.
-	exitCode int
 	// isTerminalFD is overridable in tests.
 	isTerminalFD = term.IsTerminal
 	// exitFunc is overridable in tests.
 	exitFunc = os.Exit
 )
+
+type runtimeStateKey struct{}
+
+type runtimeState struct {
+	colorOutputEnabled bool
+	exitCode           int
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "repokeeper",
@@ -54,19 +58,20 @@ func Execute() {
 
 // ExecuteWithExitCode runs the root command and returns a shell-friendly exit code.
 func ExecuteWithExitCode() int {
-	exitCode = 0
-	colorOutputEnabled = false
+	state := &runtimeState{}
+	rootCmd.SetContext(context.WithValue(context.Background(), runtimeStateKey{}, state))
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 3
 	}
-	return exitCode
+	return state.exitCode
 }
 
-func raiseExitCode(code int) {
+func raiseExitCode(cmd *cobra.Command, code int) {
 	// Keep the highest severity: 0 success, 1 warning, 2 error, 3 fatal.
-	if code > exitCode {
-		exitCode = code
+	state := runtimeStateFor(cmd)
+	if code > state.exitCode {
+		state.exitCode = code
 	}
 }
 
@@ -85,7 +90,7 @@ func debugf(cmd *cobra.Command, format string, args ...any) {
 }
 
 func setColorOutputMode(cmd *cobra.Command, format string) {
-	colorOutputEnabled = shouldUseColorOutput(cmd, format)
+	runtimeStateFor(cmd).colorOutputEnabled = shouldUseColorOutput(cmd, format)
 }
 
 func shouldUseColorOutput(cmd *cobra.Command, format string) bool {
@@ -106,4 +111,24 @@ func isTabularFormat(format string) bool {
 	default:
 		return false
 	}
+}
+
+func runtimeStateFor(cmd *cobra.Command) *runtimeState {
+	root := cmd
+	if root != nil {
+		root = cmd.Root()
+	}
+	if root == nil {
+		root = rootCmd
+	}
+	ctx := root.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if state, ok := ctx.Value(runtimeStateKey{}).(*runtimeState); ok && state != nil {
+		return state
+	}
+	state := &runtimeState{}
+	root.SetContext(context.WithValue(ctx, runtimeStateKey{}, state))
+	return state
 }

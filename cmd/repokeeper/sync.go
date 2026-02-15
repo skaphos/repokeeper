@@ -167,14 +167,14 @@ var syncCmd = &cobra.Command{
 			if !res.OK {
 				// Missing repos are warning-level; operational failures are error-level.
 				if res.Error == "missing" {
-					raiseExitCode(1)
+					raiseExitCode(cmd, 1)
 					continue
 				}
-				raiseExitCode(2)
+				raiseExitCode(cmd, 2)
 				continue
 			}
 			if strings.HasPrefix(res.Error, "skipped-local-update:") {
-				raiseExitCode(1)
+				raiseExitCode(cmd, 1)
 			}
 		}
 		writeSyncFailureSummary(cmd, results, cwd, []string{cfgRoot})
