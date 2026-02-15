@@ -101,6 +101,7 @@ var _ = Describe("Engine", func() {
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].OK).To(BeTrue())
 		Expect(results[0].Error).To(Equal("dry-run"))
+		Expect(results[0].Outcome).To(Equal("planned_fetch"))
 	})
 
 	It("skips sync for repos without upstream remote", func() {
@@ -521,6 +522,7 @@ var _ = Describe("Engine", func() {
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].OK).To(BeTrue())
 		Expect(results[0].Action).To(Equal("git push"))
+		Expect(results[0].Outcome).To(Equal("pushed"))
 	})
 
 	It("stashes dirty changes before local rebase when enabled", func() {

@@ -237,6 +237,7 @@ type SyncOptions struct {
 type SyncResult struct {
 	RepoID     string
 	Path       string
+	Outcome    string
 	OK         bool
 	Error      string
 	ErrorClass string
@@ -282,7 +283,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		}
 		if entry.Status == registry.StatusMissing {
 			if !opts.CheckoutMissing {
-				results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, OK: false, Error: "missing"})
+				results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped_missing", OK: false, Error: "missing"})
 				continue
 			}
 			remoteURL := strings.TrimSpace(entry.RemoteURL)
@@ -290,6 +291,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				results = append(results, SyncResult{
 					RepoID:     entry.RepoID,
 					Path:       entry.Path,
+					Outcome:    "failed_invalid",
 					OK:         false,
 					Error:      "missing remote_url for checkout",
 					ErrorClass: "invalid",
@@ -307,11 +309,12 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 			action += " " + remoteURL + " " + entry.Path
 			if opts.DryRun {
 				results = append(results, SyncResult{
-					RepoID: entry.RepoID,
-					Path:   entry.Path,
-					OK:     true,
-					Error:  "dry-run",
-					Action: action,
+					RepoID:  entry.RepoID,
+					Path:    entry.Path,
+					Outcome: "planned_checkout_missing",
+					OK:      true,
+					Error:   "dry-run",
+					Action:  action,
 				})
 				continue
 			}
@@ -319,6 +322,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				results = append(results, SyncResult{
 					RepoID:     entry.RepoID,
 					Path:       entry.Path,
+					Outcome:    "failed_checkout_missing",
 					OK:         false,
 					Error:      err.Error(),
 					ErrorClass: gitx.ClassifyError(err),
@@ -329,7 +333,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 			entry.Status = registry.StatusPresent
 			entry.LastSeen = time.Now()
 			e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, entry)
-			results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, OK: true, Action: action})
+			results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "checkout_missing", OK: true, Action: action})
 			continue
 		}
 		if opts.Filter == FilterGone && entry.Status != registry.StatusPresent {
@@ -341,6 +345,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				results = append(results, SyncResult{
 					RepoID:     entry.RepoID,
 					Path:       entry.Path,
+					Outcome:    "failed_inspect",
 					OK:         false,
 					Error:      err.Error(),
 					ErrorClass: gitx.ClassifyError(err),
@@ -367,6 +372,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 			results = append(results, SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
+				Outcome:    "skipped_no_upstream",
 				OK:         true,
 				ErrorClass: "skipped",
 				Error:      "skipped-no-upstream",
@@ -391,6 +397,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						out <- result{res: SyncResult{
 							RepoID:     entry.RepoID,
 							Path:       entry.Path,
+							Outcome:    "failed_inspect",
 							OK:         false,
 							Error:      err.Error(),
 							ErrorClass: gitx.ClassifyError(err),
@@ -400,11 +407,12 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
 						action += " && git push"
 						out <- result{res: SyncResult{
-							RepoID: entry.RepoID,
-							Path:   entry.Path,
-							OK:     true,
-							Error:  "dry-run",
-							Action: action,
+							RepoID:  entry.RepoID,
+							Path:    entry.Path,
+							Outcome: "planned_push",
+							OK:      true,
+							Error:   "dry-run",
+							Action:  action,
 						}}
 						return
 					}
@@ -418,6 +426,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						out <- result{res: SyncResult{
 							RepoID:     entry.RepoID,
 							Path:       entry.Path,
+							Outcome:    "skipped_local_update",
 							OK:         true,
 							ErrorClass: "skipped",
 							Error:      "skipped-local-update: " + reason,
@@ -428,11 +437,12 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					action += " && git pull --rebase --no-recurse-submodules"
 				}
 				out <- result{res: SyncResult{
-					RepoID: entry.RepoID,
-					Path:   entry.Path,
-					OK:     true,
-					Error:  "dry-run",
-					Action: action,
+					RepoID:  entry.RepoID,
+					Path:    entry.Path,
+					Outcome: "planned_fetch",
+					OK:      true,
+					Error:   "dry-run",
+					Action:  action,
 				}}
 				return
 			}
@@ -442,6 +452,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					out <- result{res: SyncResult{
 						RepoID:     entry.RepoID,
 						Path:       entry.Path,
+						Outcome:    "failed_inspect",
 						OK:         false,
 						Error:      err.Error(),
 						ErrorClass: gitx.ClassifyError(err),
@@ -449,7 +460,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					return
 				}
 				if status.Tracking.Status != model.TrackingGone {
-					out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, OK: true, Error: "skipped"}}
+					out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped", OK: true, Error: "skipped"}}
 					return
 				}
 			}
@@ -458,6 +469,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				out <- result{res: SyncResult{
 					RepoID:     entry.RepoID,
 					Path:       entry.Path,
+					Outcome:    "failed_fetch",
 					OK:         false,
 					Error:      err.Error(),
 					ErrorClass: gitx.ClassifyError(err),
@@ -471,6 +483,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					out <- result{res: SyncResult{
 						RepoID:     entry.RepoID,
 						Path:       entry.Path,
+						Outcome:    "failed_inspect",
 						OK:         false,
 						Error:      err.Error(),
 						ErrorClass: gitx.ClassifyError(err),
@@ -482,6 +495,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						out <- result{res: SyncResult{
 							RepoID:     entry.RepoID,
 							Path:       entry.Path,
+							Outcome:    "failed_push",
 							OK:         false,
 							Error:      err.Error(),
 							ErrorClass: gitx.ClassifyError(err),
@@ -490,10 +504,11 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						return
 					}
 					out <- result{res: SyncResult{
-						RepoID: entry.RepoID,
-						Path:   entry.Path,
-						OK:     true,
-						Action: "git push",
+						RepoID:  entry.RepoID,
+						Path:    entry.Path,
+						Outcome: "pushed",
+						OK:      true,
+						Action:  "git push",
 					}}
 					return
 				}
@@ -507,6 +522,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					out <- result{res: SyncResult{
 						RepoID:     entry.RepoID,
 						Path:       entry.Path,
+						Outcome:    "skipped_local_update",
 						OK:         true,
 						ErrorClass: "skipped",
 						Error:      "skipped-local-update: " + reason,
@@ -521,6 +537,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						out <- result{res: SyncResult{
 							RepoID:     entry.RepoID,
 							Path:       entry.Path,
+							Outcome:    "failed_stash",
 							OK:         false,
 							Error:      err.Error(),
 							ErrorClass: gitx.ClassifyError(err),
@@ -536,6 +553,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					out <- result{res: SyncResult{
 						RepoID:     entry.RepoID,
 						Path:       entry.Path,
+						Outcome:    "failed_rebase",
 						OK:         false,
 						Error:      err.Error(),
 						ErrorClass: gitx.ClassifyError(err),
@@ -548,6 +566,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						out <- result{res: SyncResult{
 							RepoID:     entry.RepoID,
 							Path:       entry.Path,
+							Outcome:    "failed_stash_pop",
 							OK:         false,
 							Error:      err.Error(),
 							ErrorClass: gitx.ClassifyError(err),
@@ -558,14 +577,15 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					action += " && git stash pop"
 				}
 				out <- result{res: SyncResult{
-					RepoID: entry.RepoID,
-					Path:   entry.Path,
-					OK:     true,
-					Action: action,
+					RepoID:  entry.RepoID,
+					Path:    entry.Path,
+					Outcome: outcomeForRebase(stashed),
+					OK:      true,
+					Action:  action,
 				}}
 				return
 			}
-			out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, OK: true}}
+			out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "fetched", OK: true}}
 		}()
 	}
 
@@ -640,6 +660,13 @@ func matchesProtectedBranch(branch string, patterns []string) bool {
 		}
 	}
 	return false
+}
+
+func outcomeForRebase(stashed bool) string {
+	if stashed {
+		return "stashed_rebased"
+	}
+	return "rebased"
 }
 
 // InspectRepo gathers the full status for a single repository path.
