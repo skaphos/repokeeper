@@ -9,6 +9,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/internal/termstyle"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -438,10 +439,10 @@ func TestColorizeGuardBranches(t *testing.T) {
 	defer func() { runtimeStateFor(rootCmd).colorOutputEnabled = prevColor }()
 
 	runtimeStateFor(rootCmd).colorOutputEnabled = true
-	if got := colorize("", ansiGreen); got != "" {
+	if got := termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "", termstyle.Green); got != "" {
 		t.Fatalf("expected empty value passthrough, got %q", got)
 	}
-	if got := colorize("x", ""); got != "x" {
+	if got := termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "x", ""); got != "x" {
 		t.Fatalf("expected empty color passthrough, got %q", got)
 	}
 }
@@ -471,13 +472,13 @@ func TestColorizeAndTrackingDisplayBranches(t *testing.T) {
 	defer func() { runtimeStateFor(rootCmd).colorOutputEnabled = prevColor }()
 
 	runtimeStateFor(rootCmd).colorOutputEnabled = false
-	if got := colorize("up", ansiGreen); got != "up" {
+	if got := termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "up", termstyle.Green); got != "up" {
 		t.Fatalf("expected uncolored output when disabled, got %q", got)
 	}
 
 	runtimeStateFor(rootCmd).colorOutputEnabled = true
-	colored := colorize("up", ansiGreen)
-	if !strings.Contains(colored, ansiGreen) || !strings.Contains(colored, ansiReset) {
+	colored := termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "up", termstyle.Green)
+	if !strings.Contains(colored, termstyle.Green) || !strings.Contains(colored, termstyle.Reset) {
 		t.Fatalf("expected ansi-wrapped output, got %q", colored)
 	}
 	if got := displayTrackingStatus(model.TrackingDiverged); !strings.Contains(got, "diverged") {

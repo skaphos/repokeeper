@@ -16,6 +16,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/internal/termstyle"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -248,15 +249,15 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		dirty := "-"
 		if repo.Worktree != nil {
 			if repo.Worktree.Dirty {
-				dirty = colorize("yes", ansiWarn)
+				dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "yes", termstyle.Warn)
 			} else {
-				dirty = colorize("no", ansiHealthy)
+				dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "no", termstyle.Healthy)
 			}
 		}
 		tracking := displayTrackingStatus(repo.Tracking.Status)
 		if repo.Type == "mirror" {
 			// Mirrors are bare repos; tracking labels are not meaningful per branch.
-			tracking = colorize("mirror", ansiInfo)
+			tracking = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "mirror", termstyle.Info)
 		}
 		if !wide {
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
@@ -345,37 +346,14 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 	_ = w.Flush()
 }
 
-const (
-	ansiReset = "\x1b[0m"
-	ansiGreen = "\x1b[32m"
-	ansiBrown = "\x1b[33m"
-	ansiRed   = "\x1b[31m"
-	ansiBlue  = "\x1b[34m"
-
-	// Semantic color aliases for consistent status/sync styling.
-	ansiHealthy = ansiGreen
-	ansiWarn    = ansiBrown
-	ansiError   = ansiRed
-	ansiInfo    = ansiBlue
-)
-
-func colorize(value, color string) string {
-	if !runtimeStateFor(rootCmd).colorOutputEnabled || value == "" || color == "" {
-		return value
-	}
-	// Hide ANSI sequences from tabwriter width calculations so columns align.
-	esc := string([]byte{tabwriter.Escape})
-	return esc + color + esc + value + esc + ansiReset + esc
-}
-
 func displayTrackingStatus(status model.TrackingStatus) string {
 	switch status {
 	case model.TrackingEqual:
-		return colorize("up to date", ansiHealthy)
+		return termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "up to date", termstyle.Healthy)
 	case model.TrackingDiverged:
-		return colorize(string(status), ansiError)
+		return termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, string(status), termstyle.Error)
 	case model.TrackingGone:
-		return colorize(string(status), ansiError)
+		return termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, string(status), termstyle.Error)
 	default:
 		return string(status)
 	}

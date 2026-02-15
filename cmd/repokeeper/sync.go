@@ -14,6 +14,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/internal/termstyle"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -294,16 +295,16 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			}
 			if repo.Worktree != nil {
 				if repo.Worktree.Dirty {
-					dirty = colorize("yes", ansiWarn)
+					dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "yes", termstyle.Warn)
 				} else {
-					dirty = colorize("no", ansiHealthy)
+					dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "no", termstyle.Healthy)
 				}
 			}
 			tracking = displayTrackingStatus(repo.Tracking.Status)
 			if repo.Type == "mirror" {
 				// Mirror repos do not have branch tracking semantics in the same way
 				// as a non-bare checkout.
-				tracking = colorize("mirror", ansiInfo)
+				tracking = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "mirror", termstyle.Info)
 			}
 		}
 		if !wide {
