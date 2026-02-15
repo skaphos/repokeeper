@@ -47,7 +47,7 @@ func init() {
 
 	addRepoFilterFlags(reconcileReposCmd)
 	reconcileReposCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
-	reconcileReposCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
+	reconcileReposCmd.Flags().Int("timeout", 0, "timeout in seconds per repo (0 uses config default)")
 	reconcileReposCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
 	reconcileReposCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	reconcileReposCmd.Flags().Bool("yes", false, "accept sync plan and execute without confirmation")

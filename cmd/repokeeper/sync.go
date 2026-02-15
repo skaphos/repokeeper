@@ -72,13 +72,6 @@ var syncCmd = &cobra.Command{
 			return err
 		}
 
-		if concurrency == 0 {
-			concurrency = cfg.Defaults.Concurrency
-		}
-		if timeout == 0 {
-			timeout = cfg.Defaults.TimeoutSeconds
-		}
-
 		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
 		plan, err := eng.Sync(cmd.Context(), engine.SyncOptions{
 			Filter:               filter,
@@ -182,7 +175,7 @@ var syncCmd = &cobra.Command{
 func init() {
 	addRepoFilterFlags(syncCmd)
 	syncCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
-	syncCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
+	syncCmd.Flags().Int("timeout", 0, "timeout in seconds per repo (0 uses config default)")
 	syncCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")

@@ -122,8 +122,8 @@ var statusCmd = &cobra.Command{
 
 		report, err := eng.Status(cmd.Context(), engine.StatusOptions{
 			Filter:      filter,
-			Concurrency: cfg.Defaults.Concurrency,
-			Timeout:     cfg.Defaults.TimeoutSeconds,
+			Concurrency: 0,
+			Timeout:     0,
 		})
 		if err != nil {
 			return err
@@ -162,8 +162,8 @@ var statusCmd = &cobra.Command{
 			}
 			report, err = eng.Status(cmd.Context(), engine.StatusOptions{
 				Filter:      filter,
-				Concurrency: cfg.Defaults.Concurrency,
-				Timeout:     cfg.Defaults.TimeoutSeconds,
+				Concurrency: 0,
+				Timeout:     0,
 			})
 			if err != nil {
 				return err

@@ -213,7 +213,7 @@
   - [ ] extract remote mismatch logic from status.go to dedicated package
 - [ ] Flag/config consolidation:
   - [x] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions
-  - [ ] single source of truth for defaults (concurrency, timeout, main_branch) in Config.Defaults
+  - [x] single source of truth for defaults (concurrency, timeout, main_branch) in Config.Defaults
 - [ ] Test coverage expansion:
   - [ ] add unit tests for command RunE functions (sync, status, repair_upstream)
   - [ ] add integration tests for edge cases: symlinks, bare repos, missing repos
