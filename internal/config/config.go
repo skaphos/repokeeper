@@ -243,7 +243,7 @@ func ConfigRoot(configPath string) string {
 // EffectiveRoot returns the inferred root for commands that need a default
 // scan/display root.
 func EffectiveRoot(configPath string, cfg *Config) string {
-	// TODO(v0.1.0): remove legacy roots fallback once configs have migrated.
+	// TODO(v1.0.0): remove legacy roots fallback once configs have migrated.
 	if cfg != nil {
 		for _, root := range cfg.LegacyRoots {
 			root = strings.TrimSpace(root)
