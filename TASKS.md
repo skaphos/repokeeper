@@ -230,8 +230,8 @@
   - [x] create typed `OutcomeKind` enum for `SyncResult.Outcome`
 - [ ] Minor cleanup:
   - [x] standardize error message formatting (%q vs %s)
-  - [ ] remove unused local variables flagged by linter
-  - [ ] audit and clean up unused imports
+  - [x] remove unused local variables flagged by linter
+  - [x] audit and clean up unused imports
 
 **Acceptance:**
 
