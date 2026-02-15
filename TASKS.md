@@ -113,8 +113,8 @@
 - [ ] report registry `remote_url` vs live git remote mismatch
 - [ ] optional reconcile mode to update registry or git remote (explicit flag)
 - [ ] `sync --continue-on-error`:
-- [ ] continue processing all repos while accumulating failures
-- [ ] summarize failed repos/actions at end with deterministic ordering
+- [x] continue processing all repos while accumulating failures
+- [x] summarize failed repos/actions at end with deterministic ordering
 - [ ] richer exit code model for automation:
 - [ ] preserve existing high-level codes but add structured per-repo outcomes in JSON
 - [ ] outcome categories: `fetched`, `rebased`, `skipped_no_upstream`, `skipped_diverged`, `failed`, etc.
