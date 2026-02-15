@@ -20,7 +20,7 @@
 - [x] `repokeeper init` defaults to `.repokeeper.yaml` in the current directory
 - [x] runtime commands resolve nearest `.repokeeper.yaml` by walking parent directories
 - [x] `repokeeper status --help`
-- [ ] `go tool golangci-lint run ./...` passes
+- [x] `go tool golangci-lint run ./...` passes
 - [x] `go tool ginkgo ./...` runs (even if no tests yet)
 
 ### Milestone 1 — Discovery + registry
@@ -84,8 +84,8 @@
 
 - [x] Actionable output for "what broke and where"
 - [x] Exit codes are correct and tested
-- [ ] `go tool golangci-lint run ./...` passes with zero issues
-- [ ] Overall test coverage >= 80%
+- [x] `go tool golangci-lint run ./...` passes with zero issues
+- [x] Overall test coverage >= 80%
 
 ### Milestone 6 — CLI Improvements (Ongoing)
 
@@ -212,7 +212,7 @@
 
 ### Coverage requirements
 
-- [ ] Target: 80%+ line coverage across all packages
+- [x] Target: 80%+ line coverage across all packages
 - [ ] CI enforces coverage thresholds
 - [ ] Packages with inherently low testability (`cmd/`, `internal/tui/`) may have lower thresholds but should still have smoke tests
 
