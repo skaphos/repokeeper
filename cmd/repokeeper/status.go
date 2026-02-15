@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/remotemismatch"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/tableutil"
@@ -28,23 +28,15 @@ type divergedAdvice struct {
 	RecommendedAction string `json:"recommended_action"`
 }
 
-type remoteMismatchReconcileMode string
+type remoteMismatchReconcileMode = remotemismatch.ReconcileMode
 
 const (
-	remoteMismatchReconcileNone     remoteMismatchReconcileMode = "none"
-	remoteMismatchReconcileRegistry remoteMismatchReconcileMode = "registry"
-	remoteMismatchReconcileGit      remoteMismatchReconcileMode = "git"
+	remoteMismatchReconcileNone     = remotemismatch.ReconcileNone
+	remoteMismatchReconcileRegistry = remotemismatch.ReconcileRegistry
+	remoteMismatchReconcileGit      = remotemismatch.ReconcileGit
 )
 
-type remoteMismatchPlan struct {
-	RepoID        string
-	Path          string
-	PrimaryRemote string
-	RepoRemoteURL string
-	RegistryURL   string
-	EntryIndex    int
-	Action        string
-}
+type remoteMismatchPlan = remotemismatch.Plan
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -528,83 +520,11 @@ func relWithin(base, target string) (string, bool) {
 }
 
 func parseRemoteMismatchReconcileMode(raw string) (remoteMismatchReconcileMode, error) {
-	mode := remoteMismatchReconcileMode(strings.ToLower(strings.TrimSpace(raw)))
-	switch mode {
-	case "", remoteMismatchReconcileNone:
-		return remoteMismatchReconcileNone, nil
-	case remoteMismatchReconcileRegistry, remoteMismatchReconcileGit:
-		return mode, nil
-	default:
-		return "", fmt.Errorf("unsupported --reconcile-remote-mismatch value %q (expected none, registry, or git)", raw)
-	}
+	return remotemismatch.ParseReconcileMode(raw)
 }
 
 func buildRemoteMismatchPlans(repos []model.RepoStatus, reg *registry.Registry, adapter vcs.Adapter, mode remoteMismatchReconcileMode) []remoteMismatchPlan {
-	if reg == nil || adapter == nil || mode == remoteMismatchReconcileNone {
-		return nil
-	}
-	plans := make([]remoteMismatchPlan, 0)
-	for _, repo := range repos {
-		entryIndex := findRegistryEntryIndexForStatus(reg, repo)
-		if entryIndex < 0 {
-			continue
-		}
-		entry := reg.Entries[entryIndex]
-		registryURL := strings.TrimSpace(entry.RemoteURL)
-		if registryURL == "" || strings.TrimSpace(repo.RepoID) == "" {
-			continue
-		}
-		if adapter.NormalizeURL(registryURL) == repo.RepoID {
-			continue
-		}
-		repoRemoteURL := primaryRemoteURL(repo)
-		action := ""
-		switch mode {
-		case remoteMismatchReconcileRegistry:
-			if repoRemoteURL == "" {
-				continue
-			}
-			action = "set registry remote_url to live git remote"
-		case remoteMismatchReconcileGit:
-			if strings.TrimSpace(repo.PrimaryRemote) == "" {
-				continue
-			}
-			action = "set git remote URL to registry remote_url"
-		}
-		plans = append(plans, remoteMismatchPlan{
-			RepoID:        repo.RepoID,
-			Path:          repo.Path,
-			PrimaryRemote: repo.PrimaryRemote,
-			RepoRemoteURL: repoRemoteURL,
-			RegistryURL:   registryURL,
-			EntryIndex:    entryIndex,
-			Action:        action,
-		})
-	}
-	return plans
-}
-
-func findRegistryEntryIndexForStatus(reg *registry.Registry, repo model.RepoStatus) int {
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == repo.RepoID && reg.Entries[i].Path == repo.Path {
-			return i
-		}
-	}
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == repo.RepoID {
-			return i
-		}
-	}
-	return -1
-}
-
-func primaryRemoteURL(repo model.RepoStatus) string {
-	for _, remote := range repo.Remotes {
-		if remote.Name == repo.PrimaryRemote {
-			return strings.TrimSpace(remote.URL)
-		}
-	}
-	return ""
+	return remotemismatch.BuildPlans(repos, reg, adapter, mode)
 }
 
 func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd string, roots []string, dryRun bool) error {
@@ -640,28 +560,5 @@ func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd
 }
 
 func applyRemoteMismatchPlans(cmd *cobra.Command, plans []remoteMismatchPlan, reg *registry.Registry, mode remoteMismatchReconcileMode) error {
-	if len(plans) == 0 {
-		return nil
-	}
-	switch mode {
-	case remoteMismatchReconcileRegistry:
-		for _, plan := range plans {
-			if plan.EntryIndex < 0 || plan.EntryIndex >= len(reg.Entries) {
-				continue
-			}
-			reg.Entries[plan.EntryIndex].RemoteURL = plan.RepoRemoteURL
-			reg.Entries[plan.EntryIndex].LastSeen = time.Now()
-		}
-	case remoteMismatchReconcileGit:
-		adapter := vcs.NewGitAdapter(nil)
-		for _, plan := range plans {
-			if strings.TrimSpace(plan.PrimaryRemote) == "" {
-				continue
-			}
-			if err := adapter.SetRemoteURL(cmd.Context(), plan.Path, plan.PrimaryRemote, plan.RegistryURL); err != nil {
-				return fmt.Errorf("git remote set-url %s %s (%s): %w", plan.PrimaryRemote, plan.RegistryURL, plan.Path, err)
-			}
-		}
-	}
-	return nil
+	return remotemismatch.ApplyPlans(cmd.Context(), plans, reg, mode, vcs.NewGitAdapter(nil), nil)
 }

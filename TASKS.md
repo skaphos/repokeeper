@@ -212,7 +212,7 @@
     - [x] repair_upstream.go
     - [x] status.go (remote mismatch git reconcile path)
     - [x] portability.go (import clone path)
-  - [ ] extract remote mismatch logic from status.go to dedicated package
+  - [x] extract remote mismatch logic from status.go to dedicated package
 - [ ] Flag/config consolidation:
   - [x] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions
   - [x] single source of truth for defaults (concurrency, timeout, main_branch) in Config.Defaults
