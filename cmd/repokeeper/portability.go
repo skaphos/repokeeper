@@ -145,7 +145,7 @@ var importCmd = &cobra.Command{
 			return err
 		}
 		if _, err := os.Stat(cfgPath); err == nil && !force {
-			return fmt.Errorf("config already exists at %s (use --force to overwrite)", cfgPath)
+			return fmt.Errorf("config already exists at %q (use --force to overwrite)", cfgPath)
 		}
 
 		cfg := bundle.Config
@@ -205,7 +205,7 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 			return err
 		}
 		if strings.HasPrefix(relToCWD, ".."+string(filepath.Separator)) || relToCWD == ".." {
-			return fmt.Errorf("refusing to clone outside current directory: %s", target)
+			return fmt.Errorf("refusing to clone outside current directory: %q", target)
 		}
 		if _, exists := targets[target]; exists {
 			return fmt.Errorf("multiple repos resolve to same target path %q", target)
@@ -245,10 +245,10 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 		}
 		if _, err := os.Stat(target); err == nil {
 			if !dangerouslyDeleteExisting {
-				return fmt.Errorf("target path already exists: %s (use --dangerously-delete-existing to replace)", target)
+				return fmt.Errorf("target path already exists: %q (use --dangerously-delete-existing to replace)", target)
 			}
 			if err := os.RemoveAll(target); err != nil {
-				return fmt.Errorf("failed to remove existing path %s: %w", target, err)
+				return fmt.Errorf("failed to remove existing path %q: %w", target, err)
 			}
 		} else if !os.IsNotExist(err) {
 			return err
@@ -263,7 +263,7 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 		}
 		cloneArgs = append(cloneArgs, strings.TrimSpace(entry.RemoteURL), target)
 		if err := adapter.Clone(cmd.Context(), strings.TrimSpace(entry.RemoteURL), target, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
-			return fmt.Errorf("git %s: %w", strings.Join(cloneArgs, " "), err)
+			return fmt.Errorf("git %q: %w", strings.Join(cloneArgs, " "), err)
 		}
 		entry.Path = target
 		entry.Status = registry.StatusPresent

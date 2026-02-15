@@ -38,7 +38,7 @@ var deleteCmd = &cobra.Command{
 		} else {
 			reg = cfg.Registry
 			if reg == nil {
-				return fmt.Errorf("registry not found in %s (run repokeeper scan first)", cfgPath)
+				return fmt.Errorf("registry not found in %q (run repokeeper scan first)", cfgPath)
 			}
 		}
 

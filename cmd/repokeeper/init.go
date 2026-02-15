@@ -29,7 +29,7 @@ var initCmd = &cobra.Command{
 			return err
 		}
 		if _, err := os.Stat(cfgPath); err == nil && !force {
-			return fmt.Errorf("config already exists at %s (use --force to overwrite)", cfgPath)
+			return fmt.Errorf("config already exists at %q (use --force to overwrite)", cfgPath)
 		}
 
 		cfg := config.DefaultConfig()

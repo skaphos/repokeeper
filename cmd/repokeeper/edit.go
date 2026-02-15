@@ -50,7 +50,7 @@ var editCmd = &cobra.Command{
 		} else {
 			reg = cfg.Registry
 			if reg == nil {
-				return fmt.Errorf("registry not found in %s (run repokeeper scan first)", cfgPath)
+				return fmt.Errorf("registry not found in %q (run repokeeper scan first)", cfgPath)
 			}
 		}
 
@@ -59,7 +59,7 @@ var editCmd = &cobra.Command{
 			return err
 		}
 		if entry.Status == registry.StatusMissing {
-			return fmt.Errorf("cannot set upstream for missing repository %q at %s", entry.RepoID, entry.Path)
+			return fmt.Errorf("cannot set upstream for missing repository %q at %q", entry.RepoID, entry.Path)
 		}
 
 		adapter := vcs.NewGitAdapter(nil)
@@ -72,7 +72,7 @@ var editCmd = &cobra.Command{
 		}
 
 		if err := adapter.SetUpstream(cmd.Context(), entry.Path, setUpstream, head.Branch); err != nil {
-			return fmt.Errorf("git branch --set-upstream-to %s %s: %w", setUpstream, head.Branch, err)
+			return fmt.Errorf("git branch --set-upstream-to %q %q: %w", setUpstream, head.Branch, err)
 		}
 
 		entry.Branch = trackingBranchFromUpstream(setUpstream)

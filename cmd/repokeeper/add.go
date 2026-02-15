@@ -63,7 +63,7 @@ var addCmd = &cobra.Command{
 		targetAbs = filepath.Clean(targetAbs)
 
 		if _, err := os.Stat(targetAbs); err == nil {
-			return fmt.Errorf("target path already exists: %s", targetAbs)
+			return fmt.Errorf("target path already exists: %q", targetAbs)
 		} else if !os.IsNotExist(err) {
 			return err
 		}
@@ -83,7 +83,7 @@ var addCmd = &cobra.Command{
 
 		adapter := vcs.NewGitAdapter(nil)
 		if err := adapter.Clone(cmd.Context(), rawURL, targetAbs, strings.TrimSpace(branch), mirror); err != nil {
-			return fmt.Errorf("git %s: %w", strings.Join(cloneArgs, " "), err)
+			return fmt.Errorf("git %q: %w", strings.Join(cloneArgs, " "), err)
 		}
 
 		remotes, err := adapter.Remotes(cmd.Context(), targetAbs)

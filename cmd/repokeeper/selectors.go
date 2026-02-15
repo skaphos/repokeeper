@@ -19,7 +19,7 @@ func resolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
 		return engine.FilterKind(onlyTrimmed), nil
 	}
 	if onlyTrimmed != string(engine.FilterAll) {
-		return "", fmt.Errorf("--field-selector cannot be combined with --only=%s", onlyTrimmed)
+		return "", fmt.Errorf("--field-selector cannot be combined with --only=%q", onlyTrimmed)
 	}
 	return parseFieldSelectorFilter(selectorTrimmed)
 }

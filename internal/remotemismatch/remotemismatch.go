@@ -119,7 +119,7 @@ func ApplyPlans(ctx context.Context, plans []Plan, reg *registry.Registry, mode 
 				continue
 			}
 			if err := adapter.SetRemoteURL(ctx, plan.Path, plan.PrimaryRemote, plan.RegistryURL); err != nil {
-				return fmt.Errorf("git remote set-url %s %s (%s): %w", plan.PrimaryRemote, plan.RegistryURL, plan.Path, err)
+				return fmt.Errorf("git remote set-url %q %q (%q): %w", plan.PrimaryRemote, plan.RegistryURL, plan.Path, err)
 			}
 		}
 	}

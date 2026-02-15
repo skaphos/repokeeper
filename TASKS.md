@@ -229,7 +229,7 @@
   - [x] replace deep parameter lists with options structs (e.g., `PullRebaseOptions`)
   - [x] create typed `OutcomeKind` enum for `SyncResult.Outcome`
 - [ ] Minor cleanup:
-  - [ ] standardize error message formatting (%q vs %s)
+  - [x] standardize error message formatting (%q vs %s)
   - [ ] remove unused local variables flagged by linter
   - [ ] audit and clean up unused imports
 
