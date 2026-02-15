@@ -168,18 +168,37 @@
 - [ ] Output remains deterministic across width classes for automation-safe parsing in machine formats
 - [ ] Milestone 6 remains free of terminal reflow scope
 
-### Milestone 9 — Multi-VCS adapters (stretch)
+### Milestone 8 — Multi-VCS Adapters & Feedback Loop
 
 - [x] Add VCS adapter abstraction (Git-first, but extensible)
 - [ ] Mercurial (hg) adapter: discovery, status, safe sync (pull --update? define safety)
 - [ ] Bazaar (bzr) adapter: discovery, status, safe sync
 - [ ] CLI flags to select VCS types (e.g., `--vcs git,hg,bzr`)
 - [ ] Update docs + compatibility matrix per VCS tool versions
+- [ ] Gather user feedback from milestone 6/7 usage and prioritize improvements
+- [ ] Implement highest-impact UX and automation improvements from feedback
+- [ ] Re-run docs/help cleanup after feedback-driven changes
 
 **Acceptance:**
 
 - [ ] Git remains default; Hg/Bzr optional and clearly documented as experimental
 - [ ] Adapter selection works without regressions to Git behavior
+- [ ] Feedback items are captured, triaged, and reflected in shipped improvements
+
+### Milestone 9 — 1.0 Readiness & Release Reset
+
+- [ ] Keep release line on `0.x` until milestone 7 and milestone 8 completion criteria are met
+- [ ] Define and publish a 1.0 readiness gate (CLI surface freeze, output contract freeze, docs freeze, compatibility matrix)
+- [ ] Archive or remove pre-1.0 GitHub releases/tags to reset public release history
+- [ ] Confirm post-reset versioning strategy (for example restart at `v0.1.0` or begin prerelease series)
+- [ ] Add migration notes for users once post-milestone-8 releases begin
+- [ ] Cut first post-reset release only after milestone 7 and milestone 8 acceptance criteria are met
+
+**Acceptance:**
+
+- [ ] Release history and versioning policy are explicit and consistent with pre-1.0 status
+- [ ] No `1.0.0` tag is created until readiness gate is complete
+- [ ] Post-reset release process is documented and repeatable
 
 ---
 
