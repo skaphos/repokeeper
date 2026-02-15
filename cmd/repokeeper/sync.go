@@ -20,8 +20,6 @@ import (
 var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Run safe fetch/prune on registered repositories",
-	// @todo(milestone6): keep as compatibility alias once `reconcile repos` lands;
-	// consolidate shared table/json rendering with get/reconcile command group.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		debugf(cmd, "starting sync")
 		cwd, err := os.Getwd()
@@ -215,7 +213,6 @@ func init() {
 	syncCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 
-	rootCmd.AddCommand(syncCmd)
 }
 
 func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roots []string) {

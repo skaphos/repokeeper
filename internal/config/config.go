@@ -42,7 +42,6 @@ type Config struct {
 	Registry          *registry.Registry `yaml:"registry,omitempty"`
 	RegistryStaleDays int                `yaml:"registry_stale_days"`
 	Defaults          Defaults           `yaml:"defaults"`
-	LegacyRoots       []string           `yaml:"-"`
 }
 
 // DefaultConfig returns a Config with sensible defaults applied.
@@ -183,14 +182,6 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
-	type legacyRoots struct {
-		Roots []string `yaml:"roots"`
-	}
-	var legacy legacyRoots
-	if err := yaml.Unmarshal(data, &legacy); err != nil {
-		return nil, err
-	}
-	cfg.LegacyRoots = legacy.Roots
 	loadGVKState(&cfg, data)
 	if err := validateLoadedConfigGVK(&cfg); err != nil {
 		return nil, err
@@ -243,23 +234,7 @@ func ConfigRoot(configPath string) string {
 // EffectiveRoot returns the inferred root for commands that need a default
 // scan/display root.
 func EffectiveRoot(configPath string, cfg *Config) string {
-	// TODO(v1.0.0): remove legacy roots fallback once configs have migrated.
-	if cfg != nil {
-		for _, root := range cfg.LegacyRoots {
-			root = strings.TrimSpace(root)
-			if root == "" {
-				continue
-			}
-			if filepath.IsAbs(root) {
-				return filepath.Clean(root)
-			}
-			base := ConfigRoot(configPath)
-			if base == "" {
-				return filepath.Clean(root)
-			}
-			return filepath.Clean(filepath.Join(base, root))
-		}
-	}
+	_ = cfg
 	return ConfigRoot(configPath)
 }
 

@@ -168,10 +168,9 @@ var _ = Describe("Config", func() {
 		Expect(config.ConfigRoot(cfgPath)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace"))))
 	})
 
-	It("uses legacy roots as temporary effective root fallback", func() {
+	It("uses config directory as effective root", func() {
 		cfgPath := filepath.Join("/tmp", "workspace", ".repokeeper.yaml")
-		cfg := &config.Config{LegacyRoots: []string{"legacy/repos"}}
-		Expect(config.EffectiveRoot(cfgPath, cfg)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace", "legacy/repos"))))
+		Expect(config.EffectiveRoot(cfgPath, nil)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace"))))
 	})
 
 	It("returns an RFC3339 timestamp for last updated", func() {
