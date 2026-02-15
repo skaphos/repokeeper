@@ -193,14 +193,14 @@
   - [ ] log or propagate `tabwriter.Flush()` errors instead of discarding
   - [ ] consider structured error return for output failures
 - [ ] Concurrency safety:
-  - [ ] fix race condition: goroutines in `Status()` access `e.Registry` without synchronization (engine.go:158-201)
-  - [ ] copy registry entry data before passing to goroutines
+  - [x] fix race condition: goroutines in `Status()` access `e.Registry` without synchronization (engine.go:158-201)
+  - [x] copy registry entry data before passing to goroutines
   - [ ] address channel leak risk in `syncSequentialStopOnError()` on early return (engine.go:446-475)
   - [ ] add mutex or value-based updates for registry entry mutation during sync
 - [ ] Memory/performance:
-  - [ ] reduce unbounded channel buffer sizes from `len(entries)` to fixed cap (e.g., 100) in engine.go
+  - [x] reduce unbounded channel buffer sizes from `len(entries)` to fixed cap (e.g., 100) in engine.go
   - [ ] eliminate redundant `eng.Status()` call after sync for table/wide output (sync.go:145-163)
-  - [ ] remove duplicate sorting (status.go:133 duplicates engine.go:210)
+  - [x] remove duplicate sorting (status.go:133 duplicates engine.go:210)
 - [ ] Security hardening:
   - [ ] add validation for upstream format in edit.go (should match `remote/branch` pattern)
   - [ ] validate path normalization in `selectRegistryEntryForDescribe` stays within configured roots
@@ -232,7 +232,7 @@
 
 - [ ] No ignored I/O errors on stdout/stderr writes
 - [ ] `go test -race ./...` passes with no data races
-- [ ] Channel buffers capped at reasonable fixed size
+- [x] Channel buffers capped at reasonable fixed size
 - [ ] Engine fields are private with controlled access
 - [ ] All commands use Adapter interface instead of direct GitRunner
 - [ ] Flag definitions are DRY (single helper per common flag pattern)

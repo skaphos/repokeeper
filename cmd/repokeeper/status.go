@@ -13,7 +13,6 @@ import (
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
@@ -129,8 +128,6 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// Sort once here so both table and JSON output stay predictable.
-		sortutil.SortRepoStatuses(report.Repos)
 		plans := buildRemoteMismatchPlans(report.Repos, reg, adapter, reconcileMode)
 		if len(plans) > 0 {
 			writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone)
@@ -169,7 +166,6 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			sortutil.SortRepoStatuses(report.Repos)
 		}
 
 		switch strings.ToLower(format) {
