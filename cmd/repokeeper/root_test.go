@@ -76,3 +76,52 @@ func TestShouldUseColorOutput(t *testing.T) {
 		t.Fatal("expected --no-color to disable color output")
 	}
 }
+
+func TestSetColorOutputMode(t *testing.T) {
+	prevNoColor := flagNoColor
+	prevTTY := isTerminalFD
+	prevColor := colorOutputEnabled
+	defer func() {
+		flagNoColor = prevNoColor
+		isTerminalFD = prevTTY
+		colorOutputEnabled = prevColor
+	}()
+
+	tmp, err := os.CreateTemp("", "repokeeper-color-mode-*")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+	}()
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(tmp)
+
+	flagNoColor = false
+	isTerminalFD = func(_ int) bool { return true }
+	setColorOutputMode(cmd, "table")
+	if !colorOutputEnabled {
+		t.Fatal("expected color output mode to be enabled")
+	}
+
+	setColorOutputMode(cmd, "json")
+	if colorOutputEnabled {
+		t.Fatal("expected color output mode to be disabled for json")
+	}
+}
+
+func TestExecuteWithExitCode(t *testing.T) {
+	defer rootCmd.SetArgs(nil)
+
+	rootCmd.SetArgs([]string{"version"})
+	if code := ExecuteWithExitCode(); code != 0 {
+		t.Fatalf("expected success exit code, got %d", code)
+	}
+
+	rootCmd.SetArgs([]string{"this-command-does-not-exist"})
+	if code := ExecuteWithExitCode(); code != 3 {
+		t.Fatalf("expected fatal exit code for command error, got %d", code)
+	}
+}

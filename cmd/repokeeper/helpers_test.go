@@ -373,6 +373,57 @@ func TestSyncPlanNeedsConfirmation(t *testing.T) {
 	}
 }
 
+func TestWriteStatusDetailsAndHelpers(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	ahead := 2
+	behind := 1
+	repo := model.RepoStatus{
+		RepoID: "github.com/org/repo",
+		Path:   "/tmp/work/repo",
+		Head: model.Head{
+			Branch:   "main",
+			Detached: true,
+		},
+		Tracking: model.Tracking{
+			Status:   model.TrackingEqual,
+			Upstream: "origin/main",
+			Ahead:    &ahead,
+			Behind:   &behind,
+		},
+		Worktree:   &model.Worktree{Dirty: true},
+		Error:      "boom",
+		ErrorClass: "network",
+	}
+	writeStatusDetails(cmd, repo, "/tmp", nil)
+
+	got := out.String()
+	if !strings.Contains(got, "PATH: work/repo") {
+		t.Fatalf("expected relative path in details, got: %q", got)
+	}
+	if !strings.Contains(got, "BRANCH: detached:main") {
+		t.Fatalf("expected detached branch in details, got: %q", got)
+	}
+	if !strings.Contains(got, "TRACKING: up to date") {
+		t.Fatalf("expected tracking label in details, got: %q", got)
+	}
+	if !strings.Contains(got, "ERROR_CLASS: network") || !strings.Contains(got, "ERROR: boom") {
+		t.Fatalf("expected error details in output, got: %q", got)
+	}
+
+	if got := displayTrackingStatusNoColor(model.TrackingGone); got != string(model.TrackingGone) {
+		t.Fatalf("expected raw non-equal tracking status, got %q", got)
+	}
+	if _, ok := relWithin("", "/tmp/path"); ok {
+		t.Fatal("expected relWithin to fail with blank base")
+	}
+	if _, ok := relWithin("/tmp/base", ""); ok {
+		t.Fatal("expected relWithin to fail with blank target")
+	}
+}
+
 func TestWriteSyncFailureSummary(t *testing.T) {
 	cmd := &cobra.Command{}
 	errOut := &bytes.Buffer{}
