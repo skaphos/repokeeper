@@ -245,6 +245,142 @@ type SyncResult struct {
 	Action     string
 }
 
+// ExecuteSyncPlan executes a previously computed dry-run sync plan.
+// It avoids re-inspecting repo state so sync can analyze once and then apply.
+func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts SyncOptions) ([]SyncResult, error) {
+	if e.Adapter == nil {
+		e.Adapter = vcs.NewGitAdapter(nil)
+	}
+	if e.Registry == nil {
+		return nil, errors.New("registry not loaded")
+	}
+
+	results := make([]SyncResult, 0, len(plan))
+	for _, item := range plan {
+		// Non-dry-run execution only applies actions that were explicitly planned.
+		if item.Error != "dry-run" {
+			results = append(results, item)
+			if !item.OK && !opts.ContinueOnError {
+				break
+			}
+			continue
+		}
+
+		executed := item
+		executed.Error = ""
+		executed.ErrorClass = ""
+
+		action := strings.ToLower(strings.TrimSpace(item.Action))
+		if strings.Contains(action, "git clone") {
+			entry := findRegistryEntryForSyncResult(e.Registry, item)
+			if entry == nil {
+				executed.OK = false
+				executed.Outcome = "failed_invalid"
+				executed.Error = "registry entry not found for planned clone"
+				executed.ErrorClass = "invalid"
+			} else if err := e.Adapter.Clone(ctx, strings.TrimSpace(entry.RemoteURL), entry.Path, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
+				executed.OK = false
+				executed.Outcome = "failed_checkout_missing"
+				executed.Error = err.Error()
+				executed.ErrorClass = gitx.ClassifyError(err)
+			} else {
+				executed.OK = true
+				executed.Outcome = "checkout_missing"
+				entry.Status = registry.StatusPresent
+				entry.LastSeen = time.Now()
+				e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, *entry)
+			}
+			results = append(results, executed)
+			if !executed.OK && !opts.ContinueOnError {
+				break
+			}
+			continue
+		}
+
+		var stashed bool
+		if strings.Contains(action, "git fetch --all") {
+			if err := e.Adapter.Fetch(ctx, item.Path); err != nil {
+				executed.OK = false
+				executed.Outcome = "failed_fetch"
+				executed.Error = err.Error()
+				executed.ErrorClass = gitx.ClassifyError(err)
+				results = append(results, executed)
+				if !opts.ContinueOnError {
+					break
+				}
+				continue
+			}
+			executed.Outcome = "fetched"
+		}
+
+		if strings.Contains(action, "stash push") {
+			created, err := e.Adapter.StashPush(ctx, item.Path, "repokeeper: pre-rebase stash")
+			if err != nil {
+				executed.OK = false
+				executed.Outcome = "failed_stash"
+				executed.Error = err.Error()
+				executed.ErrorClass = gitx.ClassifyError(err)
+				results = append(results, executed)
+				if !opts.ContinueOnError {
+					break
+				}
+				continue
+			}
+			stashed = created
+		}
+
+		if strings.Contains(action, "pull --rebase") {
+			if err := e.Adapter.PullRebase(ctx, item.Path); err != nil {
+				executed.OK = false
+				executed.Outcome = "failed_rebase"
+				executed.Error = err.Error()
+				executed.ErrorClass = gitx.ClassifyError(err)
+				results = append(results, executed)
+				if !opts.ContinueOnError {
+					break
+				}
+				continue
+			}
+			executed.Outcome = outcomeForRebase(stashed)
+		}
+
+		if strings.Contains(action, "stash pop") && stashed {
+			if err := e.Adapter.StashPop(ctx, item.Path); err != nil {
+				executed.OK = false
+				executed.Outcome = "failed_stash_pop"
+				executed.Error = err.Error()
+				executed.ErrorClass = gitx.ClassifyError(err)
+				results = append(results, executed)
+				if !opts.ContinueOnError {
+					break
+				}
+				continue
+			}
+		}
+
+		if strings.Contains(action, "git push") {
+			if err := e.Adapter.Push(ctx, item.Path); err != nil {
+				executed.OK = false
+				executed.Outcome = "failed_push"
+				executed.Error = err.Error()
+				executed.ErrorClass = gitx.ClassifyError(err)
+				results = append(results, executed)
+				if !opts.ContinueOnError {
+					break
+				}
+				continue
+			}
+			executed.Outcome = "pushed"
+		}
+
+		executed.OK = true
+		results = append(results, executed)
+	}
+
+	sortSyncResults(results)
+	return results, nil
+}
+
 // Sync runs fetch/prune on repos matching the filter.
 func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, error) {
 	if e.Adapter == nil {
@@ -861,4 +997,21 @@ func replaceRegistryEntry(entries []registry.Entry, updated registry.Entry) []re
 		}
 	}
 	return entries
+}
+
+func findRegistryEntryForSyncResult(reg *registry.Registry, item SyncResult) *registry.Entry {
+	if reg == nil {
+		return nil
+	}
+	for i := range reg.Entries {
+		if reg.Entries[i].RepoID == item.RepoID && reg.Entries[i].Path == item.Path {
+			return &reg.Entries[i]
+		}
+	}
+	for i := range reg.Entries {
+		if reg.Entries[i].RepoID == item.RepoID {
+			return &reg.Entries[i]
+		}
+	}
+	return nil
 }

@@ -116,19 +116,8 @@ var syncCmd = &cobra.Command{
 
 		results := plan
 		if !dryRun {
-			results, err = eng.Sync(cmd.Context(), engine.SyncOptions{
-				Filter:               filter,
-				Concurrency:          concurrency,
-				Timeout:              timeout,
-				ContinueOnError:      continueOnError,
-				DryRun:               false,
-				UpdateLocal:          updateLocal,
-				PushLocal:            pushLocal,
-				RebaseDirty:          rebaseDirty,
-				Force:                force,
-				ProtectedBranches:    splitCSV(protectedBranchesRaw),
-				AllowProtectedRebase: allowProtectedRebase,
-				CheckoutMissing:      checkoutMissing,
+			results, err = eng.ExecuteSyncPlan(cmd.Context(), plan, engine.SyncOptions{
+				ContinueOnError: continueOnError,
 			})
 			if err != nil {
 				return err

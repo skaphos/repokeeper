@@ -1,11 +1,63 @@
 package engine
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 )
+
+type planAdapter struct {
+	fetchErrByDir map[string]error
+	pushErrByDir  map[string]error
+	pullErrByDir  map[string]error
+	cloneErrByDir map[string]error
+	stashErrByDir map[string]error
+	popErrByDir   map[string]error
+	stashCreated  bool
+	calls         []string
+}
+
+func (p *planAdapter) Name() string { return "plan" }
+func (p *planAdapter) IsRepo(context.Context, string) (bool, error) { return true, nil }
+func (p *planAdapter) IsBare(context.Context, string) (bool, error) { return false, nil }
+func (p *planAdapter) Remotes(context.Context, string) ([]model.Remote, error) { return nil, nil }
+func (p *planAdapter) Head(context.Context, string) (model.Head, error) { return model.Head{}, nil }
+func (p *planAdapter) WorktreeStatus(context.Context, string) (*model.Worktree, error) {
+	return &model.Worktree{}, nil
+}
+func (p *planAdapter) TrackingStatus(context.Context, string) (model.Tracking, error) {
+	return model.Tracking{Status: model.TrackingNone}, nil
+}
+func (p *planAdapter) HasSubmodules(context.Context, string) (bool, error) { return false, nil }
+func (p *planAdapter) Fetch(_ context.Context, dir string) error {
+	p.calls = append(p.calls, "fetch:"+dir)
+	return p.fetchErrByDir[dir]
+}
+func (p *planAdapter) PullRebase(_ context.Context, dir string) error {
+	p.calls = append(p.calls, "pull:"+dir)
+	return p.pullErrByDir[dir]
+}
+func (p *planAdapter) Push(_ context.Context, dir string) error {
+	p.calls = append(p.calls, "push:"+dir)
+	return p.pushErrByDir[dir]
+}
+func (p *planAdapter) StashPush(_ context.Context, dir, _ string) (bool, error) {
+	p.calls = append(p.calls, "stash-push:"+dir)
+	return p.stashCreated, p.stashErrByDir[dir]
+}
+func (p *planAdapter) StashPop(_ context.Context, dir string) error {
+	p.calls = append(p.calls, "stash-pop:"+dir)
+	return p.popErrByDir[dir]
+}
+func (p *planAdapter) Clone(_ context.Context, _ string, targetPath, _ string, _ bool) error {
+	p.calls = append(p.calls, "clone:"+targetPath)
+	return p.cloneErrByDir[targetPath]
+}
+func (p *planAdapter) NormalizeURL(rawURL string) string      { return rawURL }
+func (p *planAdapter) PrimaryRemote(_ []string) string         { return "origin" }
 
 func TestPullRebaseSkipReasonTable(t *testing.T) {
 	tests := []struct {
@@ -251,5 +303,76 @@ func TestFilterStatusKindsAndSorts(t *testing.T) {
 	sortSyncResults(results)
 	if results[0].RepoID != "a" {
 		t.Fatalf("expected sync results sorted by repo id, got %#v", results)
+	}
+}
+
+func TestExecuteSyncPlanAppliesPlannedActions(t *testing.T) {
+	adapter := &planAdapter{
+		stashCreated: true,
+	}
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "clone", Path: "/repos/clone", RemoteURL: "git@github.com:org/clone.git", Branch: "main", Status: registry.StatusMissing},
+		},
+	}
+	eng := &Engine{Registry: reg, Adapter: adapter}
+	plan := []SyncResult{
+		{RepoID: "fetch", Path: "/repos/fetch", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "rebase", Path: "/repos/rebase", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop"},
+		{RepoID: "push", Path: "/repos/push", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git push"},
+		{RepoID: "clone", Path: "/repos/clone", OK: true, Error: "dry-run", Action: "git clone --branch main --single-branch git@github.com:org/clone.git /repos/clone"},
+		{RepoID: "skip", Path: "/repos/skip", OK: true, Error: "skipped-no-upstream"},
+	}
+	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
+	if err != nil {
+		t.Fatalf("execute sync plan: %v", err)
+	}
+	if len(results) != len(plan) {
+		t.Fatalf("expected %d results, got %d", len(plan), len(results))
+	}
+	outcome := map[string]string{}
+	for _, res := range results {
+		outcome[res.RepoID] = res.Outcome
+	}
+	if outcome["fetch"] != "fetched" {
+		t.Fatalf("expected fetched outcome, got %q", outcome["fetch"])
+	}
+	if outcome["rebase"] != "stashed_rebased" {
+		t.Fatalf("expected stashed_rebased outcome, got %q", outcome["rebase"])
+	}
+	if outcome["push"] != "pushed" {
+		t.Fatalf("expected pushed outcome, got %q", outcome["push"])
+	}
+	if outcome["clone"] != "checkout_missing" {
+		t.Fatalf("expected checkout_missing outcome, got %q", outcome["clone"])
+	}
+	if reg.Entries[0].Status != registry.StatusPresent {
+		t.Fatalf("expected clone entry to be marked present, got %q", reg.Entries[0].Status)
+	}
+}
+
+func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
+	adapter := &planAdapter{
+		fetchErrByDir: map[string]error{
+			"/repos/a": errors.New("network down"),
+		},
+	}
+	eng := &Engine{
+		Registry: &registry.Registry{},
+		Adapter:  adapter,
+	}
+	plan := []SyncResult{
+		{RepoID: "a", Path: "/repos/a", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "b", Path: "/repos/b", OK: true, Error: "dry-run", Action: "git push"},
+	}
+	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected execution to stop after first failure, got %d results", len(results))
+	}
+	if results[0].OK || results[0].Outcome != "failed_fetch" {
+		t.Fatalf("expected failed_fetch result, got %#v", results[0])
 	}
 }
