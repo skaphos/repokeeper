@@ -182,7 +182,7 @@ func init() {
 	syncCmd.Flags().Bool("push-local", false, "when used with --update-local, push branches that are ahead of upstream")
 	syncCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
 	syncCmd.Flags().Bool("force", false, "when used with --update-local, allow rebase even when branch tracking state is diverged")
-	syncCmd.Flags().String("protected-branches", "main,master,release/*", "comma-separated branch patterns to protect from auto-rebase during --update-local")
+	syncCmd.Flags().String("protected-branches", "", "comma-separated branch patterns to protect from auto-rebase during --update-local (default: none)")
 	syncCmd.Flags().Bool("allow-protected-rebase", false, "when used with --update-local, allow rebase on branches matched by --protected-branches")
 	syncCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
 	addFormatFlag(syncCmd, "output format: table, wide, or json")

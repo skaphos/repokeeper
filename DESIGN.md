@@ -213,7 +213,7 @@ Flags:
 * `--push-local` (optional; when branch is ahead, run `git push` instead of skipping)
 * `--rebase-dirty` (optional; stash, rebase, then pop for dirty worktrees)
 * `--force` (optional; allow rebase when branch is diverged)
-* `--protected-branches` (default `main,master,release/*`; block auto-rebase on matching branches)
+* `--protected-branches` (default none; block auto-rebase on matching branches)
 * `--allow-protected-rebase` (optional; override protected branch safeguard)
 * `--checkout-missing` (optional; clone repos marked missing from registry metadata)
 * `-o, --format table|wide|json`

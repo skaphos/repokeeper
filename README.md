@@ -194,7 +194,7 @@ Optional local checkout update:
 - branch tracks `*/main`
 - branch is not ahead
 - branch is not diverged unless `--force` is set
-- branch is not matched by `--protected-branches` (default: `main,master,release/*`) unless `--allow-protected-rebase` is set
+- branch is not matched by `--protected-branches` (default: none) unless `--allow-protected-rebase` is set
 - `--rebase-dirty` stashes changes, rebases, then pops the stash
 - `--push-local` pushes local commits when a branch is ahead (instead of skipping with "local commits to push")
 - `--continue-on-error` keeps processing all repos after per-repo failures (default true)
