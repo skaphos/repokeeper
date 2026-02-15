@@ -153,9 +153,9 @@
   - [x] define `ErrAuth`, `ErrNetwork`, `ErrCorrupt`, `ErrMissingRemote` typed errors
   - [x] update `ClassifyError` to use `errors.Is`/`errors.As` instead of string matching
 - [ ] Engine method decomposition:
-  - [ ] break `Sync()` method (~400 lines) into smaller focused functions
-  - [ ] extract dry-run planning, execution, and result collection into separate methods
-  - [ ] reduce goroutine body complexity (currently handles 8+ distinct code paths)
+  - [x] break `Sync()` method (~400 lines) into smaller focused functions
+  - [x] extract dry-run planning, execution, and result collection into separate methods
+  - [x] reduce goroutine body complexity (currently handles 8+ distinct code paths)
 - [ ] Eliminate repeated nil-guard pattern:
   - [x] initialize `Adapter` in `engine.New()` constructor with sensible default
   - [x] remove redundant `if e.Adapter == nil` checks from `Scan`, `Status`, `Sync`, `InspectRepo`

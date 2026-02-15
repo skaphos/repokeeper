@@ -390,6 +390,41 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		return nil, errors.New("registry not loaded")
 	}
 
+	concurrency, timeoutSeconds, mainBranch := e.syncRuntime(opts)
+	entries := e.Registry.Entries
+	if !opts.ContinueOnError {
+		return e.syncSequentialStopOnError(ctx, opts, entries)
+	}
+
+	sem := make(chan struct{}, concurrency)
+	out := make(chan SyncResult, len(entries))
+	spawned := 0
+	results := make([]SyncResult, 0, len(entries))
+
+	for _, entry := range entries {
+		queue, immediate := e.prepareSyncEntry(ctx, entry, opts)
+		if immediate != nil {
+			results = append(results, *immediate)
+		}
+		if !queue {
+			continue
+		}
+		sem <- struct{}{}
+		spawned++
+		go func() {
+			defer func() { <-sem }()
+			out <- e.runSyncEntry(ctx, entry, opts, timeoutSeconds, mainBranch)
+		}()
+	}
+
+	for i := 0; i < spawned; i++ {
+		results = append(results, <-out)
+	}
+	sortSyncResults(results)
+	return results, nil
+}
+
+func (e *Engine) syncRuntime(opts SyncOptions) (int, int, string) {
 	concurrency := opts.Concurrency
 	if concurrency <= 0 {
 		concurrency = e.Config.Defaults.Concurrency
@@ -401,382 +436,350 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = e.Config.Defaults.TimeoutSeconds
 	}
-
-	type result struct {
-		res SyncResult
-		err error
-	}
-
-	entries := e.Registry.Entries
 	mainBranch := "main"
 	if e.Config != nil && strings.TrimSpace(e.Config.Defaults.MainBranch) != "" {
 		mainBranch = strings.TrimSpace(e.Config.Defaults.MainBranch)
 	}
-	if !opts.ContinueOnError {
-		// Preserve deterministic "stop on first failure" semantics by running one
-		// entry at a time through the same Sync logic used for batch mode.
-		results := make([]SyncResult, 0, len(entries))
-		for _, entry := range entries {
-			subReg := &registry.Registry{Entries: []registry.Entry{entry}}
-			sub := &Engine{
-				Config:   e.Config,
-				Registry: subReg,
-				Adapter:  e.Adapter,
-			}
-			subOpts := opts
-			subOpts.ContinueOnError = true
-			subOpts.Concurrency = 1
-			subResults, err := sub.Sync(ctx, subOpts)
-			if err != nil {
-				return results, err
-			}
-			results = append(results, subResults...)
-			for _, updated := range subReg.Entries {
-				e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, updated)
-			}
-			if len(subResults) > 0 && !subResults[len(subResults)-1].OK {
-				sortSyncResults(results)
-				return results, nil
-			}
-		}
-		sortSyncResults(results)
-		return results, nil
-	}
+	return concurrency, timeoutSeconds, mainBranch
+}
 
-	sem := make(chan struct{}, concurrency)
-	out := make(chan result, len(entries))
-	spawned := 0
+func (e *Engine) syncSequentialStopOnError(ctx context.Context, opts SyncOptions, entries []registry.Entry) ([]SyncResult, error) {
+	// Preserve deterministic "stop on first failure" semantics by running one
+	// entry at a time through the same Sync logic used for batch mode.
 	results := make([]SyncResult, 0, len(entries))
-
 	for _, entry := range entries {
-		if opts.Filter == FilterMissing && entry.Status != registry.StatusMissing {
-			continue
+		subReg := &registry.Registry{Entries: []registry.Entry{entry}}
+		sub := &Engine{
+			Config:   e.Config,
+			Registry: subReg,
+			Adapter:  e.Adapter,
 		}
-		if entry.Status == registry.StatusMissing {
-			if !opts.CheckoutMissing {
-				results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped_missing", OK: false, Error: SyncErrorMissing})
-				continue
-			}
-			// Missing entries are recoverable only when we have enough material to
-			// perform a fresh clone into the recorded path.
-			remoteURL := strings.TrimSpace(entry.RemoteURL)
-			if remoteURL == "" {
-				results = append(results, SyncResult{
-					RepoID:     entry.RepoID,
-					Path:       entry.Path,
-					Outcome:    "failed_invalid",
-					OK:         false,
-					Error:      SyncErrorMissingRemoteForCheckout,
-					ErrorClass: "invalid",
-				})
-				continue
-			}
-			mirror := entry.Type == "mirror"
-			branch := strings.TrimSpace(entry.Branch)
-			action := "git clone"
-			if mirror {
-				action += " --mirror"
-			} else if branch != "" {
-				action += " --branch " + branch + " --single-branch"
-			}
-			action += " " + remoteURL + " " + entry.Path
-			if opts.DryRun {
-				// Dry-run reports the exact git action string that a live run would execute.
-				results = append(results, SyncResult{
-					RepoID:  entry.RepoID,
-					Path:    entry.Path,
-					Outcome: "planned_checkout_missing",
-					OK:      true,
-					Error:   SyncErrorDryRun,
-					Action:  action,
-				})
-				continue
-			}
-			if err := e.Adapter.Clone(ctx, remoteURL, entry.Path, branch, mirror); err != nil {
-				results = append(results, SyncResult{
-					RepoID:     entry.RepoID,
-					Path:       entry.Path,
-					Outcome:    "failed_checkout_missing",
-					OK:         false,
-					Error:      err.Error(),
-					ErrorClass: gitx.ClassifyError(err),
-					Action:     action,
-				})
-				continue
-			}
-			entry.Status = registry.StatusPresent
-			entry.LastSeen = time.Now()
-			e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, entry)
-			results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "checkout_missing", OK: true, Action: action})
-			continue
+		subOpts := opts
+		subOpts.ContinueOnError = true
+		subOpts.Concurrency = 1
+		subResults, err := sub.Sync(ctx, subOpts)
+		if err != nil {
+			return results, err
 		}
-		if opts.Filter == FilterGone && entry.Status != registry.StatusPresent {
-			continue
+		results = append(results, subResults...)
+		for _, updated := range subReg.Entries {
+			e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, updated)
 		}
-		if opts.Filter == FilterDirty || opts.Filter == FilterClean || opts.Filter == FilterGone || opts.Filter == FilterDiverged || opts.Filter == FilterRemoteMismatch {
-			status, err := e.InspectRepo(ctx, entry.Path)
-			if err != nil {
-				results = append(results, SyncResult{
-					RepoID:     entry.RepoID,
-					Path:       entry.Path,
-					Outcome:    "failed_inspect",
-					OK:         false,
-					Error:      err.Error(),
-					ErrorClass: gitx.ClassifyError(err),
-				})
-				continue
-			}
-			if opts.Filter == FilterDirty && (status.Worktree == nil || !status.Worktree.Dirty) {
-				continue
-			}
-			if opts.Filter == FilterClean && status.Worktree != nil && status.Worktree.Dirty {
-				continue
-			}
-			if opts.Filter == FilterGone && status.Tracking.Status != model.TrackingGone {
-				continue
-			}
-			if opts.Filter == FilterDiverged && status.Tracking.Status != model.TrackingDiverged {
-				continue
-			}
-			if opts.Filter == FilterRemoteMismatch && !hasRemoteMismatch(*status, entry) {
-				continue
-			}
+		if len(subResults) > 0 && !subResults[len(subResults)-1].OK {
+			sortSyncResults(results)
+			return results, nil
 		}
-		if strings.TrimSpace(entry.RemoteURL) == "" {
-			results = append(results, SyncResult{
-				RepoID:     entry.RepoID,
-				Path:       entry.Path,
-				Outcome:    "skipped_no_upstream",
-				OK:         true,
-				ErrorClass: "skipped",
-				Error:      SyncErrorSkippedNoUpstream,
-			})
-			continue
-		}
-		sem <- struct{}{}
-		spawned++
-		go func() {
-			defer func() { <-sem }()
-			repoCtx := ctx
-			if timeoutSeconds > 0 {
-				var cancel context.CancelFunc
-				repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-				defer cancel()
-			}
-			if opts.DryRun {
-				action := "git fetch --all --prune --prune-tags --no-recurse-submodules"
-				if opts.UpdateLocal {
-					// We still inspect during dry-run so skip reasons and planned actions
-					// match live execution as closely as possible.
-					status, err := e.InspectRepo(repoCtx, entry.Path)
-					if err != nil {
-						out <- result{res: SyncResult{
-							RepoID:     entry.RepoID,
-							Path:       entry.Path,
-							Outcome:    "failed_inspect",
-							OK:         false,
-							Error:      err.Error(),
-							ErrorClass: gitx.ClassifyError(err),
-						}}
-						return
-					}
-					if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
-						action += " && git push"
-						out <- result{res: SyncResult{
-							RepoID:  entry.RepoID,
-							Path:    entry.Path,
-							Outcome: "planned_push",
-							OK:      true,
-							Error:   SyncErrorDryRun,
-							Action:  action,
-						}}
-						return
-					}
-					if reason := pullRebaseSkipReason(
-						status,
-						mainBranch,
-						opts.RebaseDirty,
-						opts.Force,
-						opts.ProtectedBranches,
-						opts.AllowProtectedRebase,
-					); reason != "" {
-						out <- result{res: SyncResult{
-							RepoID:     entry.RepoID,
-							Path:       entry.Path,
-							Outcome:    "skipped_local_update",
-							OK:         true,
-							ErrorClass: "skipped",
-							Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
-							Action:     action,
-						}}
-						return
-					}
-					action += " && git pull --rebase --no-recurse-submodules"
-				}
-				out <- result{res: SyncResult{
-					RepoID:  entry.RepoID,
-					Path:    entry.Path,
-					Outcome: "planned_fetch",
-					OK:      true,
-					Error:   SyncErrorDryRun,
-					Action:  action,
-				}}
-				return
-			}
-			if opts.Filter == FilterGone {
-				status, err := e.InspectRepo(repoCtx, entry.Path)
-				if err != nil {
-					out <- result{res: SyncResult{
-						RepoID:     entry.RepoID,
-						Path:       entry.Path,
-						Outcome:    "failed_inspect",
-						OK:         false,
-						Error:      err.Error(),
-						ErrorClass: gitx.ClassifyError(err),
-					}}
-					return
-				}
-				if status.Tracking.Status != model.TrackingGone {
-					out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped", OK: true, Error: SyncErrorSkipped}}
-					return
-				}
-			}
-			err := e.Adapter.Fetch(repoCtx, entry.Path)
-			if err != nil {
-				out <- result{res: SyncResult{
-					RepoID:     entry.RepoID,
-					Path:       entry.Path,
-					Outcome:    "failed_fetch",
-					OK:         false,
-					Error:      err.Error(),
-					ErrorClass: gitx.ClassifyError(err),
-				}}
-				return
-			}
-
-			if opts.UpdateLocal {
-				status, err := e.InspectRepo(repoCtx, entry.Path)
-				if err != nil {
-					out <- result{res: SyncResult{
-						RepoID:     entry.RepoID,
-						Path:       entry.Path,
-						Outcome:    "failed_inspect",
-						OK:         false,
-						Error:      err.Error(),
-						ErrorClass: gitx.ClassifyError(err),
-					}}
-					return
-				}
-				if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
-					if err := e.Adapter.Push(repoCtx, entry.Path); err != nil {
-						out <- result{res: SyncResult{
-							RepoID:     entry.RepoID,
-							Path:       entry.Path,
-							Outcome:    "failed_push",
-							OK:         false,
-							Error:      err.Error(),
-							ErrorClass: gitx.ClassifyError(err),
-							Action:     "git push",
-						}}
-						return
-					}
-					out <- result{res: SyncResult{
-						RepoID:  entry.RepoID,
-						Path:    entry.Path,
-						Outcome: "pushed",
-						OK:      true,
-						Action:  "git push",
-					}}
-					return
-				}
-				if reason := pullRebaseSkipReason(
-					status,
-					mainBranch,
-					opts.RebaseDirty,
-					opts.Force,
-					opts.ProtectedBranches,
-					opts.AllowProtectedRebase,
-				); reason != "" {
-					out <- result{res: SyncResult{
-						RepoID:     entry.RepoID,
-						Path:       entry.Path,
-						Outcome:    "skipped_local_update",
-						OK:         true,
-						ErrorClass: "skipped",
-						Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
-					}}
-					return
-				}
-				action := "git pull --rebase --no-recurse-submodules"
-				stashed := false
-				if opts.RebaseDirty && status.Worktree != nil && status.Worktree.Dirty {
-					// Stash only when needed so we do not create unnecessary stash entries.
-					stashed, err = e.Adapter.StashPush(repoCtx, entry.Path, "repokeeper: pre-rebase stash")
-					if err != nil {
-						out <- result{res: SyncResult{
-							RepoID:     entry.RepoID,
-							Path:       entry.Path,
-							Outcome:    "failed_stash",
-							OK:         false,
-							Error:      err.Error(),
-							ErrorClass: gitx.ClassifyError(err),
-							Action:     "git stash push -u -m \"repokeeper: pre-rebase stash\"",
-						}}
-						return
-					}
-					if stashed {
-						action = "git stash push -u -m \"repokeeper: pre-rebase stash\" && " + action
-					}
-				}
-				if err := e.Adapter.PullRebase(repoCtx, entry.Path); err != nil {
-					out <- result{res: SyncResult{
-						RepoID:     entry.RepoID,
-						Path:       entry.Path,
-						Outcome:    "failed_rebase",
-						OK:         false,
-						Error:      err.Error(),
-						ErrorClass: gitx.ClassifyError(err),
-						Action:     action,
-					}}
-					return
-				}
-				if stashed {
-					if err := e.Adapter.StashPop(repoCtx, entry.Path); err != nil {
-						out <- result{res: SyncResult{
-							RepoID:     entry.RepoID,
-							Path:       entry.Path,
-							Outcome:    "failed_stash_pop",
-							OK:         false,
-							Error:      err.Error(),
-							ErrorClass: gitx.ClassifyError(err),
-							Action:     action + " && git stash pop",
-						}}
-						return
-					}
-					action += " && git stash pop"
-				}
-				out <- result{res: SyncResult{
-					RepoID:  entry.RepoID,
-					Path:    entry.Path,
-					Outcome: outcomeForRebase(stashed),
-					OK:      true,
-					Action:  action,
-				}}
-				return
-			}
-			out <- result{res: SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "fetched", OK: true}}
-		}()
-	}
-
-	for i := 0; i < spawned; i++ {
-		res := <-out
-		if res.err != nil {
-			return nil, res.err
-		}
-		results = append(results, res.res)
 	}
 	sortSyncResults(results)
 	return results, nil
+}
+
+func (e *Engine) prepareSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions) (bool, *SyncResult) {
+	if opts.Filter == FilterMissing && entry.Status != registry.StatusMissing {
+		return false, nil
+	}
+	if entry.Status == registry.StatusMissing {
+		res := e.handleMissingSyncEntry(ctx, entry, opts)
+		return false, &res
+	}
+	if opts.Filter == FilterGone && entry.Status != registry.StatusPresent {
+		return false, nil
+	}
+	matches, inspectFailure := e.syncEntryMatchesInspectFilter(ctx, entry, opts)
+	if inspectFailure != nil {
+		return false, inspectFailure
+	}
+	if !matches {
+		return false, nil
+	}
+	if strings.TrimSpace(entry.RemoteURL) == "" {
+		res := SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    "skipped_no_upstream",
+			OK:         true,
+			ErrorClass: "skipped",
+			Error:      SyncErrorSkippedNoUpstream,
+		}
+		return false, &res
+	}
+	return true, nil
+}
+
+func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry registry.Entry, opts SyncOptions) (bool, *SyncResult) {
+	if opts.Filter != FilterDirty && opts.Filter != FilterClean && opts.Filter != FilterGone && opts.Filter != FilterDiverged && opts.Filter != FilterRemoteMismatch {
+		return true, nil
+	}
+	status, err := e.InspectRepo(ctx, entry.Path)
+	if err != nil {
+		failure := inspectFailureResult(entry, err)
+		return false, &failure
+	}
+	switch opts.Filter {
+	case FilterDirty:
+		return status.Worktree != nil && status.Worktree.Dirty, nil
+	case FilterClean:
+		return status.Worktree == nil || !status.Worktree.Dirty, nil
+	case FilterGone:
+		return status.Tracking.Status == model.TrackingGone, nil
+	case FilterDiverged:
+		return status.Tracking.Status == model.TrackingDiverged, nil
+	case FilterRemoteMismatch:
+		return hasRemoteMismatch(*status, entry), nil
+	default:
+		return true, nil
+	}
+}
+
+func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions) SyncResult {
+	if !opts.CheckoutMissing {
+		return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped_missing", OK: false, Error: SyncErrorMissing}
+	}
+	// Missing entries are recoverable only when we have enough material to
+	// perform a fresh clone into the recorded path.
+	remoteURL := strings.TrimSpace(entry.RemoteURL)
+	if remoteURL == "" {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    "failed_invalid",
+			OK:         false,
+			Error:      SyncErrorMissingRemoteForCheckout,
+			ErrorClass: "invalid",
+		}
+	}
+	mirror := entry.Type == "mirror"
+	branch := strings.TrimSpace(entry.Branch)
+	action := "git clone"
+	if mirror {
+		action += " --mirror"
+	} else if branch != "" {
+		action += " --branch " + branch + " --single-branch"
+	}
+	action += " " + remoteURL + " " + entry.Path
+	if opts.DryRun {
+		// Dry-run reports the exact git action string that a live run would execute.
+		return SyncResult{
+			RepoID:  entry.RepoID,
+			Path:    entry.Path,
+			Outcome: "planned_checkout_missing",
+			OK:      true,
+			Error:   SyncErrorDryRun,
+			Action:  action,
+		}
+	}
+	if err := e.Adapter.Clone(ctx, remoteURL, entry.Path, branch, mirror); err != nil {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    "failed_checkout_missing",
+			OK:         false,
+			Error:      err.Error(),
+			ErrorClass: gitx.ClassifyError(err),
+			Action:     action,
+		}
+	}
+	entry.Status = registry.StatusPresent
+	entry.LastSeen = time.Now()
+	e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, entry)
+	return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "checkout_missing", OK: true, Action: action}
+}
+
+func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions, timeoutSeconds int, mainBranch string) SyncResult {
+	repoCtx := ctx
+	if timeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+		defer cancel()
+	}
+	if opts.DryRun {
+		return e.runSyncDryRun(repoCtx, entry, opts, mainBranch)
+	}
+	return e.runSyncApply(repoCtx, entry, opts, mainBranch)
+}
+
+func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts SyncOptions, mainBranch string) SyncResult {
+	action := "git fetch --all --prune --prune-tags --no-recurse-submodules"
+	if opts.UpdateLocal {
+		// We still inspect during dry-run so skip reasons and planned actions
+		// match live execution as closely as possible.
+		status, err := e.InspectRepo(ctx, entry.Path)
+		if err != nil {
+			return inspectFailureResult(entry, err)
+		}
+		if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
+			action += " && git push"
+			return SyncResult{
+				RepoID:  entry.RepoID,
+				Path:    entry.Path,
+				Outcome: "planned_push",
+				OK:      true,
+				Error:   SyncErrorDryRun,
+				Action:  action,
+			}
+		}
+		if reason := pullRebaseSkipReason(
+			status,
+			mainBranch,
+			opts.RebaseDirty,
+			opts.Force,
+			opts.ProtectedBranches,
+			opts.AllowProtectedRebase,
+		); reason != "" {
+			return SyncResult{
+				RepoID:     entry.RepoID,
+				Path:       entry.Path,
+				Outcome:    "skipped_local_update",
+				OK:         true,
+				ErrorClass: "skipped",
+				Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
+				Action:     action,
+			}
+		}
+		action += " && git pull --rebase --no-recurse-submodules"
+	}
+	return SyncResult{
+		RepoID:  entry.RepoID,
+		Path:    entry.Path,
+		Outcome: "planned_fetch",
+		OK:      true,
+		Error:   SyncErrorDryRun,
+		Action:  action,
+	}
+}
+
+func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts SyncOptions, mainBranch string) SyncResult {
+	if opts.Filter == FilterGone {
+		status, err := e.InspectRepo(ctx, entry.Path)
+		if err != nil {
+			return inspectFailureResult(entry, err)
+		}
+		if status.Tracking.Status != model.TrackingGone {
+			return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped", OK: true, Error: SyncErrorSkipped}
+		}
+	}
+	if err := e.Adapter.Fetch(ctx, entry.Path); err != nil {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    "failed_fetch",
+			OK:         false,
+			Error:      err.Error(),
+			ErrorClass: gitx.ClassifyError(err),
+		}
+	}
+	if !opts.UpdateLocal {
+		return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "fetched", OK: true}
+	}
+	status, err := e.InspectRepo(ctx, entry.Path)
+	if err != nil {
+		return inspectFailureResult(entry, err)
+	}
+	if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
+		if err := e.Adapter.Push(ctx, entry.Path); err != nil {
+			return SyncResult{
+				RepoID:     entry.RepoID,
+				Path:       entry.Path,
+				Outcome:    "failed_push",
+				OK:         false,
+				Error:      err.Error(),
+				ErrorClass: gitx.ClassifyError(err),
+				Action:     "git push",
+			}
+		}
+		return SyncResult{
+			RepoID:  entry.RepoID,
+			Path:    entry.Path,
+			Outcome: "pushed",
+			OK:      true,
+			Action:  "git push",
+		}
+	}
+	if reason := pullRebaseSkipReason(
+		status,
+		mainBranch,
+		opts.RebaseDirty,
+		opts.Force,
+		opts.ProtectedBranches,
+		opts.AllowProtectedRebase,
+	); reason != "" {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    "skipped_local_update",
+			OK:         true,
+			ErrorClass: "skipped",
+			Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
+		}
+	}
+	return e.runSyncRebaseApply(ctx, entry, status, opts.RebaseDirty)
+}
+
+func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, status *model.RepoStatus, rebaseDirty bool) SyncResult {
+	action := "git pull --rebase --no-recurse-submodules"
+	stashed := false
+	var err error
+	if rebaseDirty && status.Worktree != nil && status.Worktree.Dirty {
+		// Stash only when needed so we do not create unnecessary stash entries.
+		stashed, err = e.Adapter.StashPush(ctx, entry.Path, "repokeeper: pre-rebase stash")
+		if err != nil {
+			return SyncResult{
+				RepoID:     entry.RepoID,
+				Path:       entry.Path,
+				Outcome:    "failed_stash",
+				OK:         false,
+				Error:      err.Error(),
+				ErrorClass: gitx.ClassifyError(err),
+				Action:     "git stash push -u -m \"repokeeper: pre-rebase stash\"",
+			}
+		}
+		if stashed {
+			action = "git stash push -u -m \"repokeeper: pre-rebase stash\" && " + action
+		}
+	}
+	if err := e.Adapter.PullRebase(ctx, entry.Path); err != nil {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    "failed_rebase",
+			OK:         false,
+			Error:      err.Error(),
+			ErrorClass: gitx.ClassifyError(err),
+			Action:     action,
+		}
+	}
+	if stashed {
+		if err := e.Adapter.StashPop(ctx, entry.Path); err != nil {
+			return SyncResult{
+				RepoID:     entry.RepoID,
+				Path:       entry.Path,
+				Outcome:    "failed_stash_pop",
+				OK:         false,
+				Error:      err.Error(),
+				ErrorClass: gitx.ClassifyError(err),
+				Action:     action + " && git stash pop",
+			}
+		}
+		action += " && git stash pop"
+	}
+	return SyncResult{
+		RepoID:  entry.RepoID,
+		Path:    entry.Path,
+		Outcome: outcomeForRebase(stashed),
+		OK:      true,
+		Action:  action,
+	}
+}
+
+func inspectFailureResult(entry registry.Entry, err error) SyncResult {
+	return SyncResult{
+		RepoID:     entry.RepoID,
+		Path:       entry.Path,
+		Outcome:    "failed_inspect",
+		OK:         false,
+		Error:      err.Error(),
+		ErrorClass: gitx.ClassifyError(err),
+	}
 }
 
 func pullRebaseSkipReason(
