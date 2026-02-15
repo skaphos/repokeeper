@@ -43,6 +43,7 @@ jobs:
           name: coverage-${{ github.sha }}
           path: coverage.out
           if-no-files-found: error
+          retention-days: 30
 
   integration:
     name: Integration Tests
