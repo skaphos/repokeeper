@@ -424,6 +424,19 @@ func TestWriteStatusDetailsAndHelpers(t *testing.T) {
 	}
 }
 
+func TestColorizeGuardBranches(t *testing.T) {
+	prevColor := colorOutputEnabled
+	defer func() { colorOutputEnabled = prevColor }()
+
+	colorOutputEnabled = true
+	if got := colorize("", ansiGreen); got != "" {
+		t.Fatalf("expected empty value passthrough, got %q", got)
+	}
+	if got := colorize("x", ""); got != "x" {
+		t.Fatalf("expected empty color passthrough, got %q", got)
+	}
+}
+
 func TestWriteSyncFailureSummary(t *testing.T) {
 	cmd := &cobra.Command{}
 	errOut := &bytes.Buffer{}

@@ -125,3 +125,18 @@ func TestExecuteWithExitCode(t *testing.T) {
 		t.Fatalf("expected fatal exit code for command error, got %d", code)
 	}
 }
+
+func TestExecuteUsesExitFunc(t *testing.T) {
+	prevExit := exitFunc
+	defer func() { exitFunc = prevExit }()
+	defer rootCmd.SetArgs(nil)
+
+	gotCode := -1
+	exitFunc = func(code int) { gotCode = code }
+	rootCmd.SetArgs([]string{"version"})
+
+	Execute()
+	if gotCode != 0 {
+		t.Fatalf("expected Execute to pass success code to exit func, got %d", gotCode)
+	}
+}

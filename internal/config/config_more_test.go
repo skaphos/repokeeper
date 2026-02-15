@@ -116,3 +116,59 @@ func TestValidateSavedConfigGVKErrors(t *testing.T) {
 		t.Fatalf("expected kind validation error, got %v", err)
 	}
 }
+
+func TestConfigDirVariants(t *testing.T) {
+	got, err := ConfigDir(filepath.Join("/tmp", "cfg", "config.yaml"))
+	if err != nil {
+		t.Fatalf("ConfigDir override file: %v", err)
+	}
+	if got != filepath.Join("/tmp", "cfg") {
+		t.Fatalf("expected file-dir path, got %q", got)
+	}
+
+	got, err = ConfigDir(filepath.Join("/tmp", "cfgdir"))
+	if err != nil {
+		t.Fatalf("ConfigDir override dir: %v", err)
+	}
+	if got != filepath.Join("/tmp", "cfgdir") {
+		t.Fatalf("expected override dir path, got %q", got)
+	}
+
+	if err := os.Setenv("REPOKEEPER_CONFIG", filepath.Join("/tmp", "envcfg", "config.yaml")); err != nil {
+		t.Fatalf("set env: %v", err)
+	}
+	got, err = ConfigDir("")
+	if err != nil {
+		t.Fatalf("ConfigDir env file: %v", err)
+	}
+	if got != filepath.Join("/tmp", "envcfg") {
+		t.Fatalf("expected env file dir, got %q", got)
+	}
+
+	if err := os.Setenv("REPOKEEPER_CONFIG", filepath.Join("/tmp", "envcfgdir")); err != nil {
+		t.Fatalf("set env: %v", err)
+	}
+	got, err = ConfigDir("")
+	if err != nil {
+		t.Fatalf("ConfigDir env dir: %v", err)
+	}
+	if got != filepath.Join("/tmp", "envcfgdir") {
+		t.Fatalf("expected env dir path, got %q", got)
+	}
+	_ = os.Unsetenv("REPOKEEPER_CONFIG")
+}
+
+func TestValidationAndRootEdgeCases(t *testing.T) {
+	if err := validateLoadedConfigGVK(nil); err == nil {
+		t.Fatal("expected nil config validation error")
+	}
+	if ConfigRoot("   ") != "" {
+		t.Fatal("expected blank config root for empty input")
+	}
+	if got := ResolveRegistryPath("", "/tmp/reg.yaml"); got != "/tmp/reg.yaml" {
+		t.Fatalf("expected absolute registry path passthrough, got %q", got)
+	}
+	if got := ResolveRegistryPath("", "relative.yaml"); got != "relative.yaml" {
+		t.Fatalf("expected relative passthrough with blank config path, got %q", got)
+	}
+}
