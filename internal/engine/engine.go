@@ -287,125 +287,105 @@ func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts Sy
 		// Non-dry-run execution only applies actions that were explicitly planned.
 		if item.Error != SyncErrorDryRun {
 			results = append(results, item)
-			if !item.OK && !opts.ContinueOnError {
+			if shouldStopSyncExecution(item, opts) {
 				break
 			}
 			continue
 		}
 
-		executed := item
-		executed.Error = ""
-		executed.ErrorClass = ""
-
-		action := strings.ToLower(strings.TrimSpace(item.Action))
-		if strings.Contains(action, "git clone") {
-			entry := findRegistryEntryForSyncResult(e.Registry, item)
-			if entry == nil {
-				executed.OK = false
-				executed.Outcome = SyncOutcomeFailedInvalid
-				executed.Error = "registry entry not found for planned clone"
-				executed.ErrorClass = "invalid"
-			} else if err := e.Adapter.Clone(ctx, strings.TrimSpace(entry.RemoteURL), entry.Path, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
-				executed.OK = false
-				executed.Outcome = SyncOutcomeFailedCheckoutMissing
-				executed.Error = err.Error()
-				executed.ErrorClass = gitx.ClassifyError(err)
-			} else {
-				executed.OK = true
-				executed.Outcome = SyncOutcomeCheckoutMissing
-				entry.Status = registry.StatusPresent
-				entry.LastSeen = time.Now()
-				e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, *entry)
-			}
-			results = append(results, executed)
-			if !executed.OK && !opts.ContinueOnError {
-				break
-			}
-			continue
-		}
-
-		var stashed bool
-		if strings.Contains(action, "git fetch --all") {
-			if err := e.Adapter.Fetch(ctx, item.Path); err != nil {
-				executed.OK = false
-				executed.Outcome = SyncOutcomeFailedFetch
-				executed.Error = err.Error()
-				executed.ErrorClass = gitx.ClassifyError(err)
-				results = append(results, executed)
-				if !opts.ContinueOnError {
-					break
-				}
-				continue
-			}
-			executed.Outcome = SyncOutcomeFetched
-		}
-
-		if strings.Contains(action, "stash push") {
-			created, err := e.Adapter.StashPush(ctx, item.Path, "repokeeper: pre-rebase stash")
-			if err != nil {
-				executed.OK = false
-				executed.Outcome = SyncOutcomeFailedStash
-				executed.Error = err.Error()
-				executed.ErrorClass = gitx.ClassifyError(err)
-				results = append(results, executed)
-				if !opts.ContinueOnError {
-					break
-				}
-				continue
-			}
-			stashed = created
-		}
-
-		if strings.Contains(action, "pull --rebase") {
-			if err := e.Adapter.PullRebase(ctx, item.Path); err != nil {
-				executed.OK = false
-				executed.Outcome = SyncOutcomeFailedRebase
-				executed.Error = err.Error()
-				executed.ErrorClass = gitx.ClassifyError(err)
-				results = append(results, executed)
-				if !opts.ContinueOnError {
-					break
-				}
-				continue
-			}
-			executed.Outcome = outcomeForRebase(stashed)
-		}
-
-		if strings.Contains(action, "stash pop") && stashed {
-			if err := e.Adapter.StashPop(ctx, item.Path); err != nil {
-				executed.OK = false
-				executed.Outcome = SyncOutcomeFailedStashPop
-				executed.Error = err.Error()
-				executed.ErrorClass = gitx.ClassifyError(err)
-				results = append(results, executed)
-				if !opts.ContinueOnError {
-					break
-				}
-				continue
-			}
-		}
-
-		if strings.Contains(action, "git push") {
-			if err := e.Adapter.Push(ctx, item.Path); err != nil {
-				executed.OK = false
-				executed.Outcome = SyncOutcomeFailedPush
-				executed.Error = err.Error()
-				executed.ErrorClass = gitx.ClassifyError(err)
-				results = append(results, executed)
-				if !opts.ContinueOnError {
-					break
-				}
-				continue
-			}
-			executed.Outcome = SyncOutcomePushed
-		}
-
-		executed.OK = true
+		executed := e.executePlannedSyncItem(ctx, item)
 		results = append(results, executed)
+		if shouldStopSyncExecution(executed, opts) {
+			break
+		}
 	}
 
 	sortSyncResults(results)
 	return results, nil
+}
+
+func shouldStopSyncExecution(result SyncResult, opts SyncOptions) bool {
+	return !result.OK && !opts.ContinueOnError
+}
+
+func (e *Engine) executePlannedSyncItem(ctx context.Context, item SyncResult) SyncResult {
+	executed := item
+	executed.Error = ""
+	executed.ErrorClass = ""
+
+	action := strings.ToLower(strings.TrimSpace(item.Action))
+	if strings.Contains(action, "git clone") {
+		return e.executePlannedClone(ctx, executed)
+	}
+	return e.executePlannedNonClone(ctx, executed, action)
+}
+
+func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) SyncResult {
+	entry := findRegistryEntryForSyncResult(e.Registry, executed)
+	if entry == nil {
+		executed.OK = false
+		executed.Outcome = SyncOutcomeFailedInvalid
+		executed.Error = "registry entry not found for planned clone"
+		executed.ErrorClass = "invalid"
+		return executed
+	}
+	if err := e.Adapter.Clone(ctx, strings.TrimSpace(entry.RemoteURL), entry.Path, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
+		executed.OK = false
+		executed.Outcome = SyncOutcomeFailedCheckoutMissing
+		executed.Error = err.Error()
+		executed.ErrorClass = gitx.ClassifyError(err)
+		return executed
+	}
+	executed.OK = true
+	executed.Outcome = SyncOutcomeCheckoutMissing
+	entry.Status = registry.StatusPresent
+	entry.LastSeen = time.Now()
+	e.Registry.Entries = replaceRegistryEntry(e.Registry.Entries, *entry)
+	return executed
+}
+
+func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult, action string) SyncResult {
+	stashed := false
+	if strings.Contains(action, "git fetch --all") {
+		if err := e.Adapter.Fetch(ctx, executed.Path); err != nil {
+			return failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
+		}
+		executed.Outcome = SyncOutcomeFetched
+	}
+	if strings.Contains(action, "stash push") {
+		created, err := e.Adapter.StashPush(ctx, executed.Path, "repokeeper: pre-rebase stash")
+		if err != nil {
+			return failedPlannedSyncResult(executed, SyncOutcomeFailedStash, err)
+		}
+		stashed = created
+	}
+	if strings.Contains(action, "pull --rebase") {
+		if err := e.Adapter.PullRebase(ctx, executed.Path); err != nil {
+			return failedPlannedSyncResult(executed, SyncOutcomeFailedRebase, err)
+		}
+		executed.Outcome = outcomeForRebase(stashed)
+	}
+	if strings.Contains(action, "stash pop") && stashed {
+		if err := e.Adapter.StashPop(ctx, executed.Path); err != nil {
+			return failedPlannedSyncResult(executed, SyncOutcomeFailedStashPop, err)
+		}
+	}
+	if strings.Contains(action, "git push") {
+		if err := e.Adapter.Push(ctx, executed.Path); err != nil {
+			return failedPlannedSyncResult(executed, SyncOutcomeFailedPush, err)
+		}
+		executed.Outcome = SyncOutcomePushed
+	}
+	executed.OK = true
+	return executed
+}
+
+func failedPlannedSyncResult(executed SyncResult, outcome SyncOutcome, err error) SyncResult {
+	executed.OK = false
+	executed.Outcome = outcome
+	executed.Error = err.Error()
+	executed.ErrorClass = gitx.ClassifyError(err)
+	return executed
 }
 
 // Sync runs fetch/prune on repos matching the filter.

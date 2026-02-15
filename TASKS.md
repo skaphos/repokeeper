@@ -142,46 +142,46 @@
 
 ### Milestone 6.1 — Code Quality & Refactoring
 
-- [ ] Global state elimination:
+- [x] Global state elimination:
   - [x] replace package-level flag variables (`flagVerbose`, `flagQuiet`, `exitCode`, etc.) with a command context struct
   - [x] enable isolated unit testing of commands without state leakage
-- [ ] Duplicate sync execution:
+- [x] Duplicate sync execution:
 - [x] refactor `sync` command to reuse dry-run plan instead of calling `eng.Sync()` twice
 - [x] add `Execute(plan)` method to engine that accepts a pre-computed plan
-- [ ] Typed error classification:
+- [x] Typed error classification:
   - [x] replace string-based error classification in `gitx/error_class.go` with sentinel errors or error types
   - [x] define `ErrAuth`, `ErrNetwork`, `ErrCorrupt`, `ErrMissingRemote` typed errors
   - [x] update `ClassifyError` to use `errors.Is`/`errors.As` instead of string matching
-- [ ] Engine method decomposition:
+- [x] Engine method decomposition:
   - [x] break `Sync()` method (~400 lines) into smaller focused functions
   - [x] extract dry-run planning, execution, and result collection into separate methods
   - [x] reduce goroutine body complexity (currently handles 8+ distinct code paths)
-- [ ] Eliminate repeated nil-guard pattern:
+- [x] Eliminate repeated nil-guard pattern:
   - [x] initialize `Adapter` in `engine.New()` constructor with sensible default
   - [x] remove redundant `if e.Adapter == nil` checks from `Scan`, `Status`, `Sync`, `InspectRepo`
-- [ ] Extract shared utilities:
+- [x] Extract shared utilities:
   - [x] move `splitCSV()` from `scan.go` to a shared `internal/cli` or `internal/strutil` package
   - [x] extract ANSI color constants and `colorize()` to shared package
   - [x] create reusable table writer abstraction to deduplicate `writeStatusTable`, `writeSyncTable`, `writeSyncPlan`
   - [x] extract common sorting lambda (`RepoID` then `Path`) into named comparator functions
-- [ ] Magic string constants:
+- [x] Magic string constants:
   - [x] define constants for error state strings (`"missing"`, `"skipped-local-update:"`, etc.)
   - [x] consider typed outcome enum for `SyncResult.Outcome`
-- [ ] Remove outdated loop capture pattern:
+- [x] Remove outdated loop capture pattern:
 - [x] remove `entry := entry` captures in goroutine loops (unnecessary since Go 1.22)
-- [ ] Configurable main branch assumption:
+- [x] Configurable main branch assumption:
 - [x] make hardcoded `/main` suffix check in `pullRebaseSkipReason` configurable
 - [x] add `defaults.main_branch` config option or use protected-branches pattern
-- [ ] Dependency cleanup:
+- [x] Dependency cleanup:
 - [x] run `go mod tidy` to fix `golang.org/x/term` direct/indirect status
 
 **Acceptance:**
 
-- [ ] No package-level mutable state in `cmd/repokeeper/` (flags read via context/struct)
+- [x] No package-level mutable state in `cmd/repokeeper/` (flags read via context/struct)
 - [x] `sync` command performs repo analysis only once per invocation
 - [x] Error classification uses Go error types with `errors.Is`/`errors.As`
-- [ ] No single function exceeds 100 lines (excluding table definitions)
-- [ ] Shared utilities live in dedicated packages with their own tests
+- [x] No single function exceeds 100 lines (excluding table definitions)
+- [x] Shared utilities live in dedicated packages with their own tests
 - [x] `go mod tidy` produces no changes
 - [x] All existing tests pass with no behavior changes
 - [x] Coverage remains >= 80%
