@@ -44,6 +44,8 @@ func TestGitAdapterMethods(t *testing.T) {
 		"/repo:rev-list --left-right --count main...origin/main":                                                             {out: "0\t0"},
 		"/repo:config --file .gitmodules --get-regexp submodule":                                                             {out: "submodule.foo.path foo"},
 		"/repo:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules":                    {out: ""},
+		"/repo:stash push -u -m repokeeper: pre-rebase stash":                                                                 {out: "Saved working directory and index state"},
+		"/repo:stash pop":                                                                                                      {out: ""},
 	}}
 	a := vcs.NewGitAdapter(r)
 	if a.Name() != "git" {
@@ -72,6 +74,12 @@ func TestGitAdapterMethods(t *testing.T) {
 	}
 	if err := a.Fetch(context.Background(), "/repo"); err != nil {
 		t.Fatalf("unexpected fetch error: %v", err)
+	}
+	if stashed, err := a.StashPush(context.Background(), "/repo", "repokeeper: pre-rebase stash"); err != nil || !stashed {
+		t.Fatalf("unexpected stash push result: stashed=%v err=%v", stashed, err)
+	}
+	if err := a.StashPop(context.Background(), "/repo"); err != nil {
+		t.Fatalf("unexpected stash pop error: %v", err)
 	}
 	if got := a.NormalizeURL("git@github.com:Org/Repo.git"); got == "" {
 		t.Fatal("expected normalized url")

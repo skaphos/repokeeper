@@ -66,7 +66,7 @@ func TestWriters(t *testing.T) {
 		nil,
 		false,
 	)
-	if !strings.Contains(out.String(), "PATH") || !strings.Contains(out.String(), "TRACKING") || !strings.Contains(out.String(), "ERROR_CLASS") {
+	if !strings.Contains(out.String(), "PATH") || !strings.Contains(out.String(), "TRACKING") || !strings.Contains(out.String(), "ERROR_CLASS") || !strings.Contains(out.String(), "REPO") {
 		t.Fatal("expected sync header")
 	}
 
@@ -75,6 +75,55 @@ func TestWriters(t *testing.T) {
 	writeSyncPlan(cmd, []engine.SyncResult{{RepoID: "r1", Path: "/repo", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"}}, "/tmp", nil)
 	if !strings.Contains(errOut.String(), "Planned sync operations:") {
 		t.Fatal("expected sync plan heading")
+	}
+	if strings.Contains(errOut.String(), "git fetch --all --prune --prune-tags --no-recurse-submodules") {
+		t.Fatal("expected summarized sync action in plan")
+	}
+}
+
+func TestDescribeSyncAction(t *testing.T) {
+	tests := []struct {
+		name string
+		in   engine.SyncResult
+		want string
+	}{
+		{
+			name: "fetch",
+			in: engine.SyncResult{
+				Action: "git fetch --all --prune --prune-tags --no-recurse-submodules",
+			},
+			want: "fetch",
+		},
+		{
+			name: "fetch and rebase",
+			in: engine.SyncResult{
+				Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git pull --rebase --no-recurse-submodules",
+			},
+			want: "fetch + rebase",
+		},
+		{
+			name: "skip no upstream",
+			in: engine.SyncResult{
+				OK:    true,
+				Error: "skipped-no-upstream",
+			},
+			want: "skip no upstream",
+		},
+		{
+			name: "stash and rebase",
+			in: engine.SyncResult{
+				Action: "git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop",
+			},
+			want: "stash & rebase",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := describeSyncAction(tc.in); got != tc.want {
+				t.Fatalf("describeSyncAction() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -233,5 +282,29 @@ func TestConfirmSyncExecution(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("expected confirmation to be rejected")
+	}
+}
+
+func TestSyncPlanNeedsConfirmation(t *testing.T) {
+	fetchOnly := []engine.SyncResult{
+		{RepoID: "r1", Path: "/repo", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "r2", Path: "/repo2", Error: "skipped-no-upstream"},
+	}
+	if syncPlanNeedsConfirmation(fetchOnly) {
+		t.Fatal("expected fetch-only plan to skip confirmation")
+	}
+
+	withRebase := []engine.SyncResult{
+		{RepoID: "r1", Path: "/repo", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git pull --rebase --no-recurse-submodules"},
+	}
+	if !syncPlanNeedsConfirmation(withRebase) {
+		t.Fatal("expected rebase plan to require confirmation")
+	}
+
+	withClone := []engine.SyncResult{
+		{RepoID: "r1", Path: "/missing", Action: "git clone git@github.com:org/repo.git /missing"},
+	}
+	if !syncPlanNeedsConfirmation(withClone) {
+		t.Fatal("expected clone plan to require confirmation")
 	}
 }

@@ -48,9 +48,14 @@ var syncCmd = &cobra.Command{
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		yes, _ := cmd.Flags().GetBool("yes")
 		updateLocal, _ := cmd.Flags().GetBool("update-local")
+		rebaseDirty, _ := cmd.Flags().GetBool("rebase-dirty")
+		force, _ := cmd.Flags().GetBool("force")
 		checkoutMissing, _ := cmd.Flags().GetBool("checkout-missing")
 		format, _ := cmd.Flags().GetString("format")
 		wrap, _ := cmd.Flags().GetBool("wrap")
+		if rebaseDirty && !updateLocal {
+			return fmt.Errorf("--rebase-dirty requires --update-local")
+		}
 
 		if concurrency == 0 {
 			concurrency = cfg.Defaults.Concurrency
@@ -66,6 +71,8 @@ var syncCmd = &cobra.Command{
 			Timeout:         timeout,
 			DryRun:          true,
 			UpdateLocal:     updateLocal,
+			RebaseDirty:     rebaseDirty,
+			Force:           force,
 			CheckoutMissing: checkoutMissing,
 		})
 		if err != nil {
@@ -79,7 +86,7 @@ var syncCmd = &cobra.Command{
 			return plan[i].RepoID < plan[j].RepoID
 		})
 		writeSyncPlan(cmd, plan, cwd, []string{cfgRoot})
-		if !yes {
+		if !yes && syncPlanNeedsConfirmation(plan) {
 			confirmed, err := confirmSyncExecution(cmd)
 			if err != nil {
 				return err
@@ -98,6 +105,8 @@ var syncCmd = &cobra.Command{
 				Timeout:         timeout,
 				DryRun:          false,
 				UpdateLocal:     updateLocal,
+				RebaseDirty:     rebaseDirty,
+				Force:           force,
 				CheckoutMissing: checkoutMissing,
 			})
 			if err != nil {
@@ -157,6 +166,8 @@ func init() {
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	syncCmd.Flags().Bool("yes", false, "accept sync plan and execute without confirmation")
 	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
+	syncCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
+	syncCmd.Flags().Bool("force", false, "when used with --update-local, allow rebase even when branch tracking state is diverged")
 	syncCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
 	syncCmd.Flags().String("format", "table", "output format: table or json")
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
@@ -167,23 +178,21 @@ func init() {
 func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roots []string) {
 	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Planned sync operations:")
 	w := tabwriter.NewWriter(cmd.ErrOrStderr(), 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "PATH\tREPO\tACTION")
+	_, _ = fmt.Fprintln(w, "PATH\tACTION\tREPO")
 	for _, res := range plan {
-		action := strings.TrimSpace(res.Action)
-		if action == "" {
-			if res.Error == "missing" {
-				action = "skip missing repo"
-			} else {
-				action = "git fetch --all --prune --prune-tags --no-recurse-submodules"
-			}
-		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", displayRepoPath(res.Path, cwd, roots), res.RepoID, action)
+		_, _ = fmt.Fprintf(
+			w,
+			"%s\t%s\t%s\n",
+			displayRepoPath(res.Path, cwd, roots),
+			describeSyncAction(res),
+			res.RepoID,
+		)
 	}
 	_ = w.Flush()
 }
 
 func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
-	_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Proceed with sync? [y/N]: ")
+	_, _ = fmt.Fprint(cmd.ErrOrStderr(), "Proceed with local updates? [y/N]: ")
 	reader := bufio.NewReader(cmd.InOrStdin())
 	line, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
@@ -191,6 +200,26 @@ func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
 	}
 	choice := strings.ToLower(strings.TrimSpace(line))
 	return choice == "y" || choice == "yes", nil
+}
+
+func syncPlanNeedsConfirmation(plan []engine.SyncResult) bool {
+	for _, res := range plan {
+		if syncResultNeedsConfirmation(res) {
+			return true
+		}
+	}
+	return false
+}
+
+func syncResultNeedsConfirmation(res engine.SyncResult) bool {
+	action := strings.ToLower(strings.TrimSpace(res.Action))
+	if strings.Contains(action, "pull --rebase") || strings.Contains(action, "stash push") {
+		return true
+	}
+	if strings.Contains(action, "git clone") {
+		return true
+	}
+	return false
 }
 
 func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool) {
@@ -202,7 +231,7 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 	}
 
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
-	_, _ = fmt.Fprintln(w, "PATH\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tACTION")
+	_, _ = fmt.Fprintln(w, "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO")
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
@@ -234,15 +263,61 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 				tracking = colorize("mirror", ansiBlue)
 			}
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
+			describeSyncAction(res),
 			branch,
 			dirty,
 			tracking,
 			ok,
 			res.ErrorClass,
 			formatCell(res.Error, wrap, 36),
-			formatCell(res.Action, wrap, 48))
+			res.RepoID)
 	}
 	_ = w.Flush()
+}
+
+func describeSyncAction(res engine.SyncResult) string {
+	action := strings.TrimSpace(res.Action)
+
+	if strings.HasPrefix(res.Error, "skipped-local-update:") {
+		reason := strings.TrimSpace(strings.TrimPrefix(res.Error, "skipped-local-update:"))
+		if reason == "" {
+			return "skip local update"
+		}
+		return "skip local update (" + reason + ")"
+	}
+	if res.Error == "skipped-no-upstream" {
+		return "skip no upstream"
+	}
+	if res.Error == "skipped" {
+		return "skip"
+	}
+	if res.Error == "missing" {
+		return "skip missing"
+	}
+
+	normalized := strings.ToLower(action)
+	switch {
+	case strings.Contains(normalized, "stash") && strings.Contains(normalized, "rebase"):
+		return "stash & rebase"
+	case strings.Contains(normalized, "fetch --all") && strings.Contains(normalized, "pull --rebase"):
+		return "fetch + rebase"
+	case strings.Contains(normalized, "pull --rebase"):
+		return "rebase"
+	case strings.Contains(normalized, "fetch --all"):
+		return "fetch"
+	case strings.Contains(normalized, "git clone --mirror"):
+		return "checkout missing (mirror)"
+	case strings.Contains(normalized, "git clone"):
+		return "checkout missing"
+	}
+
+	if action == "" {
+		if res.OK {
+			return "fetch"
+		}
+		return "-"
+	}
+	return action
 }

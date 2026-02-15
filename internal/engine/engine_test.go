@@ -88,7 +88,7 @@ var _ = Describe("Engine", func() {
 	It("syncs repositories with dry-run", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
@@ -101,6 +101,25 @@ var _ = Describe("Engine", func() {
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].OK).To(BeTrue())
 		Expect(results[0].Error).To(Equal("dry-run"))
+	})
+
+	It("skips sync for repos without upstream remote", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{
+			DryRun:      true,
+			Concurrency: 1,
+			Timeout:     1,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].OK).To(BeTrue())
+		Expect(results[0].ErrorClass).To(Equal("skipped"))
+		Expect(results[0].Error).To(Equal("skipped-no-upstream"))
 	})
 
 	It("prunes missing entries for sync filter", func() {
@@ -169,8 +188,8 @@ var _ = Describe("Engine", func() {
 		}}
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
-				{RepoID: "repo2", Path: "/repo2", Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
+				{RepoID: "repo2", Path: "/repo2", RemoteURL: "git@github.com:org/repo2.git", Status: registry.StatusPresent},
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
@@ -187,9 +206,9 @@ var _ = Describe("Engine", func() {
 	It("respects concurrency by not exceeding it", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
-				{RepoID: "repo2", Path: "/repo2", Status: registry.StatusPresent},
-				{RepoID: "repo3", Path: "/repo3", Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
+				{RepoID: "repo2", Path: "/repo2", RemoteURL: "git@github.com:org/repo2.git", Status: registry.StatusPresent},
+				{RepoID: "repo3", Path: "/repo3", RemoteURL: "git@github.com:org/repo3.git", Status: registry.StatusPresent},
 			},
 		}
 		blocker := &blockingRunner{
@@ -226,7 +245,7 @@ var _ = Describe("Engine", func() {
 		}
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(blocker))
@@ -320,7 +339,7 @@ var _ = Describe("Engine", func() {
 	It("classifies sync fetch failures", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
 		failing := &mockRunner{responses: map[string]mockResponse{
@@ -351,7 +370,7 @@ var _ = Describe("Engine", func() {
 		}}
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
@@ -378,7 +397,7 @@ var _ = Describe("Engine", func() {
 		}}
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
-				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
@@ -387,5 +406,71 @@ var _ = Describe("Engine", func() {
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].OK).To(BeTrue())
 		Expect(results[0].Error).To(ContainSubstring("skipped-local-update"))
+	})
+
+	It("stashes dirty changes before local rebase when enabled", func() {
+		runner := &mockRunner{responses: map[string]mockResponse{
+			"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
+			"/repo1:rev-parse --is-bare-repository":    {out: "false"},
+			"/repo1:remote":                            {out: "origin"},
+			"/repo1:remote get-url origin":             {out: "git@github.com:org/repo1.git"},
+			"/repo1:symbolic-ref --quiet --short HEAD": {out: "main"},
+			"/repo1:status --porcelain=v1":             {out: "M  file.go"},
+			"/repo1:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+				out: "main|origin/main|[behind 1]|<",
+			},
+			"/repo1:rev-list --left-right --count main...origin/main":                       {out: "0\t1"},
+			"/repo1:config --file .gitmodules --get-regexp submodule":                       {err: errors.New("none")},
+			"/repo1:stash push -u -m repokeeper: pre-rebase stash":                          {out: "Saved working directory and index state"},
+			"/repo1:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {out: ""},
+			"/repo1:stash pop": {out: "Applied stash"},
+		}}
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1, UpdateLocal: true, RebaseDirty: true})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].OK).To(BeTrue())
+		Expect(results[0].Action).To(ContainSubstring("git stash push"))
+		Expect(results[0].Action).To(ContainSubstring("git stash pop"))
+	})
+
+	It("skips diverged local rebase unless force is set", func() {
+		runner := &mockRunner{responses: map[string]mockResponse{
+			"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
+			"/repo1:rev-parse --is-bare-repository":    {out: "false"},
+			"/repo1:remote":                            {out: "origin"},
+			"/repo1:remote get-url origin":             {out: "git@github.com:org/repo1.git"},
+			"/repo1:symbolic-ref --quiet --short HEAD": {out: "main"},
+			"/repo1:status --porcelain=v1":             {out: ""},
+			"/repo1:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+				out: "main|origin/main|[ahead 1, behind 1]|<>",
+			},
+			"/repo1:rev-list --left-right --count main...origin/main":                       {out: "1\t1"},
+			"/repo1:config --file .gitmodules --get-regexp submodule":                       {err: errors.New("none")},
+			"/repo1:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {out: ""},
+		}}
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1, UpdateLocal: true})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].OK).To(BeTrue())
+		Expect(results[0].Error).To(ContainSubstring("skipped-local-update: branch has diverged"))
+
+		forced, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1, UpdateLocal: true, Force: true})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(forced).To(HaveLen(1))
+		Expect(forced[0].OK).To(BeTrue())
+		Expect(forced[0].Action).To(Equal("git pull --rebase --no-recurse-submodules"))
 	})
 })

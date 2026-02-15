@@ -222,6 +222,8 @@ type SyncOptions struct {
 	Timeout         int // seconds per repo
 	DryRun          bool
 	UpdateLocal     bool
+	RebaseDirty     bool
+	Force           bool
 	CheckoutMissing bool
 }
 
@@ -349,6 +351,16 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				continue
 			}
 		}
+		if strings.TrimSpace(entry.RemoteURL) == "" {
+			results = append(results, SyncResult{
+				RepoID:     entry.RepoID,
+				Path:       entry.Path,
+				OK:         true,
+				ErrorClass: "skipped",
+				Error:      "skipped-no-upstream",
+			})
+			continue
+		}
 		sem <- struct{}{}
 		spawned++
 		go func() {
@@ -362,6 +374,28 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 			if opts.DryRun {
 				action := "git fetch --all --prune --prune-tags --no-recurse-submodules"
 				if opts.UpdateLocal {
+					status, err := e.InspectRepo(repoCtx, entry.Path)
+					if err != nil {
+						out <- result{res: SyncResult{
+							RepoID:     entry.RepoID,
+							Path:       entry.Path,
+							OK:         false,
+							Error:      err.Error(),
+							ErrorClass: gitx.ClassifyError(err),
+						}}
+						return
+					}
+					if reason := pullRebaseSkipReason(status, opts.RebaseDirty, opts.Force); reason != "" {
+						out <- result{res: SyncResult{
+							RepoID:     entry.RepoID,
+							Path:       entry.Path,
+							OK:         true,
+							ErrorClass: "skipped",
+							Error:      "skipped-local-update: " + reason,
+							Action:     action,
+						}}
+						return
+					}
 					action += " && git pull --rebase --no-recurse-submodules"
 				}
 				out <- result{res: SyncResult{
@@ -414,7 +448,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					}}
 					return
 				}
-				if reason := pullRebaseSkipReason(status); reason != "" {
+				if reason := pullRebaseSkipReason(status, opts.RebaseDirty, opts.Force); reason != "" {
 					out <- result{res: SyncResult{
 						RepoID:     entry.RepoID,
 						Path:       entry.Path,
@@ -424,6 +458,25 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 					}}
 					return
 				}
+				action := "git pull --rebase --no-recurse-submodules"
+				stashed := false
+				if opts.RebaseDirty && status.Worktree != nil && status.Worktree.Dirty {
+					stashed, err = e.Adapter.StashPush(repoCtx, entry.Path, "repokeeper: pre-rebase stash")
+					if err != nil {
+						out <- result{res: SyncResult{
+							RepoID:     entry.RepoID,
+							Path:       entry.Path,
+							OK:         false,
+							Error:      err.Error(),
+							ErrorClass: gitx.ClassifyError(err),
+							Action:     "git stash push -u -m \"repokeeper: pre-rebase stash\"",
+						}}
+						return
+					}
+					if stashed {
+						action = "git stash push -u -m \"repokeeper: pre-rebase stash\" && " + action
+					}
+				}
 				if err := e.Adapter.PullRebase(repoCtx, entry.Path); err != nil {
 					out <- result{res: SyncResult{
 						RepoID:     entry.RepoID,
@@ -431,15 +484,29 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 						OK:         false,
 						Error:      err.Error(),
 						ErrorClass: gitx.ClassifyError(err),
-						Action:     "git pull --rebase --no-recurse-submodules",
+						Action:     action,
 					}}
 					return
+				}
+				if stashed {
+					if err := e.Adapter.StashPop(repoCtx, entry.Path); err != nil {
+						out <- result{res: SyncResult{
+							RepoID:     entry.RepoID,
+							Path:       entry.Path,
+							OK:         false,
+							Error:      err.Error(),
+							ErrorClass: gitx.ClassifyError(err),
+							Action:     action + " && git stash pop",
+						}}
+						return
+					}
+					action += " && git stash pop"
 				}
 				out <- result{res: SyncResult{
 					RepoID: entry.RepoID,
 					Path:   entry.Path,
 					OK:     true,
-					Action: "git pull --rebase --no-recurse-submodules",
+					Action: action,
 				}}
 				return
 			}
@@ -458,7 +525,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	return results, nil
 }
 
-func pullRebaseSkipReason(status *model.RepoStatus) string {
+func pullRebaseSkipReason(status *model.RepoStatus, rebaseDirty, force bool) string {
 	if status == nil {
 		return "unknown status"
 	}
@@ -468,7 +535,10 @@ func pullRebaseSkipReason(status *model.RepoStatus) string {
 	if status.Head.Detached {
 		return "detached HEAD"
 	}
-	if status.Worktree == nil || status.Worktree.Dirty {
+	if status.Worktree == nil {
+		return "dirty state unknown"
+	}
+	if status.Worktree.Dirty && !rebaseDirty {
 		return "dirty working tree"
 	}
 	if status.Tracking.Status == model.TrackingGone {
@@ -480,8 +550,11 @@ func pullRebaseSkipReason(status *model.RepoStatus) string {
 	if !strings.HasSuffix(status.Tracking.Upstream, "/main") {
 		return fmt.Sprintf("upstream %q is not main", status.Tracking.Upstream)
 	}
-	if status.Tracking.Status == model.TrackingAhead || status.Tracking.Status == model.TrackingDiverged {
+	if status.Tracking.Status == model.TrackingAhead {
 		return "branch has local commits to push"
+	}
+	if status.Tracking.Status == model.TrackingDiverged && !force {
+		return "branch has diverged (use --force to rebase anyway)"
 	}
 	if status.Tracking.Status == model.TrackingEqual {
 		return "already up to date"

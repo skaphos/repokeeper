@@ -217,6 +217,26 @@ func PullRebase(ctx context.Context, r Runner, dir string) error {
 	return err
 }
 
+// StashPush stashes current worktree changes (including untracked files).
+// Returns true when a stash entry was created.
+func StashPush(ctx context.Context, r Runner, dir, message string) (bool, error) {
+	args := []string{"stash", "push", "-u"}
+	if strings.TrimSpace(message) != "" {
+		args = append(args, "-m", message)
+	}
+	out, err := r.Run(ctx, dir, args...)
+	if err != nil {
+		return false, err
+	}
+	return !strings.Contains(strings.ToLower(out), "no local changes to save"), nil
+}
+
+// StashPop reapplies the most recent stash entry.
+func StashPop(ctx context.Context, r Runner, dir string) error {
+	_, err := r.Run(ctx, dir, "stash", "pop")
+	return err
+}
+
 // Clone runs a clone operation. Branch is ignored for mirror clones.
 func Clone(ctx context.Context, r Runner, remoteURL, targetPath, branch string, mirror bool) error {
 	args := []string{"clone"}

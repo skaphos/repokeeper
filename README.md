@@ -8,7 +8,7 @@ RepoKeeper inventories your git repos, reports drift and broken tracking, and pe
 
 - **Discover** git repos across configured root directories
 - **Report** per-repo health: dirty/clean, branch, tracking status, ahead/behind, stale upstreams
-- **Sync** safely with `git fetch --all --prune` (never checkout, pull, reset, or touch submodules)
+- **Sync** safely with `git fetch --all --prune` (never checkout/reset; optional `--update-local` uses `pull --rebase`)
 - **Registry** is stored in `.repokeeper.yaml` with staleness detection
 - **CLI-first** with table and JSON output formats
 - **Cross-platform** — macOS, Windows, Linux (incl. WSL)
@@ -75,8 +75,8 @@ repokeeper sync
 | `repokeeper import` | Import a previously exported bundle |
 | `repokeeper version` | Print version and build info |
 
-`repokeeper sync --format table` mirrors the `status` columns (`PATH`, `BRANCH`, `DIRTY`, `TRACKING`) and appends sync outcome columns (`OK`, `ERROR_CLASS`, `ERROR`, `ACTION`).
-`repokeeper sync` shows a preflight plan and prompts for confirmation before execution; use `--yes` to skip the prompt.
+`repokeeper sync --format table` shows `PATH`, a summarized `ACTION` (`fetch`, `fetch + rebase`, `skip ...`), status context (`BRANCH`, `DIRTY`, `TRACKING`), outcome (`OK`, `ERROR_CLASS`, `ERROR`), and `REPO` as the trailing identifier column.
+`repokeeper sync` shows a preflight plan. Confirmation is requested only when the plan includes local-branch-changing actions (`pull --rebase`/stash+rebase) or checkout-missing clones; fetch-only plans run without a prompt. Use `--yes` to skip confirmation when it is required.
 
 `repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 
@@ -136,7 +136,7 @@ The default scan/display root is inferred from the directory containing the acti
 
 RepoKeeper is designed to be safe to run on repos with dirty working trees:
 
-- **Never** runs `checkout`, `pull`, `reset`, `rebase`, or `merge`
+- By default, **never** runs `checkout`, `pull`, `reset`, `rebase`, or `merge`
 - **Never** updates or recurses into submodules
 - Fetch uses `--no-recurse-submodules` and `-c fetch.recurseSubmodules=false` as belt-and-suspenders
 - All mutating commands support `--dry-run`
@@ -144,10 +144,13 @@ RepoKeeper is designed to be safe to run on repos with dirty working trees:
 Optional local checkout update:
 
 - `repokeeper sync --update-local` adds `pull --rebase` after fetch, but only when all of these are true:
-- working tree is clean
+- working tree is clean (or `--rebase-dirty` is set)
 - branch is not detached
 - branch tracks `*/main`
-- branch is not ahead/diverged (no local commits pending push)
+- branch is not ahead
+- branch is not diverged unless `--force` is set
+- `--rebase-dirty` stashes changes, rebases, then pops the stash
+- In dry-run/preflight mode, these checks are evaluated up front so the plan calls out which repos are candidates for `fetch + rebase` versus `skip local update (...)`.
 
 ## Documentation
 
