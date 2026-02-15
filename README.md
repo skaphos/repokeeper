@@ -2,16 +2,29 @@
 
 A cross-platform multi-repo hygiene tool for developers who work across multiple machines and directory layouts.
 
-RepoKeeper inventories your git repos, reports drift and broken tracking, and performs safe sync actions (fetch/prune) — without touching working trees or submodules.
+RepoKeeper inventories your repositories, reports drift and broken tracking, and performs safe sync actions (fetch/prune) — without touching working trees or submodules.
 
 ## Features
 
-- **Discover** git repos across configured root directories
+- **Discover** repositories across configured root directories (Git by default, optional experimental Hg)
 - **Report** per-repo health: dirty/clean, branch, tracking status, ahead/behind, stale upstreams
 - **Sync** safely with `git fetch --all --prune` (never checkout/reset; optional `--update-local` uses `pull --rebase`)
 - **Registry** is stored in `.repokeeper.yaml` with staleness detection
 - **CLI-first** with tabular (`table`/`wide`) and JSON output formats
 - **Cross-platform** — macOS, Windows, Linux (incl. WSL)
+
+## Multi-VCS (Experimental)
+
+RepoKeeper is Git-first. The Mercurial (`hg`) adapter is available as an **experimental** backend.
+
+- Default backend remains `git`
+- Opt in per command with `--vcs git,hg`
+- Mixed roots are auto-detected per repo path when multiple backends are selected
+
+Current experimental limits:
+
+- `hg`: discovery/status and safe `pull`-based fetch are supported
+- Repair and remote mismatch reconciliation flows remain Git-oriented
 
 ## Install
 
@@ -42,6 +55,10 @@ repokeeper init
 
 # Scan your roots for git repos
 repokeeper scan
+
+# Scan/status across mixed git + hg roots
+repokeeper scan --vcs git,hg
+repokeeper status --vcs git,hg
 
 # Check the health of all repos
 repokeeper status
@@ -104,6 +121,8 @@ Use `repokeeper sync --checkout-missing` to clone registry entries currently mar
 
 Use `repokeeper repair-upstream --dry-run` to preview upstream tracking fixes, then `repokeeper repair-upstream --dry-run=false` to apply. Use `--only missing` or `--only mismatch` to focus the repair set.
 When `repair-upstream --dry-run=false` would modify tracking, RepoKeeper prompts for confirmation by default; use `--yes` for non-interactive runs.
+
+`scan`, `status`, and `sync` accept `--vcs git,hg` (default `git`) to choose one or more repository backends.
 
 ### Global flags
 

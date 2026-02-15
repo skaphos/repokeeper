@@ -21,9 +21,9 @@ func ParseAdapterSelection(raw string) ([]string, error) {
 	for _, value := range values {
 		name := strings.ToLower(strings.TrimSpace(value))
 		switch name {
-		case "git", "hg", "bzr":
+		case "git", "hg":
 		default:
-			return nil, fmt.Errorf("unsupported vcs %q (supported: git,hg,bzr)", value)
+			return nil, fmt.Errorf("unsupported vcs %q (supported: git,hg)", value)
 		}
 		if _, ok := seen[name]; ok {
 			continue
@@ -50,8 +50,6 @@ func NewAdapterForSelection(raw string) (Adapter, error) {
 			adapters = append(adapters, NewGitAdapter(nil))
 		case "hg":
 			adapters = append(adapters, NewHgAdapter())
-		case "bzr":
-			adapters = append(adapters, NewBzrAdapter())
 		}
 	}
 	if len(adapters) == 1 {
@@ -64,7 +62,7 @@ func NewAdapterForSelection(raw string) (Adapter, error) {
 }
 
 // MultiAdapter delegates per-path operations to the first matching backend.
-// This enables --vcs=git,hg,bzr scans/status in mixed roots.
+// This enables --vcs=git,hg scans/status in mixed roots.
 type MultiAdapter struct {
 	adapters []Adapter
 	byPath   map[string]Adapter

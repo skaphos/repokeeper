@@ -17,7 +17,7 @@ func TestParseAdapterSelection(t *testing.T) {
 	}{
 		{name: "default", raw: "", want: []string{"git"}},
 		{name: "single", raw: "hg", want: []string{"hg"}},
-		{name: "multi", raw: "git,hg,bzr", want: []string{"git", "hg", "bzr"}},
+		{name: "multi", raw: "git,hg", want: []string{"git", "hg"}},
 		{name: "dedupe", raw: "git,git,hg", want: []string{"git", "hg"}},
 		{name: "invalid", raw: "svn", hasErr: true},
 	}

@@ -268,8 +268,7 @@
 
 - [x] Add VCS adapter abstraction (Git-first, but extensible)
 - [ ] Mercurial (hg) adapter: discovery, status, safe sync (pull --update? define safety)
-- [ ] Bazaar (bzr) adapter: discovery, status, safe sync
-- [x] CLI flags to select VCS types (e.g., `--vcs git,hg,bzr`)
+- [x] CLI flags to select VCS types (e.g., `--vcs git,hg`)
 - [ ] Update docs + compatibility matrix per VCS tool versions
 - [ ] Gather user feedback from milestone 6/7 usage and prioritize improvements
 - [ ] Implement highest-impact UX and automation improvements from feedback
@@ -277,7 +276,7 @@
 
 **Acceptance:**
 
-- [ ] Git remains default; Hg/Bzr optional and clearly documented as experimental
+- [ ] Git remains default; Hg optional and clearly documented as experimental
 - [ ] Adapter selection works without regressions to Git behavior
 - [ ] Feedback items are captured, triaged, and reflected in shipped improvements
 

@@ -2,7 +2,7 @@
 
 ## 1. Summary
 
-**RepoKeeper** is a cross-platform multi-repo hygiene tool for developers who work across multiple machines and directory layouts. It inventories git repos, reports drift and broken tracking, and performs safe sync actions (fetch/prune) without touching working trees or submodules.
+**RepoKeeper** is a cross-platform multi-repo hygiene tool for developers who work across multiple machines and directory layouts. It inventories repositories, reports drift and broken tracking, and performs safe sync actions (fetch/prune) without touching working trees or submodules.
 
 Primary interfaces:
 
@@ -58,7 +58,7 @@ You want "bring everything back in line" behavior **en masse**, but:
 * Auto-updating `main`/`master` (beyond fetching remote refs).
 * Auto-deleting local branches (even if merged).
 * Desktop GUI.
-* Multi-VCS support beyond Git (see Stretch Goals §9.1).
+* Full parity for non-Git backends (Hg remains experimental; see §9.1).
 
 ## 4. Safety & Policy
 
@@ -130,7 +130,7 @@ Flags:
 
 #### `repokeeper scan`
 
-Scans roots for git repos and updates local registry.
+Scans roots for repositories and updates local registry.
 
 Flags:
 
@@ -138,6 +138,7 @@ Flags:
 * `--exclude <comma-separated globs>` (e.g., `node_modules,.terraform`)
 * `--follow-symlinks` (default false)
 * `--write-registry` (default true)
+* `--vcs git,hg` (default `git`; `hg` experimental)
 * `-o, --format table|json` (default table)
 
 #### `repokeeper status`
@@ -148,6 +149,7 @@ Flags:
 
 * `--roots …` (optional)
 * `--registry <path>` (optional)
+* `--vcs git,hg` (default `git`; `hg` experimental)
 * `-o, --format table|wide|json` (default table)
 * `--only errors|dirty|clean|gone|diverged|remote-mismatch|missing|all` (default all)
 * `--reconcile-remote-mismatch none|registry|git` (default `none`; explicit reconcile mode for remote mismatch entries)
@@ -204,6 +206,7 @@ Flags:
 * `--concurrency <n>` (default: min(8, CPU))
 * `--timeout <duration>` (default 60s/repo)
 * `--continue-on-error` (default true; continue syncing remaining repos after per-repo failures)
+* `--vcs git,hg` (default `git`; `hg` experimental)
 * `--dry-run`
 * `--yes` (skip confirmation prompt and execute immediately)
 * `--update-local` (optional; after fetch, run local branch updates based on tracking state)
@@ -486,16 +489,24 @@ We maintain a lightweight compatibility matrix to track minimum supported and te
 | macOS | TBD | TBD | Fill in once CI pins a Git version. |
 | Windows | TBD | TBD | Fill in once CI pins a Git version. |
 
+Experimental multi-VCS compatibility matrix:
+
+| VCS | Support level | Discovery | Status | Sync (safe) | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Git | default | Yes | Yes | Yes (`fetch --all --prune --prune-tags`) | Full feature path |
+| Mercurial (`hg`) | experimental | Yes | Yes | Partial (`hg pull`) | Tracking/upstream semantics are limited vs Git |
+
 ## 9. Stretch Goals
 
-### 9.1 Multi-VCS Support (Hg/Bzr)
+### 9.1 Multi-VCS Support (Hg)
 
-RepoKeeper is **Git-first**, but the architecture should stay adapter-friendly so future Mercurial (hg) and Bazaar (bzr) support doesn’t require a rewrite. This affects layout decisions early:
+RepoKeeper is **Git-first**, but the architecture should stay adapter-friendly so Mercurial (hg) support doesn’t require a rewrite. This affects layout decisions early:
 
 * Keep core orchestration in `internal/engine/` and add a thin VCS adapter interface (discover/status/sync).
-* Implement Git as the default adapter; treat Hg/Bzr as optional, stretch targets.
+* Implement Git as the default adapter; treat Hg as optional, stretch target.
 * Maintain a per-VCS compatibility matrix (minimum supported + tested tool versions).
-* Keep CLI flags extensible (example: `--vcs git,hg,bzr`) without changing defaults.
+* Keep CLI flags extensible (example: `--vcs git,hg`) without changing defaults.
+* Keep non-Git adapters explicitly marked experimental until sync/repair parity is proven.
 
 ### 7.1 Detection commands
 

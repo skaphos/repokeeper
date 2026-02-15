@@ -7,7 +7,7 @@ const (
 	fieldSelectorUsage        = "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true"
 	upstreamRepairFilterUsage = "filter: all, missing, mismatch"
 	noHeadersUsage            = "when using table format, do not print headers"
-	vcsUsage                  = "comma-separated vcs backends: git,hg,bzr (default: git)"
+	vcsUsage                  = "comma-separated vcs backends: git,hg (default: git)"
 )
 
 func addFormatFlag(cmd *cobra.Command, usage string) {
