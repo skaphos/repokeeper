@@ -53,7 +53,7 @@ func init() {
 	reconcileReposCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
 	reconcileReposCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
 	reconcileReposCmd.Flags().Bool("yes", false, "accept sync plan and execute without confirmation")
-	reconcileReposCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
+	reconcileReposCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase for the checked-out tracking branch when safe")
 	reconcileReposCmd.Flags().Bool("push-local", false, "when used with --update-local, push branches that are ahead of upstream")
 	reconcileReposCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
 	reconcileReposCmd.Flags().Bool("force", false, "when used with --update-local, allow rebase even when branch tracking state is diverged")

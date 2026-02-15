@@ -180,7 +180,7 @@ func init() {
 	syncCmd.Flags().Int("timeout", 0, "timeout in seconds per repo (0 uses config default)")
 	syncCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
-	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase only for clean branches tracking */main")
+	syncCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase for the checked-out tracking branch when safe")
 	syncCmd.Flags().Bool("push-local", false, "when used with --update-local, push branches that are ahead of upstream")
 	syncCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
 	syncCmd.Flags().Bool("force", false, "when used with --update-local, allow rebase even when branch tracking state is diverged")

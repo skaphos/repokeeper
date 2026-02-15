@@ -121,14 +121,14 @@ func TestPullRebaseSkipReasonTable(t *testing.T) {
 			want: "branch is not tracking an upstream",
 		},
 		{
-			name: "not main",
+			name: "tracking any branch is allowed",
 			status: &model.RepoStatus{
 				Head:     model.Head{Branch: "feature"},
 				Worktree: &model.Worktree{Dirty: false},
 				Tracking: model.Tracking{Status: model.TrackingBehind, Upstream: "origin/develop"},
 			},
 			prot: []string{"release/*"},
-			want: "upstream \"origin/develop\" is not main",
+			want: "",
 		},
 		{
 			name: "ahead",
@@ -175,7 +175,6 @@ func TestPullRebaseSkipReasonTable(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := pullRebaseSkipReason(tc.status, PullRebasePolicyOptions{
-				MainBranch:           "main",
 				RebaseDirty:          tc.dirty,
 				Force:                tc.force,
 				ProtectedBranches:    tc.prot,
@@ -392,29 +391,19 @@ func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
 	}
 }
 
-func TestPullRebaseSkipReasonUsesConfiguredMainBranch(t *testing.T) {
+func TestPullRebaseSkipReasonAllowsNonMainTrackingBranch(t *testing.T) {
 	status := &model.RepoStatus{
 		Head:     model.Head{Branch: "develop"},
 		Worktree: &model.Worktree{Dirty: false},
 		Tracking: model.Tracking{Status: model.TrackingBehind, Upstream: "origin/develop"},
 	}
 	if got := pullRebaseSkipReason(status, PullRebasePolicyOptions{
-		MainBranch:           "develop",
 		RebaseDirty:          false,
 		Force:                false,
 		ProtectedBranches:    nil,
 		AllowProtectedRebase: true,
 	}); got != "" {
-		t.Fatalf("expected configured main branch to allow rebase, got %q", got)
-	}
-	if got := pullRebaseSkipReason(status, PullRebasePolicyOptions{
-		MainBranch:           "main",
-		RebaseDirty:          false,
-		Force:                false,
-		ProtectedBranches:    nil,
-		AllowProtectedRebase: true,
-	}); got != "upstream \"origin/develop\" is not main" {
-		t.Fatalf("expected branch mismatch reason, got %q", got)
+		t.Fatalf("expected non-main tracking branch to allow rebase, got %q", got)
 	}
 }
 

@@ -104,23 +104,16 @@ func TestSyncRuntime(t *testing.T) {
 	eng := New(&config.Config{Defaults: config.Defaults{
 		Concurrency:    3,
 		TimeoutSeconds: 9,
-		MainBranch:     "trunk",
 	}}, &registry.Registry{}, vcs.NewGitAdapter(nil))
 
-	concurrency, timeout, main := eng.syncRuntime(SyncOptions{})
-	if concurrency != 3 || timeout != 9 || main != "trunk" {
-		t.Fatalf("unexpected defaults: %d %d %q", concurrency, timeout, main)
+	concurrency, timeout := eng.syncRuntime(SyncOptions{})
+	if concurrency != 3 || timeout != 9 {
+		t.Fatalf("unexpected defaults: %d %d", concurrency, timeout)
 	}
 
-	concurrency, timeout, main = eng.syncRuntime(SyncOptions{Concurrency: 2, Timeout: 4})
-	if concurrency != 2 || timeout != 4 || main != "trunk" {
-		t.Fatalf("unexpected override values: %d %d %q", concurrency, timeout, main)
-	}
-
-	eng.Config().Defaults.MainBranch = ""
-	_, _, main = eng.syncRuntime(SyncOptions{})
-	if main != "main" {
-		t.Fatalf("expected default main branch fallback, got %q", main)
+	concurrency, timeout = eng.syncRuntime(SyncOptions{Concurrency: 2, Timeout: 4})
+	if concurrency != 2 || timeout != 4 {
+		t.Fatalf("unexpected override values: %d %d", concurrency, timeout)
 	}
 }
 
@@ -221,12 +214,12 @@ func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner))
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", RemoteURL: "git@github.com:org/repo.git", Status: registry.StatusPresent}
 
-	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true, PushLocal: true}, "main")
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true, PushLocal: true})
 	if dry.Outcome != "planned_push" || dry.Error != SyncErrorDryRun || !strings.Contains(dry.Action, "git push") {
 		t.Fatalf("unexpected dry-run push plan: %+v", dry)
 	}
 
-	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: false}, "main")
+	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: false})
 	if !applied.OK || applied.Outcome != "fetched" {
 		t.Fatalf("unexpected apply fetch result: %+v", applied)
 	}
@@ -432,7 +425,7 @@ func TestRunSyncHelperEdgeBranches(t *testing.T) {
 		"/repo:remote":                         {err: errors.New("permission denied")},
 	}}
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(inspectFailRunner))
-	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true}, "main")
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true})
 	if dry.Outcome != "failed_inspect" || dry.ErrorClass != "auth" {
 		t.Fatalf("expected inspect failure dry-run result, got %+v", dry)
 	}
@@ -450,7 +443,7 @@ func TestRunSyncHelperEdgeBranches(t *testing.T) {
 		"/repo:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
 	}}
 	eng = New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(filterGoneRunner))
-	gone := eng.runSyncApply(context.Background(), entry, SyncOptions{Filter: FilterGone}, "main")
+	gone := eng.runSyncApply(context.Background(), entry, SyncOptions{Filter: FilterGone})
 	if !gone.OK || gone.Outcome != "skipped" || gone.Error != SyncErrorSkipped {
 		t.Fatalf("expected filter-gone skip result, got %+v", gone)
 	}
@@ -477,7 +470,7 @@ func TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(t *testing.T) {
 	}
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent}
 
-	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true}, "main")
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true})
 	if dry.Outcome != SyncOutcomeSkippedLocalUpdate || !dry.OK {
 		t.Fatalf("unexpected dry-run result: %+v", dry)
 	}
@@ -488,7 +481,7 @@ func TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(t *testing.T) {
 		t.Fatalf("unexpected dry-run action: %q", dry.Action)
 	}
 
-	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: true}, "main")
+	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: true})
 	if applied.Outcome != SyncOutcomeSkippedLocalUpdate || !applied.OK {
 		t.Fatalf("unexpected apply result: %+v", applied)
 	}

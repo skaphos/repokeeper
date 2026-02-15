@@ -343,7 +343,7 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 }
 
 func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResult, opts SyncOptions) []SyncResult {
-	concurrency, timeoutSeconds, _ := e.syncRuntime(opts)
+	concurrency, timeoutSeconds := e.syncRuntime(opts)
 	sem := make(chan struct{}, concurrency)
 	out := make(chan SyncResult, workerChannelBufferSize(len(plan)))
 	spawned := 0
@@ -511,7 +511,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		return nil, errors.New("registry not loaded")
 	}
 
-	concurrency, timeoutSeconds, mainBranch := e.syncRuntime(opts)
+	concurrency, timeoutSeconds := e.syncRuntime(opts)
 	// Snapshot entries so concurrent sync workers do not race on shared slices.
 	entries := append([]registry.Entry(nil), e.registry.Entries...)
 	if !opts.ContinueOnError {
@@ -535,7 +535,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		spawned++
 		go func(entry registry.Entry) {
 			defer func() { <-sem }()
-			out <- e.runSyncEntry(ctx, entry, opts, timeoutSeconds, mainBranch)
+			out <- e.runSyncEntry(ctx, entry, opts, timeoutSeconds)
 		}(entry)
 	}
 
@@ -556,7 +556,7 @@ func workerChannelBufferSize(entryCount int) int {
 	return entryCount
 }
 
-func (e *Engine) syncRuntime(opts SyncOptions) (int, int, string) {
+func (e *Engine) syncRuntime(opts SyncOptions) (int, int) {
 	defaults := config.DefaultConfig().Defaults
 
 	concurrency := opts.Concurrency
@@ -578,19 +578,13 @@ func (e *Engine) syncRuntime(opts SyncOptions) (int, int, string) {
 			timeoutSeconds = defaults.TimeoutSeconds
 		}
 	}
-	mainBranch := "main"
-	if e.cfg != nil && strings.TrimSpace(e.cfg.Defaults.MainBranch) != "" {
-		mainBranch = strings.TrimSpace(e.cfg.Defaults.MainBranch)
-	} else if strings.TrimSpace(defaults.MainBranch) != "" {
-		mainBranch = strings.TrimSpace(defaults.MainBranch)
-	}
-	return concurrency, timeoutSeconds, mainBranch
+	return concurrency, timeoutSeconds
 }
 
 func (e *Engine) syncSequentialStopOnError(ctx context.Context, opts SyncOptions, entries []registry.Entry) ([]SyncResult, error) {
 	// Preserve deterministic "stop on first failure" semantics with direct
 	// per-entry execution (no goroutines/channels in this path).
-	_, timeoutSeconds, mainBranch := e.syncRuntime(opts)
+	_, timeoutSeconds := e.syncRuntime(opts)
 	results := make([]SyncResult, 0, len(entries))
 	for _, entry := range entries {
 		queue, immediate := e.prepareSyncEntry(ctx, entry, opts)
@@ -604,7 +598,7 @@ func (e *Engine) syncSequentialStopOnError(ctx context.Context, opts SyncOptions
 		if !queue {
 			continue
 		}
-		res := e.runSyncEntry(ctx, entry, opts, timeoutSeconds, mainBranch)
+		res := e.runSyncEntry(ctx, entry, opts, timeoutSeconds)
 		results = append(results, res)
 		if !res.OK {
 			sortSyncResults(results)
@@ -726,7 +720,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 	return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeCheckoutMissing, OK: true, Action: action}
 }
 
-func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions, timeoutSeconds int, mainBranch string) SyncResult {
+func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions, timeoutSeconds int) SyncResult {
 	repoCtx := ctx
 	if timeoutSeconds > 0 {
 		var cancel context.CancelFunc
@@ -734,12 +728,12 @@ func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts Sy
 		defer cancel()
 	}
 	if opts.DryRun {
-		return e.runSyncDryRun(repoCtx, entry, opts, mainBranch)
+		return e.runSyncDryRun(repoCtx, entry, opts)
 	}
-	return e.runSyncApply(repoCtx, entry, opts, mainBranch)
+	return e.runSyncApply(repoCtx, entry, opts)
 }
 
-func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts SyncOptions, mainBranch string) SyncResult {
+func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts SyncOptions) SyncResult {
 	action := syncFetchAction(ctx, e.adapter, entry.Path)
 	if opts.UpdateLocal {
 		supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
@@ -775,7 +769,6 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 			}
 		}
 		if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
-			MainBranch:           mainBranch,
 			RebaseDirty:          opts.RebaseDirty,
 			Force:                opts.Force,
 			ProtectedBranches:    opts.ProtectedBranches,
@@ -803,7 +796,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 	}
 }
 
-func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts SyncOptions, mainBranch string) SyncResult {
+func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts SyncOptions) SyncResult {
 	if opts.Filter == FilterGone {
 		status, err := e.InspectRepo(ctx, entry.Path)
 		if err != nil {
@@ -866,7 +859,6 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 		}
 	}
 	if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
-		MainBranch:           mainBranch,
 		RebaseDirty:          opts.RebaseDirty,
 		Force:                opts.Force,
 		ProtectedBranches:    opts.ProtectedBranches,
@@ -953,7 +945,6 @@ func inspectFailureResult(entry registry.Entry, err error) SyncResult {
 
 // PullRebasePolicyOptions controls branch/worktree safety checks before rebase.
 type PullRebasePolicyOptions struct {
-	MainBranch           string
 	RebaseDirty          bool
 	Force                bool
 	ProtectedBranches    []string
@@ -986,13 +977,6 @@ func pullRebaseSkipReason(status *model.RepoStatus, opts PullRebasePolicyOptions
 	}
 	if status.Tracking.Upstream == "" || status.Tracking.Status == model.TrackingNone {
 		return "branch is not tracking an upstream"
-	}
-	mainBranch := strings.TrimSpace(opts.MainBranch)
-	if mainBranch == "" {
-		mainBranch = "main"
-	}
-	if !strings.HasSuffix(status.Tracking.Upstream, "/"+mainBranch) {
-		return fmt.Sprintf("upstream %q is not %s", status.Tracking.Upstream, mainBranch)
 	}
 	if status.Tracking.Status == model.TrackingAhead {
 		return "branch has local commits to push"

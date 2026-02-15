@@ -195,7 +195,7 @@ Optional local checkout update:
 - `repokeeper sync --update-local` adds `pull --rebase` after fetch, but only when all of these are true:
 - working tree is clean (or `--rebase-dirty` is set)
 - branch is not detached
-- branch tracks `*/main`
+- branch tracks an upstream
 - branch is not ahead
 - branch is not diverged unless `--force` is set
 - branch is not matched by `--protected-branches` (default: none) unless `--allow-protected-rebase` is set
