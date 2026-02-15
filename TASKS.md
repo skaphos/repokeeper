@@ -173,7 +173,7 @@
   - [ ] make hardcoded `/main` suffix check in `pullRebaseSkipReason` configurable
   - [ ] add `defaults.main_branch` config option or use protected-branches pattern
 - [ ] Dependency cleanup:
-  - [ ] run `go mod tidy` to fix `golang.org/x/term` direct/indirect status
+- [x] run `go mod tidy` to fix `golang.org/x/term` direct/indirect status
 
 **Acceptance:**
 
@@ -183,7 +183,7 @@
 - [ ] Error classification uses Go error types with `errors.Is`/`errors.As`
 - [ ] No single function exceeds 100 lines (excluding table definitions)
 - [ ] Shared utilities live in dedicated packages with their own tests
-- [ ] `go mod tidy` produces no changes
+- [x] `go mod tidy` produces no changes
 - [ ] All existing tests pass with no behavior changes
 - [ ] Coverage remains >= 80%
 
