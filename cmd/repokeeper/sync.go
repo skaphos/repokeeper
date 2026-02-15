@@ -142,26 +142,10 @@ var syncCmd = &cobra.Command{
 			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		case "table":
 			setColorOutputMode(cmd, format)
-			report, err := eng.Status(cmd.Context(), engine.StatusOptions{
-				Filter:      engine.FilterAll,
-				Concurrency: concurrency,
-				Timeout:     timeout,
-			})
-			if err != nil {
-				return err
-			}
-			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap, noHeaders, false)
+			writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false)
 		case "wide":
 			setColorOutputMode(cmd, format)
-			report, err := eng.Status(cmd.Context(), engine.StatusOptions{
-				Filter:      engine.FilterAll,
-				Concurrency: concurrency,
-				Timeout:     timeout,
-			})
-			if err != nil {
-				return err
-			}
-			writeSyncTable(cmd, results, report, cwd, []string{cfgRoot}, wrap, noHeaders, true)
+			writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true)
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -281,7 +265,7 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 		branch := "-"
 		dirty := "-"
 		tracking := string(model.TrackingNone)
-		path := res.Path
+		path := displayRepoPath(res.Path, cwd, roots)
 		if found {
 			path = displayRepoPath(repo.Path, cwd, roots)
 			branch = repo.Head.Branch

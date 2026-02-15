@@ -199,7 +199,7 @@
   - [ ] add mutex or value-based updates for registry entry mutation during sync
 - [ ] Memory/performance:
   - [x] reduce unbounded channel buffer sizes from `len(entries)` to fixed cap (e.g., 100) in engine.go
-  - [ ] eliminate redundant `eng.Status()` call after sync for table/wide output (sync.go:145-163)
+  - [x] eliminate redundant `eng.Status()` call after sync for table/wide output (sync.go:145-163)
   - [x] remove duplicate sorting (status.go:133 duplicates engine.go:210)
 - [ ] Security hardening:
   - [x] add validation for upstream format in edit.go (should match `remote/branch` pattern)
