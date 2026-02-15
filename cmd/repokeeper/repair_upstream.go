@@ -293,22 +293,23 @@ func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult
 	actionMax := adaptiveCellLimit(cmd, 0, 22, 16)
 	branchMax := adaptiveCellLimit(cmd, 0, 24, 16)
 	repoMax := adaptiveCellLimit(cmd, 0, 32, 20)
+	wrap := getBoolFlag(cmd, "wrap")
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
 			ok = "no"
 		}
-		path := formatCell(displayRepoPath(res.Path, cwd, roots), false, pathMax)
-		action := formatCell(res.Action, false, actionMax)
-		branch := formatCell(res.LocalBranch, false, branchMax)
-		repoID := formatCell(res.RepoID, false, repoMax)
+		path := formatCell(displayRepoPath(res.Path, cwd, roots), wrap, pathMax)
+		action := formatCell(res.Action, wrap, actionMax)
+		branch := formatCell(res.LocalBranch, wrap, branchMax)
+		repoID := formatCell(res.RepoID, wrap, repoMax)
 		switch mode {
 		case repairTableModeTiny:
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", path, action, ok, formatCell(res.Error, false, 28)); err != nil {
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", path, action, ok, formatCell(res.Error, wrap, 28)); err != nil {
 				return err
 			}
 		case repairTableModeCompact:
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", path, action, branch, ok, formatCell(res.Error, false, 32), repoID); err != nil {
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", path, action, branch, ok, formatCell(res.Error, wrap, 32), repoID); err != nil {
 				return err
 			}
 		default:
@@ -338,4 +339,5 @@ func init() {
 	addUpstreamRepairFilterFlag(repairUpstreamCmd)
 	addFormatFlag(repairUpstreamCmd, "output format: table or json")
 	addNoHeadersFlag(repairUpstreamCmd)
+	repairUpstreamCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 }

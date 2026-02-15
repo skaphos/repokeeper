@@ -251,7 +251,7 @@
 - [ ] Evaluate kubectl printer-stack compatibility (`k8s.io/cli-runtime/pkg/printers`) without taking Kubernetes object dependencies
 - [x] Width-aware table rendering for narrow terminals (kubectl-style reflow behavior)
 - [x] Adaptive column strategy by view (`get/status`, `reconcile/sync`, `repair`) with deterministic priority
-- [ ] Smart truncation rules and optional wrapping that preserve key identifiers (`PATH`, `REPO`, `ACTION`)
+- [x] Smart truncation rules and optional wrapping that preserve key identifiers (`PATH`, `REPO`, `ACTION`)
 - [x] Dynamic header/column compaction for small widths while keeping `-o json` stable
 - [ ] Add output selectors: `-o jsonpath=...` and `-o custom-columns=...` (custom headers/column maps)
 - [ ] Snapshot tests across terminal widths (for example: 80, 100, 120, 160 cols)

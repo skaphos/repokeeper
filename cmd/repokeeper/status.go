@@ -213,6 +213,7 @@ func init() {
 	statusCmd.Flags().String("reconcile-remote-mismatch", "none", "optional reconcile mode for remote mismatch: none, registry, git")
 	statusCmd.Flags().Bool("dry-run", true, "preview reconcile actions without modifying registry or git remotes")
 	addNoHeadersFlag(statusCmd)
+	statusCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 
 }
 
@@ -244,6 +245,7 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
 	}
+	wrap := getBoolFlag(cmd, "wrap")
 	pathMax := adaptiveCellLimit(cmd, 0, 48, 32)
 	branchMax := adaptiveCellLimit(cmd, 0, 24, 16)
 	for _, repo := range report.Repos {
@@ -254,8 +256,8 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		if repo.Type == "mirror" {
 			branch = "-"
 		}
-		path := formatCell(displayRepoPath(repo.Path, cwd, roots), false, pathMax)
-		branch = formatCell(branch, false, branchMax)
+		path := formatCell(displayRepoPath(repo.Path, cwd, roots), wrap, pathMax)
+		branch = formatCell(branch, wrap, branchMax)
 		dirty := "-"
 		if repo.Worktree != nil {
 			if repo.Worktree.Dirty {
@@ -324,6 +326,7 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
 	}
+	wrap := getBoolFlag(cmd, "wrap")
 	pathMax := adaptiveCellLimit(cmd, 0, 48, 32)
 	branchMax := adaptiveCellLimit(cmd, 0, 24, 16)
 	reasonMax := adaptiveCellLimit(cmd, 0, 36, 24)
@@ -337,11 +340,11 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 		if repo.Head.Detached {
 			branch = "detached:" + branch
 		}
-		path := formatCell(displayRepoPath(repo.Path, cwd, roots), false, pathMax)
-		branch = formatCell(branch, false, branchMax)
+		path := formatCell(displayRepoPath(repo.Path, cwd, roots), wrap, pathMax)
+		branch = formatCell(branch, wrap, branchMax)
 		tracking := displayTrackingStatus(repo.Tracking.Status)
-		reason := formatCell(advice.Reason, false, reasonMax)
-		action := formatCell(advice.RecommendedAction, false, actionMax)
+		reason := formatCell(advice.Reason, wrap, reasonMax)
+		action := formatCell(advice.RecommendedAction, wrap, actionMax)
 		if !wide {
 			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", path, branch, tracking, reason, action); err != nil {
 				return err

@@ -43,6 +43,7 @@ func init() {
 	addFormatFlag(getReposCmd, "output format: table, wide, or json")
 	addRepoFilterFlags(getReposCmd)
 	addNoHeadersFlag(getReposCmd)
+	getReposCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 	getCmd.AddCommand(getReposCmd)
 
 	addRepoFilterFlags(reconcileReposCmd)
@@ -68,6 +69,7 @@ func init() {
 	addUpstreamRepairFilterFlag(repairUpstreamAliasCmd)
 	addFormatFlag(repairUpstreamAliasCmd, "output format: table or json")
 	addNoHeadersFlag(repairUpstreamAliasCmd)
+	repairUpstreamAliasCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 	repairCmd.AddCommand(repairUpstreamAliasCmd)
 
 	rootCmd.AddCommand(getCmd)
