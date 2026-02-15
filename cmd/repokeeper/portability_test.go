@@ -183,3 +183,23 @@ func TestPopulateExportBranches(t *testing.T) {
 		t.Fatalf("expected mirror branch %q to remain, got %q", want, got)
 	}
 }
+
+func TestCloneRegistry(t *testing.T) {
+	if cloneRegistry(nil) != nil {
+		t.Fatal("expected nil clone for nil registry")
+	}
+
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r1", Path: "/r1", Status: registry.StatusPresent},
+		},
+	}
+	cloned := cloneRegistry(reg)
+	if cloned == nil || len(cloned.Entries) != 1 {
+		t.Fatalf("unexpected clone: %#v", cloned)
+	}
+	cloned.Entries[0].RepoID = "changed"
+	if reg.Entries[0].RepoID != "r1" {
+		t.Fatalf("expected deep-copied entries slice, got %#v", reg.Entries[0])
+	}
+}
