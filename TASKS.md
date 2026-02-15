@@ -149,9 +149,9 @@
 - [x] refactor `sync` command to reuse dry-run plan instead of calling `eng.Sync()` twice
 - [x] add `Execute(plan)` method to engine that accepts a pre-computed plan
 - [ ] Typed error classification:
-  - [ ] replace string-based error classification in `gitx/error_class.go` with sentinel errors or error types
-  - [ ] define `ErrAuth`, `ErrNetwork`, `ErrCorrupt`, `ErrMissingRemote` typed errors
-  - [ ] update `ClassifyError` to use `errors.Is`/`errors.As` instead of string matching
+  - [x] replace string-based error classification in `gitx/error_class.go` with sentinel errors or error types
+  - [x] define `ErrAuth`, `ErrNetwork`, `ErrCorrupt`, `ErrMissingRemote` typed errors
+  - [x] update `ClassifyError` to use `errors.Is`/`errors.As` instead of string matching
 - [ ] Engine method decomposition:
   - [ ] break `Sync()` method (~400 lines) into smaller focused functions
   - [ ] extract dry-run planning, execution, and result collection into separate methods
@@ -179,7 +179,7 @@
 
 - [ ] No package-level mutable state in `cmd/repokeeper/` (flags read via context/struct)
 - [x] `sync` command performs repo analysis only once per invocation
-- [ ] Error classification uses Go error types with `errors.Is`/`errors.As`
+- [x] Error classification uses Go error types with `errors.Is`/`errors.As`
 - [ ] No single function exceeds 100 lines (excluding table definitions)
 - [ ] Shared utilities live in dedicated packages with their own tests
 - [x] `go mod tidy` produces no changes
