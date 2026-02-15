@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
@@ -123,13 +125,12 @@ var importCmd = &cobra.Command{
 		}
 		includeRegistry, _ := cmd.Flags().GetBool("include-registry")
 		preserveRegistryPath, _ := cmd.Flags().GetBool("preserve-registry-path")
-		cloneRepos, _ := cmd.Flags().GetBool("clone")
 		dangerouslyDeleteExisting, _ := cmd.Flags().GetBool("dangerously-delete-existing")
 		fileOnly, _ := cmd.Flags().GetBool("file-only")
+		cloneRepos := !fileOnly
 
 		if fileOnly {
 			includeRegistry = false
-			cloneRepos = false
 			preserveRegistryPath = false
 		}
 
@@ -182,14 +183,39 @@ var importCmd = &cobra.Command{
 		if !preserveRegistryPath && mode == importModeReplace {
 			cfg.RegistryPath = ""
 		}
+		if !assumeYes(cmd) {
+			confirmed, err := confirmWithPrompt(cmd, "Proceed with import changes? [y/N]: ")
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				infof(cmd, "import cancelled")
+				return nil
+			}
+		}
 		if cloneRepos {
+			progress := newSyncProgressWriter(cmd, cwd, nil)
+			var failures []engine.SyncResult
 			if mode == importModeMerge && hasExistingCfg {
 				entriesToClone := selectMergeCloneEntries(existingCfg.Registry, bundle.Registry, onConflict)
-				if err := cloneImportedEntries(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting, entriesToClone); err != nil {
+				var err error
+				failures, err = cloneImportedEntriesWithProgress(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting, entriesToClone, progress)
+				if err != nil {
 					return err
 				}
-			} else if err := cloneImportedRepos(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting); err != nil {
-				return err
+			} else {
+				var err error
+				failures, err = cloneImportedReposWithProgress(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting, progress)
+				if err != nil {
+					return err
+				}
+			}
+			if len(failures) > 0 {
+				raiseExitCode(cmd, 2)
+				if err := writeImportCloneFailureSummary(cmd, failures, cwd); err != nil {
+					return err
+				}
+				infof(cmd, "import clone completed with %d failures", len(failures))
 			}
 		}
 		if err := config.Save(&cfg, cfgPath); err != nil {
@@ -209,7 +235,6 @@ func init() {
 	importCmd.Flags().String("on-conflict", string(importConflictPolicyBundle), "when mode=merge and repo_id exists locally: skip, bundle, or local")
 	importCmd.Flags().Bool("include-registry", true, "import bundled registry when present")
 	importCmd.Flags().Bool("preserve-registry-path", false, "keep bundled registry_path (resolved relative to imported config file)")
-	importCmd.Flags().Bool("clone", false, "clone repos from imported registry into target paths under the current directory")
 	importCmd.Flags().Bool("dangerously-delete-existing", false, "dangerous: delete conflicting target repo paths before cloning")
 	importCmd.Flags().Bool("file-only", false, "import config file only (disable registry import and cloning)")
 
@@ -318,25 +343,31 @@ func registryEntriesConflict(local, incoming registry.Entry) bool {
 }
 
 func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool) error {
-	return cloneImportedEntries(cmd, cfg, bundle, cwd, dangerouslyDeleteExisting, nil)
+	_, err := cloneImportedReposWithProgress(cmd, cfg, bundle, cwd, dangerouslyDeleteExisting, nil)
+	return err
 }
 
-func cloneImportedEntries(
+func cloneImportedReposWithProgress(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool, progress *syncProgressWriter) ([]engine.SyncResult, error) {
+	return cloneImportedEntriesWithProgress(cmd, cfg, bundle, cwd, dangerouslyDeleteExisting, nil, progress)
+}
+
+func cloneImportedEntriesWithProgress(
 	cmd *cobra.Command,
 	cfg *config.Config,
 	bundle exportBundle,
 	cwd string,
 	dangerouslyDeleteExisting bool,
 	entries []registry.Entry,
-) error {
+	progress *syncProgressWriter,
+) ([]engine.SyncResult, error) {
 	if cfg == nil || cfg.Registry == nil {
-		return nil
+		return nil, nil
 	}
 	if entries == nil {
 		entries = cfg.Registry.Entries
 	}
 	if len(entries) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	adapter := vcs.NewGitAdapter(nil)
@@ -349,13 +380,13 @@ func cloneImportedEntries(
 		// Protect against path traversal/out-of-tree paths from malformed bundles.
 		relToCWD, err := filepath.Rel(cwd, target)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if strings.HasPrefix(relToCWD, ".."+string(filepath.Separator)) || relToCWD == ".." {
-			return fmt.Errorf("refusing to clone outside current directory: %q", target)
+			return nil, fmt.Errorf("refusing to clone outside current directory: %q", target)
 		}
 		if _, exists := targets[target]; exists {
-			return fmt.Errorf("multiple repos resolve to same target path %q", target)
+			return nil, fmt.Errorf("multiple repos resolve to same target path %q", target)
 		}
 		targets[target] = entry
 
@@ -365,7 +396,7 @@ func cloneImportedEntries(
 				skippedLocal[target] = entry
 				continue
 			}
-			return fmt.Errorf("cannot clone %q: missing remote_url in bundle", entry.RepoID)
+			return nil, fmt.Errorf("cannot clone %q: missing remote_url in bundle", entry.RepoID)
 		}
 	}
 	if !dangerouslyDeleteExisting {
@@ -375,7 +406,7 @@ func cloneImportedEntries(
 			for _, conflict := range conflicts {
 				lines = append(lines, fmt.Sprintf("%s (repo: %s)", conflict.target, conflict.entry.RepoID))
 			}
-			return fmt.Errorf(
+			return nil, fmt.Errorf(
 				"import target conflicts detected under %s:\n- %s\nre-run with --dangerously-delete-existing to replace these paths",
 				cwd,
 				strings.Join(lines, "\n- "),
@@ -383,22 +414,27 @@ func cloneImportedEntries(
 		}
 	}
 
+	failures := make([]engine.SyncResult, 0)
 	for target, entry := range targets {
 		if _, skip := skippedLocal[target]; skip {
 			continue
 		}
+		result := engine.SyncResult{RepoID: entry.RepoID, Path: target, Action: "git clone"}
+		if progress != nil {
+			_ = progress.StartResult(result)
+		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return err
+			return failures, err
 		}
 		if _, err := os.Stat(target); err == nil {
 			if !dangerouslyDeleteExisting {
-				return fmt.Errorf("target path already exists: %q (use --dangerously-delete-existing to replace)", target)
+				return failures, fmt.Errorf("target path already exists: %q (use --dangerously-delete-existing to replace)", target)
 			}
 			if err := os.RemoveAll(target); err != nil {
-				return fmt.Errorf("failed to remove existing path %q: %w", target, err)
+				return failures, fmt.Errorf("failed to remove existing path %q: %w", target, err)
 			}
 		} else if !os.IsNotExist(err) {
-			return err
+			return failures, err
 		}
 
 		cloneArgs := []string{"clone"}
@@ -410,12 +446,23 @@ func cloneImportedEntries(
 		}
 		cloneArgs = append(cloneArgs, strings.TrimSpace(entry.RemoteURL), target)
 		if err := adapter.Clone(cmd.Context(), strings.TrimSpace(entry.RemoteURL), target, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
-			return fmt.Errorf("git %q: %w", strings.Join(cloneArgs, " "), err)
+			result.OK = false
+			result.ErrorClass = "unknown"
+			result.Error = fmt.Sprintf("git %q: %v", strings.Join(cloneArgs, " "), err)
+			failures = append(failures, result)
+			if progress != nil {
+				_ = progress.WriteResult(result)
+			}
+			continue
 		}
 		entry.Path = target
 		entry.Status = registry.StatusPresent
 		entry.LastSeen = time.Now()
 		setRegistryEntryByRepoID(cfg.Registry, entry)
+		result.OK = true
+		if progress != nil {
+			_ = progress.WriteResult(result)
+		}
 	}
 	for target, entry := range skippedLocal {
 		entry.Path = target
@@ -424,7 +471,26 @@ func cloneImportedEntries(
 		setRegistryEntryByRepoID(cfg.Registry, entry)
 		infof(cmd, "skipping local-only repo %s: missing remote_url", entry.RepoID)
 	}
-	return nil
+	return failures, nil
+}
+
+func writeImportCloneFailureSummary(cmd *cobra.Command, failures []engine.SyncResult, cwd string) error {
+	if len(failures) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "Failed import clone operations:"); err != nil {
+		return err
+	}
+	rows := make([][]string, 0, len(failures))
+	for _, res := range failures {
+		rows = append(rows, []string{
+			displayRepoPath(res.Path, cwd, nil),
+			res.ErrorClass,
+			res.Error,
+			res.RepoID,
+		})
+	}
+	return cliio.WriteTable(cmd.ErrOrStderr(), false, false, []string{"PATH", "ERROR_CLASS", "ERROR", "REPO"}, rows)
 }
 
 func selectMergeCloneEntries(local, bundled *registry.Registry, policy importConflictPolicy) []registry.Entry {

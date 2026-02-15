@@ -251,7 +251,7 @@ Flags:
 * `--force` (overwrite existing config)
 * `--include-registry` (default true)
 * `--preserve-registry-path` (default false; by default registry path is rewritten beside imported config)
-* `--clone` (default true; clone imported registry repos into current directory)
+* clone imported registry repos into current directory by default
 * `--dangerously-delete-existing` (dangerous; delete existing target paths before clone)
 * `--file-only` (config only; disables registry import and cloning)
 
