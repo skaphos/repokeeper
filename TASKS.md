@@ -203,7 +203,7 @@
   - [x] remove duplicate sorting (status.go:133 duplicates engine.go:210)
 - [ ] Security hardening:
   - [x] add validation for upstream format in edit.go (should match `remote/branch` pattern)
-  - [ ] validate path normalization in `selectRegistryEntryForDescribe` stays within configured roots
+  - [x] validate path normalization in `selectRegistryEntryForDescribe` stays within configured roots
 - [ ] API design cleanup:
   - [ ] make Engine struct fields private, add read-only accessors if needed
   - [ ] replace direct `gitx.GitRunner{}` instantiation with Adapter interface (edit.go, add.go, repair_upstream.go)

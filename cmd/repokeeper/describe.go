@@ -134,14 +134,20 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 
 	candidates := make([]string, 0, 1+len(roots))
 	if abs, err := filepath.Abs(filepath.Join(cwd, sel)); err == nil {
-		candidates = append(candidates, filepath.Clean(abs))
+		if candidate, ok := canonicalPathForMatch(abs); ok && pathWithinBase(candidate, cwd) {
+			candidates = append(candidates, candidate)
+		}
 	}
 	for _, root := range roots {
 		abs, err := filepath.Abs(filepath.Join(root, sel))
 		if err != nil {
 			continue
 		}
-		candidates = append(candidates, filepath.Clean(abs))
+		candidate, ok := canonicalPathForMatch(abs)
+		if !ok || !pathWithinBase(candidate, root) {
+			continue
+		}
+		candidates = append(candidates, candidate)
 	}
 
 	var matches []registry.Entry
@@ -191,4 +197,24 @@ func samePathForMatch(a, b string) bool {
 		return strings.EqualFold(a, b)
 	}
 	return a == b
+}
+
+func pathWithinBase(path, base string) bool {
+	cleanPath, ok := canonicalPathForMatch(path)
+	if !ok {
+		return false
+	}
+	cleanBase, ok := canonicalPathForMatch(base)
+	if !ok {
+		return false
+	}
+	if samePathForMatch(cleanPath, cleanBase) {
+		return true
+	}
+	rel, err := filepath.Rel(cleanBase, cleanPath)
+	if err != nil {
+		return false
+	}
+	rel = filepath.Clean(rel)
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

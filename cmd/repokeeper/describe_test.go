@@ -191,10 +191,29 @@ func TestSelectRegistryEntryForDescribeErrorsAndHelpers(t *testing.T) {
 		t.Fatalf("expected blank canonical path to fail, got %q, %t", got, ok)
 	}
 
+	if pathWithinBase("/tmp/root/repo", "/tmp/root") != true {
+		t.Fatal("expected path to be within base")
+	}
+	if pathWithinBase("/tmp/root/../other/repo", "/tmp/root") != false {
+		t.Fatal("expected normalized traversal path to be out of base")
+	}
+	if pathWithinBase("/tmp/other/repo", "/tmp/root") != false {
+		t.Fatal("expected outside path to be out of base")
+	}
+
 	left := filepath.Clean("/tmp/work/repo-a")
 	right := filepath.Clean("/tmp/work/repo-a")
 	if !samePathForMatch(left, right) {
 		t.Fatalf("expected same paths to match: %q vs %q", left, right)
+	}
+}
+
+func TestSelectRegistryEntryForDescribeRejectsPathTraversal(t *testing.T) {
+	entries := []registry.Entry{
+		{RepoID: "github.com/org/repo-a", Path: "/tmp/other/repo-a"},
+	}
+	if _, err := selectRegistryEntryForDescribe(entries, "../other/repo-a", "/tmp/root/work", []string{"/tmp/root"}); err == nil {
+		t.Fatal("expected traversal selector to be rejected")
 	}
 }
 
