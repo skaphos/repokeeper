@@ -104,7 +104,9 @@ var syncCmd = &cobra.Command{
 			}
 			return plan[i].RepoID < plan[j].RepoID
 		})
-		writeSyncPlan(cmd, plan, cwd, []string{cfgRoot})
+		if err := writeSyncPlan(cmd, plan, cwd, []string{cfgRoot}); err != nil {
+			return err
+		}
 		if !yes && syncPlanNeedsConfirmation(plan) {
 			confirmed, err := confirmSyncExecution(cmd)
 			if err != nil {
@@ -139,13 +141,19 @@ var syncCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
+				return err
+			}
 		case "table":
 			setColorOutputMode(cmd, format)
-			writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false)
+			if err := writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false); err != nil {
+				return err
+			}
 		case "wide":
 			setColorOutputMode(cmd, format)
-			writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true)
+			if err := writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -163,7 +171,9 @@ var syncCmd = &cobra.Command{
 				raiseExitCode(cmd, 1)
 			}
 		}
-		writeSyncFailureSummary(cmd, results, cwd, []string{cfgRoot})
+		if err := writeSyncFailureSummary(cmd, results, cwd, []string{cfgRoot}); err != nil {
+			return err
+		}
 		infof(cmd, "sync completed: %d repos", len(results))
 		return nil
 	},
@@ -189,20 +199,24 @@ func init() {
 
 }
 
-func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roots []string) {
-	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Planned sync operations:")
+func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roots []string) error {
+	if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "Planned sync operations:"); err != nil {
+		return err
+	}
 	w := tableutil.New(cmd.ErrOrStderr(), false)
 	tableutil.PrintHeaders(w, false, "PATH\tACTION\tREPO")
 	for _, res := range plan {
-		_, _ = fmt.Fprintf(
+		if _, err := fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\n",
 			displayRepoPath(res.Path, cwd, roots),
 			describeSyncAction(res),
 			res.RepoID,
-		)
+		); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }
 
 func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
@@ -210,7 +224,9 @@ func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
 }
 
 func confirmWithPrompt(cmd *cobra.Command, prompt string) (bool, error) {
-	_, _ = fmt.Fprint(cmd.ErrOrStderr(), prompt)
+	if _, err := fmt.Fprint(cmd.ErrOrStderr(), prompt); err != nil {
+		return false, err
+	}
 	reader := bufio.NewReader(cmd.InOrStdin())
 	line, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
@@ -241,7 +257,7 @@ func syncResultNeedsConfirmation(res engine.SyncResult) bool {
 	return false
 }
 
-func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) {
+func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) error {
 	statusByPath := make(map[string]model.RepoStatus, len(results))
 	if report != nil {
 		for _, repo := range report.Repos {
@@ -290,7 +306,7 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			}
 		}
 		if !wide {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				path,
 				describeSyncAction(res),
 				branch,
@@ -299,7 +315,9 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 				ok,
 				res.ErrorClass,
 				formatCell(res.Error, wrap, 36),
-				res.RepoID)
+				res.RepoID); err != nil {
+				return err
+			}
 			continue
 		}
 
@@ -317,7 +335,7 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			primaryRemote = repo.PrimaryRemote
 			upstream = repo.Tracking.Upstream
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
 			describeSyncAction(res),
 			branch,
@@ -330,9 +348,11 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			primaryRemote,
 			upstream,
 			ahead,
-			behind)
+			behind); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }
 
 func describeSyncAction(res engine.SyncResult) string {
@@ -386,7 +406,7 @@ func describeSyncAction(res engine.SyncResult) string {
 	return action
 }
 
-func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cwd string, roots []string) {
+func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cwd string, roots []string) error {
 	failed := make([]engine.SyncResult, 0, len(results))
 	for _, res := range results {
 		if res.OK {
@@ -395,14 +415,16 @@ func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cw
 		failed = append(failed, res)
 	}
 	if len(failed) == 0 {
-		return
+		return nil
 	}
 
-	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Failed sync operations:")
+	if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "Failed sync operations:"); err != nil {
+		return err
+	}
 	w := tableutil.New(cmd.ErrOrStderr(), false)
 	tableutil.PrintHeaders(w, false, "PATH\tACTION\tERROR_CLASS\tERROR\tREPO")
 	for _, res := range failed {
-		_, _ = fmt.Fprintf(
+		if _, err := fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\n",
 			displayRepoPath(res.Path, cwd, roots),
@@ -410,7 +432,9 @@ func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cw
 			res.ErrorClass,
 			res.Error,
 			res.RepoID,
-		)
+		); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }

@@ -189,8 +189,8 @@
 ### Milestone 6.2 — Hardening & Technical Debt
 
 - [ ] Error handling improvements:
-  - [ ] handle I/O errors from `fmt.Fprintf`/`fmt.Fprintln` on critical output paths (sync.go, status.go, scan.go)
-  - [ ] log or propagate `tabwriter.Flush()` errors instead of discarding
+  - [x] handle I/O errors from `fmt.Fprintf`/`fmt.Fprintln` on critical output paths (sync.go, status.go, scan.go)
+  - [x] log or propagate `tabwriter.Flush()` errors instead of discarding
   - [ ] consider structured error return for output failures
 - [ ] Concurrency safety:
   - [x] fix race condition: goroutines in `Status()` access `e.Registry` without synchronization (engine.go:158-201)

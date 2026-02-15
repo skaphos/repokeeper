@@ -85,9 +85,13 @@ var scanCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
+				return err
+			}
 		case "table":
-			writeScanTable(cmd, statuses, noHeaders)
+			if err := writeScanTable(cmd, statuses, noHeaders); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -101,7 +105,7 @@ var scanCmd = &cobra.Command{
 	},
 }
 
-func writeScanTable(cmd *cobra.Command, statuses []model.RepoStatus, noHeaders bool) {
+func writeScanTable(cmd *cobra.Command, statuses []model.RepoStatus, noHeaders bool) error {
 	w := tableutil.New(cmd.OutOrStdout(), false)
 	tableutil.PrintHeaders(w, noHeaders, "REPO\tPATH\tBARE\tPRIMARY_REMOTE")
 	for _, status := range statuses {
@@ -109,9 +113,11 @@ func writeScanTable(cmd *cobra.Command, statuses []model.RepoStatus, noHeaders b
 		if status.Bare {
 			bare = "yes"
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status.RepoID, status.Path, bare, status.PrimaryRemote)
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status.RepoID, status.Path, bare, status.PrimaryRemote); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }
 
 func hasRegistryWarnings(reg *registry.Registry) bool {

@@ -130,7 +130,9 @@ var statusCmd = &cobra.Command{
 		}
 		plans := buildRemoteMismatchPlans(report.Repos, reg, adapter, reconcileMode)
 		if len(plans) > 0 {
-			writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone)
+			if err := writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone); err != nil {
+				return err
+			}
 		}
 		if reconcileMode != remoteMismatchReconcileNone && !dryRun {
 			if !assumeYes(cmd) {
@@ -185,21 +187,31 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
+				return err
+			}
 		case "table":
 			setColorOutputMode(cmd, format)
 			if filter == engine.FilterDiverged {
-				writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false)
+				if err := writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false); err != nil {
+					return err
+				}
 				break
 			}
-			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false)
+			if err := writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false); err != nil {
+				return err
+			}
 		case "wide":
 			setColorOutputMode(cmd, format)
 			if filter == engine.FilterDiverged {
-				writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true)
+				if err := writeDivergedStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true); err != nil {
+					return err
+				}
 				break
 			}
-			writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true)
+			if err := writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -224,7 +236,7 @@ func init() {
 
 }
 
-func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) {
+func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) error {
 	w := tableutil.New(cmd.OutOrStdout(), true)
 	headers := "PATH\tBRANCH\tDIRTY\tTRACKING"
 	if wide {
@@ -254,11 +266,13 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			tracking = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "mirror", termstyle.Info)
 		}
 		if !wide {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n",
 				path,
 				branch,
 				dirty,
-				tracking)
+				tracking); err != nil {
+				return err
+			}
 			continue
 		}
 		ahead := "-"
@@ -269,7 +283,7 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		if repo.Tracking.Behind != nil {
 			behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
 		}
-		_, _ = fmt.Fprintf(
+		if _, err := fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
@@ -281,12 +295,14 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			ahead,
 			behind,
 			repo.ErrorClass,
-		)
+		); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }
 
-func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) {
+func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) error {
 	adviceByPath := make(map[string]divergedAdvice, len(report.Repos))
 	for _, advice := range buildDivergedAdvice(report.Repos) {
 		adviceByPath[advice.Path] = advice
@@ -310,7 +326,9 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 		path := displayRepoPath(repo.Path, cwd, roots)
 		tracking := displayTrackingStatus(repo.Tracking.Status)
 		if !wide {
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", path, branch, tracking, advice.Reason, advice.RecommendedAction)
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", path, branch, tracking, advice.Reason, advice.RecommendedAction); err != nil {
+				return err
+			}
 			continue
 		}
 		ahead := "-"
@@ -321,7 +339,7 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 		if repo.Tracking.Behind != nil {
 			behind = fmt.Sprintf("%d", *repo.Tracking.Behind)
 		}
-		_, _ = fmt.Fprintf(
+		if _, err := fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
@@ -333,9 +351,11 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 			behind,
 			advice.Reason,
 			advice.RecommendedAction,
-		)
+		); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }
 
 func displayTrackingStatus(status model.TrackingStatus) string {
@@ -589,19 +609,23 @@ func primaryRemoteURL(repo model.RepoStatus) string {
 	return ""
 }
 
-func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd string, roots []string, dryRun bool) {
+func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd string, roots []string, dryRun bool) error {
 	if len(plans) == 0 {
-		return
+		return nil
 	}
 	modeLabel := "planned"
 	if !dryRun {
 		modeLabel = "applying"
 	}
-	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Remote mismatch reconcile (%s):\n", modeLabel)
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "Remote mismatch reconcile (%s):\n", modeLabel); err != nil {
+		return err
+	}
 	w := tableutil.New(cmd.ErrOrStderr(), false)
-	_, _ = fmt.Fprintln(w, "PATH\tACTION\tPRIMARY_REMOTE\tGIT_REMOTE_URL\tREGISTRY_REMOTE_URL\tREPO")
+	if _, err := fmt.Fprintln(w, "PATH\tACTION\tPRIMARY_REMOTE\tGIT_REMOTE_URL\tREGISTRY_REMOTE_URL\tREPO"); err != nil {
+		return err
+	}
 	for _, plan := range plans {
-		_, _ = fmt.Fprintf(
+		if _, err := fmt.Fprintf(
 			w,
 			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			displayRepoPath(plan.Path, cwd, roots),
@@ -610,9 +634,11 @@ func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd
 			plan.RepoRemoteURL,
 			plan.RegistryURL,
 			plan.RepoID,
-		)
+		); err != nil {
+			return err
+		}
 	}
-	_ = w.Flush()
+	return w.Flush()
 }
 
 func applyRemoteMismatchPlans(cmd *cobra.Command, plans []remoteMismatchPlan, reg *registry.Registry, mode remoteMismatchReconcileMode) error {
