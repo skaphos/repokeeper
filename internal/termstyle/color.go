@@ -1,6 +1,6 @@
 package termstyle
 
-import "text/tabwriter"
+import "github.com/liggitt/tabwriter"
 
 const (
 	Reset = "\x1b[0m"

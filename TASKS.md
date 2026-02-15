@@ -247,7 +247,7 @@
 
 ### Milestone 7 — Responsive Output & Reflow
 
-- [ ] Replace stdlib `text/tabwriter` with `github.com/liggitt/tabwriter` to align kubectl-style table behavior
+- [x] Replace stdlib `text/tabwriter` with `github.com/liggitt/tabwriter` to align kubectl-style table behavior
 - [ ] Evaluate kubectl printer-stack compatibility (`k8s.io/cli-runtime/pkg/printers`) without taking Kubernetes object dependencies
 - [x] Width-aware table rendering for narrow terminals (kubectl-style reflow behavior)
 - [x] Adaptive column strategy by view (`get/status`, `reconcile/sync`, `repair`) with deterministic priority

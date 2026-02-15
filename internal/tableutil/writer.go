@@ -3,7 +3,8 @@ package tableutil
 import (
 	"fmt"
 	"io"
-	"text/tabwriter"
+
+	"github.com/liggitt/tabwriter"
 )
 
 // New creates a tabwriter with RepoKeeper's default spacing settings.
