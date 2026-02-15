@@ -106,8 +106,10 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 	}
 
 	now := time.Now()
+	discoveredPaths := make(map[string]struct{}, len(results))
 	var statuses []model.RepoStatus
 	for _, res := range results {
+		discoveredPaths[filepath.Clean(res.Path)] = struct{}{}
 		repoID := res.RepoID
 		if repoID == "" {
 			repoID = "local:" + filepath.ToSlash(res.Path)
@@ -128,10 +130,35 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 			PrimaryRemote: res.PrimaryRemote,
 		})
 	}
+	for i := range e.registry.Entries {
+		entryPath := filepath.Clean(e.registry.Entries[i].Path)
+		if _, ok := discoveredPaths[entryPath]; ok {
+			continue
+		}
+		if !pathUnderAnyRoot(entryPath, roots) {
+			continue
+		}
+		// Any registry entry under scanned roots that was not rediscovered is
+		// treated as absent/missing after this scan.
+		e.registry.Entries[i].Status = registry.StatusMissing
+	}
 	sortRepoStatuses(statuses)
 	e.setRegistryUpdatedAt(now)
 
 	return statuses, nil
+}
+
+func pathUnderAnyRoot(path string, roots []string) bool {
+	for _, root := range roots {
+		rel, err := filepath.Rel(filepath.Clean(root), path)
+		if err != nil {
+			continue
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+			return true
+		}
+	}
+	return false
 }
 
 // StatusOptions configures a status operation.

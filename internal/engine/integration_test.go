@@ -222,6 +222,33 @@ var _ = Describe("Engine integration", func() {
 		Expect(reg.Entries).To(HaveLen(1))
 		Expect(reg.Entries[0].Status).To(Equal(registry.StatusMissing))
 	})
+
+	It("marks repositories as missing when git metadata is removed", func() {
+		base := GinkgoT().TempDir()
+		repoPath := filepath.Join(base, "repo")
+		runGit("", "init", repoPath)
+
+		cfg := &config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}
+		reg := &registry.Registry{}
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+
+		_, err := eng.Scan(context.Background(), engine.ScanOptions{
+			Roots:          []string{base},
+			FollowSymlinks: false,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reg.Entries).To(HaveLen(1))
+		Expect(reg.Entries[0].Status).To(Equal(registry.StatusPresent))
+
+		Expect(os.RemoveAll(filepath.Join(repoPath, ".git"))).To(Succeed())
+		_, err = eng.Scan(context.Background(), engine.ScanOptions{
+			Roots:          []string{base},
+			FollowSymlinks: false,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reg.Entries).To(HaveLen(1))
+		Expect(reg.Entries[0].Status).To(Equal(registry.StatusMissing))
+	})
 })
 
 func runGit(dir string, args ...string) string {

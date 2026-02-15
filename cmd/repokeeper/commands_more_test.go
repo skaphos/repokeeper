@@ -103,7 +103,12 @@ func TestAddDeleteWithRegistryOverride(t *testing.T) {
 	deleteCmd.SetOut(delOut)
 	deleteCmd.SetContext(context.Background())
 	defer deleteCmd.SetOut(os.Stdout)
+	prevDeleteRegistry, _ := deleteCmd.Flags().GetString("registry")
+	defer func() { _ = deleteCmd.Flags().Set("registry", prevDeleteRegistry) }()
 	_ = deleteCmd.Flags().Set("registry", regPath)
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "true")
+	defer func() { _ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes)) }()
 	if err := deleteCmd.RunE(deleteCmd, []string{reg.Entries[0].RepoID}); err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
@@ -113,6 +118,9 @@ func TestAddDeleteWithRegistryOverride(t *testing.T) {
 	}
 	if len(reg.Entries) != 0 {
 		t.Fatalf("expected zero entries after delete, got %d", len(reg.Entries))
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("expected repository path deleted from disk, stat err=%v", err)
 	}
 }
 
@@ -209,5 +217,54 @@ func TestEditRequiresSetUpstreamAndRejectsMissing(t *testing.T) {
 	err = editCmd.RunE(editCmd, []string{"github.com/org/repo-missing"})
 	if err == nil || !strings.Contains(err.Error(), "cannot set upstream for missing repository") {
 		t.Fatalf("expected missing repo error, got %v", err)
+	}
+}
+
+func TestDeleteCancelledByPrompt(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	repoPath := filepath.Join(t.TempDir(), "repo-cancel")
+	mustRunGit(t, filepath.Dir(repoPath), "init", repoPath)
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{{
+			RepoID: "local:repo-cancel",
+			Path:   repoPath,
+			Status: registry.StatusPresent,
+		}},
+	}
+	if err := config.Save(cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "false")
+	defer func() { _ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes)) }()
+	prevDeleteRegistry, _ := deleteCmd.Flags().GetString("registry")
+	defer func() { _ = deleteCmd.Flags().Set("registry", prevDeleteRegistry) }()
+	_ = deleteCmd.Flags().Set("registry", "")
+
+	deleteCmd.SetContext(context.Background())
+	deleteCmd.SetIn(strings.NewReader("n\n"))
+	defer deleteCmd.SetIn(os.Stdin)
+	if err := deleteCmd.RunE(deleteCmd, []string{"local:repo-cancel"}); err != nil {
+		t.Fatalf("delete should cancel without error, got: %v", err)
+	}
+
+	cfg, err = config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if cfg.Registry == nil || len(cfg.Registry.Entries) != 1 {
+		t.Fatalf("expected entry retained after cancelled delete, got %+v", cfg.Registry)
+	}
+	if _, err := os.Stat(repoPath); err != nil {
+		t.Fatalf("expected repository to remain on disk, stat err=%v", err)
 	}
 }

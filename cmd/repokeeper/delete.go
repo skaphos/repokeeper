@@ -46,6 +46,19 @@ var deleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if !assumeYes(cmd) {
+			confirmed, err := confirmWithPrompt(
+				cmd,
+				fmt.Sprintf("Delete %s at %s and remove from registry? [y/N]: ", entry.RepoID, entry.Path),
+			)
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				infof(cmd, "delete cancelled")
+				return nil
+			}
+		}
 
 		idx := -1
 		for i := range reg.Entries {
@@ -56,6 +69,9 @@ var deleteCmd = &cobra.Command{
 		}
 		if idx < 0 {
 			return fmt.Errorf("entry not found for selector %q", args[0])
+		}
+		if err := os.RemoveAll(entry.Path); err != nil {
+			return fmt.Errorf("delete repository path %q: %w", entry.Path, err)
 		}
 		reg.Entries = append(reg.Entries[:idx], reg.Entries[idx+1:]...)
 
