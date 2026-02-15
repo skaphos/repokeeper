@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
@@ -72,7 +71,6 @@ var addCmd = &cobra.Command{
 			return err
 		}
 
-		runner := &gitx.GitRunner{}
 		cloneArgs := []string{"clone"}
 		repoType := "checkout"
 		if mirror {
@@ -83,11 +81,11 @@ var addCmd = &cobra.Command{
 		}
 		cloneArgs = append(cloneArgs, rawURL, targetAbs)
 
-		if _, err := runner.Run(cmd.Context(), "", cloneArgs...); err != nil {
+		adapter := vcs.NewGitAdapter(nil)
+		if err := adapter.Clone(cmd.Context(), rawURL, targetAbs, strings.TrimSpace(branch), mirror); err != nil {
 			return fmt.Errorf("git %s: %w", strings.Join(cloneArgs, " "), err)
 		}
 
-		adapter := vcs.NewGitAdapter(runner)
 		remotes, err := adapter.Remotes(cmd.Context(), targetAbs)
 		if err != nil {
 			return err
