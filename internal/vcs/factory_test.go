@@ -47,9 +47,12 @@ func TestParseAdapterSelection(t *testing.T) {
 }
 
 type multiStubAdapter struct {
-	name       string
-	repoPaths  map[string]bool
-	fetchCalls int
+	name             string
+	repoPaths        map[string]bool
+	fetchCalls       int
+	localUpdateOK    bool
+	localUpdateWhy   string
+	fetchActionLabel string
 }
 
 func (m *multiStubAdapter) Name() string { return m.name }
@@ -98,10 +101,19 @@ func (m *multiStubAdapter) PrimaryRemote(remoteNames []string) string {
 	}
 	return ""
 }
+func (m *multiStubAdapter) SupportsLocalUpdate(context.Context, string) (bool, string, error) {
+	return m.localUpdateOK, m.localUpdateWhy, nil
+}
+func (m *multiStubAdapter) FetchAction(context.Context, string) (string, error) {
+	if m.fetchActionLabel == "" {
+		return "git fetch --all --prune --prune-tags --no-recurse-submodules", nil
+	}
+	return m.fetchActionLabel, nil
+}
 
 func TestMultiAdapterRoutesByPath(t *testing.T) {
-	gitAdapter := &multiStubAdapter{name: "git", repoPaths: map[string]bool{"/git-repo": true}}
-	hgAdapter := &multiStubAdapter{name: "hg", repoPaths: map[string]bool{"/hg-repo": true}}
+	gitAdapter := &multiStubAdapter{name: "git", repoPaths: map[string]bool{"/git-repo": true}, localUpdateOK: true}
+	hgAdapter := &multiStubAdapter{name: "hg", repoPaths: map[string]bool{"/hg-repo": true}, localUpdateOK: false}
 	multi := &MultiAdapter{
 		adapters: []Adapter{gitAdapter, hgAdapter},
 		byPath:   map[string]Adapter{},
@@ -125,5 +137,44 @@ func TestMultiAdapterRoutesByPath(t *testing.T) {
 
 	if gitAdapter.fetchCalls != 1 || hgAdapter.fetchCalls != 1 {
 		t.Fatalf("unexpected fetch call routing git=%d hg=%d", gitAdapter.fetchCalls, hgAdapter.fetchCalls)
+	}
+}
+
+func TestMultiAdapterRoutesCapabilityMethodsByPath(t *testing.T) {
+	gitAdapter := &multiStubAdapter{
+		name:             "git",
+		repoPaths:        map[string]bool{"/git-repo": true},
+		localUpdateOK:    true,
+		fetchActionLabel: "git fetch --all --prune --prune-tags --no-recurse-submodules",
+	}
+	hgAdapter := &multiStubAdapter{
+		name:             "hg",
+		repoPaths:        map[string]bool{"/hg-repo": true},
+		localUpdateOK:    false,
+		localUpdateWhy:   "local update unsupported for vcs hg",
+		fetchActionLabel: "hg pull",
+	}
+	multi := &MultiAdapter{
+		adapters: []Adapter{gitAdapter, hgAdapter},
+		byPath:   map[string]Adapter{},
+	}
+
+	ok, reason, err := multi.SupportsLocalUpdate(context.Background(), "/hg-repo")
+	if err != nil {
+		t.Fatalf("supports local update returned error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected hg local update unsupported")
+	}
+	if reason != "local update unsupported for vcs hg" {
+		t.Fatalf("unexpected local update reason: %q", reason)
+	}
+
+	action, err := multi.FetchAction(context.Background(), "/hg-repo")
+	if err != nil {
+		t.Fatalf("fetch action returned error: %v", err)
+	}
+	if action != "hg pull" {
+		t.Fatalf("unexpected fetch action: %q", action)
 	}
 }

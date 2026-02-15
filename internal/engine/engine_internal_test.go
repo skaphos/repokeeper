@@ -452,3 +452,47 @@ func TestRunSyncHelperEdgeBranches(t *testing.T) {
 		t.Fatalf("expected filter-gone skip result, got %+v", gone)
 	}
 }
+
+type unsupportedLocalUpdateAdapter struct {
+	*planAdapter
+}
+
+func (u *unsupportedLocalUpdateAdapter) SupportsLocalUpdate(context.Context, string) (bool, string, error) {
+	return false, "local update unsupported for vcs hg", nil
+}
+
+func (u *unsupportedLocalUpdateAdapter) FetchAction(context.Context, string) (string, error) {
+	return "hg pull", nil
+}
+
+func TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(t *testing.T) {
+	adapter := &unsupportedLocalUpdateAdapter{planAdapter: &planAdapter{}}
+	eng := &Engine{
+		cfg:      &config.Config{},
+		registry: &registry.Registry{},
+		adapter:  adapter,
+	}
+	entry := registry.Entry{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent}
+
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true}, "main")
+	if dry.Outcome != SyncOutcomeSkippedLocalUpdate || !dry.OK {
+		t.Fatalf("unexpected dry-run result: %+v", dry)
+	}
+	if dry.Error != SyncErrorSkippedLocalUpdatePrefix+"local update unsupported for vcs hg" {
+		t.Fatalf("unexpected dry-run skip reason: %q", dry.Error)
+	}
+	if dry.Action != "hg pull" {
+		t.Fatalf("unexpected dry-run action: %q", dry.Action)
+	}
+
+	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: true}, "main")
+	if applied.Outcome != SyncOutcomeSkippedLocalUpdate || !applied.OK {
+		t.Fatalf("unexpected apply result: %+v", applied)
+	}
+	if applied.Error != SyncErrorSkippedLocalUpdatePrefix+"local update unsupported for vcs hg" {
+		t.Fatalf("unexpected apply skip reason: %q", applied.Error)
+	}
+	if len(adapter.calls) != 1 || adapter.calls[0] != "fetch:/repo" {
+		t.Fatalf("expected fetch-only apply call sequence, got %+v", adapter.calls)
+	}
+}

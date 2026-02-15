@@ -112,3 +112,13 @@ func (h *HgAdapter) PrimaryRemote(remoteNames []string) string {
 	}
 	return remoteNames[0]
 }
+
+// SupportsLocalUpdate documents current sync safety boundaries for hg.
+func (h *HgAdapter) SupportsLocalUpdate(context.Context, string) (bool, string, error) {
+	return false, "local update unsupported for vcs hg", nil
+}
+
+// FetchAction returns the human-readable safe fetch action for hg.
+func (h *HgAdapter) FetchAction(context.Context, string) (string, error) {
+	return "hg pull", nil
+}

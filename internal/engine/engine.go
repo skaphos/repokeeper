@@ -413,6 +413,30 @@ func failedPlannedSyncResult(executed SyncResult, outcome OutcomeKind, err error
 	return executed
 }
 
+func supportsLocalUpdate(ctx context.Context, adapter vcs.Adapter, dir string) (bool, string, error) {
+	capable, ok := adapter.(interface {
+		SupportsLocalUpdate(context.Context, string) (bool, string, error)
+	})
+	if !ok {
+		return true, "", nil
+	}
+	return capable.SupportsLocalUpdate(ctx, dir)
+}
+
+func syncFetchAction(ctx context.Context, adapter vcs.Adapter, dir string) string {
+	provider, ok := adapter.(interface {
+		FetchAction(context.Context, string) (string, error)
+	})
+	if !ok {
+		return "git fetch --all --prune --prune-tags --no-recurse-submodules"
+	}
+	action, err := provider.FetchAction(ctx, dir)
+	if err != nil || strings.TrimSpace(action) == "" {
+		return "git fetch --all --prune --prune-tags --no-recurse-submodules"
+	}
+	return action
+}
+
 // Sync runs fetch/prune on repos matching the filter.
 func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, error) {
 	if e.registry == nil {
@@ -636,8 +660,23 @@ func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts Sy
 }
 
 func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts SyncOptions, mainBranch string) SyncResult {
-	action := "git fetch --all --prune --prune-tags --no-recurse-submodules"
+	action := syncFetchAction(ctx, e.adapter, entry.Path)
 	if opts.UpdateLocal {
+		supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
+		if err != nil {
+			return inspectFailureResult(entry, err)
+		}
+		if !supported {
+			return SyncResult{
+				RepoID:     entry.RepoID,
+				Path:       entry.Path,
+				Outcome:    SyncOutcomeSkippedLocalUpdate,
+				OK:         true,
+				ErrorClass: "skipped",
+				Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
+				Action:     action,
+			}
+		}
 		// We still inspect during dry-run so skip reasons and planned actions
 		// match live execution as closely as possible.
 		status, err := e.InspectRepo(ctx, entry.Path)
@@ -706,6 +745,20 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 	}
 	if !opts.UpdateLocal {
 		return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeFetched, OK: true}
+	}
+	supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
+	if err != nil {
+		return inspectFailureResult(entry, err)
+	}
+	if !supported {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    SyncOutcomeSkippedLocalUpdate,
+			OK:         true,
+			ErrorClass: "skipped",
+			Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
+		}
 	}
 	status, err := e.InspectRepo(ctx, entry.Path)
 	if err != nil {

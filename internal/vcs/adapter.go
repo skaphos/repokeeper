@@ -111,3 +111,14 @@ func (g *GitAdapter) NormalizeURL(rawURL string) string {
 func (g *GitAdapter) PrimaryRemote(remoteNames []string) string {
 	return gitx.PrimaryRemote(remoteNames)
 }
+
+// SupportsLocalUpdate reports whether pull --rebase style local updates are
+// supported for this adapter and path.
+func (g *GitAdapter) SupportsLocalUpdate(context.Context, string) (bool, string, error) {
+	return true, "", nil
+}
+
+// FetchAction returns the human-readable safe fetch action for this adapter.
+func (g *GitAdapter) FetchAction(context.Context, string) (string, error) {
+	return "git fetch --all --prune --prune-tags --no-recurse-submodules", nil
+}

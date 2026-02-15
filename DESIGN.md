@@ -494,7 +494,7 @@ Experimental multi-VCS compatibility matrix:
 | VCS | Support level | Discovery | Status | Sync (safe) | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Git | default | Yes | Yes | Yes (`fetch --all --prune --prune-tags`) | Full feature path |
-| Mercurial (`hg`) | experimental | Yes | Yes | Partial (`hg pull`) | Tracking/upstream semantics are limited vs Git |
+| Mercurial (`hg`) | experimental | Yes | Yes | Partial (`hg pull`) | `--update-local` rebase/push/stash flows are intentionally unsupported |
 
 ## 9. Stretch Goals
 

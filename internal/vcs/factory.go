@@ -197,6 +197,36 @@ func (m *MultiAdapter) PrimaryRemote(remoteNames []string) string {
 	return NewGitAdapter(nil).PrimaryRemote(remoteNames)
 }
 
+// SupportsLocalUpdate reports local-update capability for the detected backend.
+func (m *MultiAdapter) SupportsLocalUpdate(ctx context.Context, dir string) (bool, string, error) {
+	adapter, err := m.adapterForPath(ctx, dir)
+	if err != nil {
+		return false, "", err
+	}
+	capable, ok := adapter.(interface {
+		SupportsLocalUpdate(context.Context, string) (bool, string, error)
+	})
+	if !ok {
+		return true, "", nil
+	}
+	return capable.SupportsLocalUpdate(ctx, dir)
+}
+
+// FetchAction returns the fetch action for the detected backend.
+func (m *MultiAdapter) FetchAction(ctx context.Context, dir string) (string, error) {
+	adapter, err := m.adapterForPath(ctx, dir)
+	if err != nil {
+		return "", err
+	}
+	provider, ok := adapter.(interface {
+		FetchAction(context.Context, string) (string, error)
+	})
+	if !ok {
+		return "git fetch --all --prune --prune-tags --no-recurse-submodules", nil
+	}
+	return provider.FetchAction(ctx, dir)
+}
+
 func (m *MultiAdapter) adapterForPath(ctx context.Context, dir string) (Adapter, error) {
 	m.mu.Lock()
 	if adapter, ok := m.byPath[dir]; ok {

@@ -24,6 +24,7 @@ RepoKeeper is Git-first. The Mercurial (`hg`) adapter is available as an **exper
 Current experimental limits:
 
 - `hg`: discovery/status and safe `pull`-based fetch are supported
+- `hg`: `sync --update-local` (rebase/push/stash flows) is intentionally unsupported and is skipped with a reason
 - Repair and remote mismatch reconciliation flows remain Git-oriented
 
 ## Install

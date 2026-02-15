@@ -18,7 +18,7 @@ import (
 
 var scanCmd = &cobra.Command{
 	Use:   "scan",
-	Short: "Scan roots for git repos and update the registry",
+	Short: "Scan roots for repositories and update the registry",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		debugf(cmd, "starting scan")
 		cwd, err := os.Getwd()
