@@ -279,6 +279,7 @@ Feedback captured and prioritized:
 - [x] P1: Keep Git default behavior unchanged while making mixed-root support explicit via `--vcs`.
 - [x] P1: Improve sync UX clarity for non-Git repos (`hg pull` safe fetch, explicit skip reason for `--update-local`).
 - [x] P2: Align command/help text to "repositories" language instead of Git-only wording where behavior is multi-VCS.
+- [ ] P1 (tomorrow): investigate upstream-missing metadata flow (scan -> registry -> export -> import) so repos known to have no upstream are classified as `skipped` during import/reconcile instead of clone `failed`, while persisting `status=missing` where appropriate.
 
 **Acceptance:**
 

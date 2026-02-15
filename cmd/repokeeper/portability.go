@@ -408,6 +408,9 @@ func cloneImportedEntriesWithProgress(
 
 		remoteURL := strings.TrimSpace(entry.RemoteURL)
 		if remoteURL == "" {
+			// @todo(milestone-8): Preserve upstream-missing intent from source scan/export
+			// so import/reconcile classify these as explicit "skipped no upstream"
+			// instead of falling through to clone-time failures.
 			skipped[target] = entry
 			skipReasons[target] = "no remote URL configured"
 			continue
