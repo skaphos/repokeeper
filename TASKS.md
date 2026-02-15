@@ -202,7 +202,7 @@
   - [ ] eliminate redundant `eng.Status()` call after sync for table/wide output (sync.go:145-163)
   - [x] remove duplicate sorting (status.go:133 duplicates engine.go:210)
 - [ ] Security hardening:
-  - [ ] add validation for upstream format in edit.go (should match `remote/branch` pattern)
+  - [x] add validation for upstream format in edit.go (should match `remote/branch` pattern)
   - [ ] validate path normalization in `selectRegistryEntryForDescribe` stays within configured roots
 - [ ] API design cleanup:
   - [ ] make Engine struct fields private, add read-only accessors if needed

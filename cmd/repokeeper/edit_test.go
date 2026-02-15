@@ -23,6 +23,33 @@ func TestTrackingBranchFromUpstream(t *testing.T) {
 	}
 }
 
+func TestValidateUpstreamRef(t *testing.T) {
+	cases := []struct {
+		name        string
+		upstream    string
+		expectError bool
+	}{
+		{name: "valid simple", upstream: "origin/main"},
+		{name: "valid nested branch", upstream: "upstream/release/v1"},
+		{name: "missing slash", upstream: "origin", expectError: true},
+		{name: "missing remote", upstream: "/main", expectError: true},
+		{name: "missing branch", upstream: "origin/", expectError: true},
+		{name: "empty", upstream: "", expectError: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateUpstreamRef(tc.upstream)
+			if tc.expectError && err == nil {
+				t.Fatalf("expected error for %q", tc.upstream)
+			}
+			if !tc.expectError && err != nil {
+				t.Fatalf("expected no error for %q, got %v", tc.upstream, err)
+			}
+		})
+	}
+}
+
 func TestEditRunEDetachedHead(t *testing.T) {
 	tmp := t.TempDir()
 	repo := filepath.Join(tmp, "repo-detached")
@@ -105,5 +132,19 @@ func TestEditRunERegistryOverrideLoadError(t *testing.T) {
 	err := editCmd.RunE(editCmd, []string{"github.com/org/repo"})
 	if err == nil || !os.IsNotExist(err) {
 		t.Fatalf("expected registry load os-not-exist error, got %v", err)
+	}
+}
+
+func TestEditRejectsInvalidSetUpstreamFormat(t *testing.T) {
+	cfgPath, regPath := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	editCmd.SetContext(context.Background())
+	_ = editCmd.Flags().Set("registry", regPath)
+	_ = editCmd.Flags().Set("set-upstream", "origin")
+	err := editCmd.RunE(editCmd, []string{"github.com/org/repo-missing"})
+	if err == nil || !strings.Contains(err.Error(), "expected remote/branch") {
+		t.Fatalf("expected invalid set-upstream format error, got %v", err)
 	}
 }
