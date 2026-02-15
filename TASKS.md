@@ -87,21 +87,6 @@
 - [ ] `golangci-lint run ./...` passes with zero issues
 - [ ] Overall test coverage >= 80%
 
-### Milestone 5 — TUI (phase 2)
-
-- [ ] k9s-style primary repo list as default view
-- [ ] keyboard-first navigation (`j`/`k` + arrows), filter mode, and selection set
-- [ ] filter repos by id/path/branch/tracking/error state
-- [ ] contextual actions from list/details (sync, edit metadata, repair upstream)
-- [ ] trigger batch actions for selected repos
-- [ ] progress updates + detail/action view
-- [ ] keybindings baseline: `/` filter, `space` select, `a` select all, `s` sync, `e` edit, `r` repair upstream, `enter` details/actions, `q` quit
-
-**Acceptance:**
-
-- [ ] Use TUI as primary operations dashboard without losing CLI automation parity
-- [ ] Core interaction model feels familiar to k9s users (list-first, filter-first, action-driven)
-
 ### Milestone 6 — CLI Improvements (Ongoing)
 
 - [x] Kubectl-aligned command aliases (additive):
@@ -185,14 +170,29 @@
 - [ ] Adapter selection works without regressions to Git behavior
 - [ ] Feedback items are captured, triaged, and reflected in shipped improvements
 
-### Milestone 9 — 1.0 Readiness & Release Reset
+### Milestone 9 — TUI (phase 2)
 
-- [ ] Keep release line on `0.x` until milestone 7 and milestone 8 completion criteria are met
+- [ ] k9s-style primary repo list as default view
+- [ ] keyboard-first navigation (`j`/`k` + arrows), filter mode, and selection set
+- [ ] filter repos by id/path/branch/tracking/error state
+- [ ] contextual actions from list/details (sync, edit metadata, repair upstream)
+- [ ] trigger batch actions for selected repos
+- [ ] progress updates + detail/action view
+- [ ] keybindings baseline: `/` filter, `space` select, `a` select all, `s` sync, `e` edit, `r` repair upstream, `enter` details/actions, `q` quit
+
+**Acceptance:**
+
+- [ ] Use TUI as primary operations dashboard without losing CLI automation parity
+- [ ] Core interaction model feels familiar to k9s users (list-first, filter-first, action-driven)
+
+### Milestone 10 — 1.0 Readiness & Release Reset
+
+- [ ] Keep release line on `0.x` until milestone 7, milestone 8, and milestone 9 completion criteria are met
 - [ ] Define and publish a 1.0 readiness gate (CLI surface freeze, output contract freeze, docs freeze, compatibility matrix)
 - [ ] Archive or remove pre-1.0 GitHub releases/tags to reset public release history
 - [ ] Confirm post-reset versioning strategy (for example restart at `v0.1.0` or begin prerelease series)
-- [ ] Add migration notes for users once post-milestone-8 releases begin
-- [ ] Cut first post-reset release only after milestone 7 and milestone 8 acceptance criteria are met
+- [ ] Add migration notes for users once post-milestone-9 releases begin
+- [ ] Cut first post-reset release only after milestone 7, milestone 8, and milestone 9 acceptance criteria are met
 
 **Acceptance:**
 
