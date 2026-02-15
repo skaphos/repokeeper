@@ -128,3 +128,90 @@ func TestRepairUpstreamRunEUnsupportedFormat(t *testing.T) {
 		t.Fatalf("expected unsupported format error, got %v", err)
 	}
 }
+
+func TestSyncRunEValidationFlags(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	syncCmd.SetOut(out)
+	syncCmd.SetErr(errOut)
+	defer syncCmd.SetOut(os.Stdout)
+	defer syncCmd.SetErr(os.Stderr)
+
+	_ = syncCmd.Flags().Set("only", "missing")
+	_ = syncCmd.Flags().Set("dry-run", "true")
+	_ = syncCmd.Flags().Set("yes", "true")
+	_ = syncCmd.Flags().Set("format", "json")
+	_ = syncCmd.Flags().Set("update-local", "false")
+	_ = syncCmd.Flags().Set("rebase-dirty", "true")
+
+	err := syncCmd.RunE(syncCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "--rebase-dirty requires --update-local") {
+		t.Fatalf("expected rebase-dirty validation error, got %v", err)
+	}
+
+	_ = syncCmd.Flags().Set("rebase-dirty", "false")
+	_ = syncCmd.Flags().Set("push-local", "true")
+	err = syncCmd.RunE(syncCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "--push-local requires --update-local") {
+		t.Fatalf("expected push-local validation error, got %v", err)
+	}
+}
+
+func TestSyncRunEUnsupportedFormat(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	syncCmd.SetOut(out)
+	syncCmd.SetErr(errOut)
+	defer syncCmd.SetOut(os.Stdout)
+	defer syncCmd.SetErr(os.Stderr)
+
+	_ = syncCmd.Flags().Set("only", "missing")
+	_ = syncCmd.Flags().Set("dry-run", "true")
+	_ = syncCmd.Flags().Set("yes", "true")
+	_ = syncCmd.Flags().Set("format", "yaml")
+	_ = syncCmd.Flags().Set("update-local", "false")
+	_ = syncCmd.Flags().Set("rebase-dirty", "false")
+	_ = syncCmd.Flags().Set("push-local", "false")
+
+	err := syncCmd.RunE(syncCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "unsupported format") {
+		t.Fatalf("expected unsupported format error, got %v", err)
+	}
+}
+
+func TestDescribeRunEPaths(t *testing.T) {
+	cfgPath, regPath := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	describeRepoCmd.SetOut(out)
+	describeRepoCmd.SetErr(errOut)
+	defer describeRepoCmd.SetOut(os.Stdout)
+	defer describeRepoCmd.SetErr(os.Stderr)
+
+	_ = describeRepoCmd.Flags().Set("registry", regPath)
+	_ = describeRepoCmd.Flags().Set("format", "table")
+	err := describeRepoCmd.RunE(describeRepoCmd, []string{"github.com/org/repo-missing"})
+	if err != nil {
+		t.Fatalf("describe run failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "ERROR_CLASS: missing") {
+		t.Fatalf("expected table details output, got %q", out.String())
+	}
+
+	_ = describeRepoCmd.Flags().Set("registry", filepath.Join(t.TempDir(), "missing-registry.yaml"))
+	err = describeRepoCmd.RunE(describeRepoCmd, []string{"github.com/org/repo-missing"})
+	if err == nil {
+		t.Fatal("expected missing registry file error")
+	}
+}

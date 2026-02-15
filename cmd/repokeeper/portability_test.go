@@ -255,3 +255,39 @@ func TestCloneImportedReposRejectsDuplicateTargets(t *testing.T) {
 		t.Fatalf("expected duplicate target error, got: %v", err)
 	}
 }
+
+func TestCloneImportedReposNoopWithoutRegistry(t *testing.T) {
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+
+	if err := cloneImportedRepos(cmd, nil, exportBundle{}, t.TempDir(), false); err != nil {
+		t.Fatalf("expected nil cfg to no-op, got: %v", err)
+	}
+	if err := cloneImportedRepos(cmd, &config.Config{}, exportBundle{}, t.TempDir(), false); err != nil {
+		t.Fatalf("expected nil registry to no-op, got: %v", err)
+	}
+	if err := cloneImportedRepos(cmd, &config.Config{Registry: &registry.Registry{}}, exportBundle{}, t.TempDir(), false); err != nil {
+		t.Fatalf("expected empty registry to no-op, got: %v", err)
+	}
+}
+
+func TestSetRegistryEntryByRepoID(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r1", Path: "/r1"},
+		},
+	}
+
+	setRegistryEntryByRepoID(reg, registry.Entry{RepoID: "r1", Path: "/updated"})
+	if got := reg.Entries[0].Path; got != "/updated" {
+		t.Fatalf("expected existing entry update, got %q", got)
+	}
+
+	setRegistryEntryByRepoID(reg, registry.Entry{RepoID: "r2", Path: "/r2"})
+	if len(reg.Entries) != 2 {
+		t.Fatalf("expected append for new repo id, got len=%d", len(reg.Entries))
+	}
+
+	// Ensure nil registry is safe.
+	setRegistryEntryByRepoID(nil, registry.Entry{RepoID: "ignored"})
+}

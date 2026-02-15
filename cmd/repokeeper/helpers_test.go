@@ -556,3 +556,55 @@ func TestConfirmSyncExecutionEOF(t *testing.T) {
 		t.Fatal("expected EOF-terminated yes to be accepted")
 	}
 }
+
+func TestWriteSyncTableWideBranches(t *testing.T) {
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	ahead := 3
+	behind := 2
+	results := []engine.SyncResult{
+		{RepoID: "r1", Path: "/tmp/repo-a", OK: true, Action: "git pull --rebase --no-recurse-submodules"},
+		{RepoID: "r2", Path: "/tmp/repo-mirror", OK: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "r3", Path: "/tmp/repo-missing-status", OK: false, ErrorClass: "network", Error: "timeout"},
+	}
+	report := &model.StatusReport{
+		Repos: []model.RepoStatus{
+			{
+				Path:          "/tmp/repo-a",
+				Head:          model.Head{Branch: "main", Detached: true},
+				Worktree:      &model.Worktree{Dirty: true},
+				PrimaryRemote: "origin",
+				Tracking: model.Tracking{
+					Status:   model.TrackingBehind,
+					Upstream: "origin/main",
+					Ahead:    &ahead,
+					Behind:   &behind,
+				},
+			},
+			{
+				Path: "/tmp/repo-mirror",
+				Type: "mirror",
+				Tracking: model.Tracking{
+					Status: model.TrackingNone,
+				},
+			},
+		},
+	}
+
+	writeSyncTable(cmd, results, report, "/tmp", nil, false, false, true)
+	got := out.String()
+	if !strings.Contains(got, "PRIMARY_REMOTE") || !strings.Contains(got, "AHEAD") || !strings.Contains(got, "BEHIND") {
+		t.Fatalf("expected wide sync headers, got: %q", got)
+	}
+	if !strings.Contains(got, "detached:main") {
+		t.Fatalf("expected detached branch rendering, got: %q", got)
+	}
+	if !strings.Contains(got, "repo-missing-status") {
+		t.Fatalf("expected fallback path for missing status row, got: %q", got)
+	}
+	if !strings.Contains(got, "mirror") {
+		t.Fatalf("expected mirror tracking label, got: %q", got)
+	}
+}
