@@ -137,7 +137,7 @@ Flags:
 * `--exclude <comma-separated globs>` (e.g., `node_modules,.terraform`)
 * `--follow-symlinks` (default false)
 * `--write-registry` (default true)
-* `--format table|json` (default table)
+* `-o, --format table|json` (default table)
 
 #### `repokeeper status`
 
@@ -147,17 +147,19 @@ Flags:
 
 * `--roots …` (optional)
 * `--registry <path>` (optional)
-* `--format table|json` (default table)
+* `-o, --format table|wide|json` (default table)
 * `--only errors|dirty|clean|gone|diverged|remote-mismatch|missing|all` (default all)
 
 #### `repokeeper describe <repo-id-or-path>`
+
+Alias form: `repokeeper describe repo <repo-id-or-path>`
 
 Shows detailed status for a single repo selected by repo ID, cwd-relative path, or config-root-relative path.
 
 Flags:
 
 * `--registry <path>` (optional)
-* `--format table|json` (default table)
+* `-o, --format table|json` (default table)
 
 #### `repokeeper add <path> <git-repo-url>`
 
@@ -206,9 +208,11 @@ Flags:
 * `--protected-branches` (default `main,master,release/*`; block auto-rebase on matching branches)
 * `--allow-protected-rebase` (optional; override protected branch safeguard)
 * `--checkout-missing` (optional; clone repos marked missing from registry metadata)
-* `--format table|json`
+* `-o, --format table|wide|json`
 
 #### `repokeeper repair-upstream`
+
+Alias form: `repokeeper repair upstream`
 
 Inspects registered repositories for missing or mismatched upstream tracking and optionally repairs them.
 
@@ -217,7 +221,7 @@ Flags:
 * `--registry <path>` (optional)
 * `--dry-run` (default true; preview only)
 * `--only all|missing|mismatch`
-* `--format table|json`
+* `-o, --format table|json`
 
 #### `repokeeper export`
 

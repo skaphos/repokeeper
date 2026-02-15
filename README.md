@@ -10,7 +10,7 @@ RepoKeeper inventories your git repos, reports drift and broken tracking, and pe
 - **Report** per-repo health: dirty/clean, branch, tracking status, ahead/behind, stale upstreams
 - **Sync** safely with `git fetch --all --prune` (never checkout/reset; optional `--update-local` uses `pull --rebase`)
 - **Registry** is stored in `.repokeeper.yaml` with staleness detection
-- **CLI-first** with table and JSON output formats
+- **CLI-first** with tabular (`table`/`wide`) and JSON output formats
 - **Cross-platform** — macOS, Windows, Linux (incl. WSL)
 
 ## Install
@@ -66,21 +66,26 @@ repokeeper sync
 | `repokeeper init` | Bootstrap a new config file |
 | `repokeeper scan` | Discover repos and update the registry |
 | `repokeeper status` | Report repo health summary (path, branch, dirty, tracking) |
+| `repokeeper get repos` | Kubectl-style alias for status/list view |
 | `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
+| `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form for a single repository |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository (`--branch` or `--mirror`) |
 | `repokeeper delete <repo-id-or-path>` | Remove a repository from the registry |
 | `repokeeper edit <repo-id-or-path>` | Update repo metadata/tracking (`--set-upstream`) |
 | `repokeeper repair-upstream` | Repair missing/mismatched upstream tracking across registered repos |
+| `repokeeper repair upstream` | Kubectl-style alias for upstream repair |
 | `repokeeper sync` | Fetch and prune all repos safely |
+| `repokeeper reconcile repos` | Kubectl-style alias for sync/reconciliation |
 | `repokeeper export` | Export config (and registry) for migration |
 | `repokeeper import` | Import a previously exported bundle |
 | `repokeeper version` | Print version and build info |
 
 `repokeeper sync --format table` shows `PATH`, a summarized `ACTION` (`fetch`, `fetch + rebase`, `skip ...`), status context (`BRANCH`, `DIRTY`, `TRACKING`), outcome (`OK`, `ERROR_CLASS`, `ERROR`), and `REPO` as the trailing identifier column.
+Use `-o wide` (or `--format wide`) on `status`/`get repos` and `sync`/`reconcile repos` for additional remote/upstream/ahead/behind context.
 `repokeeper sync` shows a preflight plan. Confirmation is requested only when the plan includes local-branch-changing actions (`pull --rebase`/stash+rebase) or checkout-missing clones; fetch-only plans run without a prompt. Use `--yes` to skip confirmation when it is required.
 `repokeeper sync` supports `--only diverged` and `--only remote-mismatch` for targeted remediation runs.
 
-`repokeeper describe` accepts a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
+`repokeeper describe` and `repokeeper describe repo` both accept a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 
 `repokeeper add` accepts `--branch <name>` for a single-branch checkout clone or `--mirror` for a full mirror clone (bare, no working tree). Mirror repos are tracked and shown in status as `TRACKING=mirror`.
 
