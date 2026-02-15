@@ -6,6 +6,16 @@ import (
 	"github.com/skaphos/repokeeper/internal/registry"
 )
 
+func TestDescribeRepoSubcommandExists(t *testing.T) {
+	cmd, _, err := rootCmd.Find([]string{"describe", "repo", "example"})
+	if err != nil {
+		t.Fatalf("expected describe repo command to resolve, got error: %v", err)
+	}
+	if cmd == nil || cmd.Name() != "repo" {
+		t.Fatalf("expected repo subcommand, got %#v", cmd)
+	}
+}
+
 func TestSelectRegistryEntryForDescribe(t *testing.T) {
 	entries := []registry.Entry{
 		{RepoID: "github.com/org/repo-a", Path: "/tmp/work/repo-a"},

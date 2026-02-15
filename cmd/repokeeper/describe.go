@@ -18,91 +18,105 @@ import (
 )
 
 var describeCmd = &cobra.Command{
-	Use:   "describe <repo-id-or-path>",
+	Use:   "describe",
 	Short: "Show detailed status for one repository",
 	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		debugf(cmd, "starting describe")
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		cfgPath, err := config.ResolveConfigPath(flagConfig, cwd)
-		if err != nil {
-			return err
-		}
-		cfg, err := config.Load(cfgPath)
-		if err != nil {
-			return err
-		}
-		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
-		debugf(cmd, "using config %s", cfgPath)
+	RunE:  runDescribeRepo,
+}
 
-		registryOverride, _ := cmd.Flags().GetString("registry")
-		var reg *registry.Registry
-		if registryOverride != "" {
-			reg, err = registry.Load(registryOverride)
-			if err != nil {
-				return err
-			}
+var describeRepoCmd = &cobra.Command{
+	Use:   "repo <repo-id-or-path>",
+	Short: "Show detailed status for one repository",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runDescribeRepo,
+}
+
+func runDescribeRepo(cmd *cobra.Command, args []string) error {
+	debugf(cmd, "starting describe")
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	cfgPath, err := config.ResolveConfigPath(flagConfig, cwd)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return err
+	}
+	cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+	debugf(cmd, "using config %s", cfgPath)
+
+	registryOverride, _ := cmd.Flags().GetString("registry")
+	var reg *registry.Registry
+	if registryOverride != "" {
+		reg, err = registry.Load(registryOverride)
+		if err != nil {
+			return err
+		}
+	} else {
+		reg = cfg.Registry
+		if reg == nil {
+			return fmt.Errorf("registry not found in %s (run repokeeper scan first)", cfgPath)
+		}
+	}
+
+	entry, err := selectRegistryEntryForDescribe(reg.Entries, args[0], cwd, []string{cfgRoot})
+	if err != nil {
+		return err
+	}
+
+	repo := model.RepoStatus{
+		RepoID:   entry.RepoID,
+		Path:     entry.Path,
+		Type:     entry.Type,
+		Tracking: model.Tracking{Status: model.TrackingNone},
+	}
+	if entry.Status == registry.StatusMissing {
+		repo.Error = "path missing"
+		repo.ErrorClass = "missing"
+	} else {
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+		status, err := eng.InspectRepo(cmd.Context(), entry.Path)
+		if err != nil {
+			repo.Error = err.Error()
+			repo.ErrorClass = gitx.ClassifyError(err)
 		} else {
-			reg = cfg.Registry
-			if reg == nil {
-				return fmt.Errorf("registry not found in %s (run repokeeper scan first)", cfgPath)
+			repo = *status
+			if repo.RepoID == "" {
+				repo.RepoID = entry.RepoID
+			}
+			if repo.Type == "" {
+				repo.Type = entry.Type
 			}
 		}
+	}
 
-		entry, err := selectRegistryEntryForDescribe(reg.Entries, args[0], cwd, []string{cfgRoot})
+	format, _ := cmd.Flags().GetString("format")
+	switch strings.ToLower(format) {
+	case "json":
+		data, err := json.MarshalIndent(repo, "", "  ")
 		if err != nil {
 			return err
 		}
-
-		repo := model.RepoStatus{
-			RepoID:   entry.RepoID,
-			Path:     entry.Path,
-			Type:     entry.Type,
-			Tracking: model.Tracking{Status: model.TrackingNone},
-		}
-		if entry.Status == registry.StatusMissing {
-			repo.Error = "path missing"
-			repo.ErrorClass = "missing"
-		} else {
-			eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
-			status, err := eng.InspectRepo(cmd.Context(), entry.Path)
-			if err != nil {
-				repo.Error = err.Error()
-				repo.ErrorClass = gitx.ClassifyError(err)
-			} else {
-				repo = *status
-				if repo.RepoID == "" {
-					repo.RepoID = entry.RepoID
-				}
-				if repo.Type == "" {
-					repo.Type = entry.Type
-				}
-			}
-		}
-
-		format, _ := cmd.Flags().GetString("format")
-		switch strings.ToLower(format) {
-		case "json":
-			data, err := json.MarshalIndent(repo, "", "  ")
-			if err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
-		case "table":
-			writeStatusDetails(cmd, repo, cwd, []string{cfgRoot})
-		default:
-			return fmt.Errorf("unsupported format %q", format)
-		}
-		return nil
-	},
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(data))
+	case "table":
+		writeStatusDetails(cmd, repo, cwd, []string{cfgRoot})
+	default:
+		return fmt.Errorf("unsupported format %q", format)
+	}
+	return nil
 }
 
 func init() {
 	describeCmd.Flags().String("registry", "", "override registry file path")
 	describeCmd.Flags().String("format", "table", "output format: table or json")
+
+	describeRepoCmd.Flags().String("registry", "", "override registry file path")
+	describeRepoCmd.Flags().String("format", "table", "output format: table or json")
+	describeCmd.AddCommand(describeRepoCmd)
+
 	rootCmd.AddCommand(describeCmd)
 }
 
