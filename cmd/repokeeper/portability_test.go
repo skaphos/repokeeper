@@ -465,6 +465,46 @@ func TestImportCommandRunEMergeDoesNotRequireForceWhenConfigExists(t *testing.T)
 	}
 }
 
+func TestImportCommandDefaultsToLocalConfigPath(t *testing.T) {
+	tmp := t.TempDir()
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	prevConfig, _ := rootCmd.PersistentFlags().GetString("config")
+	_ = rootCmd.PersistentFlags().Set("config", "")
+	defer func() { _ = rootCmd.PersistentFlags().Set("config", prevConfig) }()
+
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "true")
+	defer func() { _ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes)) }()
+
+	bundle := exportBundle{Version: 1, Config: config.DefaultConfig()}
+	data, err := yaml.Marshal(&bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+
+	importCmd.SetIn(bytes.NewBuffer(data))
+	importCmd.SetContext(context.Background())
+	_ = importCmd.Flags().Set("mode", "merge")
+	_ = importCmd.Flags().Set("file-only", "true")
+
+	if err := importCmd.RunE(importCmd, []string{"-"}); err != nil {
+		t.Fatalf("import run failed: %v", err)
+	}
+
+	localCfg := filepath.Join(tmp, ".repokeeper.yaml")
+	if _, err := os.Stat(localCfg); err != nil {
+		t.Fatalf("expected local config at %s: %v", localCfg, err)
+	}
+}
+
 func TestMergeImportedRegistryPolicyTable(t *testing.T) {
 	mkCfg := func() *config.Config {
 		return &config.Config{

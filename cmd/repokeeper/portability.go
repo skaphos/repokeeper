@@ -173,9 +173,9 @@ var importCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// Use runtime resolution semantics so import targets the same config
-		// location the app would read by default.
-		cfgPath, err := config.ResolveConfigPath(configOverride(cmd), cwd)
+		// Import writes local workspace config by default so migration bundles
+		// land in the current directory unless explicitly overridden.
+		cfgPath, err := config.InitConfigPath(configOverride(cmd), cwd)
 		if err != nil {
 			return err
 		}
