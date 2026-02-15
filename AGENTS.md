@@ -9,6 +9,8 @@
 
 ## Build, Test, and Development Commands
 - `go build -o repokeeper .`: build the local binary.
+- `go install .`: install binary to `$GOPATH/bin` from local source.
+- `go clean -i github.com/skaphos/repokeeper`: uninstall the binary.
 - `go tool ginkgo ./...`: run the Ginkgo test suite.
 - `go test -coverprofile=coverage.out ./...`: run tests with coverage output.
 - `go tool golangci-lint run ./...`: run linting (gofmt/goimports and static checks; v2 config).

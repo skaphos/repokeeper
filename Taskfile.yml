@@ -21,6 +21,16 @@ tasks:
     cmds:
       - go build -o repokeeper .
 
+  install:
+    desc: Install repokeeper binary to $GOPATH/bin
+    cmds:
+      - go install .
+
+  uninstall:
+    desc: Uninstall repokeeper binary from $GOPATH/bin
+    cmds:
+      - go clean -i github.com/skaphos/repokeeper
+
   build-ci:
     desc: Build all configured platform binaries (CI-style snapshot build)
     cmds:
