@@ -2,6 +2,7 @@ package repokeeper
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,6 +84,7 @@ func TestRunDescribeRepoWithMissingRegistryEntry(t *testing.T) {
 
 	out := &bytes.Buffer{}
 	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
 	cmd.SetOut(out)
 	cmd.Flags().String("registry", "", "")
 	cmd.Flags().String("format", "table", "")
@@ -184,5 +186,189 @@ func TestSelectRegistryEntryForDescribeErrorsAndHelpers(t *testing.T) {
 	right := filepath.Clean("/tmp/work/repo-a")
 	if !samePathForMatch(left, right) {
 		t.Fatalf("expected same paths to match: %q vs %q", left, right)
+	}
+}
+
+func TestRunDescribeRepoErrorsForMissingConfig(t *testing.T) {
+	tmp := t.TempDir()
+	prevConfig := flagConfig
+	flagConfig = filepath.Join(tmp, ".repokeeper.yaml")
+	defer func() { flagConfig = prevConfig }()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("registry", "", "")
+	cmd.Flags().String("format", "table", "")
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	err = runDescribeRepo(cmd, []string{"github.com/org/repo"})
+	if err == nil {
+		t.Fatal("expected missing config error")
+	}
+}
+
+func TestRunDescribeRepoErrorsWithoutRegistry(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = nil
+	cfg.RegistryPath = ""
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	prevConfig := flagConfig
+	flagConfig = cfgPath
+	defer func() { flagConfig = prevConfig }()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("registry", "", "")
+	cmd.Flags().String("format", "table", "")
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	err = runDescribeRepo(cmd, []string{"github.com/org/repo"})
+	if err == nil || !strings.Contains(err.Error(), "registry not found") {
+		t.Fatalf("expected missing registry error, got: %v", err)
+	}
+}
+
+func TestRunDescribeRepoRegistryOverrideLoadError(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	regPath := filepath.Join(tmp, "registry.yaml")
+	if err := os.WriteFile(regPath, []byte("not: [valid"), 0o644); err != nil {
+		t.Fatalf("write invalid registry: %v", err)
+	}
+
+	prevConfig := flagConfig
+	flagConfig = cfgPath
+	defer func() { flagConfig = prevConfig }()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("registry", "", "")
+	cmd.Flags().String("format", "table", "")
+	_ = cmd.Flags().Set("registry", regPath)
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	err = runDescribeRepo(cmd, []string{"github.com/org/repo"})
+	if err == nil {
+		t.Fatal("expected registry load error")
+	}
+}
+
+func TestRunDescribeRepoSelectorNotFound(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	regPath := filepath.Join(tmp, "registry.yaml")
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo-a", Path: filepath.Join(tmp, "repo-a"), Status: registry.StatusMissing},
+		},
+	}
+	if err := registry.Save(reg, regPath); err != nil {
+		t.Fatalf("save registry: %v", err)
+	}
+
+	prevConfig := flagConfig
+	flagConfig = cfgPath
+	defer func() { flagConfig = prevConfig }()
+
+	cmd := &cobra.Command{}
+	cmd.Flags().String("registry", "", "")
+	cmd.Flags().String("format", "table", "")
+	_ = cmd.Flags().Set("registry", regPath)
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	err = runDescribeRepo(cmd, []string{"github.com/org/unknown"})
+	if err == nil || !strings.Contains(err.Error(), "repo not found for selector") {
+		t.Fatalf("expected selector-not-found error, got: %v", err)
+	}
+}
+
+func TestRunDescribeRepoInspectErrorPopulatesOutput(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID: "github.com/org/repo-present",
+				Path:   filepath.Join(tmp, "not-a-repo"),
+				Status: registry.StatusPresent,
+			},
+		},
+	}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	prevConfig := flagConfig
+	flagConfig = cfgPath
+	defer func() { flagConfig = prevConfig }()
+
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.SetOut(out)
+	cmd.Flags().String("registry", "", "")
+	cmd.Flags().String("format", "table", "")
+	_ = cmd.Flags().Set("format", "json")
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	if err := runDescribeRepo(cmd, []string{"github.com/org/repo-present"}); err != nil {
+		t.Fatalf("expected inspect errors to be reported in output, got: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "\"error_class\":") || !strings.Contains(got, "\"error\":") {
+		t.Fatalf("expected error fields in output, got: %q", got)
 	}
 }
