@@ -172,7 +172,7 @@ var syncCmd = &cobra.Command{
 }
 
 func init() {
-	syncCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, missing")
+	syncCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
 	syncCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
 	syncCmd.Flags().Int("timeout", 60, "timeout in seconds per repo")
 	syncCmd.Flags().Bool("dry-run", false, "print intended operations without executing")

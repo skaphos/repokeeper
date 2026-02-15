@@ -24,13 +24,14 @@ import (
 type FilterKind string
 
 const (
-	FilterAll      FilterKind = "all"
-	FilterErrors   FilterKind = "errors"
-	FilterDirty    FilterKind = "dirty"
-	FilterClean    FilterKind = "clean"
-	FilterGone     FilterKind = "gone"
-	FilterDiverged FilterKind = "diverged"
-	FilterMissing  FilterKind = "missing"
+	FilterAll            FilterKind = "all"
+	FilterErrors         FilterKind = "errors"
+	FilterDirty          FilterKind = "dirty"
+	FilterClean          FilterKind = "clean"
+	FilterGone           FilterKind = "gone"
+	FilterDiverged       FilterKind = "diverged"
+	FilterRemoteMismatch FilterKind = "remote-mismatch"
+	FilterMissing        FilterKind = "missing"
 )
 
 // Engine is the core orchestrator for RepoKeeper operations.
@@ -334,7 +335,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		if opts.Filter == FilterGone && entry.Status != registry.StatusPresent {
 			continue
 		}
-		if opts.Filter == FilterDirty || opts.Filter == FilterClean || opts.Filter == FilterGone || opts.Filter == FilterDiverged {
+		if opts.Filter == FilterDirty || opts.Filter == FilterClean || opts.Filter == FilterGone || opts.Filter == FilterDiverged || opts.Filter == FilterRemoteMismatch {
 			status, err := e.InspectRepo(ctx, entry.Path)
 			if err != nil {
 				results = append(results, SyncResult{
@@ -356,6 +357,9 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				continue
 			}
 			if opts.Filter == FilterDiverged && status.Tracking.Status != model.TrackingDiverged {
+				continue
+			}
+			if opts.Filter == FilterRemoteMismatch && !hasRemoteMismatch(*status, entry) {
 				continue
 			}
 		}
@@ -717,11 +721,48 @@ func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Regist
 		return status.Tracking.Status == model.TrackingGone
 	case FilterDiverged:
 		return status.Tracking.Status == model.TrackingDiverged
+	case FilterRemoteMismatch:
+		if reg == nil {
+			return false
+		}
+		entry := findRegistryEntryForStatus(reg, status)
+		if entry == nil {
+			return false
+		}
+		return hasRemoteMismatch(status, *entry)
 	case FilterErrors:
 		return status.Error != ""
 	default:
 		return true
 	}
+}
+
+func findRegistryEntryForStatus(reg *registry.Registry, status model.RepoStatus) *registry.Entry {
+	if reg == nil {
+		return nil
+	}
+	for i := range reg.Entries {
+		if reg.Entries[i].RepoID == status.RepoID && reg.Entries[i].Path == status.Path {
+			return &reg.Entries[i]
+		}
+	}
+	return reg.FindByRepoID(status.RepoID)
+}
+
+func hasRemoteMismatch(status model.RepoStatus, entry registry.Entry) bool {
+	regRemote := strings.TrimSpace(entry.RemoteURL)
+	if regRemote == "" {
+		return false
+	}
+	normalizedRegistry := gitx.NormalizeURL(regRemote)
+	if normalizedRegistry == "" {
+		normalizedRegistry = regRemote
+	}
+	normalizedStatus := strings.TrimSpace(status.RepoID)
+	if normalizedStatus == "" {
+		return false
+	}
+	return normalizedRegistry != normalizedStatus
 }
 
 func sortRepoStatuses(statuses []model.RepoStatus) {

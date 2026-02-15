@@ -47,6 +47,20 @@ func TestFilterAndSortHelpers(t *testing.T) {
 	if !filterStatus(FilterDiverged, model.RepoStatus{Tracking: model.Tracking{Status: model.TrackingDiverged}}, reg) {
 		t.Fatal("expected diverged filter match")
 	}
+	reg = &registry.Registry{
+		Entries: []registry.Entry{{
+			RepoID:    "github.com/org/repo",
+			Path:      "/repo",
+			RemoteURL: "git@github.com:other/repo.git",
+		}},
+	}
+	if !filterStatus(
+		FilterRemoteMismatch,
+		model.RepoStatus{RepoID: "github.com/org/repo", Path: "/repo"},
+		reg,
+	) {
+		t.Fatal("expected remote mismatch filter match")
+	}
 	if !matchesProtectedBranch("main", []string{"main", "release/*"}) {
 		t.Fatal("expected protected branch match")
 	}

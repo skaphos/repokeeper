@@ -119,7 +119,7 @@ func init() {
 	statusCmd.Flags().String("roots", "", "additional roots to scan (optional)")
 	statusCmd.Flags().String("registry", "", "override registry file path")
 	statusCmd.Flags().String("format", "table", "output format: table or json")
-	statusCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, missing")
+	statusCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
 
 	rootCmd.AddCommand(statusCmd)
 }

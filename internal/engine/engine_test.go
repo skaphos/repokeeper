@@ -244,6 +244,47 @@ var _ = Describe("Engine", func() {
 		Expect(results[0].RepoID).To(Equal("repo1"))
 	})
 
+	It("filters remote mismatch during sync", func() {
+		runner := &mockRunner{responses: map[string]mockResponse{
+			"/repo1:rev-parse --is-bare-repository":    {out: "false"},
+			"/repo1:remote":                            {out: "origin"},
+			"/repo1:remote get-url origin":             {out: "git@github.com:org/repo1.git"},
+			"/repo1:symbolic-ref --quiet --short HEAD": {out: "main"},
+			"/repo1:status --porcelain=v1":             {out: ""},
+			"/repo1:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+				out: "main|origin/main||=",
+			},
+			"/repo1:rev-list --left-right --count main...origin/main": {out: "0\t0"},
+			"/repo1:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
+			"/repo2:rev-parse --is-bare-repository":                   {out: "false"},
+			"/repo2:remote":                                           {out: "origin"},
+			"/repo2:remote get-url origin":                            {out: "git@github.com:org/repo2.git"},
+			"/repo2:symbolic-ref --quiet --short HEAD":                {out: "main"},
+			"/repo2:status --porcelain=v1":                            {out: ""},
+			"/repo2:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+				out: "main|origin/main||=",
+			},
+			"/repo2:rev-list --left-right --count main...origin/main": {out: "0\t0"},
+			"/repo2:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
+		}}
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo1", Path: "/repo1", RemoteURL: "git@github.com:other/repo1.git", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo2", Path: "/repo2", RemoteURL: "git@github.com:org/repo2.git", Status: registry.StatusPresent},
+			},
+		}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{
+			Filter:      engine.FilterRemoteMismatch,
+			DryRun:      true,
+			Concurrency: 2,
+			Timeout:     1,
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].RepoID).To(Equal("github.com/org/repo1"))
+	})
+
 	It("respects concurrency by not exceeding it", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
