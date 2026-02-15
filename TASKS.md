@@ -222,7 +222,7 @@
   - [ ] add table-driven tests for command parsing logic
 - [ ] Documentation:
   - [ ] document flag precedence behavior in root.go or README
-  - [ ] add Godoc comments on public types (SyncResult fields, model types)
+  - [x] add Godoc comments on public types (SyncResult fields, model types)
   - [ ] clarify `--dry-run` default behavior in status command
 - [ ] Code organization:
   - [ ] extract table rendering and confirmation logic from commands to reusable modules
@@ -243,7 +243,7 @@
 - [x] Flag definitions are DRY (single helper per common flag pattern)
 - [x] Unit test coverage for command handlers >= 70%
 - [x] Integration tests cover symlink, bare repo, and missing repo scenarios
-- [ ] All public types have Godoc comments
+- [x] All public types have Godoc comments
 
 ### Milestone 7 — Responsive Output & Reflow
 

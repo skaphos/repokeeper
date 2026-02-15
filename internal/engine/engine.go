@@ -245,13 +245,20 @@ type SyncOptions struct {
 
 // SyncResult records the outcome for a single repo sync.
 type SyncResult struct {
-	RepoID     string
-	Path       string
-	Outcome    SyncOutcome
-	OK         bool
-	Error      string
+	// RepoID is the stable repository identity from the registry/status model.
+	RepoID string
+	// Path is the repository filesystem path the action applies to.
+	Path string
+	// Outcome is the typed sync outcome category.
+	Outcome SyncOutcome
+	// OK indicates whether the sync action succeeded.
+	OK bool
+	// Error contains the raw error text when OK is false or an action is skipped.
+	Error string
+	// ErrorClass is a coarse error class suitable for summary/exit handling.
 	ErrorClass string
-	Action     string
+	// Action is a shell-like description of the executed or planned action.
+	Action string
 }
 
 // SyncOutcome is the typed outcome category for a single sync result.
