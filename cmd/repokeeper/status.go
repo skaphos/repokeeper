@@ -15,6 +15,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -102,7 +103,7 @@ var statusCmd = &cobra.Command{
 		if roots != "" {
 			debugf(cmd, "rescanning roots override")
 			_, err := eng.Scan(cmd.Context(), engine.ScanOptions{
-				Roots: splitCSV(roots),
+				Roots: strutil.SplitCSV(roots),
 			})
 			if err != nil {
 				return err

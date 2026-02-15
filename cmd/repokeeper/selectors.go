@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/strutil"
 )
 
 func resolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
@@ -24,7 +25,7 @@ func resolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
 }
 
 func parseFieldSelectorFilter(fieldSelector string) (engine.FilterKind, error) {
-	parts := splitCSV(fieldSelector)
+	parts := strutil.SplitCSV(fieldSelector)
 	if len(parts) != 1 {
 		return "", fmt.Errorf("only a single field selector is currently supported")
 	}

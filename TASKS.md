@@ -160,7 +160,7 @@
   - [x] initialize `Adapter` in `engine.New()` constructor with sensible default
   - [x] remove redundant `if e.Adapter == nil` checks from `Scan`, `Status`, `Sync`, `InspectRepo`
 - [ ] Extract shared utilities:
-  - [ ] move `splitCSV()` from `scan.go` to a shared `internal/cli` or `internal/strutil` package
+  - [x] move `splitCSV()` from `scan.go` to a shared `internal/cli` or `internal/strutil` package
   - [ ] extract ANSI color constants and `colorize()` to shared package
   - [ ] create reusable table writer abstraction to deduplicate `writeStatusTable`, `writeSyncTable`, `writeSyncPlan`
   - [ ] extract common sorting lambda (`RepoID` then `Path`) into named comparator functions

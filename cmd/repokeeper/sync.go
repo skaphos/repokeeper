@@ -13,6 +13,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -88,7 +89,7 @@ var syncCmd = &cobra.Command{
 			PushLocal:            pushLocal,
 			RebaseDirty:          rebaseDirty,
 			Force:                force,
-			ProtectedBranches:    splitCSV(protectedBranchesRaw),
+			ProtectedBranches:    strutil.SplitCSV(protectedBranchesRaw),
 			AllowProtectedRebase: allowProtectedRebase,
 			CheckoutMissing:      checkoutMissing,
 		})

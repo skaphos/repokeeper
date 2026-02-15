@@ -8,12 +8,13 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
 
 func TestSplitCSV(t *testing.T) {
-	got := splitCSV(" a, ,b,c ")
+	got := strutil.SplitCSV(" a, ,b,c ")
 	if len(got) != 3 || got[0] != "a" || got[1] != "b" || got[2] != "c" {
 		t.Fatalf("unexpected split result: %#v", got)
 	}

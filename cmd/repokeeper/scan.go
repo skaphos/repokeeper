@@ -13,6 +13,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -51,14 +52,14 @@ var scanCmd = &cobra.Command{
 
 		adapter := vcs.NewGitAdapter(nil)
 		eng := engine.New(cfg, reg, adapter)
-		scanRoots := splitCSV(roots)
+		scanRoots := strutil.SplitCSV(roots)
 		if len(scanRoots) == 0 {
 			scanRoots = []string{config.EffectiveRoot(cfgPath, cfg)}
 		}
 
 		statuses, err := eng.Scan(cmd.Context(), engine.ScanOptions{
 			Roots:          scanRoots,
-			Exclude:        splitCSV(exclude),
+			Exclude:        strutil.SplitCSV(exclude),
 			FollowSymlinks: followSymlinks,
 		})
 		if err != nil {
@@ -139,20 +140,4 @@ func init() {
 	scanCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 
 	rootCmd.AddCommand(scanCmd)
-}
-
-func splitCSV(value string) []string {
-	if strings.TrimSpace(value) == "" {
-		return nil
-	}
-	parts := strings.Split(value, ",")
-	var out []string
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		out = append(out, part)
-	}
-	return out
 }
