@@ -104,16 +104,16 @@
 
 ### Milestone 6 — CLI Improvements (Ongoing)
 
-- [ ] Kubectl-aligned command aliases (additive):
-- [ ] `get repos`, `describe repo`, `reconcile repos`, `repair upstream`
-- [ ] map existing commands to new aliases with parity tests
+- [x] Kubectl-aligned command aliases (additive):
+- [x] `get repos`, `describe repo`, `reconcile repos`, `repair upstream`
+- [x] map existing commands to new aliases with parity tests
 - [ ] Output contract alignment:
 - [ ] converge list commands on shared columns and `-o` semantics
 - [ ] add `--no-headers` and deterministic sort behavior everywhere
 - [ ] implement `-o wide` for repo list/reconcile views
 - [ ] Color/styling policy hardening:
-- [ ] auto-color only for TTY table output; disable color for machine formats
-- [ ] preserve `--no-color` and `NO_COLOR` precedence
+- [x] auto-color only for TTY table output; disable color for machine formats
+- [x] preserve `--no-color` and `NO_COLOR` precedence
 - [ ] normalize semantic color mapping (healthy/warn/error/info)
 - [ ] Selector evolution:
 - [ ] keep `--only` as shorthand
