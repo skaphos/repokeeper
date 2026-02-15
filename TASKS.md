@@ -254,7 +254,7 @@
 - [x] Smart truncation rules and optional wrapping that preserve key identifiers (`PATH`, `REPO`, `ACTION`)
 - [x] Dynamic header/column compaction for small widths while keeping `-o json` stable
 - [ ] Add output selectors: `-o jsonpath=...` and `-o custom-columns=...` (custom headers/column maps)
-- [ ] Snapshot tests across terminal widths (for example: 80, 100, 120, 160 cols)
+- [x] Snapshot tests across terminal widths (for example: 80, 100, 120, 160 cols)
 - [ ] Ensure color and readability parity in compact/reflow modes
 
 **Acceptance:**
