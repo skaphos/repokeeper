@@ -183,11 +183,13 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	loadGVKState(&cfg, data)
+	// Validate before applying defaults so schema/version errors are surfaced clearly.
 	if err := validateLoadedConfigGVK(&cfg); err != nil {
 		return nil, err
 	}
 
 	if cfg.Registry == nil && cfg.RegistryPath != "" {
+		// A missing registry file is not fatal for first-run/new-config flows.
 		reg, err := registry.Load(ResolveRegistryPath(path, cfg.RegistryPath))
 		if err != nil {
 			if !os.IsNotExist(err) {
@@ -198,6 +200,7 @@ func Load(path string) (*Config, error) {
 		}
 	}
 	if cfg.Defaults.Concurrency == 0 {
+		// Persisted zero-values are treated as "unset" and backfilled from defaults.
 		cfg.Defaults.Concurrency = DefaultConfig().Defaults.Concurrency
 	}
 	if cfg.Defaults.TimeoutSeconds == 0 {
@@ -235,6 +238,7 @@ func ConfigRoot(configPath string) string {
 // scan/display root.
 func EffectiveRoot(configPath string, cfg *Config) string {
 	_ = cfg
+	// Root selection is path-derived only; config-based root fallbacks were retired.
 	return ConfigRoot(configPath)
 }
 

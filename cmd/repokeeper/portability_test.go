@@ -203,3 +203,55 @@ func TestCloneRegistry(t *testing.T) {
 		t.Fatalf("expected deep-copied entries slice, got %#v", reg.Entries[0])
 	}
 }
+
+func TestCloneImportedReposRejectsUnsafeTargets(t *testing.T) {
+	cwd := t.TempDir()
+	cfg := &config.Config{
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID:    "github.com/org/repo-a",
+					Path:      "..",
+					RemoteURL: "git@github.com:org/repo-a.git",
+					Status:    registry.StatusPresent,
+				},
+			},
+		},
+	}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+
+	err := cloneImportedRepos(cmd, cfg, exportBundle{}, cwd, false)
+	if err == nil || !strings.Contains(err.Error(), "refusing to clone outside current directory") {
+		t.Fatalf("expected path traversal protection error, got: %v", err)
+	}
+}
+
+func TestCloneImportedReposRejectsDuplicateTargets(t *testing.T) {
+	cwd := t.TempDir()
+	cfg := &config.Config{
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID:    "github.com/org/repo-a",
+					Path:      "/x/repo",
+					RemoteURL: "git@github.com:org/repo-a.git",
+					Status:    registry.StatusPresent,
+				},
+				{
+					RepoID:    "github.com/org/repo-b",
+					Path:      "/y/repo",
+					RemoteURL: "git@github.com:org/repo-b.git",
+					Status:    registry.StatusPresent,
+				},
+			},
+		},
+	}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+
+	err := cloneImportedRepos(cmd, cfg, exportBundle{}, cwd, false)
+	if err == nil || !strings.Contains(err.Error(), "multiple repos resolve to same target path") {
+		t.Fatalf("expected duplicate target error, got: %v", err)
+	}
+}

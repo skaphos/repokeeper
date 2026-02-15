@@ -84,6 +84,7 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 	if resolved, err := filepath.EvalSymlinks(root); err == nil {
 		realRoot = resolved
 	}
+	// Track resolved roots so the same tree is not walked twice via different symlink paths.
 	if _, ok := visited[realRoot]; ok {
 		return nil
 	}
@@ -103,6 +104,7 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 				return fs.SkipDir
 			}
 			if d.Name() == ".git" {
+				// Never recurse through git internals during root discovery.
 				return fs.SkipDir
 			}
 			if MatchesExclude(path, opts.Exclude) {
@@ -118,6 +120,8 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 		}
 		if isRepoRoot {
 			if gitdir != "" {
+				// Linked worktrees can share a gitdir outside the repo path; mark it
+				// skipped so we do not treat it as an independent repository later.
 				skipDirs[gitdir] = struct{}{}
 			}
 			result, err := buildResult(ctx, opts.Adapter, path, bare)
@@ -140,6 +144,7 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 			if err := walkRoot(ctx, target, opts, visited, skipDirs, results); err != nil {
 				return err
 			}
+			// The symlink target was scanned recursively; skip duplicate walk from the link.
 			return fs.SkipDir
 		}
 
@@ -151,6 +156,7 @@ func detectRepo(ctx context.Context, adapter vcs.Adapter, dir string) (bool, boo
 	gitPath := filepath.Join(dir, ".git")
 	if info, err := os.Stat(gitPath); err == nil {
 		if info.Mode().IsRegular() {
+			// A file-based .git indicates a linked worktree with an external gitdir.
 			if gitdir, ok := gitdirFromFile(gitPath); ok {
 				bare, _ := adapter.IsBare(ctx, dir)
 				return true, bare, gitdir, nil

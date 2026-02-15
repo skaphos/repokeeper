@@ -257,6 +257,7 @@ func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBun
 		if entry.Type == "mirror" {
 			cloneArgs = append(cloneArgs, "--mirror")
 		} else if strings.TrimSpace(entry.Branch) != "" {
+			// Preserve the exported branch so imported checkouts land on the same branch.
 			cloneArgs = append(cloneArgs, "--branch", strings.TrimSpace(entry.Branch), "--single-branch")
 		}
 		cloneArgs = append(cloneArgs, strings.TrimSpace(entry.RemoteURL), target)
@@ -287,6 +288,7 @@ func findImportTargetConflicts(targets map[string]registry.Entry, skippedLocal m
 	conflicts := make([]importConflict, 0)
 	for target, entry := range targets {
 		if _, skip := skippedLocal[target]; skip {
+			// Local-only entries are intentionally skipped and should not block import.
 			continue
 		}
 		if _, err := os.Stat(target); err == nil {
@@ -316,6 +318,7 @@ func importTargetRelativePath(entry registry.Entry, roots []string) string {
 	for _, root := range roots {
 		rel, ok := relWithin(root, entry.Path)
 		if ok {
+			// Keep exported layout stable when the path is under a configured root.
 			return rel
 		}
 	}
@@ -365,6 +368,7 @@ func populateExportBranches(
 		}
 		head, err := headFn(ctx, path)
 		if err != nil || head.Detached {
+			// Detached heads are not stable branch selections for import replay.
 			continue
 		}
 		branch := strings.TrimSpace(head.Branch)

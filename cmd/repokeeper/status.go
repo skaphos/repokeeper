@@ -164,6 +164,7 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		}
 		tracking := displayTrackingStatus(repo.Tracking.Status)
 		if repo.Type == "mirror" {
+			// Mirrors are bare repos; tracking labels are not meaningful per branch.
 			tracking = colorize("mirror", ansiBlue)
 		}
 		if !wide {
@@ -233,6 +234,7 @@ func displayRepoPath(repoPath, cwd string, roots []string) string {
 	if repoPath == "" {
 		return repoPath
 	}
+	// Prefer paths relative to CWD, then configured roots, then absolute fallback.
 	if rel, ok := relWithin(cwd, repoPath); ok {
 		return rel
 	}
@@ -276,6 +278,7 @@ func statusHasWarningsOrErrors(report *model.StatusReport, reg *registry.Registr
 }
 
 func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, roots []string) {
+	// Detail output is intentionally color-free and key/value stable for scripting.
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH: %s\n", displayRepoPath(repo.Path, cwd, roots))
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PATH_ABS: %s\n", repo.Path)
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "REPO: %s\n", repo.RepoID)

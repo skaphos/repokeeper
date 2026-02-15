@@ -122,6 +122,10 @@
 - [x] block auto-rebase on protected branch patterns by default
 - [x] allow explicit override flag for emergency runs
 - [x] document safeguards in `README.md` and `DESIGN.md`
+- [ ] confirmation policy for mutating actions:
+- [ ] require user confirmation for repo/state-mutating actions by default
+- [ ] add `--yes` global bypass for non-interactive/automation use
+- [ ] ensure fetch-only/no-op actions do not require confirmation
 
 **Acceptance:**
 
@@ -133,6 +137,7 @@
 - [ ] Batch sync runs complete across all repos even with partial failures (`--continue-on-error`).
 - [ ] CI/automation can rely on stable outcome fields and exit behavior for policy decisions.
 - [ ] Protected branches are never rebased automatically unless explicitly overridden.
+- [ ] Mutating actions always require confirmation unless `--yes` is explicitly passed.
 - [ ] Milestone remains open as new CLI ergonomics and automation gaps are identified.
 
 ### Milestone 7 — Responsive Output & Reflow

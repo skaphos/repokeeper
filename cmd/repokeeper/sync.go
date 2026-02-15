@@ -252,6 +252,7 @@ func syncPlanNeedsConfirmation(plan []engine.SyncResult) bool {
 }
 
 func syncResultNeedsConfirmation(res engine.SyncResult) bool {
+	// Confirmation is reserved for operations that mutate local state.
 	action := strings.ToLower(strings.TrimSpace(res.Action))
 	if strings.Contains(action, "pull --rebase") || strings.Contains(action, "stash push") {
 		return true
@@ -266,6 +267,7 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 	statusByPath := make(map[string]model.RepoStatus, len(results))
 	if report != nil {
 		for _, repo := range report.Repos {
+			// Sync results are keyed by path, so table enrichment uses the same key.
 			statusByPath[repo.Path] = repo
 		}
 	}
@@ -306,6 +308,8 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			}
 			tracking = displayTrackingStatus(repo.Tracking.Status)
 			if repo.Type == "mirror" {
+				// Mirror repos do not have branch tracking semantics in the same way
+				// as a non-bare checkout.
 				tracking = colorize("mirror", ansiBlue)
 			}
 		}
@@ -358,6 +362,7 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 func describeSyncAction(res engine.SyncResult) string {
 	action := strings.TrimSpace(res.Action)
 
+	// Prefer explicit skip reasons from the engine over heuristic action parsing.
 	if strings.HasPrefix(res.Error, "skipped-local-update:") {
 		reason := strings.TrimSpace(strings.TrimPrefix(res.Error, "skipped-local-update:"))
 		if reason == "" {
@@ -376,6 +381,7 @@ func describeSyncAction(res engine.SyncResult) string {
 	}
 
 	normalized := strings.ToLower(action)
+	// Collapse verbose git command strings into stable, human-readable summaries.
 	switch {
 	case strings.Contains(normalized, "stash") && strings.Contains(normalized, "rebase"):
 		return "stash & rebase"

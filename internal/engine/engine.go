@@ -273,6 +273,8 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 
 	entries := e.Registry.Entries
 	if !opts.ContinueOnError {
+		// Preserve deterministic "stop on first failure" semantics by running one
+		// entry at a time through the same Sync logic used for batch mode.
 		results := make([]SyncResult, 0, len(entries))
 		for _, entry := range entries {
 			entry := entry
@@ -317,6 +319,8 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				results = append(results, SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: "skipped_missing", OK: false, Error: "missing"})
 				continue
 			}
+			// Missing entries are recoverable only when we have enough material to
+			// perform a fresh clone into the recorded path.
 			remoteURL := strings.TrimSpace(entry.RemoteURL)
 			if remoteURL == "" {
 				results = append(results, SyncResult{
@@ -339,6 +343,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 			}
 			action += " " + remoteURL + " " + entry.Path
 			if opts.DryRun {
+				// Dry-run reports the exact git action string that a live run would execute.
 				results = append(results, SyncResult{
 					RepoID:  entry.RepoID,
 					Path:    entry.Path,
@@ -423,6 +428,8 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 			if opts.DryRun {
 				action := "git fetch --all --prune --prune-tags --no-recurse-submodules"
 				if opts.UpdateLocal {
+					// We still inspect during dry-run so skip reasons and planned actions
+					// match live execution as closely as possible.
 					status, err := e.InspectRepo(repoCtx, entry.Path)
 					if err != nil {
 						out <- result{res: SyncResult{
@@ -563,6 +570,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 				action := "git pull --rebase --no-recurse-submodules"
 				stashed := false
 				if opts.RebaseDirty && status.Worktree != nil && status.Worktree.Dirty {
+					// Stash only when needed so we do not create unnecessary stash entries.
 					stashed, err = e.Adapter.StashPush(repoCtx, entry.Path, "repokeeper: pre-rebase stash")
 					if err != nil {
 						out <- result{res: SyncResult{
@@ -637,6 +645,8 @@ func pullRebaseSkipReason(
 	protectedBranches []string,
 	allowProtectedRebase bool,
 ) string {
+	// This function is intentionally ordered from hard-safety checks to
+	// state-based policy checks so callers get stable, actionable reasons.
 	if status == nil {
 		return "unknown status"
 	}

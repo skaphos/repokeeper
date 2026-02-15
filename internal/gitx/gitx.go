@@ -43,6 +43,7 @@ func (g *GitRunner) Run(ctx context.Context, dir string, args ...string) (string
 func IsRepo(ctx context.Context, r Runner, dir string) (bool, error) {
 	out, err := r.Run(ctx, dir, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
+		// Treat probe failure as "not a repo" to keep discovery/status resilient.
 		return false, nil
 	}
 	return strings.TrimSpace(out) == "true", nil
@@ -52,6 +53,7 @@ func IsRepo(ctx context.Context, r Runner, dir string) (bool, error) {
 func IsBare(ctx context.Context, r Runner, dir string) (bool, error) {
 	out, err := r.Run(ctx, dir, "rev-parse", "--is-bare-repository")
 	if err != nil {
+		// Mirror IsRepo behavior: command failure should not hard-fail callers.
 		return false, nil
 	}
 	return strings.TrimSpace(out) == "true", nil
@@ -137,6 +139,7 @@ func TrackingStatus(ctx context.Context, r Runner, dir string) (model.Tracking, 
 			return model.Tracking{Status: model.TrackingNone}, nil
 		}
 		if strings.Contains(e.Track, "[gone]") {
+			// "[gone]" is the most reliable indicator that upstream ref disappeared.
 			return model.Tracking{
 				Upstream: e.Upstream,
 				Status:   model.TrackingGone,
@@ -146,7 +149,7 @@ func TrackingStatus(ctx context.Context, r Runner, dir string) (model.Tracking, 
 		// Get ahead/behind counts
 		revOut, revErr := r.Run(ctx, dir, "rev-list", "--left-right", "--count", head+"..."+e.Upstream)
 		if revErr != nil {
-			// Fall back to for-each-ref track info
+			// Fall back to lightweight tracking hints if precise counts are unavailable.
 			return trackingFromShort(e), nil
 		}
 		ahead, behind := ParseRevListCount(revOut)

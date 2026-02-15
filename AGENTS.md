@@ -23,7 +23,13 @@
 ## Testing Guidelines
 - Frameworks: Ginkgo v2 + Gomega (see `go.mod`).
 - Prefer small, focused specs; keep fixtures in the same package when possible.
+- New functionality must include meaningful tests in the same change; avoid shipping new behavior without direct coverage.
 - Run locally with `go tool ginkgo ./...`; coverage with `go test -coverprofile=coverage.out ./...`.
+
+## Engineering Guardrails
+- Keep cognitive load low: prefer small functions, clear names, early returns, and simple control flow over clever abstractions.
+- Write comments where intent is not obvious, especially around invariants, edge cases, and non-obvious tradeoffs.
+- Avoid noise comments that restate the code; comments should explain why, not just what.
 
 ## Commit & Pull Request Guidelines
 - This checkout does not include Git history, so no project-specific commit convention is detectable.
