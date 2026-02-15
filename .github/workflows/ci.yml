@@ -36,6 +36,14 @@ jobs:
         run: |
           go tool cover -func=coverage.out
           # TODO: enforce minimum coverage threshold
+      - name: Upload coverage artifact
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: coverage.out
+          if-no-files-found: error
+          retention-days: 30
 
   integration:
     name: Integration Tests
@@ -72,3 +80,60 @@ jobs:
           go-version-file: go.mod
       - name: Run CI build task
         run: go tool task build-ci
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint, test, integration, quality, build]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Publish workflow summary
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          total=5
+          success=0
+          failed=0
+          skipped=0
+          cancelled=0
+
+          for result in "$LINT_RESULT" "$TEST_RESULT" "$INTEGRATION_RESULT" "$QUALITY_RESULT" "$BUILD_RESULT"; do
+            case "$result" in
+              success) success=$((success + 1)) ;;
+              failure) failed=$((failed + 1)) ;;
+              skipped) skipped=$((skipped + 1)) ;;
+              cancelled) cancelled=$((cancelled + 1)) ;;
+              *) failed=$((failed + 1)) ;;
+            esac
+          done
+
+          {
+            echo "## CI Summary"
+            echo
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            echo "| lint | $LINT_RESULT |"
+            echo "| test | $TEST_RESULT |"
+            echo "| integration | $INTEGRATION_RESULT |"
+            echo "| quality | $QUALITY_RESULT |"
+            echo "| build | $BUILD_RESULT |"
+            echo
+            echo "- Total jobs: $total"
+            echo "- Success: $success"
+            echo "- Failed: $failed"
+            echo "- Skipped: $skipped"
+            echo "- Cancelled: $cancelled"
+            if [ "$failed" -gt 0 ]; then
+              echo
+              echo "### Key Failures"
+              [ "$LINT_RESULT" = "failure" ] && echo "- lint failed"
+              [ "$TEST_RESULT" = "failure" ] && echo "- test failed"
+              [ "$INTEGRATION_RESULT" = "failure" ] && echo "- integration failed"
+              [ "$QUALITY_RESULT" = "failure" ] && echo "- quality failed"
+              [ "$BUILD_RESULT" = "failure" ] && echo "- build failed"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
