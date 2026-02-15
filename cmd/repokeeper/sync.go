@@ -8,12 +8,12 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
@@ -207,8 +207,8 @@ func init() {
 
 func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roots []string) {
 	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Planned sync operations:")
-	w := tabwriter.NewWriter(cmd.ErrOrStderr(), 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "PATH\tACTION\tREPO")
+	w := tableutil.New(cmd.ErrOrStderr(), false)
+	tableutil.PrintHeaders(w, false, "PATH\tACTION\tREPO")
 	for _, res := range plan {
 		_, _ = fmt.Fprintf(
 			w,
@@ -266,14 +266,12 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 		}
 	}
 
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
-	if !noHeaders {
-		headers := "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO"
-		if wide {
-			headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND"
-		}
-		_, _ = fmt.Fprintln(w, headers)
+	w := tableutil.New(cmd.OutOrStdout(), true)
+	headers := "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO"
+	if wide {
+		headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND"
 	}
+	tableutil.PrintHeaders(w, noHeaders, headers)
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
@@ -417,8 +415,8 @@ func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cw
 	}
 
 	_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Failed sync operations:")
-	w := tabwriter.NewWriter(cmd.ErrOrStderr(), 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "PATH\tACTION\tERROR_CLASS\tERROR\tREPO")
+	w := tableutil.New(cmd.ErrOrStderr(), false)
+	tableutil.PrintHeaders(w, false, "PATH\tACTION\tERROR_CLASS\tERROR\tREPO")
 	for _, res := range failed {
 		_, _ = fmt.Fprintf(
 			w,

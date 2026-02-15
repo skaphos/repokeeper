@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
@@ -16,6 +15,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
@@ -229,14 +229,12 @@ func init() {
 }
 
 func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) {
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
-	if !noHeaders {
-		headers := "PATH\tBRANCH\tDIRTY\tTRACKING"
-		if wide {
-			headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
-		}
-		_, _ = fmt.Fprintln(w, headers)
+	w := tableutil.New(cmd.OutOrStdout(), true)
+	headers := "PATH\tBRANCH\tDIRTY\tTRACKING"
+	if wide {
+		headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
 	}
+	tableutil.PrintHeaders(w, noHeaders, headers)
 	for _, repo := range report.Repos {
 		branch := repo.Head.Branch
 		if repo.Head.Detached {
@@ -298,14 +296,12 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 		adviceByPath[advice.Path] = advice
 	}
 
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', tabwriter.StripEscape)
-	if !noHeaders {
-		headers := "PATH\tBRANCH\tTRACKING\tREASON\tRECOMMENDED_ACTION"
-		if wide {
-			headers = "PATH\tBRANCH\tTRACKING\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tREASON\tRECOMMENDED_ACTION"
-		}
-		_, _ = fmt.Fprintln(w, headers)
+	w := tableutil.New(cmd.OutOrStdout(), true)
+	headers := "PATH\tBRANCH\tTRACKING\tREASON\tRECOMMENDED_ACTION"
+	if wide {
+		headers = "PATH\tBRANCH\tTRACKING\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tREASON\tRECOMMENDED_ACTION"
 	}
+	tableutil.PrintHeaders(w, noHeaders, headers)
 	for _, repo := range report.Repos {
 		advice, ok := adviceByPath[repo.Path]
 		if !ok {
@@ -606,7 +602,7 @@ func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd
 		modeLabel = "applying"
 	}
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Remote mismatch reconcile (%s):\n", modeLabel)
-	w := tabwriter.NewWriter(cmd.ErrOrStderr(), 0, 4, 2, ' ', 0)
+	w := tableutil.New(cmd.ErrOrStderr(), false)
 	_, _ = fmt.Fprintln(w, "PATH\tACTION\tPRIMARY_REMOTE\tGIT_REMOTE_URL\tREGISTRY_REMOTE_URL\tREPO")
 	for _, plan := range plans {
 		_, _ = fmt.Fprintf(

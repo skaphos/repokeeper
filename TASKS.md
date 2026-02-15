@@ -162,7 +162,7 @@
 - [ ] Extract shared utilities:
   - [x] move `splitCSV()` from `scan.go` to a shared `internal/cli` or `internal/strutil` package
   - [x] extract ANSI color constants and `colorize()` to shared package
-  - [ ] create reusable table writer abstraction to deduplicate `writeStatusTable`, `writeSyncTable`, `writeSyncPlan`
+  - [x] create reusable table writer abstraction to deduplicate `writeStatusTable`, `writeSyncTable`, `writeSyncPlan`
   - [x] extract common sorting lambda (`RepoID` then `Path`) into named comparator functions
 - [ ] Magic string constants:
   - [x] define constants for error state strings (`"missing"`, `"skipped-local-update:"`, etc.)

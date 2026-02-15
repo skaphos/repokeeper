@@ -4,16 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -70,12 +70,7 @@ var scanCmd = &cobra.Command{
 			reg.PruneStale(time.Duration(cfg.RegistryStaleDays) * 24 * time.Hour)
 		}
 		// Keep persisted registry ordering deterministic for stable diffs/output.
-		sort.SliceStable(reg.Entries, func(i, j int) bool {
-			if reg.Entries[i].RepoID == reg.Entries[j].RepoID {
-				return reg.Entries[i].Path < reg.Entries[j].Path
-			}
-			return reg.Entries[i].RepoID < reg.Entries[j].RepoID
-		})
+		sortutil.SortRegistryEntries(reg.Entries)
 
 		if writeRegistry {
 			cfg.Registry = reg
@@ -107,10 +102,8 @@ var scanCmd = &cobra.Command{
 }
 
 func writeScanTable(cmd *cobra.Command, statuses []model.RepoStatus, noHeaders bool) {
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	if !noHeaders {
-		_, _ = fmt.Fprintln(w, "REPO\tPATH\tBARE\tPRIMARY_REMOTE")
-	}
+	w := tableutil.New(cmd.OutOrStdout(), false)
+	tableutil.PrintHeaders(w, noHeaders, "REPO\tPATH\tBARE\tPRIMARY_REMOTE")
 	for _, status := range statuses {
 		bare := "no"
 		if status.Bare {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
@@ -14,6 +13,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
+	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -257,10 +257,8 @@ func repairUpstreamMatchesFilter(current, target, filter string) bool {
 }
 
 func writeRepairUpstreamTable(cmd *cobra.Command, results []repairUpstreamResult, cwd string, roots []string, noHeaders bool) {
-	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	if !noHeaders {
-		_, _ = fmt.Fprintln(w, "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO")
-	}
+	w := tableutil.New(cmd.OutOrStdout(), false)
+	tableutil.PrintHeaders(w, noHeaders, "PATH\tACTION\tBRANCH\tCURRENT\tTARGET\tOK\tERROR_CLASS\tERROR\tREPO")
 	for _, res := range results {
 		ok := "yes"
 		if !res.OK {
