@@ -8,9 +8,11 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
@@ -24,6 +26,24 @@ type divergedAdvice struct {
 	Upstream          string `json:"upstream"`
 	Reason            string `json:"reason"`
 	RecommendedAction string `json:"recommended_action"`
+}
+
+type remoteMismatchReconcileMode string
+
+const (
+	remoteMismatchReconcileNone     remoteMismatchReconcileMode = "none"
+	remoteMismatchReconcileRegistry remoteMismatchReconcileMode = "registry"
+	remoteMismatchReconcileGit      remoteMismatchReconcileMode = "git"
+)
+
+type remoteMismatchPlan struct {
+	RepoID        string
+	Path          string
+	PrimaryRemote string
+	RepoRemoteURL string
+	RegistryURL   string
+	EntryIndex    int
+	Action        string
 }
 
 var statusCmd = &cobra.Command{
@@ -65,7 +85,13 @@ var statusCmd = &cobra.Command{
 		only, _ := cmd.Flags().GetString("only")
 		fieldSelector, _ := cmd.Flags().GetString("field-selector")
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
+		reconcileModeRaw, _ := cmd.Flags().GetString("reconcile-remote-mismatch")
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		filter, err := resolveRepoFilter(only, fieldSelector)
+		if err != nil {
+			return err
+		}
+		reconcileMode, err := parseRemoteMismatchReconcileMode(reconcileModeRaw)
 		if err != nil {
 			return err
 		}
@@ -108,6 +134,51 @@ var statusCmd = &cobra.Command{
 			}
 			return report.Repos[i].RepoID < report.Repos[j].RepoID
 		})
+		plans := buildRemoteMismatchPlans(report.Repos, reg, adapter, reconcileMode)
+		if len(plans) > 0 {
+			writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone)
+		}
+		if reconcileMode != remoteMismatchReconcileNone && !dryRun {
+			if !flagYes {
+				confirmed, err := confirmWithPrompt(cmd, "Proceed with remote mismatch reconciliation? [y/N]: ")
+				if err != nil {
+					return err
+				}
+				if !confirmed {
+					infof(cmd, "remote mismatch reconcile cancelled")
+					return nil
+				}
+			}
+			if err := applyRemoteMismatchPlans(cmd, plans, reg, reconcileMode); err != nil {
+				return err
+			}
+			if reconcileMode == remoteMismatchReconcileRegistry {
+				if registryOverride != "" {
+					if err := registry.Save(reg, registryOverride); err != nil {
+						return err
+					}
+				} else {
+					cfg.Registry = reg
+					if err := config.Save(cfg, cfgPath); err != nil {
+						return err
+					}
+				}
+			}
+			report, err = eng.Status(cmd.Context(), engine.StatusOptions{
+				Filter:      filter,
+				Concurrency: cfg.Defaults.Concurrency,
+				Timeout:     cfg.Defaults.TimeoutSeconds,
+			})
+			if err != nil {
+				return err
+			}
+			sort.SliceStable(report.Repos, func(i, j int) bool {
+				if report.Repos[i].RepoID == report.Repos[j].RepoID {
+					return report.Repos[i].Path < report.Repos[j].Path
+				}
+				return report.Repos[i].RepoID < report.Repos[j].RepoID
+			})
+		}
 
 		switch strings.ToLower(format) {
 		case "json":
@@ -159,6 +230,8 @@ func init() {
 	statusCmd.Flags().StringP("format", "o", "table", "output format: table, wide, or json")
 	statusCmd.Flags().String("only", "all", "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing")
 	statusCmd.Flags().String("field-selector", "", "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true")
+	statusCmd.Flags().String("reconcile-remote-mismatch", "none", "optional reconcile mode for remote mismatch: none, registry, git")
+	statusCmd.Flags().Bool("dry-run", true, "preview reconcile actions without modifying registry or git remotes")
 	statusCmd.Flags().Bool("no-headers", false, "when using table format, do not print headers")
 
 }
@@ -473,4 +546,137 @@ func relWithin(base, target string) (string, bool) {
 		return "", false
 	}
 	return filepath.ToSlash(rel), true
+}
+
+func parseRemoteMismatchReconcileMode(raw string) (remoteMismatchReconcileMode, error) {
+	mode := remoteMismatchReconcileMode(strings.ToLower(strings.TrimSpace(raw)))
+	switch mode {
+	case "", remoteMismatchReconcileNone:
+		return remoteMismatchReconcileNone, nil
+	case remoteMismatchReconcileRegistry, remoteMismatchReconcileGit:
+		return mode, nil
+	default:
+		return "", fmt.Errorf("unsupported --reconcile-remote-mismatch value %q (expected none, registry, or git)", raw)
+	}
+}
+
+func buildRemoteMismatchPlans(repos []model.RepoStatus, reg *registry.Registry, adapter vcs.Adapter, mode remoteMismatchReconcileMode) []remoteMismatchPlan {
+	if reg == nil || adapter == nil || mode == remoteMismatchReconcileNone {
+		return nil
+	}
+	plans := make([]remoteMismatchPlan, 0)
+	for _, repo := range repos {
+		entryIndex := findRegistryEntryIndexForStatus(reg, repo)
+		if entryIndex < 0 {
+			continue
+		}
+		entry := reg.Entries[entryIndex]
+		registryURL := strings.TrimSpace(entry.RemoteURL)
+		if registryURL == "" || strings.TrimSpace(repo.RepoID) == "" {
+			continue
+		}
+		if adapter.NormalizeURL(registryURL) == repo.RepoID {
+			continue
+		}
+		repoRemoteURL := primaryRemoteURL(repo)
+		action := ""
+		switch mode {
+		case remoteMismatchReconcileRegistry:
+			if repoRemoteURL == "" {
+				continue
+			}
+			action = "set registry remote_url to live git remote"
+		case remoteMismatchReconcileGit:
+			if strings.TrimSpace(repo.PrimaryRemote) == "" {
+				continue
+			}
+			action = "set git remote URL to registry remote_url"
+		}
+		plans = append(plans, remoteMismatchPlan{
+			RepoID:        repo.RepoID,
+			Path:          repo.Path,
+			PrimaryRemote: repo.PrimaryRemote,
+			RepoRemoteURL: repoRemoteURL,
+			RegistryURL:   registryURL,
+			EntryIndex:    entryIndex,
+			Action:        action,
+		})
+	}
+	return plans
+}
+
+func findRegistryEntryIndexForStatus(reg *registry.Registry, repo model.RepoStatus) int {
+	for i := range reg.Entries {
+		if reg.Entries[i].RepoID == repo.RepoID && reg.Entries[i].Path == repo.Path {
+			return i
+		}
+	}
+	for i := range reg.Entries {
+		if reg.Entries[i].RepoID == repo.RepoID {
+			return i
+		}
+	}
+	return -1
+}
+
+func primaryRemoteURL(repo model.RepoStatus) string {
+	for _, remote := range repo.Remotes {
+		if remote.Name == repo.PrimaryRemote {
+			return strings.TrimSpace(remote.URL)
+		}
+	}
+	return ""
+}
+
+func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd string, roots []string, dryRun bool) {
+	if len(plans) == 0 {
+		return
+	}
+	modeLabel := "planned"
+	if !dryRun {
+		modeLabel = "applying"
+	}
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Remote mismatch reconcile (%s):\n", modeLabel)
+	w := tabwriter.NewWriter(cmd.ErrOrStderr(), 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "PATH\tACTION\tPRIMARY_REMOTE\tGIT_REMOTE_URL\tREGISTRY_REMOTE_URL\tREPO")
+	for _, plan := range plans {
+		_, _ = fmt.Fprintf(
+			w,
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			displayRepoPath(plan.Path, cwd, roots),
+			plan.Action,
+			plan.PrimaryRemote,
+			plan.RepoRemoteURL,
+			plan.RegistryURL,
+			plan.RepoID,
+		)
+	}
+	_ = w.Flush()
+}
+
+func applyRemoteMismatchPlans(cmd *cobra.Command, plans []remoteMismatchPlan, reg *registry.Registry, mode remoteMismatchReconcileMode) error {
+	if len(plans) == 0 {
+		return nil
+	}
+	switch mode {
+	case remoteMismatchReconcileRegistry:
+		for _, plan := range plans {
+			if plan.EntryIndex < 0 || plan.EntryIndex >= len(reg.Entries) {
+				continue
+			}
+			reg.Entries[plan.EntryIndex].RemoteURL = plan.RepoRemoteURL
+			reg.Entries[plan.EntryIndex].LastSeen = time.Now()
+		}
+	case remoteMismatchReconcileGit:
+		runner := &gitx.GitRunner{}
+		for _, plan := range plans {
+			if strings.TrimSpace(plan.PrimaryRemote) == "" {
+				continue
+			}
+			if _, err := runner.Run(cmd.Context(), plan.Path, "remote", "set-url", plan.PrimaryRemote, plan.RegistryURL); err != nil {
+				return fmt.Errorf("git remote set-url %s %s (%s): %w", plan.PrimaryRemote, plan.RegistryURL, plan.Path, err)
+			}
+		}
+	}
+	return nil
 }

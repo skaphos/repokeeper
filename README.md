@@ -85,6 +85,7 @@ Use `-o wide` (or `--format wide`) on `status`/`get repos` and `sync`/`reconcile
 `repokeeper sync` shows a preflight plan. Confirmation is requested only when the plan includes local-branch-changing actions (`pull --rebase`/stash+rebase) or checkout-missing clones; fetch-only plans run without a prompt. Use `--yes` to skip confirmation when it is required.
 `repokeeper sync` supports `--only diverged` and `--only remote-mismatch` for targeted remediation runs.
 `repokeeper status --only diverged` now includes a diverged reason and recommended action in table output, and adds a machine-readable `diverged` guidance array in JSON output.
+`repokeeper status --only remote-mismatch --reconcile-remote-mismatch registry|git --dry-run=false` can explicitly reconcile mismatched remotes by updating either registry `remote_url` values or live git remote URLs. Apply mode prompts unless `--yes` is passed.
 
 `repokeeper describe` and `repokeeper describe repo` both accept a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
 

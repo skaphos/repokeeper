@@ -150,6 +150,8 @@ Flags:
 * `--registry <path>` (optional)
 * `-o, --format table|wide|json` (default table)
 * `--only errors|dirty|clean|gone|diverged|remote-mismatch|missing|all` (default all)
+* `--reconcile-remote-mismatch none|registry|git` (default `none`; explicit reconcile mode for remote mismatch entries)
+* `--dry-run` (default true; set to false to apply reconcile changes)
 
 When filtered to `diverged`, table/wide output includes `REASON` and `RECOMMENDED_ACTION`, and JSON adds a `diverged` guidance array for automation-friendly remediation hints.
 

@@ -8,6 +8,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
 
@@ -663,5 +664,51 @@ func TestDivergedAdviceAndTable(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "RECOMMENDED_ACTION") || !strings.Contains(got, "commit or stash changes") {
 		t.Fatalf("expected diverged guidance columns, got: %q", got)
+	}
+}
+
+func TestRemoteMismatchReconcileHelpers(t *testing.T) {
+	mode, err := parseRemoteMismatchReconcileMode("registry")
+	if err != nil || mode != remoteMismatchReconcileRegistry {
+		t.Fatalf("expected registry mode, got %q (%v)", mode, err)
+	}
+	if _, err := parseRemoteMismatchReconcileMode("invalid"); err == nil {
+		t.Fatal("expected invalid mode to error")
+	}
+
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:    "github.com/org/repo-a",
+				Path:      "/tmp/repo-a",
+				RemoteURL: "git@github.com:other/repo-a.git",
+			},
+		},
+	}
+	repos := []model.RepoStatus{
+		{
+			RepoID:        "github.com/org/repo-a",
+			Path:          "/tmp/repo-a",
+			PrimaryRemote: "origin",
+			Remotes: []model.Remote{
+				{Name: "origin", URL: "git@github.com:org/repo-a.git"},
+			},
+		},
+	}
+
+	plans := buildRemoteMismatchPlans(repos, reg, vcs.NewGitAdapter(nil), remoteMismatchReconcileRegistry)
+	if len(plans) != 1 {
+		t.Fatalf("expected one registry reconcile plan, got %d", len(plans))
+	}
+	if plans[0].RepoRemoteURL == plans[0].RegistryURL {
+		t.Fatalf("expected mismatch between git and registry urls, got %#v", plans[0])
+	}
+
+	cmd := &cobra.Command{}
+	if err := applyRemoteMismatchPlans(cmd, plans, reg, remoteMismatchReconcileRegistry); err != nil {
+		t.Fatalf("apply registry reconcile: %v", err)
+	}
+	if got := reg.Entries[0].RemoteURL; got != "git@github.com:org/repo-a.git" {
+		t.Fatalf("expected registry url to be updated, got %q", got)
 	}
 }
