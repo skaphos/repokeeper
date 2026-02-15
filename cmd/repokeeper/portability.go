@@ -23,6 +23,7 @@ import (
 type exportBundle struct {
 	Version    int                `yaml:"version"`
 	ExportedAt string             `yaml:"exported_at"`
+	Root       string             `yaml:"root,omitempty"`
 	Config     config.Config      `yaml:"config"`
 	Registry   *registry.Registry `yaml:"registry,omitempty"`
 }
@@ -43,8 +44,9 @@ const (
 )
 
 var exportCmd = &cobra.Command{
-	Use:   "export",
+	Use:   "export [output-file|-]",
 	Short: "Export config (and optionally registry) for reuse on another machine",
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -61,10 +63,17 @@ var exportCmd = &cobra.Command{
 
 		includeRegistry, _ := cmd.Flags().GetBool("include-registry")
 		outputPath, _ := cmd.Flags().GetString("output")
+		if len(args) == 1 {
+			outputPath = strings.TrimSpace(args[0])
+		}
+		if outputPath == "" {
+			return fmt.Errorf("output path cannot be empty")
+		}
 
 		bundle := exportBundle{
 			Version:    1,
 			ExportedAt: time.Now().Format(time.RFC3339),
+			Root:       config.ConfigRoot(cfgPath),
 		}
 		cfgCopy := *cfg
 		if includeRegistry {
@@ -227,7 +236,7 @@ var importCmd = &cobra.Command{
 }
 
 func init() {
-	exportCmd.Flags().String("output", "repokeeper-export.yaml", "output file path or - for stdout")
+	exportCmd.Flags().String("output", "-", "output file path or - for stdout")
 	exportCmd.Flags().Bool("include-registry", true, "include registry in the export bundle")
 
 	importCmd.Flags().Bool("force", false, "overwrite existing config file")
@@ -374,7 +383,7 @@ func cloneImportedEntriesWithProgress(
 	targets := make(map[string]registry.Entry, len(entries))
 	skippedLocal := make(map[string]registry.Entry)
 	for _, entry := range entries {
-		targetRel := importTargetRelativePath(entry, nil)
+		targetRel := importTargetRelativePath(entry, bundle.Root)
 		target := filepath.Clean(filepath.Join(cwd, targetRel))
 
 		// Protect against path traversal/out-of-tree paths from malformed bundles.
@@ -550,13 +559,10 @@ func setRegistryEntryByRepoID(reg *registry.Registry, entry registry.Entry) {
 	reg.Entries = append(reg.Entries, entry)
 }
 
-func importTargetRelativePath(entry registry.Entry, roots []string) string {
-	for _, root := range roots {
-		rel, ok := relWithin(root, entry.Path)
-		if ok {
-			// Keep exported layout stable when the path is under a configured root.
-			return rel
-		}
+func importTargetRelativePath(entry registry.Entry, root string) string {
+	if rel, ok := relWithin(root, entry.Path); ok {
+		// Keep exported layout stable when the path is under the exported config root.
+		return rel
 	}
 
 	base := filepath.Base(entry.Path)

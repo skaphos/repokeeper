@@ -317,6 +317,7 @@ func (s *syncProgressWriter) StartResult(res engine.SyncResult) error {
 	path := displayRepoPath(res.Path, s.cwd, s.roots)
 	state := &syncProgressState{
 		displayPath: path,
+		dots:        1,
 		stop:        make(chan struct{}),
 		done:        make(chan struct{}),
 	}
@@ -327,7 +328,7 @@ func (s *syncProgressWriter) StartResult(res engine.SyncResult) error {
 		return nil
 	}
 	s.running[res.Path] = state
-	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s ... working\n", path); err != nil {
+	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s %s\n", path, strings.Repeat(".", state.dots)); err != nil {
 		delete(s.running, res.Path)
 		s.mu.Unlock()
 		return err
@@ -354,7 +355,7 @@ func (s *syncProgressWriter) runDots(path string, state *syncProgressState) {
 				return
 			}
 			state.dots++
-			_, _ = fmt.Fprintf(s.cmd.OutOrStdout(), "%s ... %s\n", state.displayPath, strings.Repeat(".", state.dots))
+			_, _ = fmt.Fprintf(s.cmd.OutOrStdout(), "%s %s\n", state.displayPath, strings.Repeat(".", state.dots))
 			s.mu.Unlock()
 		}
 	}
@@ -379,7 +380,7 @@ func (s *syncProgressWriter) WriteResult(res engine.SyncResult) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	action := describeSyncAction(res)
-	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s ... %s\n", path, syncProgressMessage(s.cmd, res)); err != nil {
+	if _, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s %s\n", path, syncProgressMessage(s.cmd, res)); err != nil {
 		return err
 	}
 	if !res.OK && !strings.HasPrefix(action, "skip") && !isQuiet(s.cmd) && strings.TrimSpace(res.Error) != "" {

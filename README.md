@@ -112,7 +112,7 @@ For `status`, `--dry-run` defaults to `true` and only affects remote-mismatch re
 
 `repokeeper edit <repo-id-or-path> --set-upstream <remote/branch>` updates both local git tracking and the registry metadata branch.
 
-`repokeeper export --output -` and `repokeeper import` support shell piping (for example: `repokeeper import < repokeeper-export.yaml`).
+`repokeeper export` writes YAML to stdout by default; pass an optional path argument to write directly to a file (for example: `repokeeper export repokeeper-export.yaml`). `repokeeper import` reads stdin by default when no bundle path is provided.
 
 `repokeeper import` defaults to merge mode (`--mode=merge`) so existing local config/registry can be synchronized with an exported bundle without overwrite. Use `--mode=replace --force` for the previous full-replace behavior.
 

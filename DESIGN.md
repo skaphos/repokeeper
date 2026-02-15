@@ -238,7 +238,8 @@ Exports config and optional registry into a single YAML bundle for migration.
 
 Flags:
 
-* `--output <path|->` (default `repokeeper-export.yaml`)
+* Positional output path: `[output-file|-]` (default stdout)
+* `--output <path|->` (default `-`; optional flag form)
 * `--include-registry` (default true)
 
 #### `repokeeper import`

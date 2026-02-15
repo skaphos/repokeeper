@@ -23,16 +23,16 @@ func TestImportTargetRelativePath(t *testing.T) {
 		Path:   "/source/root/team/repo-a",
 	}
 
-	if got := importTargetRelativePath(entry, []string{"/source/root"}); got != "team/repo-a" {
+	if got := importTargetRelativePath(entry, "/source/root"); got != "team/repo-a" {
 		t.Fatalf("expected root-relative target, got %q", got)
 	}
 
-	if got := importTargetRelativePath(entry, []string{"/other/root"}); got != "repo-a" {
+	if got := importTargetRelativePath(entry, "/other/root"); got != "repo-a" {
 		t.Fatalf("expected basename fallback, got %q", got)
 	}
 
 	entry = registry.Entry{RepoID: "github.com/org/repo-z", Path: ""}
-	if got := importTargetRelativePath(entry, nil); got != "repo-z" {
+	if got := importTargetRelativePath(entry, ""); got != "repo-z" {
 		t.Fatalf("expected repo-id fallback, got %q", got)
 	}
 }
@@ -51,8 +51,8 @@ func TestCloneImportedReposReportsSpecificTargetConflicts(t *testing.T) {
 			},
 		},
 	}
-	bundle := exportBundle{Config: config.Config{}}
-	target := filepath.Join(cwd, "repo-a")
+	bundle := exportBundle{Root: "/source/root"}
+	target := filepath.Join(cwd, "team", "repo-a")
 	if err := os.MkdirAll(target, 0o755); err != nil {
 		t.Fatalf("mkdir target: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestCloneImportedReposSkipsLocalEntriesWithoutRemoteURL(t *testing.T) {
 			},
 		},
 	}
-	bundle := exportBundle{Config: config.Config{}}
+	bundle := exportBundle{Root: "/source/root"}
 
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
@@ -103,7 +103,7 @@ func TestCloneImportedReposSkipsLocalEntriesWithoutRemoteURL(t *testing.T) {
 	if entry.Status != registry.StatusMissing {
 		t.Fatalf("expected local entry to be missing after skip, got %q", entry.Status)
 	}
-	if got, want := entry.Path, filepath.Join(cwd, "repo-a"); got != want {
+	if got, want := entry.Path, filepath.Join(cwd, "team", "repo-a"); got != want {
 		t.Fatalf("expected rewritten path %q, got %q", want, got)
 	}
 }
@@ -565,9 +565,9 @@ func TestExportCommandRunEWritesFile(t *testing.T) {
 	outputFile := filepath.Join(t.TempDir(), "bundle.yaml")
 	exportCmd.SetContext(context.Background())
 	_ = exportCmd.Flags().Set("include-registry", "false")
-	_ = exportCmd.Flags().Set("output", outputFile)
+	_ = exportCmd.Flags().Set("output", "-")
 
-	if err := exportCmd.RunE(exportCmd, nil); err != nil {
+	if err := exportCmd.RunE(exportCmd, []string{outputFile}); err != nil {
 		t.Fatalf("export run failed: %v", err)
 	}
 	if _, err := os.Stat(outputFile); err != nil {
