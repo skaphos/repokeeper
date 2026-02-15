@@ -264,6 +264,11 @@ type SyncResult struct {
 	Action string
 }
 
+// SyncResultCallback is invoked for each sync result as it is produced.
+// Callbacks run on the coordinator goroutine, so callers can safely write
+// terminal output without additional synchronization.
+type SyncResultCallback func(SyncResult)
+
 // OutcomeKind is the typed outcome category for a single sync result.
 type OutcomeKind string
 
@@ -309,22 +314,31 @@ const (
 // ExecuteSyncPlan executes a previously computed dry-run sync plan.
 // It avoids re-inspecting repo state so sync can analyze once and then apply.
 func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts SyncOptions) ([]SyncResult, error) {
+	return e.ExecuteSyncPlanWithCallback(ctx, plan, opts, nil)
+}
+
+// ExecuteSyncPlanWithCallback executes a previously computed dry-run sync plan
+// and invokes callback for each completed result in completion order.
+func (e *Engine) ExecuteSyncPlanWithCallback(ctx context.Context, plan []SyncResult, opts SyncOptions, callback SyncResultCallback) ([]SyncResult, error) {
 	if e.registry == nil {
 		return nil, errors.New("registry not loaded")
 	}
 
 	if opts.ContinueOnError {
-		return e.executeSyncPlanConcurrent(ctx, plan, opts), nil
+		return e.executeSyncPlanConcurrent(ctx, plan, opts, callback), nil
 	}
-	return e.executeSyncPlanSequential(ctx, plan, opts), nil
+	return e.executeSyncPlanSequential(ctx, plan, opts, callback), nil
 }
 
-func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResult, opts SyncOptions) []SyncResult {
+func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResult, opts SyncOptions, callback SyncResultCallback) []SyncResult {
 	results := make([]SyncResult, 0, len(plan))
 	for _, item := range plan {
 		// Non-dry-run execution only applies actions that were explicitly planned.
 		if item.Error != SyncErrorDryRun {
 			results = append(results, item)
+			if callback != nil {
+				callback(item)
+			}
 			if shouldStopSyncExecution(item, opts) {
 				break
 			}
@@ -333,6 +347,9 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 
 		executed := e.executePlannedSyncItem(ctx, item)
 		results = append(results, executed)
+		if callback != nil {
+			callback(executed)
+		}
 		if shouldStopSyncExecution(executed, opts) {
 			break
 		}
@@ -342,7 +359,7 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 	return results
 }
 
-func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResult, opts SyncOptions) []SyncResult {
+func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResult, opts SyncOptions, callback SyncResultCallback) []SyncResult {
 	concurrency, timeoutSeconds := e.syncRuntime(opts)
 	sem := make(chan struct{}, concurrency)
 	out := make(chan SyncResult, workerChannelBufferSize(len(plan)))
@@ -353,6 +370,9 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 		// Only planned actions are executed. Precomputed non-dry-run items pass through.
 		if item.Error != SyncErrorDryRun {
 			results = append(results, item)
+			if callback != nil {
+				callback(item)
+			}
 			continue
 		}
 		sem <- struct{}{}
@@ -371,7 +391,11 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 	}
 
 	for i := 0; i < spawned; i++ {
-		results = append(results, <-out)
+		res := <-out
+		results = append(results, res)
+		if callback != nil {
+			callback(res)
+		}
 	}
 	sortSyncResults(results)
 	return results

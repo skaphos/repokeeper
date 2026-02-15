@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/liggitt/tabwriter"
 	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
@@ -116,11 +117,27 @@ var syncCmd = &cobra.Command{
 		}
 
 		results := plan
+		streamResults := shouldStreamSyncResults(cmd, dryRun, mode.kind)
 		if !dryRun {
-			results, err = eng.ExecuteSyncPlan(cmd.Context(), plan, engine.SyncOptions{
+			var streamWriter *syncTableStreamWriter
+			if streamResults {
+				streamWriter, err = newSyncTableStreamWriter(cmd, cwd, []string{cfgRoot}, wrap, noHeaders, mode.kind == outputKindWide)
+				if err != nil {
+					return err
+				}
+			}
+
+			results, err = eng.ExecuteSyncPlanWithCallback(cmd.Context(), plan, engine.SyncOptions{
 				Concurrency:     concurrency,
 				Timeout:         timeout,
 				ContinueOnError: continueOnError,
+			}, func(res engine.SyncResult) {
+				if streamWriter == nil {
+					return
+				}
+				if streamErr := streamWriter.WriteResult(res); streamErr != nil {
+					logOutputWriteFailure(cmd, "sync stream row", streamErr)
+				}
 			})
 			if err != nil {
 				return err
@@ -147,10 +164,14 @@ var syncCmd = &cobra.Command{
 			logOutputWriteFailure(cmd, "sync custom-columns", writeCustomColumnsOutput(cmd, results, mode.expr, noHeaders))
 		case outputKindTable:
 			setColorOutputMode(cmd, string(mode.kind))
-			logOutputWriteFailure(cmd, "sync table", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false))
+			if !streamResults {
+				logOutputWriteFailure(cmd, "sync table", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, false))
+			}
 		case outputKindWide:
 			setColorOutputMode(cmd, string(mode.kind))
-			logOutputWriteFailure(cmd, "sync wide", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true))
+			if !streamResults {
+				logOutputWriteFailure(cmd, "sync wide", writeSyncTable(cmd, results, nil, cwd, []string{cfgRoot}, wrap, noHeaders, true))
+			}
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -238,33 +259,142 @@ func syncResultNeedsConfirmation(res engine.SyncResult) bool {
 	return false
 }
 
-func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) error {
-	type syncTableMode int
-	const (
-		syncTableModeFull syncTableMode = iota
-		syncTableModeCompact
-		syncTableModeTiny
-	)
+type syncTableMode int
 
-	statusByPath := make(map[string]model.RepoStatus, len(results))
-	if report != nil {
-		for _, repo := range report.Repos {
-			// Sync results are keyed by path, so table enrichment uses the same key.
-			statusByPath[repo.Path] = repo
-		}
+const (
+	syncTableModeFull syncTableMode = iota
+	syncTableModeCompact
+	syncTableModeTiny
+)
+
+type syncTableStreamWriter struct {
+	cmd       *cobra.Command
+	w         *tabwriter.Writer
+	mode      syncTableMode
+	wide      bool
+	wrap      bool
+	cwd       string
+	roots     []string
+	pathMax   int
+	actionMax int
+	branchMax int
+	repoMax   int
+}
+
+func shouldStreamSyncResults(cmd *cobra.Command, dryRun bool, kind outputKind) bool {
+	if dryRun {
+		return false
 	}
+	if kind != outputKindTable && kind != outputKindWide {
+		return false
+	}
+	if cmd == nil || cmd.Name() != "repos" || cmd.Parent() == nil {
+		return false
+	}
+	return cmd.Parent().Name() == "reconcile"
+}
 
+func newSyncTableStreamWriter(cmd *cobra.Command, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) (*syncTableStreamWriter, error) {
+	mode := syncTableModeFor(cmd, wide)
 	w := tableutil.New(cmd.OutOrStdout(), true)
-	mode := syncTableModeFull
-	if !wide {
-		width, hasWidth := tableWidth(cmd)
-		switch {
-		case hasWidth && width < tinyTableWidth:
-			mode = syncTableModeTiny
-		case hasWidth && width < narrowTableWidth:
-			mode = syncTableModeCompact
-		}
+	headers := syncTableHeaders(mode, wide)
+	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
+		return nil, err
 	}
+	if err := w.Flush(); err != nil {
+		return nil, err
+	}
+	return &syncTableStreamWriter{
+		cmd:       cmd,
+		w:         w,
+		mode:      mode,
+		wide:      wide,
+		wrap:      wrap,
+		cwd:       cwd,
+		roots:     roots,
+		pathMax:   adaptiveCellLimit(cmd, 0, 48, 32),
+		actionMax: adaptiveCellLimit(cmd, 0, 22, 16),
+		branchMax: adaptiveCellLimit(cmd, 0, 24, 16),
+		repoMax:   adaptiveCellLimit(cmd, 0, 32, 20),
+	}, nil
+}
+
+func (s *syncTableStreamWriter) WriteResult(res engine.SyncResult) error {
+	ok := "yes"
+	if !res.OK {
+		ok = "no"
+	}
+	path := formatCell(displayRepoPath(res.Path, s.cwd, s.roots), s.wrap, s.pathMax)
+	action := formatCell(describeSyncAction(res), s.wrap, s.actionMax)
+	branch := "-"
+	dirty := "-"
+	tracking := string(model.TrackingNone)
+	repoID := formatCell(res.RepoID, s.wrap, s.repoMax)
+
+	if !s.wide {
+		switch s.mode {
+		case syncTableModeTiny:
+			if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\n", path, action, ok, formatCell(res.Error, s.wrap, 28)); err != nil {
+				return err
+			}
+		case syncTableModeCompact:
+			if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\t%s\n", path, action, ok, formatCell(res.Error, s.wrap, 32), repoID); err != nil {
+				return err
+			}
+		default:
+			branch = formatCell(branch, s.wrap, s.branchMax)
+			if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				path,
+				action,
+				branch,
+				dirty,
+				tracking,
+				ok,
+				res.ErrorClass,
+				formatCell(res.Error, s.wrap, 36),
+				repoID); err != nil {
+				return err
+			}
+		}
+		return s.w.Flush()
+	}
+
+	branch = formatCell(branch, s.wrap, s.branchMax)
+	if _, err := fmt.Fprintf(s.w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		path,
+		action,
+		branch,
+		dirty,
+		tracking,
+		ok,
+		res.ErrorClass,
+		formatCell(res.Error, s.wrap, 36),
+		repoID,
+		"",
+		"",
+		"-",
+		"-"); err != nil {
+		return err
+	}
+	return s.w.Flush()
+}
+
+func syncTableModeFor(cmd *cobra.Command, wide bool) syncTableMode {
+	if wide {
+		return syncTableModeFull
+	}
+	mode := syncTableModeFull
+	width, hasWidth := tableWidth(cmd)
+	switch {
+	case hasWidth && width < tinyTableWidth:
+		mode = syncTableModeTiny
+	case hasWidth && width < narrowTableWidth:
+		mode = syncTableModeCompact
+	}
+	return mode
+}
+
+func syncTableHeaders(mode syncTableMode, wide bool) string {
 	headers := "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO"
 	if mode == syncTableModeCompact {
 		headers = "PATH\tACTION\tOK\tERROR\tREPO"
@@ -275,6 +405,21 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 	if wide {
 		headers += "\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND"
 	}
+	return headers
+}
+
+func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *model.StatusReport, cwd string, roots []string, wrap bool, noHeaders bool, wide bool) error {
+	statusByPath := make(map[string]model.RepoStatus, len(results))
+	if report != nil {
+		for _, repo := range report.Repos {
+			// Sync results are keyed by path, so table enrichment uses the same key.
+			statusByPath[repo.Path] = repo
+		}
+	}
+
+	w := tableutil.New(cmd.OutOrStdout(), true)
+	mode := syncTableModeFor(cmd, wide)
+	headers := syncTableHeaders(mode, wide)
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
 	}

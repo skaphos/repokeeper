@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/spf13/cobra"
 )
 
 func TestParseRemoteMismatchReconcileModeTable(t *testing.T) {
@@ -102,5 +103,29 @@ func TestRepairUpstreamMatchesFilterTable(t *testing.T) {
 				t.Fatalf("repairUpstreamMatchesFilter(%q, %q, %q) = %v, want %v", tc.current, tc.target, tc.filter, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestShouldStreamSyncResults(t *testing.T) {
+	reconcile := &cobra.Command{Use: "reconcile"}
+	repos := &cobra.Command{Use: "repos"}
+	reconcile.AddCommand(repos)
+
+	if !shouldStreamSyncResults(repos, false, outputKindTable) {
+		t.Fatal("expected reconcile repos table output to stream")
+	}
+	if !shouldStreamSyncResults(repos, false, outputKindWide) {
+		t.Fatal("expected reconcile repos wide output to stream")
+	}
+	if shouldStreamSyncResults(repos, true, outputKindTable) {
+		t.Fatal("did not expect dry-run to stream")
+	}
+	if shouldStreamSyncResults(repos, false, outputKindJSON) {
+		t.Fatal("did not expect json output to stream")
+	}
+
+	syncOnly := &cobra.Command{Use: "sync"}
+	if shouldStreamSyncResults(syncOnly, false, outputKindTable) {
+		t.Fatal("did not expect sync command table output to stream by default")
 	}
 }

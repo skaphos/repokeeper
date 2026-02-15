@@ -372,6 +372,41 @@ func TestExecuteSyncPlanCloneAction(t *testing.T) {
 	}
 }
 
+func TestExecuteSyncPlanWithCallbackInvokesPerResult(t *testing.T) {
+	runner := &testRunner{responses: map[string]testResponse{
+		"/repo:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
+	}}
+	eng := New(&config.Config{}, &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo.git"},
+	}}, vcs.NewGitAdapter(runner))
+
+	plan := []SyncResult{{
+		RepoID:  "repo",
+		Path:    "/repo",
+		OK:      true,
+		Error:   SyncErrorDryRun,
+		Outcome: SyncOutcomePlannedFetch,
+		Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules",
+	}}
+
+	seen := 0
+	results, err := eng.ExecuteSyncPlanWithCallback(context.Background(), plan, SyncOptions{ContinueOnError: true}, func(res SyncResult) {
+		seen++
+		if res.Path != "/repo" {
+			t.Fatalf("unexpected callback result path: %q", res.Path)
+		}
+	})
+	if err != nil {
+		t.Fatalf("execute sync plan with callback failed: %v", err)
+	}
+	if seen != 1 {
+		t.Fatalf("expected callback once, got %d", seen)
+	}
+	if len(results) != 1 || !results[0].OK {
+		t.Fatalf("unexpected results: %+v", results)
+	}
+}
+
 func TestFilterAndLookupEdgeBranches(t *testing.T) {
 	if filterStatus(FilterMissing, model.RepoStatus{RepoID: "r1"}, nil) {
 		t.Fatal("expected missing filter false without registry")
