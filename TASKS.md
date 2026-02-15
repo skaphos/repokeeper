@@ -192,19 +192,19 @@
   - [x] handle I/O errors from `fmt.Fprintf`/`fmt.Fprintln` on critical output paths (sync.go, status.go, scan.go)
   - [x] log or propagate `tabwriter.Flush()` errors instead of discarding
   - [x] log output write failures at debug level (no exit code change; broken pipes are normal CLI behavior)
-- [ ] Concurrency safety:
+- [x] Concurrency safety:
   - [x] fix race condition: goroutines in `Status()` access `e.Registry` without synchronization (engine.go:158-201)
   - [x] copy registry entry data before passing to goroutines
   - [x] address channel leak risk in `syncSequentialStopOnError()` on early return (engine.go:446-475)
   - [x] add mutex or value-based updates for registry entry mutation during sync
-- [ ] Memory/performance:
+- [x] Memory/performance:
   - [x] reduce unbounded channel buffer sizes from `len(entries)` to fixed cap (e.g., 100) in engine.go
   - [x] eliminate redundant `eng.Status()` call after sync for table/wide output (sync.go:145-163)
   - [x] remove duplicate sorting (status.go:133 duplicates engine.go:210)
-- [ ] Security hardening:
+- [x] Security hardening:
   - [x] add validation for upstream format in edit.go (should match `remote/branch` pattern)
   - [x] validate path normalization in `selectRegistryEntryForDescribe` stays within configured roots
-- [ ] API design cleanup:
+- [x] API design cleanup:
   - [x] make Engine struct fields private, add read-only accessors if needed
   - [x] replace direct `gitx.GitRunner{}` instantiation with Adapter interface (edit.go, add.go, repair_upstream.go)
     - [x] edit.go
@@ -213,22 +213,22 @@
     - [x] status.go (remote mismatch git reconcile path)
     - [x] portability.go (import clone path)
   - [x] extract remote mismatch logic from status.go to dedicated package
-- [ ] Flag/config consolidation:
+- [x] Flag/config consolidation:
   - [x] create flag builder helpers (`addFormatFlag`, `addFilterFlags`) to DRY up duplicate definitions
   - [x] single source of truth for defaults (concurrency, timeout, main_branch) in Config.Defaults
-- [ ] Test coverage expansion:
+- [x] Test coverage expansion:
   - [x] add unit tests for command RunE functions (sync, status, repair_upstream)
   - [x] add integration tests for edge cases: symlinks, bare repos, missing repos
   - [x] add table-driven tests for command parsing logic
-- [ ] Documentation:
+- [x] Documentation:
   - [x] document flag precedence behavior in root.go or README
   - [x] add Godoc comments on public types (SyncResult fields, model types)
   - [x] clarify `--dry-run` default behavior in status command
-- [ ] Code organization:
+- [x] Code organization:
   - [x] extract table rendering and confirmation logic from commands to reusable modules
   - [x] replace deep parameter lists with options structs (e.g., `PullRebaseOptions`)
   - [x] create typed `OutcomeKind` enum for `SyncResult.Outcome`
-- [ ] Minor cleanup:
+- [x] Minor cleanup:
   - [x] standardize error message formatting (%q vs %s)
   - [x] remove unused local variables flagged by linter
   - [x] audit and clean up unused imports
