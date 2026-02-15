@@ -258,3 +258,197 @@ func TestInspectFailureResult(t *testing.T) {
 		t.Fatalf("unexpected inspect failure result: %+v", res)
 	}
 }
+
+func TestEngineGuardErrors(t *testing.T) {
+	eng := New(&config.Config{}, nil, vcs.NewGitAdapter(nil))
+	if _, err := eng.Scan(context.Background(), ScanOptions{}); err == nil {
+		t.Fatal("expected scan no roots error")
+	}
+
+	eng = New(&config.Config{}, nil, vcs.NewGitAdapter(nil))
+	if _, err := eng.Status(context.Background(), StatusOptions{}); err == nil {
+		t.Fatal("expected status registry not loaded error")
+	}
+	if _, err := eng.ExecuteSyncPlan(context.Background(), nil, SyncOptions{}); err == nil {
+		t.Fatal("expected execute sync plan registry not loaded error")
+	}
+}
+
+func TestExecuteSyncPlanAppliesActions(t *testing.T) {
+	runner := &testRunner{responses: map[string]testResponse{
+		"/repo:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
+		"/repo:stash push -u -m repokeeper: pre-rebase stash":                                              {out: "Saved working directory and index state"},
+		"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules":                     {out: ""},
+		"/repo:stash pop":                                                                                   {out: "Applied stash"},
+		"/repo:push":                                                                                        {out: ""},
+	}}
+	eng := New(&config.Config{}, &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo.git"},
+	}}, vcs.NewGitAdapter(runner))
+
+	plan := []SyncResult{{
+		RepoID:  "repo",
+		Path:    "/repo",
+		OK:      true,
+		Error:   SyncErrorDryRun,
+		Outcome: "planned_fetch",
+		Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop && git push",
+	}}
+	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
+	if err != nil {
+		t.Fatalf("execute sync plan failed: %v", err)
+	}
+	if len(results) != 1 || !results[0].OK || results[0].Outcome != "pushed" {
+		t.Fatalf("unexpected execute result: %+v", results)
+	}
+}
+
+func TestExecuteSyncPlanStopsOnFailure(t *testing.T) {
+	runner := &testRunner{responses: map[string]testResponse{
+		"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {err: errors.New("network timeout")},
+		"/repo2:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
+	}}
+	eng := New(&config.Config{}, &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo1.git"},
+		{RepoID: "repo2", Path: "/repo2", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo2.git"},
+	}}, vcs.NewGitAdapter(runner))
+
+	plan := []SyncResult{
+		{RepoID: "repo1", Path: "/repo1", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+	}
+	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
+	if err != nil {
+		t.Fatalf("execute sync plan failed: %v", err)
+	}
+	if len(results) != 1 || results[0].OK {
+		t.Fatalf("expected stop on first failure, got %+v", results)
+	}
+}
+
+func TestExecuteSyncPlanStopsOnNonDryRunFailure(t *testing.T) {
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(nil))
+	plan := []SyncResult{
+		{RepoID: "repo1", Path: "/repo1", OK: false, Error: "boom", Outcome: "failed_fetch"},
+		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+	}
+	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
+	if err != nil {
+		t.Fatalf("execute sync plan failed: %v", err)
+	}
+	if len(results) != 1 || results[0].RepoID != "repo1" {
+		t.Fatalf("expected stop on first non-dry-run failure, got %+v", results)
+	}
+}
+
+func TestExecuteSyncPlanCloneAction(t *testing.T) {
+	runner := &testRunner{responses: map[string]testResponse{
+		":clone --branch main --single-branch git@github.com:org/missing.git /missing": {out: ""},
+	}}
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{
+			RepoID:    "missing",
+			Path:      "/missing",
+			RemoteURL: "git@github.com:org/missing.git",
+			Branch:    "main",
+			Status:    registry.StatusMissing,
+		},
+	}}
+	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(runner))
+
+	plan := []SyncResult{{
+		RepoID:  "missing",
+		Path:    "/missing",
+		OK:      true,
+		Error:   SyncErrorDryRun,
+		Outcome: "planned_checkout_missing",
+		Action:  "git clone --branch main --single-branch git@github.com:org/missing.git /missing",
+	}}
+	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
+	if err != nil {
+		t.Fatalf("execute clone plan failed: %v", err)
+	}
+	if len(results) != 1 || !results[0].OK || results[0].Outcome != "checkout_missing" {
+		t.Fatalf("unexpected clone execute result: %+v", results)
+	}
+	if reg.Entries[0].Status != registry.StatusPresent {
+		t.Fatalf("expected cloned entry status present, got %s", reg.Entries[0].Status)
+	}
+}
+
+func TestFilterAndLookupEdgeBranches(t *testing.T) {
+	if filterStatus(FilterMissing, model.RepoStatus{RepoID: "r1"}, nil) {
+		t.Fatal("expected missing filter false without registry")
+	}
+	if filterStatus(FilterRemoteMismatch, model.RepoStatus{RepoID: "r1"}, nil) {
+		t.Fatal("expected remote mismatch false without registry")
+	}
+	if !filterStatus(FilterKind("unknown"), model.RepoStatus{}, nil) {
+		t.Fatal("expected unknown filter default true")
+	}
+
+	if findRegistryEntryForStatus(nil, model.RepoStatus{}) != nil {
+		t.Fatal("expected nil status lookup for nil registry")
+	}
+
+	if hasRemoteMismatch(model.RepoStatus{RepoID: "github.com/org/repo"}, registry.Entry{}) {
+		t.Fatal("expected no mismatch when registry remote is empty")
+	}
+	if hasRemoteMismatch(model.RepoStatus{}, registry.Entry{RemoteURL: "not-a-normalizable-url"}) {
+		t.Fatal("expected no mismatch when status repo id is empty")
+	}
+
+	if findRegistryEntryForSyncResult(nil, SyncResult{}) != nil {
+		t.Fatal("expected nil sync lookup for nil registry")
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "repo", Path: "/repo-a"},
+	}}
+	match := findRegistryEntryForSyncResult(reg, SyncResult{RepoID: "repo", Path: "/repo-b"})
+	if match == nil || match.Path != "/repo-a" {
+		t.Fatalf("expected fallback match by repo id, got %+v", match)
+	}
+
+	entries := []registry.Entry{{RepoID: "a", Path: "/a"}}
+	updated := replaceRegistryEntry(entries, registry.Entry{RepoID: "b", Path: "/b"})
+	if len(updated) != 1 || updated[0].RepoID != "a" {
+		t.Fatalf("expected unchanged entries for missing replacement target, got %+v", updated)
+	}
+}
+
+func TestRunSyncHelperEdgeBranches(t *testing.T) {
+	entry := registry.Entry{
+		RepoID:    "repo",
+		Path:      "/repo",
+		RemoteURL: "git@github.com:org/repo.git",
+		Status:    registry.StatusPresent,
+	}
+
+	inspectFailRunner := &testRunner{responses: map[string]testResponse{
+		"/repo:rev-parse --is-bare-repository": {out: "false"},
+		"/repo:remote":                         {err: errors.New("permission denied")},
+	}}
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(inspectFailRunner))
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true}, "main")
+	if dry.Outcome != "failed_inspect" || dry.ErrorClass != "auth" {
+		t.Fatalf("expected inspect failure dry-run result, got %+v", dry)
+	}
+
+	filterGoneRunner := &testRunner{responses: map[string]testResponse{
+		"/repo:rev-parse --is-bare-repository":    {out: "false"},
+		"/repo:remote":                            {out: "origin"},
+		"/repo:remote get-url origin":             {out: "git@github.com:org/repo.git"},
+		"/repo:symbolic-ref --quiet --short HEAD": {out: "main"},
+		"/repo:status --porcelain=v1":             {out: ""},
+		"/repo:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+			out: "main|origin/main||=",
+		},
+		"/repo:rev-list --left-right --count main...origin/main": {out: "0\t0"},
+		"/repo:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
+	}}
+	eng = New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(filterGoneRunner))
+	gone := eng.runSyncApply(context.Background(), entry, SyncOptions{Filter: FilterGone}, "main")
+	if !gone.OK || gone.Outcome != "skipped" || gone.Error != SyncErrorSkipped {
+		t.Fatalf("expected filter-gone skip result, got %+v", gone)
+	}
+}

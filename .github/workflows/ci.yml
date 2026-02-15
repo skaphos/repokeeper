@@ -34,8 +34,7 @@ jobs:
       - name: Check coverage
         if: matrix.os == 'ubuntu-latest'
         run: |
-          go tool cover -func=coverage.out
-          # TODO: enforce minimum coverage threshold
+          ./scripts/check-coverage.sh coverage.out
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4

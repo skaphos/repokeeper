@@ -185,6 +185,9 @@ go tool ginkgo ./...
 # Run with coverage
 go test -coverprofile=coverage.out ./...
 
+# Run with coverage and enforce per-package thresholds
+go tool task test-cover-check
+
 # Lint
 go tool golangci-lint run ./...
 

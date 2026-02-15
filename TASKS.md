@@ -264,8 +264,9 @@
 ### Coverage requirements
 
 - [x] Target: 80%+ line coverage across all packages
-- [ ] CI enforces coverage thresholds
-- [ ] Packages with inherently low testability (`cmd/`, `internal/tui/`) may have lower thresholds but should still have smoke tests
+- [x] CI enforces coverage thresholds
+- [x] Per-package goal: 80% minimum when reasonable, with explicit temporary exceptions documented in tooling
+- [x] Packages with inherently low testability (`cmd/`, `internal/tui/`) may have lower thresholds but should still have smoke tests
 
 ### Unit tests (Ginkgo suites)
 

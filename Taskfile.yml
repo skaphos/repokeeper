@@ -46,6 +46,12 @@ tasks:
     cmds:
       - go test -coverprofile=coverage.out ./...
 
+  test-cover-check:
+    desc: Run tests with coverage and enforce per-package thresholds
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - ./scripts/check-coverage.sh coverage.out
+
   test-integration:
     desc: Run integration-tagged tests
     cmds:
