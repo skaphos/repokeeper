@@ -15,11 +15,11 @@ type adapterStub struct {
 	setRemoteErr   error
 }
 
-func (a *adapterStub) Name() string { return "stub" }
-func (a *adapterStub) IsRepo(context.Context, string) (bool, error) { return true, nil }
-func (a *adapterStub) IsBare(context.Context, string) (bool, error) { return false, nil }
+func (a *adapterStub) Name() string                                            { return "stub" }
+func (a *adapterStub) IsRepo(context.Context, string) (bool, error)            { return true, nil }
+func (a *adapterStub) IsBare(context.Context, string) (bool, error)            { return false, nil }
 func (a *adapterStub) Remotes(context.Context, string) ([]model.Remote, error) { return nil, nil }
-func (a *adapterStub) Head(context.Context, string) (model.Head, error) { return model.Head{}, nil }
+func (a *adapterStub) Head(context.Context, string) (model.Head, error)        { return model.Head{}, nil }
 func (a *adapterStub) WorktreeStatus(context.Context, string) (*model.Worktree, error) {
 	return nil, nil
 }
@@ -27,9 +27,9 @@ func (a *adapterStub) TrackingStatus(context.Context, string) (model.Tracking, e
 	return model.Tracking{}, nil
 }
 func (a *adapterStub) HasSubmodules(context.Context, string) (bool, error) { return false, nil }
-func (a *adapterStub) Fetch(context.Context, string) error                  { return nil }
-func (a *adapterStub) PullRebase(context.Context, string) error             { return nil }
-func (a *adapterStub) Push(context.Context, string) error                   { return nil }
+func (a *adapterStub) Fetch(context.Context, string) error                 { return nil }
+func (a *adapterStub) PullRebase(context.Context, string) error            { return nil }
+func (a *adapterStub) Push(context.Context, string) error                  { return nil }
 func (a *adapterStub) SetUpstream(context.Context, string, string, string) error {
 	return nil
 }
@@ -38,7 +38,7 @@ func (a *adapterStub) SetRemoteURL(_ context.Context, dir, remote, remoteURL str
 	return a.setRemoteErr
 }
 func (a *adapterStub) StashPush(context.Context, string, string) (bool, error) { return false, nil }
-func (a *adapterStub) StashPop(context.Context, string) error                   { return nil }
+func (a *adapterStub) StashPop(context.Context, string) error                  { return nil }
 func (a *adapterStub) Clone(context.Context, string, string, string, bool) error {
 	return nil
 }

@@ -3,10 +3,10 @@ package repokeeper
 import "github.com/spf13/cobra"
 
 const (
-	repoFilterUsage = "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing"
-	fieldSelectorUsage = "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true"
+	repoFilterUsage           = "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing"
+	fieldSelectorUsage        = "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true"
 	upstreamRepairFilterUsage = "filter: all, missing, mismatch"
-	noHeadersUsage = "when using table format, do not print headers"
+	noHeadersUsage            = "when using table format, do not print headers"
 )
 
 func addFormatFlag(cmd *cobra.Command, usage string) {

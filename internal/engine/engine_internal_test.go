@@ -214,8 +214,8 @@ func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 		"/repo:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
 			out: "main|origin/main|[ahead 1]|>",
 		},
-		"/repo:rev-list --left-right --count main...origin/main":                               {out: "1\t0"},
-		"/repo:config --file .gitmodules --get-regexp submodule":                               {err: errors.New("none")},
+		"/repo:rev-list --left-right --count main...origin/main":                                          {out: "1\t0"},
+		"/repo:config --file .gitmodules --get-regexp submodule":                                          {err: errors.New("none")},
 		"/repo:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
 	}}
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner))
@@ -234,9 +234,9 @@ func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 
 func TestRunSyncRebaseApply(t *testing.T) {
 	runner := &testRunner{responses: map[string]testResponse{
-		"/repo:stash push -u -m repokeeper: pre-rebase stash":                                  {out: "Saved working directory and index state"},
-		"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules":         {out: ""},
-		"/repo:stash pop":                                                                       {out: "Applied stash"},
+		"/repo:stash push -u -m repokeeper: pre-rebase stash":                          {out: "Saved working directory and index state"},
+		"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {out: ""},
+		"/repo:stash pop": {out: "Applied stash"},
 	}}
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner))
 	entry := registry.Entry{RepoID: "repo", Path: "/repo"}
@@ -277,10 +277,10 @@ func TestEngineGuardErrors(t *testing.T) {
 func TestExecuteSyncPlanAppliesActions(t *testing.T) {
 	runner := &testRunner{responses: map[string]testResponse{
 		"/repo:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
-		"/repo:stash push -u -m repokeeper: pre-rebase stash":                                              {out: "Saved working directory and index state"},
-		"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules":                     {out: ""},
-		"/repo:stash pop":                                                                                   {out: "Applied stash"},
-		"/repo:push":                                                                                        {out: ""},
+		"/repo:stash push -u -m repokeeper: pre-rebase stash":                                             {out: "Saved working directory and index state"},
+		"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules":                    {out: ""},
+		"/repo:stash pop": {out: "Applied stash"},
+		"/repo:push":      {out: ""},
 	}}
 	eng := New(&config.Config{}, &registry.Registry{Entries: []registry.Entry{
 		{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo.git"},

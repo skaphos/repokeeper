@@ -49,19 +49,23 @@ func TestWriters(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	writeScanTable(cmd, []model.RepoStatus{{RepoID: "r1", Path: "/repo", Bare: true, PrimaryRemote: "origin"}}, false)
+	if err := writeScanTable(cmd, []model.RepoStatus{{RepoID: "r1", Path: "/repo", Bare: true, PrimaryRemote: "origin"}}, false); err != nil {
+		t.Fatalf("writeScanTable returned error: %v", err)
+	}
 	if !strings.Contains(out.String(), "PRIMARY_REMOTE") {
 		t.Fatal("expected scan header")
 	}
 
 	out.Reset()
-	writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}}, "/tmp", nil, false, false)
+	if err := writeStatusTable(cmd, &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}}, "/tmp", nil, false, false); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
 	if !strings.Contains(out.String(), "TRACKING") {
 		t.Fatal("expected status header")
 	}
 
 	out.Reset()
-	writeSyncTable(
+	if err := writeSyncTable(
 		cmd,
 		[]engine.SyncResult{{RepoID: "r1", Path: "/repo", OK: false, ErrorClass: "network", Error: "x"}},
 		&model.StatusReport{Repos: []model.RepoStatus{{Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}},
@@ -70,14 +74,18 @@ func TestWriters(t *testing.T) {
 		false,
 		false,
 		false,
-	)
+	); err != nil {
+		t.Fatalf("writeSyncTable returned error: %v", err)
+	}
 	if !strings.Contains(out.String(), "PATH") || !strings.Contains(out.String(), "TRACKING") || !strings.Contains(out.String(), "ERROR_CLASS") || !strings.Contains(out.String(), "REPO") {
 		t.Fatal("expected sync header")
 	}
 
 	errOut := &bytes.Buffer{}
 	cmd.SetErr(errOut)
-	writeSyncPlan(cmd, []engine.SyncResult{{RepoID: "r1", Path: "/repo", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"}}, "/tmp", nil)
+	if err := writeSyncPlan(cmd, []engine.SyncResult{{RepoID: "r1", Path: "/repo", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"}}, "/tmp", nil); err != nil {
+		t.Fatalf("writeSyncPlan returned error: %v", err)
+	}
 	if !strings.Contains(errOut.String(), "Planned sync operations:") {
 		t.Fatal("expected sync plan heading")
 	}
@@ -151,11 +159,13 @@ func TestWriteStatusTableNoHeaders(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	writeStatusTable(cmd, &model.StatusReport{
+	if err := writeStatusTable(cmd, &model.StatusReport{
 		Repos: []model.RepoStatus{
 			{RepoID: "r1", Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}},
 		},
-	}, "/tmp", nil, true, false)
+	}, "/tmp", nil, true, false); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
 
 	if strings.Contains(out.String(), "PATH") {
 		t.Fatalf("expected no table headers, got: %q", out.String())
@@ -167,7 +177,7 @@ func TestWriteSyncTableNoHeaders(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	writeSyncTable(
+	if err := writeSyncTable(
 		cmd,
 		[]engine.SyncResult{{RepoID: "r1", Path: "/repo", OK: true, Outcome: "fetched"}},
 		&model.StatusReport{Repos: []model.RepoStatus{{Path: "/repo", Tracking: model.Tracking{Status: model.TrackingNone}}}},
@@ -176,7 +186,9 @@ func TestWriteSyncTableNoHeaders(t *testing.T) {
 		false,
 		true,
 		false,
-	)
+	); err != nil {
+		t.Fatalf("writeSyncTable returned error: %v", err)
+	}
 
 	if strings.Contains(out.String(), "ACTION") {
 		t.Fatalf("expected no sync table headers, got: %q", out.String())
@@ -188,7 +200,9 @@ func TestWriteScanTableNoHeaders(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
 
-	writeScanTable(cmd, []model.RepoStatus{{RepoID: "r1", Path: "/repo"}}, true)
+	if err := writeScanTable(cmd, []model.RepoStatus{{RepoID: "r1", Path: "/repo"}}, true); err != nil {
+		t.Fatalf("writeScanTable returned error: %v", err)
+	}
 	if strings.Contains(out.String(), "PRIMARY_REMOTE") {
 		t.Fatalf("expected no scan table headers, got: %q", out.String())
 	}
@@ -233,7 +247,9 @@ func TestWriteStatusTableUsesRelativePathAndLabel(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp/work", nil, false, false)
+	if err := writeStatusTable(cmd, report, "/tmp/work", nil, false, false); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
 
 	got := out.String()
 	if !strings.Contains(got, "repos/repo-a") {
@@ -278,7 +294,9 @@ func TestWriteStatusTableDoesNotTruncatePathBranchOrTracking(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp", nil, false, false)
+	if err := writeStatusTable(cmd, report, "/tmp", nil, false, false); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
 
 	got := out.String()
 	if !strings.Contains(got, "workspace/very/long/path/that/should/not/be/truncated/repo") {
@@ -314,7 +332,9 @@ func TestWriteStatusTableStripsEscapeMarkers(t *testing.T) {
 			},
 		},
 	}
-	writeStatusTable(cmd, report, "/tmp", nil, false, false)
+	if err := writeStatusTable(cmd, report, "/tmp", nil, false, false); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
 
 	got := out.String()
 	if strings.ContainsRune(got, '\xff') {
@@ -454,10 +474,12 @@ func TestWriteSyncFailureSummary(t *testing.T) {
 	errOut := &bytes.Buffer{}
 	cmd.SetErr(errOut)
 
-	writeSyncFailureSummary(cmd, []engine.SyncResult{
+	if err := writeSyncFailureSummary(cmd, []engine.SyncResult{
 		{RepoID: "ok", Path: "/repos/ok", OK: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
 		{RepoID: "bad", Path: "/repos/bad", OK: false, ErrorClass: "network", Error: "timeout", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
-	}, "/repos", nil)
+	}, "/repos", nil); err != nil {
+		t.Fatalf("writeSyncFailureSummary returned error: %v", err)
+	}
 
 	got := errOut.String()
 	if !strings.Contains(got, "Failed sync operations:") {
@@ -526,7 +548,9 @@ func TestStatusWarningsAndWideMirrorRow(t *testing.T) {
 	out := &bytes.Buffer{}
 	cmd := &cobra.Command{}
 	cmd.SetOut(out)
-	writeStatusTable(cmd, report, "/tmp", nil, false, true)
+	if err := writeStatusTable(cmd, report, "/tmp", nil, false, true); err != nil {
+		t.Fatalf("writeStatusTable returned error: %v", err)
+	}
 	got := out.String()
 	if !strings.Contains(got, "PRIMARY_REMOTE") || !strings.Contains(got, "UPSTREAM") {
 		t.Fatalf("expected wide headers, got: %q", got)
@@ -623,7 +647,9 @@ func TestWriteSyncTableWideBranches(t *testing.T) {
 		},
 	}
 
-	writeSyncTable(cmd, results, report, "/tmp", nil, false, false, true)
+	if err := writeSyncTable(cmd, results, report, "/tmp", nil, false, false, true); err != nil {
+		t.Fatalf("writeSyncTable returned error: %v", err)
+	}
 	got := out.String()
 	if !strings.Contains(got, "PRIMARY_REMOTE") || !strings.Contains(got, "AHEAD") || !strings.Contains(got, "BEHIND") {
 		t.Fatalf("expected wide sync headers, got: %q", got)
@@ -672,7 +698,9 @@ func TestDivergedAdviceAndTable(t *testing.T) {
 		t.Fatalf("expected diverged reason and recommendation, got %#v", advice[0])
 	}
 
-	writeDivergedStatusTable(cmd, report, "/tmp", nil, false, true)
+	if err := writeDivergedStatusTable(cmd, report, "/tmp", nil, false, true); err != nil {
+		t.Fatalf("writeDivergedStatusTable returned error: %v", err)
+	}
 	got := out.String()
 	if !strings.Contains(got, "RECOMMENDED_ACTION") || !strings.Contains(got, "commit or stash changes") {
 		t.Fatalf("expected diverged guidance columns, got: %q", got)

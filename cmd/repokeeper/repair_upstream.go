@@ -209,22 +209,22 @@ var repairUpstreamCmd = &cobra.Command{
 			}
 		}
 
-	switch strings.ToLower(format) {
-	case "json":
-		data, err := json.MarshalIndent(results, "", "  ")
-		if err != nil {
-			return err
+		switch strings.ToLower(format) {
+		case "json":
+			data, err := json.MarshalIndent(results, "", "  ")
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
+				return err
+			}
+		case "table":
+			if err := writeRepairUpstreamTable(cmd, results, cwd, []string{cfgRoot}, noHeaders); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unsupported format %q", format)
 		}
-		if _, err := fmt.Fprintln(cmd.OutOrStdout(), string(data)); err != nil {
-			return err
-		}
-	case "table":
-		if err := writeRepairUpstreamTable(cmd, results, cwd, []string{cfgRoot}, noHeaders); err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unsupported format %q", format)
-	}
 
 		for _, res := range results {
 			if !res.OK {

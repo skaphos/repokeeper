@@ -46,9 +46,9 @@ func TestGitAdapterMethods(t *testing.T) {
 		"/repo:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules":                    {out: ""},
 		"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules":                                       {out: ""},
 		"/repo:push": {out: ""},
-		"/repo:branch --set-upstream-to origin/main main": {out: ""},
+		"/repo:branch --set-upstream-to origin/main main":         {out: ""},
 		"/repo:remote set-url origin git@github.com:org/repo.git": {out: ""},
-		"/repo:stash push -u -m repokeeper: pre-rebase stash": {out: "Saved working directory and index state"},
+		"/repo:stash push -u -m repokeeper: pre-rebase stash":     {out: "Saved working directory and index state"},
 		"/repo:stash pop": {out: ""},
 		":clone --branch main --single-branch git@github.com:Org/Repo.git /tmp/repo": {out: ""},
 	}}
