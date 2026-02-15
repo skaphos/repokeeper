@@ -70,6 +70,7 @@ repokeeper sync
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository (`--branch` or `--mirror`) |
 | `repokeeper delete <repo-id-or-path>` | Remove a repository from the registry |
 | `repokeeper edit <repo-id-or-path>` | Update repo metadata/tracking (`--set-upstream`) |
+| `repokeeper repair-upstream` | Repair missing/mismatched upstream tracking across registered repos |
 | `repokeeper sync` | Fetch and prune all repos safely |
 | `repokeeper export` | Export config (and registry) for migration |
 | `repokeeper import` | Import a previously exported bundle |
