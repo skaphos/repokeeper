@@ -20,6 +20,8 @@ import (
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Report repo health for all registered repositories",
+	// @todo(milestone6): retain as legacy alias once `get repos` is added; remove
+	// duplicated output/filter wiring here after kubectl-style command migration.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		debugf(cmd, "starting status")
 		cwd, err := os.Getwd()

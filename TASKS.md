@@ -100,6 +100,20 @@
 
 ### Milestone 6 — CLI Improvements (Ongoing)
 
+- [ ] Kubectl-aligned command aliases (additive):
+- [ ] `get repos`, `describe repo`, `reconcile repos`, `repair upstream`
+- [ ] map existing commands to new aliases with parity tests
+- [ ] Output contract alignment:
+- [ ] converge list commands on shared columns and `-o` semantics
+- [ ] add `--no-headers` and deterministic sort behavior everywhere
+- [ ] implement `-o wide` for repo list/reconcile views
+- [ ] Color/styling policy hardening:
+- [ ] auto-color only for TTY table output; disable color for machine formats
+- [ ] preserve `--no-color` and `NO_COLOR` precedence
+- [ ] normalize semantic color mapping (healthy/warn/error/info)
+- [ ] Selector evolution:
+- [ ] keep `--only` as shorthand
+- [ ] add field-selector style filtering (phase rollout)
 - [ ] `repair-upstream` command:
 - [ ] detect missing/wrong upstream tracking refs
 - [ ] repair to configured/default upstream (`origin/<branch>`) with dry-run support
@@ -122,6 +136,9 @@
 
 **Acceptance:**
 
+- [ ] RepoKeeper commands feel familiar to kubectl-heavy users without breaking existing workflows.
+- [ ] Output formats are consistent across list/reconcile/repair commands.
+- [ ] Color behavior is predictable: rich in interactive terminals, clean for machine-readable output.
 - [ ] Operators can run one command to identify and repair upstream drift safely.
 - [ ] Diverged and remote-mismatch repos are clearly surfaced without digging through logs.
 - [ ] Batch sync runs complete across all repos even with partial failures (`--continue-on-error`).

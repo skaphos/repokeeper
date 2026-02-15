@@ -23,6 +23,8 @@ var rootCmd = &cobra.Command{
 	Use:   "repokeeper",
 	Short: "Cross-platform multi-repo hygiene tool",
 	Long:  "RepoKeeper inventories git repos, reports drift and broken tracking, and performs safe sync actions (fetch/prune) without touching working trees or submodules.",
+	// @todo(milestone6): once kubectl-style commands are primary, trim legacy
+	// top-level verbs to aliases and remove duplicated help/flag surfaces.
 	PersistentPreRun: func(_ *cobra.Command, _ []string) {
 		// `NO_COLOR` is a standard opt-out and should behave like --no-color.
 		if strings.TrimSpace(os.Getenv("NO_COLOR")) != "" {

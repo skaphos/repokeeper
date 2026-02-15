@@ -33,6 +33,8 @@ type repairUpstreamResult struct {
 var repairUpstreamCmd = &cobra.Command{
 	Use:   "repair-upstream",
 	Short: "Repair missing or mismatched upstream tracking for registered repos",
+	// @todo(milestone6): migrate to `repair upstream` command shape and keep this
+	// hyphenated form as alias only for one compatibility cycle.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
