@@ -649,14 +649,13 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 				Action:  action,
 			}
 		}
-		if reason := pullRebaseSkipReason(
-			status,
-			mainBranch,
-			opts.RebaseDirty,
-			opts.Force,
-			opts.ProtectedBranches,
-			opts.AllowProtectedRebase,
-		); reason != "" {
+		if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
+			MainBranch:           mainBranch,
+			RebaseDirty:          opts.RebaseDirty,
+			Force:                opts.Force,
+			ProtectedBranches:    opts.ProtectedBranches,
+			AllowProtectedRebase: opts.AllowProtectedRebase,
+		}); reason != "" {
 			return SyncResult{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
@@ -726,14 +725,13 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 			Action:  "git push",
 		}
 	}
-	if reason := pullRebaseSkipReason(
-		status,
-		mainBranch,
-		opts.RebaseDirty,
-		opts.Force,
-		opts.ProtectedBranches,
-		opts.AllowProtectedRebase,
-	); reason != "" {
+	if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
+		MainBranch:           mainBranch,
+		RebaseDirty:          opts.RebaseDirty,
+		Force:                opts.Force,
+		ProtectedBranches:    opts.ProtectedBranches,
+		AllowProtectedRebase: opts.AllowProtectedRebase,
+	}); reason != "" {
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
@@ -813,13 +811,16 @@ func inspectFailureResult(entry registry.Entry, err error) SyncResult {
 	}
 }
 
-func pullRebaseSkipReason(
-	status *model.RepoStatus,
-	mainBranch string,
-	rebaseDirty, force bool,
-	protectedBranches []string,
-	allowProtectedRebase bool,
-) string {
+// PullRebasePolicyOptions controls branch/worktree safety checks before rebase.
+type PullRebasePolicyOptions struct {
+	MainBranch           string
+	RebaseDirty          bool
+	Force                bool
+	ProtectedBranches    []string
+	AllowProtectedRebase bool
+}
+
+func pullRebaseSkipReason(status *model.RepoStatus, opts PullRebasePolicyOptions) string {
 	// This function is intentionally ordered from hard-safety checks to
 	// state-based policy checks so callers get stable, actionable reasons.
 	if status == nil {
@@ -831,13 +832,13 @@ func pullRebaseSkipReason(
 	if status.Head.Detached {
 		return "detached HEAD"
 	}
-	if matchesProtectedBranch(status.Head.Branch, protectedBranches) && !allowProtectedRebase {
+	if matchesProtectedBranch(status.Head.Branch, opts.ProtectedBranches) && !opts.AllowProtectedRebase {
 		return fmt.Sprintf("branch %q is protected", status.Head.Branch)
 	}
 	if status.Worktree == nil {
 		return "dirty state unknown"
 	}
-	if status.Worktree.Dirty && !rebaseDirty {
+	if status.Worktree.Dirty && !opts.RebaseDirty {
 		return "dirty working tree"
 	}
 	if status.Tracking.Status == model.TrackingGone {
@@ -846,7 +847,7 @@ func pullRebaseSkipReason(
 	if status.Tracking.Upstream == "" || status.Tracking.Status == model.TrackingNone {
 		return "branch is not tracking an upstream"
 	}
-	mainBranch = strings.TrimSpace(mainBranch)
+	mainBranch := strings.TrimSpace(opts.MainBranch)
 	if mainBranch == "" {
 		mainBranch = "main"
 	}
@@ -856,7 +857,7 @@ func pullRebaseSkipReason(
 	if status.Tracking.Status == model.TrackingAhead {
 		return "branch has local commits to push"
 	}
-	if status.Tracking.Status == model.TrackingDiverged && !force {
+	if status.Tracking.Status == model.TrackingDiverged && !opts.Force {
 		return "branch has diverged (use --force to rebase anyway)"
 	}
 	if status.Tracking.Status == model.TrackingEqual {

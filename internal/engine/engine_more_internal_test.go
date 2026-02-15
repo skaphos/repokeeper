@@ -174,7 +174,13 @@ func TestPullRebaseSkipReasonTable(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := pullRebaseSkipReason(tc.status, "main", tc.dirty, tc.force, tc.prot, tc.allow)
+			got := pullRebaseSkipReason(tc.status, PullRebasePolicyOptions{
+				MainBranch:           "main",
+				RebaseDirty:          tc.dirty,
+				Force:                tc.force,
+				ProtectedBranches:    tc.prot,
+				AllowProtectedRebase: tc.allow,
+			})
 			if got != tc.want {
 				t.Fatalf("pullRebaseSkipReason() = %q, want %q", got, tc.want)
 			}
@@ -392,10 +398,22 @@ func TestPullRebaseSkipReasonUsesConfiguredMainBranch(t *testing.T) {
 		Worktree: &model.Worktree{Dirty: false},
 		Tracking: model.Tracking{Status: model.TrackingBehind, Upstream: "origin/develop"},
 	}
-	if got := pullRebaseSkipReason(status, "develop", false, false, nil, true); got != "" {
+	if got := pullRebaseSkipReason(status, PullRebasePolicyOptions{
+		MainBranch:           "develop",
+		RebaseDirty:          false,
+		Force:                false,
+		ProtectedBranches:    nil,
+		AllowProtectedRebase: true,
+	}); got != "" {
 		t.Fatalf("expected configured main branch to allow rebase, got %q", got)
 	}
-	if got := pullRebaseSkipReason(status, "main", false, false, nil, true); got != "upstream \"origin/develop\" is not main" {
+	if got := pullRebaseSkipReason(status, PullRebasePolicyOptions{
+		MainBranch:           "main",
+		RebaseDirty:          false,
+		Force:                false,
+		ProtectedBranches:    nil,
+		AllowProtectedRebase: true,
+	}); got != "upstream \"origin/develop\" is not main" {
 		t.Fatalf("expected branch mismatch reason, got %q", got)
 	}
 }

@@ -226,7 +226,7 @@
   - [ ] clarify `--dry-run` default behavior in status command
 - [ ] Code organization:
   - [ ] extract table rendering and confirmation logic from commands to reusable modules
-  - [ ] replace deep parameter lists with options structs (e.g., `PullRebaseOptions`)
+  - [x] replace deep parameter lists with options structs (e.g., `PullRebaseOptions`)
   - [ ] create typed `OutcomeKind` enum for `SyncResult.Outcome`
 - [ ] Minor cleanup:
   - [ ] standardize error message formatting (%q vs %s)
