@@ -31,6 +31,9 @@ jobs:
           go-version-file: go.mod
       - name: Run coverage test task
         run: go tool task test-cover
+      - name: Debug internal/config on failure
+        if: failure()
+        run: go test -v -count=1 ./internal/config || true
       - name: Check coverage
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -152,11 +155,11 @@ jobs:
             if [ "$failed" -gt 0 ]; then
               echo
               echo "### Key Failures"
-              [ "$LINT_RESULT" = "failure" ] && echo "- lint failed"
-              [ "$TEST_RESULT" = "failure" ] && echo "- test failed"
-              [ "$INTEGRATION_RESULT" = "failure" ] && echo "- integration failed"
-              [ "$QUALITY_RESULT" = "failure" ] && echo "- quality failed"
-              [ "$PERF_RESULT" = "failure" ] && echo "- perf failed"
-              [ "$BUILD_RESULT" = "failure" ] && echo "- build failed"
+              if [ "$LINT_RESULT" = "failure" ]; then echo "- lint failed"; fi
+              if [ "$TEST_RESULT" = "failure" ]; then echo "- test failed"; fi
+              if [ "$INTEGRATION_RESULT" = "failure" ]; then echo "- integration failed"; fi
+              if [ "$QUALITY_RESULT" = "failure" ]; then echo "- quality failed"; fi
+              if [ "$PERF_RESULT" = "failure" ]; then echo "- perf failed"; fi
+              if [ "$BUILD_RESULT" = "failure" ]; then echo "- build failed"; fi
             fi
           } >> "$GITHUB_STEP_SUMMARY"
