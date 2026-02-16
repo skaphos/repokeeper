@@ -281,12 +281,20 @@ Feedback captured and prioritized:
 - [x] P2: Align command/help text to "repositories" language instead of Git-only wording where behavior is multi-VCS.
 - [x] P1: preserve upstream-missing metadata flow (scan -> registry -> export -> import) so repos known to have no upstream are classified as `skipped` during import/reconcile instead of clone `failed`, while persisting `status=missing` where appropriate.
 - [x] P1: Add benchmark tracking workflow (`go tool task perf-bench`) that saves raw benchmark logs and appends structured history (`perf/history.jsonl`) for trend analysis over time.
+- [x] P1: add per-repository `labels` metadata in registry (key/value) and expose mutation commands (`edit`/`add`) to set, update, and remove labels.
+- [x] P1: add per-repository `annotations` metadata in registry (key/value, non-selector metadata) and expose mutation commands (`edit`/`add`) to set, update, and remove annotations.
+- [x] P1: support label-based filtering in repository list/get flows (for example `get repos -l team=platform`, `-l env in (prod,stage)` phase-in), with deterministic behavior in table/wide/json outputs.
+- [x] P1: include labels/annotations in portability export/import and conflict handling so classification metadata survives migration across machines.
+- [x] P1: document label selector semantics and constraints in `README.md` and `DESIGN.md`, including explicit note that label filtering is a prerequisite for TUI filter parity.
 
 **Acceptance:**
 
 - [x] Git remains default; Hg optional and clearly documented as experimental
 - [x] Adapter selection works without regressions to Git behavior
 - [x] Feedback items are captured, triaged, and reflected in shipped improvements
+- [x] Repositories can be classified with labels/annotations and persisted in registry schema.
+- [x] `get repos` supports label selectors for operational slicing before TUI adoption.
+- [x] Portability flows preserve classification metadata (labels/annotations).
 
 ### Milestone 9 — TUI (phase 2)
 

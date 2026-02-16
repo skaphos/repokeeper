@@ -190,11 +190,11 @@ Flags:
 
 #### `repokeeper edit <repo-id-or-path>`
 
-Updates per-repo metadata and tracking.
+Opens a single repo registry entry in the configured editor and writes validated changes.
+The edit payload is only that one repo entry (not the full registry document).
 
 Flags:
 
-* `--set-upstream <remote/branch>` (required; updates git branch upstream and registry branch metadata)
 * `--registry <path>` (optional)
 
 #### `repokeeper sync`
@@ -291,11 +291,13 @@ RepoKeeper CLI should align with common `kubectl` conventions where practical, w
 
 Target command grammar (additive, backwards-compatible aliases during migration):
 
-* `repokeeper get repos` (status/list view)
+* `repokeeper get` (status/list view)
+* `repokeeper get repos` (legacy-compatible alias)
 * `repokeeper describe repo <repo-id-or-path>`
-* `repokeeper edit repo <repo-id-or-path>`
-* `repokeeper delete repo <repo-id-or-path>`
-* `repokeeper reconcile repos` (sync/reconciliation workflows)
+* `repokeeper edit <repo-id-or-path>`
+* `repokeeper delete <repo-id-or-path>`
+* `repokeeper reconcile` (sync/reconciliation workflows)
+* `repokeeper reconcile repos` (legacy-compatible alias)
 * `repokeeper repair upstream` (tracking repair workflows)
 
 Existing commands (`status`, `sync`, `repair-upstream`, etc.) remain supported during migration and should map to the new internal actions.
@@ -338,7 +340,11 @@ Recommended semantic colors:
 #### 5.3.4 Filter and selector direction
 
 Current `--only` filters remain supported.
-Future selector syntax should move toward kubectl-like field filtering semantics (for example, `--field-selector tracking.status=diverged`), with `--only` retained as shorthand aliases.
+Current selectors include:
+* `--field-selector` for operational state filtering (for example, `tracking.status=diverged`)
+* `-l, --selector` for label filtering (`key` and `key=value`, comma-separated AND)
+
+`--only` remains supported as shorthand aliases.
 
 #### 5.3.5 Migration strategy
 
