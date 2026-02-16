@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/cliio"
@@ -81,10 +82,15 @@ var statusCmd = &cobra.Command{
 		}
 		only, _ := cmd.Flags().GetString("only")
 		fieldSelector, _ := cmd.Flags().GetString("field-selector")
+		labelSelectorRaw, _ := cmd.Flags().GetString("selector")
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 		reconcileModeRaw, _ := cmd.Flags().GetString("reconcile-remote-mismatch")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		filter, err := resolveRepoFilter(only, fieldSelector)
+		if err != nil {
+			return err
+		}
+		labelSelector, err := parseLabelSelector(labelSelectorRaw)
 		if err != nil {
 			return err
 		}
@@ -127,6 +133,8 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		enrichReportWithRegistryMetadata(report, reg)
+		report = filterStatusReportByLabels(report, labelSelector)
 		plans := buildRemoteMismatchPlans(report.Repos, reg, adapter, reconcileMode)
 		if len(plans) > 0 {
 			logOutputWriteFailure(cmd, "status remote mismatch plan", writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone))
@@ -165,6 +173,8 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			enrichReportWithRegistryMetadata(report, reg)
+			report = filterStatusReportByLabels(report, labelSelector)
 		}
 
 		output := any(report)
@@ -220,6 +230,7 @@ func init() {
 	statusCmd.Flags().String("registry", "", "override registry file path")
 	addFormatFlag(statusCmd, "output format: table, wide, or json")
 	addRepoFilterFlags(statusCmd)
+	addLabelSelectorFlag(statusCmd)
 	statusCmd.Flags().String("reconcile-remote-mismatch", "none", "optional reconcile mode for remote mismatch: none, registry, git")
 	statusCmd.Flags().Bool("dry-run", true, "preview reconcile actions without modifying registry or git remotes")
 	addNoHeadersFlag(statusCmd)
@@ -499,6 +510,12 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "UPSTREAM: %s\n", repo.Tracking.Upstream); err != nil {
 		return err
 	}
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "LABELS: %s\n", metadataMapString(repo.Labels)); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "ANNOTATIONS: %s\n", metadataMapString(repo.Annotations)); err != nil {
+		return err
+	}
 	ahead := "-"
 	if repo.Tracking.Ahead != nil {
 		ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
@@ -585,6 +602,64 @@ func relWithin(base, target string) (string, bool) {
 		return "", false
 	}
 	return filepath.ToSlash(rel), true
+}
+
+func metadataMapString(values map[string]string) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(values))
+	for k, v := range values {
+		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
+}
+
+func enrichReportWithRegistryMetadata(report *model.StatusReport, reg *registry.Registry) {
+	if report == nil || reg == nil {
+		return
+	}
+	byRepoID := make(map[string]registry.Entry, len(reg.Entries))
+	byPath := make(map[string]registry.Entry, len(reg.Entries))
+	for _, entry := range reg.Entries {
+		if strings.TrimSpace(entry.RepoID) != "" {
+			byRepoID[entry.RepoID] = entry
+		}
+		if strings.TrimSpace(entry.Path) != "" {
+			byPath[entry.Path] = entry
+		}
+	}
+	for i := range report.Repos {
+		repo := &report.Repos[i]
+		var entry registry.Entry
+		var ok bool
+		if strings.TrimSpace(repo.RepoID) != "" {
+			entry, ok = byRepoID[repo.RepoID]
+		}
+		if !ok && strings.TrimSpace(repo.Path) != "" {
+			entry, ok = byPath[repo.Path]
+		}
+		if !ok {
+			continue
+		}
+		repo.Labels = cloneMetadataMap(entry.Labels)
+		repo.Annotations = cloneMetadataMap(entry.Annotations)
+	}
+}
+
+func filterStatusReportByLabels(report *model.StatusReport, reqs []labelRequirement) *model.StatusReport {
+	if report == nil || len(reqs) == 0 {
+		return report
+	}
+	filtered := make([]model.RepoStatus, 0, len(report.Repos))
+	for _, repo := range report.Repos {
+		if labelsMatchSelector(repo.Labels, reqs) {
+			filtered = append(filtered, repo)
+		}
+	}
+	report.Repos = filtered
+	return report
 }
 
 func parseRemoteMismatchReconcileMode(raw string) (remoteMismatchReconcileMode, error) {

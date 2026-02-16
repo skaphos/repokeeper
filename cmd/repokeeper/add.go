@@ -50,8 +50,18 @@ var addCmd = &cobra.Command{
 
 		branch, _ := cmd.Flags().GetString("branch")
 		mirror, _ := cmd.Flags().GetBool("mirror")
+		labelInputs, _ := cmd.Flags().GetStringArray("label")
+		annotationInputs, _ := cmd.Flags().GetStringArray("annotation")
 		if mirror && strings.TrimSpace(branch) != "" {
 			return fmt.Errorf("--branch and --mirror are mutually exclusive")
+		}
+		labels, err := parseMetadataAssignments(labelInputs, "--label")
+		if err != nil {
+			return err
+		}
+		annotations, err := parseMetadataAssignments(annotationInputs, "--annotation")
+		if err != nil {
+			return err
 		}
 
 		target := args[0]
@@ -108,13 +118,15 @@ var addCmd = &cobra.Command{
 		}
 
 		reg.Upsert(registry.Entry{
-			RepoID:    repoID,
-			Path:      targetAbs,
-			RemoteURL: remoteURL,
-			Type:      repoType,
-			Branch:    strings.TrimSpace(branch),
-			Status:    registry.StatusPresent,
-			LastSeen:  time.Now(),
+			RepoID:      repoID,
+			Path:        targetAbs,
+			RemoteURL:   remoteURL,
+			Type:        repoType,
+			Branch:      strings.TrimSpace(branch),
+			Labels:      normalizeMetadataMap(labels),
+			Annotations: normalizeMetadataMap(annotations),
+			Status:      registry.StatusPresent,
+			LastSeen:    time.Now(),
 		})
 		reg.UpdatedAt = time.Now()
 
@@ -140,5 +152,7 @@ func init() {
 	addCmd.Flags().String("registry", "", "override registry file path")
 	addCmd.Flags().String("branch", "", "clone and track a specific branch")
 	addCmd.Flags().Bool("mirror", false, "create a full mirror clone (no working tree)")
+	addCmd.Flags().StringArray("label", nil, "set repository label metadata (repeatable key=value)")
+	addCmd.Flags().StringArray("annotation", nil, "set repository annotation metadata (repeatable key=value)")
 	rootCmd.AddCommand(addCmd)
 }

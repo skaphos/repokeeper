@@ -54,6 +54,25 @@ var _ = Describe("Registry", func() {
 		Expect(reg.Entries[0].Branch).To(Equal("main"))
 	})
 
+	It("preserves labels and annotations when not provided on upsert", func() {
+		reg := &registry.Registry{}
+		reg.Upsert(registry.Entry{
+			RepoID:      "repo1",
+			Path:        "/a",
+			Labels:      map[string]string{"team": "platform"},
+			Annotations: map[string]string{"owner": "sre"},
+			Status:      registry.StatusPresent,
+		})
+		reg.Upsert(registry.Entry{
+			RepoID: "repo1",
+			Path:   "/a",
+			Status: registry.StatusPresent,
+		})
+		Expect(reg.Entries).To(HaveLen(1))
+		Expect(reg.Entries[0].Labels).To(HaveKeyWithValue("team", "platform"))
+		Expect(reg.Entries[0].Annotations).To(HaveKeyWithValue("owner", "sre"))
+	})
+
 	It("validates paths and marks missing", func() {
 		dir := GinkgoT().TempDir()
 		existing := filepath.Join(dir, "exists")

@@ -22,13 +22,15 @@ const (
 
 // Entry is a single repo entry in the registry.
 type Entry struct {
-	RepoID    string      `yaml:"repo_id"`
-	Path      string      `yaml:"path"`
-	RemoteURL string      `yaml:"remote_url"`
-	Type      string      `yaml:"type,omitempty"` // checkout | mirror
-	Branch    string      `yaml:"branch,omitempty"`
-	LastSeen  time.Time   `yaml:"last_seen"`
-	Status    EntryStatus `yaml:"status"`
+	RepoID      string            `yaml:"repo_id"`
+	Path        string            `yaml:"path"`
+	RemoteURL   string            `yaml:"remote_url"`
+	Type        string            `yaml:"type,omitempty"` // checkout | mirror
+	Branch      string            `yaml:"branch,omitempty"`
+	Labels      map[string]string `yaml:"labels,omitempty"`
+	Annotations map[string]string `yaml:"annotations,omitempty"`
+	LastSeen    time.Time         `yaml:"last_seen"`
+	Status      EntryStatus       `yaml:"status"`
 }
 
 // Registry is the per-machine mapping of repo identities to local paths.
@@ -83,10 +85,18 @@ func (r *Registry) Upsert(entry Entry) {
 			if entry.Branch == "" {
 				entry.Branch = r.Entries[i].Branch
 			}
+			if entry.Labels == nil && len(r.Entries[i].Labels) > 0 {
+				entry.Labels = cloneStringMap(r.Entries[i].Labels)
+			}
+			if entry.Annotations == nil && len(r.Entries[i].Annotations) > 0 {
+				entry.Annotations = cloneStringMap(r.Entries[i].Annotations)
+			}
 			r.Entries[i].Path = entry.Path
 			r.Entries[i].RemoteURL = entry.RemoteURL
 			r.Entries[i].Type = entry.Type
 			r.Entries[i].Branch = entry.Branch
+			r.Entries[i].Labels = entry.Labels
+			r.Entries[i].Annotations = entry.Annotations
 			r.Entries[i].LastSeen = entry.LastSeen
 			r.Entries[i].Status = entry.Status
 			return
@@ -96,6 +106,17 @@ func (r *Registry) Upsert(entry Entry) {
 		entry.Status = StatusPresent
 	}
 	r.Entries = append(r.Entries, entry)
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 // ValidatePaths checks all entries against the filesystem and marks

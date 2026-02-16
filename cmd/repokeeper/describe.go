@@ -68,10 +68,12 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 	}
 
 	repo := model.RepoStatus{
-		RepoID:   entry.RepoID,
-		Path:     entry.Path,
-		Type:     entry.Type,
-		Tracking: model.Tracking{Status: model.TrackingNone},
+		RepoID:      entry.RepoID,
+		Path:        entry.Path,
+		Type:        entry.Type,
+		Labels:      cloneMetadataMap(entry.Labels),
+		Annotations: cloneMetadataMap(entry.Annotations),
+		Tracking:    model.Tracking{Status: model.TrackingNone},
 	}
 	if entry.Status == registry.StatusMissing {
 		repo.Error = "path missing"
@@ -90,6 +92,8 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 			if repo.Type == "" {
 				repo.Type = entry.Type
 			}
+			repo.Labels = cloneMetadataMap(entry.Labels)
+			repo.Annotations = cloneMetadataMap(entry.Annotations)
 		}
 	}
 

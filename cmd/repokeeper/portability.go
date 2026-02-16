@@ -350,7 +350,21 @@ func registryEntriesConflict(local, incoming registry.Entry) bool {
 	return strings.TrimSpace(local.Path) != strings.TrimSpace(incoming.Path) ||
 		strings.TrimSpace(local.RemoteURL) != strings.TrimSpace(incoming.RemoteURL) ||
 		strings.TrimSpace(local.Branch) != strings.TrimSpace(incoming.Branch) ||
-		strings.TrimSpace(local.Type) != strings.TrimSpace(incoming.Type)
+		strings.TrimSpace(local.Type) != strings.TrimSpace(incoming.Type) ||
+		!stringMapsEqual(local.Labels, incoming.Labels) ||
+		!stringMapsEqual(local.Annotations, incoming.Annotations)
+}
+
+func stringMapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if b[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool) error {

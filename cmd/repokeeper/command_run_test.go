@@ -77,6 +77,7 @@ func TestStatusRunEUnsupportedFormat(t *testing.T) {
 	_ = statusCmd.Flags().Set("registry", regPath)
 	_ = statusCmd.Flags().Set("format", "yaml")
 	_ = statusCmd.Flags().Set("only", "all")
+	_ = statusCmd.Flags().Set("selector", "")
 
 	err := statusCmd.RunE(statusCmd, nil)
 	if err == nil || !strings.Contains(err.Error(), "unsupported format") {
@@ -99,6 +100,7 @@ func TestStatusRunECustomColumns(t *testing.T) {
 	_ = statusCmd.Flags().Set("format", "custom-columns=REPO:.repo_id,ERROR:.error_class")
 	_ = statusCmd.Flags().Set("only", "missing")
 	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("selector", "")
 	_ = statusCmd.Flags().Set("registry", "")
 	if err := statusCmd.RunE(statusCmd, nil); err != nil {
 		t.Fatalf("status custom-columns failed: %v", err)
@@ -108,6 +110,58 @@ func TestStatusRunECustomColumns(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "github.com/org/repo-missing") || !strings.Contains(out.String(), "missing") {
 		t.Fatalf("expected custom-column data, got %q", out.String())
+	}
+}
+
+func TestStatusRunELabelSelectorFilter(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:   "github.com/org/repo-prod",
+				Path:     filepath.Join(tmp, "missing-prod"),
+				Status:   registry.StatusMissing,
+				LastSeen: time.Now(),
+				Labels:   map[string]string{"env": "prod"},
+			},
+			{
+				RepoID:   "github.com/org/repo-dev",
+				Path:     filepath.Join(tmp, "missing-dev"),
+				Status:   registry.StatusMissing,
+				LastSeen: time.Now(),
+				Labels:   map[string]string{"env": "dev"},
+			},
+		},
+	}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	statusCmd.SetOut(out)
+	statusCmd.SetErr(errOut)
+	defer statusCmd.SetOut(os.Stdout)
+	defer statusCmd.SetErr(os.Stderr)
+
+	_ = statusCmd.Flags().Set("format", "json")
+	_ = statusCmd.Flags().Set("only", "missing")
+	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("selector", "env=prod")
+	_ = statusCmd.Flags().Set("registry", "")
+	if err := statusCmd.RunE(statusCmd, nil); err != nil {
+		t.Fatalf("status with label selector failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "repo-prod") {
+		t.Fatalf("expected prod repo in output, got: %q", got)
+	}
+	if strings.Contains(got, "repo-dev") {
+		t.Fatalf("did not expect dev repo in output, got: %q", got)
 	}
 }
 
@@ -125,17 +179,20 @@ func TestStatusRunEInvalidVCSSelection(t *testing.T) {
 	prevFormat, _ := statusCmd.Flags().GetString("format")
 	prevOnly, _ := statusCmd.Flags().GetString("only")
 	prevFieldSelector, _ := statusCmd.Flags().GetString("field-selector")
+	prevSelector, _ := statusCmd.Flags().GetString("selector")
 	prevVCS, _ := statusCmd.Flags().GetString("vcs")
 	defer func() {
 		_ = statusCmd.Flags().Set("format", prevFormat)
 		_ = statusCmd.Flags().Set("only", prevOnly)
 		_ = statusCmd.Flags().Set("field-selector", prevFieldSelector)
+		_ = statusCmd.Flags().Set("selector", prevSelector)
 		_ = statusCmd.Flags().Set("vcs", prevVCS)
 	}()
 
 	_ = statusCmd.Flags().Set("format", "json")
 	_ = statusCmd.Flags().Set("only", "all")
 	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("selector", "")
 	_ = statusCmd.Flags().Set("vcs", "git,svn")
 	err := statusCmd.RunE(statusCmd, nil)
 	if err == nil || !strings.Contains(err.Error(), "unsupported vcs") {
@@ -352,6 +409,7 @@ func TestStatusUsesNearestConfigFromNestedCWD(t *testing.T) {
 	_ = statusCmd.Flags().Set("format", "json")
 	_ = statusCmd.Flags().Set("only", "missing")
 	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("selector", "")
 	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
 	_ = statusCmd.Flags().Set("dry-run", "true")
 	_ = statusCmd.Flags().Set("no-headers", "false")

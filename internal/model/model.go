@@ -79,6 +79,10 @@ type RepoStatus struct {
 	Path string `json:"path" yaml:"path"`
 	// Type is the checkout type ("checkout" or "mirror").
 	Type string `json:"type,omitempty" yaml:"type,omitempty"` // checkout | mirror
+	// Labels are user-defined key/value metadata for classification and selection.
+	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	// Annotations are user-defined key/value metadata for non-selector notes.
+	Annotations map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
 	// Bare indicates whether the repository has no working tree.
 	Bare bool `json:"bare" yaml:"bare"`
 	// Remotes contains all configured remotes.

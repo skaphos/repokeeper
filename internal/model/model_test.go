@@ -18,6 +18,8 @@ var _ = Describe("Model JSON", func() {
 		status := model.RepoStatus{
 			RepoID:        "github.com/org/repo",
 			Path:          "/tmp/repo",
+			Labels:        map[string]string{"team": "platform"},
+			Annotations:   map[string]string{"owner": "sre"},
 			Bare:          false,
 			Remotes:       []model.Remote{{Name: "origin", URL: "git@github.com:org/repo.git"}},
 			PrimaryRemote: "origin",
@@ -36,6 +38,7 @@ var _ = Describe("Model JSON", func() {
 		Expect(decoded.RepoID).To(Equal(status.RepoID))
 		Expect(decoded.Tracking.Status).To(Equal(model.TrackingAhead))
 		Expect(decoded.Worktree).NotTo(BeNil())
+		Expect(decoded.Labels).To(HaveKeyWithValue("team", "platform"))
 	})
 
 	It("round-trips StatusReport JSON", func() {
