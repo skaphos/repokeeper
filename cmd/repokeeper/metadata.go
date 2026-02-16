@@ -13,7 +13,7 @@ func parseMetadataAssignments(inputs []string, flagName string) (map[string]stri
 	for _, raw := range inputs {
 		expr := strings.TrimSpace(raw)
 		if expr == "" {
-			return nil, fmt.Errorf("empty %s value", flagName)
+			continue
 		}
 		tokens := strings.SplitN(expr, "=", 2)
 		if len(tokens) != 2 {
@@ -36,6 +36,9 @@ func parseMetadataKeys(inputs []string, flagName string) ([]string, error) {
 	out := make([]string, 0, len(inputs))
 	for _, raw := range inputs {
 		key := strings.TrimSpace(raw)
+		if key == "" {
+			continue
+		}
 		if err := validateMetadataKey(key, flagName); err != nil {
 			return nil, err
 		}
