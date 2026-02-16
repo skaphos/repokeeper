@@ -79,62 +79,18 @@ repokeeper sync
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `repokeeper init` | Bootstrap a new config file |
-| `repokeeper scan` | Discover repos and update the registry |
-| `repokeeper status` | Report repo health summary (path, branch, dirty, tracking) |
-| `repokeeper get` | Kubectl-style alias for status/list view |
-| `repokeeper get repos` | Kubectl-style alias for status/list view |
-| `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
-| `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form for a single repository |
-| `repokeeper add <path> <git-repo-url>` | Clone and register a repository (`--branch` or `--mirror`; optional `--label/--annotation`) |
-| `repokeeper delete <repo-id-or-path>` | Delete repository files and remove from registry (`--tracking-only` keeps files, ignores path) |
-| `repokeeper edit <repo-id-or-path>` | Open one repo entry in `$VISUAL`/`$EDITOR`, validate YAML, and persist to registry |
-| `repokeeper repair-upstream` | Repair missing/mismatched upstream tracking across registered repos |
-| `repokeeper repair upstream` | Kubectl-style alias for upstream repair |
-| `repokeeper sync` | Fetch and prune all repos safely |
-| `repokeeper reconcile` | Kubectl-style alias for sync/reconciliation |
-| `repokeeper reconcile repos` | Kubectl-style alias for sync/reconciliation |
-| `repokeeper export` | Export config (and registry) for migration |
-| `repokeeper import` | Import a previously exported bundle |
-| `repokeeper version` | Print version and build info |
+Detailed command breakdown moved to docs:
 
-`repokeeper sync --format table` shows `PATH`, a summarized `ACTION` (`fetch`, `fetch + rebase`, `skip ...`), status context (`BRANCH`, `DIRTY`, `TRACKING`), outcome (`OK`, `ERROR_CLASS`, `ERROR`), and `REPO` as the trailing identifier column.
-Use `-o wide` (or `--format wide`) on `status`/`get` and `sync`/`reconcile` for additional remote/upstream/ahead/behind context.
-`repokeeper sync` shows a preflight plan. Confirmation is requested only when the plan includes local-branch-changing actions (`pull --rebase`/stash+rebase) or checkout-missing clones; fetch-only plans run without a prompt. Use `--yes` to skip confirmation when it is required.
-`repokeeper sync` supports `--only diverged` and `--only remote-mismatch` for targeted remediation runs.
-`repokeeper status --only diverged` now includes a diverged reason and recommended action in table output, and adds a machine-readable `diverged` guidance array in JSON output.
-`repokeeper status --only remote-mismatch --reconcile-remote-mismatch registry|git --dry-run=false` can explicitly reconcile mismatched remotes by updating either registry `remote_url` values or live git remote URLs. Apply mode prompts unless `--yes` is passed.
-For `status`, `--dry-run` defaults to `true` and only affects remote-mismatch reconcile actions (preview vs apply); regular status reporting itself never mutates repos.
+- [docs/commands.md](docs/commands.md) - full command reference, flags, and behavior notes
+- [docs/man/README.md](docs/man/README.md) - manpage generation and release integration plan
 
-`repokeeper describe` and `repokeeper describe repo` both accept a repo ID, a path relative to your current working directory, or a path relative to the directory containing `.repokeeper.yaml`.
+Quick highlights:
 
-`repokeeper add` accepts `--branch <name>` for a single-branch checkout clone or `--mirror` for a full mirror clone (bare, no working tree). Mirror repos are tracked and shown in status as `TRACKING=mirror`.
-
-`repokeeper edit <repo-id-or-path>` opens exactly one registry entry as YAML in your editor (`$VISUAL` then `$EDITOR`), validates the edited data, and writes it back on success.
-The edit payload is entry-scoped (not whole-registry), so labels/annotations and other per-repo metadata can be updated safely without touching unrelated entries.
-
-`status`/`get` support label filtering with `-l/--selector` using `key` or `key=value` terms (comma-separated AND), for example: `repokeeper get -l team=platform,env=prod`.
-
-`repokeeper export` writes YAML to stdout by default; pass an optional path argument to write directly to a file (for example: `repokeeper export repokeeper-export.yaml`). `repokeeper import` reads stdin by default when no bundle path is provided.
-
-`repokeeper import` defaults to merge mode (`--mode=merge`) so existing local config/registry can be synchronized with an exported bundle without overwrite. Use `--mode=replace --force` for the previous full-replace behavior.
-
-In merge mode, conflicts on the same `repo_id` can be resolved with `--on-conflict skip|bundle|local` (default `bundle`).
-
-`repokeeper import` clones imported entries into the current directory layout by default. Use `--file-only` to disable registry import/cloning. In merge mode against an existing config, clone only applies to merge-selected bundle entries (new repos and bundle-wins conflicts). If a target repo path already exists, import reports conflicting paths unless `--dangerously-delete-existing` is set.
-Paths listed in config `ignored_paths` are skipped during import and will not be re-added to local registry data.
-
-Use `repokeeper import --file-only` to import only the config file without registry data or cloning.
-
-Use `repokeeper sync --checkout-missing` to clone registry entries currently marked missing (using their `remote_url`, `branch`, and mirror type).
-
-Use `repokeeper repair-upstream --dry-run` to preview upstream tracking fixes, then `repokeeper repair-upstream --dry-run=false` to apply. Use `--only missing` or `--only mismatch` to focus the repair set.
-When `repair-upstream --dry-run=false` would modify tracking, RepoKeeper prompts for confirmation by default; use `--yes` for non-interactive runs.
-
-`scan`, `status`, and `sync` accept `--vcs git,hg` (default `git`) to choose one or more repository backends.
-`repokeeper delete --tracking-only` removes the registry entry but keeps files on disk, adds the path to `ignored_paths`, and warns that future scan/import runs will not add it back.
+- `repokeeper get` and `repokeeper reconcile` are direct command forms (`... repos` aliases still supported).
+- `repokeeper edit <repo-id-or-path>` opens a single repo entry YAML in your editor (`$VISUAL`/`$EDITOR`), validates, then saves.
+- `repokeeper label <repo-id-or-path>` manages labels via `--set key=value` and `--remove key`.
+- `status`/`get` support label filtering with `-l/--selector` (`key` and `key=value`, comma-separated AND).
+- `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
 
 ### Global flags
 
@@ -159,7 +115,7 @@ Runtime commands (`scan`, `status`, `sync`) resolve config in this order:
 - Windows: `%APPDATA%\\repokeeper\\config.yaml`
 
 Flag precedence (highest to lowest):
-1. Explicit command flags (`--config`, `--only`, `--field-selector`, etc.)
+1. Explicit command flags (`--config`, `--only`, `--field-selector`, `--selector`, etc.)
 2. Environment variables where supported (`REPOKEEPER_CONFIG`, `NO_COLOR`)
 3. Values loaded from the resolved config file
 4. Built-in command defaults
@@ -168,6 +124,7 @@ Selector precedence:
 1. `--field-selector` when set
 2. `--only` when `--field-selector` is not set
 3. Providing both in one command is rejected
+4. `-l/--selector` is applied as an additional label filter on the resulting repo set
 
 Example config:
 
@@ -213,6 +170,8 @@ Optional local checkout update:
 
 ## Documentation
 
+- [docs/commands.md](docs/commands.md) - command reference
+- [docs/man/README.md](docs/man/README.md) - manpage generation plan
 - [DESIGN.md](DESIGN.md) — full design specification and architecture
 - [TASKS.md](TASKS.md) — implementation milestones and task tracking
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contributor workflow and PR expectations
