@@ -281,6 +281,7 @@ Feedback captured and prioritized:
 - [x] P2: Align command/help text to "repositories" language instead of Git-only wording where behavior is multi-VCS.
 - [ ] P1 (tomorrow): investigate upstream-missing metadata flow (scan -> registry -> export -> import) so repos known to have no upstream are classified as `skipped` during import/reconcile instead of clone `failed`, while persisting `status=missing` where appropriate.
 - [x] P1: Add benchmark tracking workflow (`go tool task perf-bench`) that saves raw benchmark logs and appends structured history (`perf/history.jsonl`) for trend analysis over time.
+- [ ] Open question: should task orchestration move from `Taskfile` to `mise` (single runner), or remain `Taskfile`-first with optional `mise` wrappers/tool pinning?
 
 **Acceptance:**
 
