@@ -13,7 +13,9 @@ func TestKubectlAliasRunEParity(t *testing.T) {
 		alias  any
 		target any
 	}{
+		{name: "get", alias: getCmd.RunE, target: statusCmd.RunE},
 		{name: "get repos", alias: getReposCmd.RunE, target: statusCmd.RunE},
+		{name: "reconcile", alias: reconcileCmd.RunE, target: syncCmd.RunE},
 		{name: "reconcile repos", alias: reconcileReposCmd.RunE, target: syncCmd.RunE},
 		{name: "repair upstream", alias: repairUpstreamAliasCmd.RunE, target: repairUpstreamCmd.RunE},
 	}
@@ -37,6 +39,21 @@ func TestKubectlAliasFlagParity(t *testing.T) {
 		flags []string
 	}{
 		{
+			name: "get",
+			cmd:  getCmd,
+			flags: []string{
+				"roots",
+				"registry",
+				"format",
+				"only",
+				"field-selector",
+				"selector",
+				"no-headers",
+				"wrap",
+				"vcs",
+			},
+		},
+		{
 			name: "get repos",
 			cmd:  getReposCmd,
 			flags: []string{
@@ -45,6 +62,31 @@ func TestKubectlAliasFlagParity(t *testing.T) {
 				"format",
 				"only",
 				"field-selector",
+				"selector",
+				"no-headers",
+				"wrap",
+				"vcs",
+			},
+		},
+		{
+			name: "reconcile",
+			cmd:  reconcileCmd,
+			flags: []string{
+				"only",
+				"field-selector",
+				"concurrency",
+				"timeout",
+				"continue-on-error",
+				"dry-run",
+				"yes",
+				"update-local",
+				"push-local",
+				"rebase-dirty",
+				"force",
+				"protected-branches",
+				"allow-protected-rebase",
+				"checkout-missing",
+				"format",
 				"no-headers",
 				"wrap",
 				"vcs",

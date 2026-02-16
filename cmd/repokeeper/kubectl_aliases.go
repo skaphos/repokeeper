@@ -5,6 +5,8 @@ import "github.com/spf13/cobra"
 var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Display one or many resources",
+	Args:  cobra.NoArgs,
+	RunE:  statusCmd.RunE,
 }
 
 var getReposCmd = &cobra.Command{
@@ -17,6 +19,8 @@ var getReposCmd = &cobra.Command{
 var reconcileCmd = &cobra.Command{
 	Use:   "reconcile",
 	Short: "Reconcile local repositories with upstream state",
+	Args:  cobra.NoArgs,
+	RunE:  syncCmd.RunE,
 }
 
 var reconcileReposCmd = &cobra.Command{
@@ -38,14 +42,42 @@ var repairUpstreamAliasCmd = &cobra.Command{
 }
 
 func init() {
+	getCmd.Flags().String("roots", "", "additional roots to scan (optional)")
+	getCmd.Flags().String("registry", "", "override registry file path")
+	addFormatFlag(getCmd, "output format: table, wide, or json")
+	addRepoFilterFlags(getCmd)
+	addLabelSelectorFlag(getCmd)
+	addNoHeadersFlag(getCmd)
+	getCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
+	addVCSFlag(getCmd)
+
 	getReposCmd.Flags().String("roots", "", "additional roots to scan (optional)")
 	getReposCmd.Flags().String("registry", "", "override registry file path")
 	addFormatFlag(getReposCmd, "output format: table, wide, or json")
 	addRepoFilterFlags(getReposCmd)
+	addLabelSelectorFlag(getReposCmd)
 	addNoHeadersFlag(getReposCmd)
 	getReposCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 	addVCSFlag(getReposCmd)
 	getCmd.AddCommand(getReposCmd)
+
+	addRepoFilterFlags(reconcileCmd)
+	reconcileCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
+	reconcileCmd.Flags().Int("timeout", 0, "timeout in seconds per repo (0 uses config default)")
+	reconcileCmd.Flags().Bool("continue-on-error", true, "continue syncing remaining repos after a per-repo failure")
+	reconcileCmd.Flags().Bool("dry-run", false, "print intended operations without executing")
+	reconcileCmd.Flags().Bool("yes", false, "accept sync plan and execute without confirmation")
+	reconcileCmd.Flags().Bool("update-local", false, "after fetch, run pull --rebase for the checked-out tracking branch when safe")
+	reconcileCmd.Flags().Bool("push-local", false, "when used with --update-local, push branches that are ahead of upstream")
+	reconcileCmd.Flags().Bool("rebase-dirty", false, "when used with --update-local, stash local changes before rebase and pop afterwards")
+	reconcileCmd.Flags().Bool("force", false, "when used with --update-local, allow rebase even when branch tracking state is diverged")
+	reconcileCmd.Flags().String("protected-branches", "", "comma-separated branch patterns to protect from auto-rebase during --update-local (default: none)")
+	reconcileCmd.Flags().Bool("allow-protected-rebase", false, "when used with --update-local, allow rebase on branches matched by --protected-branches")
+	reconcileCmd.Flags().Bool("checkout-missing", false, "clone missing repos from registry remote_url back to their registered paths")
+	addFormatFlag(reconcileCmd, "output format: table, wide, or json")
+	addNoHeadersFlag(reconcileCmd)
+	reconcileCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
+	addVCSFlag(reconcileCmd)
 
 	addRepoFilterFlags(reconcileReposCmd)
 	reconcileReposCmd.Flags().Int("concurrency", 0, "max concurrent repo operations (default: min(8, NumCPU))")
