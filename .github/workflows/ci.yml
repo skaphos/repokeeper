@@ -68,10 +68,31 @@ jobs:
       - name: Run vulnerability task
         run: go tool task vuln
 
+  perf:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run performance benchmark task
+        run: go tool task perf-bench
+      - name: Upload performance artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-${{ github.sha }}
+          path: |
+            perf/history.jsonl
+            perf/runs/*.txt
+          if-no-files-found: error
+          retention-days: 30
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test, integration, quality]
+    needs: [lint, test, integration, quality, perf]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -83,7 +104,7 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [lint, test, integration, quality, build]
+    needs: [lint, test, integration, quality, perf, build]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Publish workflow summary
@@ -92,15 +113,16 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
+          PERF_RESULT: ${{ needs.perf.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          total=5
+          total=6
           success=0
           failed=0
           skipped=0
           cancelled=0
 
-          for result in "$LINT_RESULT" "$TEST_RESULT" "$INTEGRATION_RESULT" "$QUALITY_RESULT" "$BUILD_RESULT"; do
+          for result in "$LINT_RESULT" "$TEST_RESULT" "$INTEGRATION_RESULT" "$QUALITY_RESULT" "$PERF_RESULT" "$BUILD_RESULT"; do
             case "$result" in
               success) success=$((success + 1)) ;;
               failure) failed=$((failed + 1)) ;;
@@ -119,6 +141,7 @@ jobs:
             echo "| test | $TEST_RESULT |"
             echo "| integration | $INTEGRATION_RESULT |"
             echo "| quality | $QUALITY_RESULT |"
+            echo "| perf | $PERF_RESULT |"
             echo "| build | $BUILD_RESULT |"
             echo
             echo "- Total jobs: $total"
@@ -133,6 +156,7 @@ jobs:
               [ "$TEST_RESULT" = "failure" ] && echo "- test failed"
               [ "$INTEGRATION_RESULT" = "failure" ] && echo "- integration failed"
               [ "$QUALITY_RESULT" = "failure" ] && echo "- quality failed"
+              [ "$PERF_RESULT" = "failure" ] && echo "- perf failed"
               [ "$BUILD_RESULT" = "failure" ] && echo "- build failed"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
