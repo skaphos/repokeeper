@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/registry"
@@ -50,101 +51,106 @@ func TestValidateUpstreamRef(t *testing.T) {
 	}
 }
 
-func TestEditRunEDetachedHead(t *testing.T) {
+func TestEditRunEUpdatesSingleRepoFromEditor(t *testing.T) {
 	tmp := t.TempDir()
-	repo := filepath.Join(tmp, "repo-detached")
-	mustRunGit(t, filepath.Dir(repo), "init", repo)
-	mustRunGit(t, repo, "commit", "--allow-empty", "-m", "init")
-	mustRunGit(t, repo, "checkout", "--detach", "HEAD")
+	repoPath := filepath.Join(tmp, "repo")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
 
 	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
-	regPath := filepath.Join(tmp, "registry.yaml")
-	reg := &registry.Registry{
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
 		Entries: []registry.Entry{
-			{RepoID: "github.com/org/repo-detached", Path: repo, Status: registry.StatusPresent},
+			{
+				RepoID:   "github.com/org/repo-a",
+				Path:     repoPath,
+				Status:   registry.StatusPresent,
+				LastSeen: time.Now(),
+			},
 		},
 	}
-	cfg := config.DefaultConfig()
-	cfg.Registry = reg
 	if err := config.Save(&cfg, cfgPath); err != nil {
 		t.Fatalf("save config: %v", err)
 	}
-	if err := registry.Save(reg, regPath); err != nil {
-		t.Fatalf("save registry: %v", err)
-	}
 	cleanup := withTestConfig(t, cfgPath)
 	defer cleanup()
 
-	editCmd.SetContext(context.Background())
-	_ = editCmd.Flags().Set("registry", regPath)
-	_ = editCmd.Flags().Set("set-upstream", "origin/main")
+	editorScript := filepath.Join(tmp, "editor.sh")
+	script := "#!/bin/sh\ncat > \"$1\" <<'EOF'\nrepo_id: github.com/org/repo-a\npath: " + repoPath + "\nremote_url: git@github.com:org/repo-a.git\nlabels:\n  team: platform\nannotations:\n  owner: sre\nlast_seen: 2026-01-01T00:00:00Z\nstatus: present\nEOF\n"
+	if err := os.WriteFile(editorScript, []byte(script), 0o755); err != nil {
+		t.Fatalf("write editor script: %v", err)
+	}
 
-	err := editCmd.RunE(editCmd, []string{"github.com/org/repo-detached"})
-	if err == nil || !strings.Contains(err.Error(), "detached HEAD") {
-		t.Fatalf("expected detached head error, got %v", err)
+	prevEditor := os.Getenv("EDITOR")
+	if err := os.Setenv("EDITOR", editorScript); err != nil {
+		t.Fatalf("set editor env: %v", err)
+	}
+	defer func() { _ = os.Setenv("EDITOR", prevEditor) }()
+
+	editCmd.SetContext(context.Background())
+	_ = editCmd.Flags().Set("registry", "")
+	if err := editCmd.RunE(editCmd, []string{"github.com/org/repo-a"}); err != nil {
+		t.Fatalf("edit failed: %v", err)
+	}
+
+	updatedCfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := updatedCfg.Registry.FindByRepoID("github.com/org/repo-a")
+	if entry == nil {
+		t.Fatal("expected updated entry")
+	}
+	if got := entry.Labels["team"]; got != "platform" {
+		t.Fatalf("expected label team=platform, got %q", got)
+	}
+	if got := entry.Annotations["owner"]; got != "sre" {
+		t.Fatalf("expected annotation owner=sre, got %q", got)
 	}
 }
 
-func TestEditRunERunnerFailure(t *testing.T) {
+func TestEditRunERejectsInvalidEditedYAML(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
 	tmp := t.TempDir()
-	repo := filepath.Join(tmp, "repo-no-upstream")
-	mustRunGit(t, filepath.Dir(repo), "init", repo)
-	mustRunGit(t, repo, "commit", "--allow-empty", "-m", "init")
-	mustRunGit(t, repo, "remote", "add", "origin", "git@github.com:org/repo-no-upstream.git")
-
-	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
-	regPath := filepath.Join(tmp, "registry.yaml")
-	reg := &registry.Registry{
-		Entries: []registry.Entry{
-			{RepoID: "github.com/org/repo-no-upstream", Path: repo, Status: registry.StatusPresent},
-		},
+	editorScript := filepath.Join(tmp, "editor.sh")
+	script := "#!/bin/sh\necho 'not: [valid' > \"$1\"\n"
+	if err := os.WriteFile(editorScript, []byte(script), 0o755); err != nil {
+		t.Fatalf("write editor script: %v", err)
 	}
-	cfg := config.DefaultConfig()
-	cfg.Registry = reg
-	if err := config.Save(&cfg, cfgPath); err != nil {
-		t.Fatalf("save config: %v", err)
-	}
-	if err := registry.Save(reg, regPath); err != nil {
-		t.Fatalf("save registry: %v", err)
-	}
-	cleanup := withTestConfig(t, cfgPath)
-	defer cleanup()
+	prevEditor := os.Getenv("EDITOR")
+	_ = os.Setenv("EDITOR", editorScript)
+	defer func() { _ = os.Setenv("EDITOR", prevEditor) }()
 
 	editCmd.SetContext(context.Background())
-	_ = editCmd.Flags().Set("registry", regPath)
-	_ = editCmd.Flags().Set("set-upstream", "origin/main")
-
-	err := editCmd.RunE(editCmd, []string{"github.com/org/repo-no-upstream"})
-	if err == nil || !strings.Contains(err.Error(), "git branch --set-upstream-to") {
-		t.Fatalf("expected set-upstream runner error, got %v", err)
-	}
-}
-
-func TestEditRunERegistryOverrideLoadError(t *testing.T) {
-	cfgPath := writeEmptyConfig(t)
-	cleanup := withConfigAndCWD(t, cfgPath)
-	defer cleanup()
-
-	editCmd.SetContext(context.Background())
-	_ = editCmd.Flags().Set("registry", filepath.Join(t.TempDir(), "missing-registry.yaml"))
-	_ = editCmd.Flags().Set("set-upstream", "origin/main")
-
-	err := editCmd.RunE(editCmd, []string{"github.com/org/repo"})
-	if err == nil || !os.IsNotExist(err) {
-		t.Fatalf("expected registry load os-not-exist error, got %v", err)
-	}
-}
-
-func TestEditRejectsInvalidSetUpstreamFormat(t *testing.T) {
-	cfgPath, regPath := writeTestConfigAndRegistry(t)
-	cleanup := withTestConfig(t, cfgPath)
-	defer cleanup()
-
-	editCmd.SetContext(context.Background())
-	_ = editCmd.Flags().Set("registry", regPath)
-	_ = editCmd.Flags().Set("set-upstream", "origin")
+	_ = editCmd.Flags().Set("registry", "")
 	err := editCmd.RunE(editCmd, []string{"github.com/org/repo-missing"})
-	if err == nil || !strings.Contains(err.Error(), "expected remote/branch") {
-		t.Fatalf("expected invalid set-upstream format error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "invalid edited yaml") {
+		t.Fatalf("expected invalid yaml error, got %v", err)
+	}
+}
+
+func TestEditRunEFailsWithoutEditor(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	prevEditor := os.Getenv("EDITOR")
+	prevVisual := os.Getenv("VISUAL")
+	_ = os.Unsetenv("EDITOR")
+	_ = os.Unsetenv("VISUAL")
+	defer func() {
+		_ = os.Setenv("EDITOR", prevEditor)
+		_ = os.Setenv("VISUAL", prevVisual)
+	}()
+
+	editCmd.SetContext(context.Background())
+	_ = editCmd.Flags().Set("registry", "")
+	err := editCmd.RunE(editCmd, []string{"github.com/org/repo-missing"})
+	if err == nil || !strings.Contains(err.Error(), "set VISUAL or EDITOR") {
+		t.Fatalf("expected editor-required error, got %v", err)
 	}
 }

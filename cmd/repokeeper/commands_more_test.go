@@ -201,23 +201,25 @@ func TestScanJSONOutputAndUnsupportedFormat(t *testing.T) {
 	}
 }
 
-func TestEditRequiresSetUpstreamAndRejectsMissing(t *testing.T) {
+func TestEditRequiresEditorConfiguration(t *testing.T) {
 	cfgPath, regPath := writeTestConfigAndRegistry(t)
 	cleanup := withTestConfig(t, cfgPath)
 	defer cleanup()
 
+	prevEditor := os.Getenv("EDITOR")
+	prevVisual := os.Getenv("VISUAL")
+	_ = os.Unsetenv("EDITOR")
+	_ = os.Unsetenv("VISUAL")
+	defer func() {
+		_ = os.Setenv("EDITOR", prevEditor)
+		_ = os.Setenv("VISUAL", prevVisual)
+	}()
+
 	editCmd.SetContext(context.Background())
 	_ = editCmd.Flags().Set("registry", regPath)
-	_ = editCmd.Flags().Set("set-upstream", "")
 	err := editCmd.RunE(editCmd, []string{"github.com/org/repo-missing"})
-	if err == nil || !strings.Contains(err.Error(), "--set-upstream is required") {
-		t.Fatalf("expected set-upstream required error, got %v", err)
-	}
-
-	_ = editCmd.Flags().Set("set-upstream", "origin/main")
-	err = editCmd.RunE(editCmd, []string{"github.com/org/repo-missing"})
-	if err == nil || !strings.Contains(err.Error(), "cannot set upstream for missing repository") {
-		t.Fatalf("expected missing repo error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "set VISUAL or EDITOR") {
+		t.Fatalf("expected editor configuration error, got %v", err)
 	}
 }
 
