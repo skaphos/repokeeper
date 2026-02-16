@@ -226,6 +226,12 @@ go test -coverprofile=coverage.out ./...
 # Run with coverage and enforce per-package thresholds
 go tool task test-cover-check
 
+# Run coverage and print lowest-covered packages/functions
+go tool task coverage-report
+
+# Run performance benchmarks and append historical record
+go tool task perf-bench
+
 # Lint
 go tool golangci-lint run ./...
 

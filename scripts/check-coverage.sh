@@ -15,6 +15,9 @@ threshold_for_pkg() {
     # Temporary exception: command wiring is still under active refactor and
     # will be raised toward 80% as Milestone 6.x/7 testability work lands.
     github.com/skaphos/repokeeper/cmd/repokeeper) echo 65 ;;
+    # Tooling command wrapper; core parsing/persistence paths are covered,
+    # but command-entry/exec wiring stays intentionally thin.
+    github.com/skaphos/repokeeper/scripts/perf) echo 40 ;;
     *) echo "$default_threshold" ;;
   esac
 }

@@ -125,4 +125,10 @@ func TestNewGitAdapterDefaultsRunnerAndCloneErrors(t *testing.T) {
 	if err := a.Clone(context.Background(), "git@github.com:org/repo.git", "/tmp/repo", "", false); err == nil {
 		t.Fatal("expected clone error")
 	}
+	if ok, reason, err := a.SupportsLocalUpdate(context.Background(), "/tmp/repo"); err != nil || !ok || reason != "" {
+		t.Fatalf("unexpected local-update support metadata: ok=%v reason=%q err=%v", ok, reason, err)
+	}
+	if action, err := a.FetchAction(context.Background(), "/tmp/repo"); err != nil || action == "" {
+		t.Fatalf("unexpected fetch action metadata: action=%q err=%v", action, err)
+	}
 }

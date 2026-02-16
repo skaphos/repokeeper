@@ -34,3 +34,4 @@ Thumbs.db
 # Local junk
 .gocache
 .cache/
+perf/runs/

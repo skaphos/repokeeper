@@ -52,6 +52,12 @@ tasks:
       - go test -coverprofile=coverage.out ./...
       - ./scripts/check-coverage.sh coverage.out
 
+  coverage-report:
+    desc: Run coverage and print low-coverage packages/functions
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - ./scripts/coverage-report.sh coverage.out
+
   test-integration:
     desc: Run integration-tagged tests
     cmds:
@@ -77,6 +83,11 @@ tasks:
     desc: Run vulnerability scan
     cmds:
       - go tool govulncheck ./...
+
+  perf-bench:
+    desc: Run benchmarks and append a timestamped history record
+    cmds:
+      - go run ./scripts/perf -history perf/history.jsonl -raw-dir perf/runs -packages ./internal/engine -bench . -benchtime 1x -count 5
 
   version-next:
     desc: Show next semantic version from git history (svu)

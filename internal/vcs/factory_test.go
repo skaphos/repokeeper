@@ -178,3 +178,108 @@ func TestMultiAdapterRoutesCapabilityMethodsByPath(t *testing.T) {
 		t.Fatalf("unexpected fetch action: %q", action)
 	}
 }
+
+func TestNewAdapterForSelection(t *testing.T) {
+	adapter, err := NewAdapterForSelection("git")
+	if err != nil {
+		t.Fatalf("git selection error: %v", err)
+	}
+	if adapter.Name() != "git" {
+		t.Fatalf("unexpected adapter: %s", adapter.Name())
+	}
+
+	adapter, err = NewAdapterForSelection("hg")
+	if err != nil {
+		t.Fatalf("hg selection error: %v", err)
+	}
+	if adapter.Name() != "hg" {
+		t.Fatalf("unexpected adapter: %s", adapter.Name())
+	}
+
+	adapter, err = NewAdapterForSelection("git,hg")
+	if err != nil {
+		t.Fatalf("multi selection error: %v", err)
+	}
+	if adapter.Name() != "multi" {
+		t.Fatalf("unexpected adapter: %s", adapter.Name())
+	}
+
+	if _, err := NewAdapterForSelection("svn"); err == nil {
+		t.Fatal("expected empty selection error")
+	}
+}
+
+func TestMultiAdapterDelegatesAllMethods(t *testing.T) {
+	adapter := &multiStubAdapter{
+		name:             "git",
+		repoPaths:        map[string]bool{"/repo": true},
+		localUpdateOK:    true,
+		fetchActionLabel: "git fetch --all --prune --prune-tags --no-recurse-submodules",
+	}
+	multi := &MultiAdapter{
+		adapters: []Adapter{adapter},
+		byPath:   map[string]Adapter{},
+	}
+	ctx := context.Background()
+
+	if multi.Name() != "multi" {
+		t.Fatalf("unexpected multi adapter name: %s", multi.Name())
+	}
+	if ok, err := multi.IsRepo(ctx, "/repo"); err != nil || !ok {
+		t.Fatalf("IsRepo unexpected result: ok=%v err=%v", ok, err)
+	}
+	if _, err := multi.IsBare(ctx, "/repo"); err != nil {
+		t.Fatalf("IsBare unexpected error: %v", err)
+	}
+	if _, err := multi.Remotes(ctx, "/repo"); err != nil {
+		t.Fatalf("Remotes unexpected error: %v", err)
+	}
+	if _, err := multi.Head(ctx, "/repo"); err != nil {
+		t.Fatalf("Head unexpected error: %v", err)
+	}
+	if _, err := multi.WorktreeStatus(ctx, "/repo"); err != nil {
+		t.Fatalf("WorktreeStatus unexpected error: %v", err)
+	}
+	if _, err := multi.TrackingStatus(ctx, "/repo"); err != nil {
+		t.Fatalf("TrackingStatus unexpected error: %v", err)
+	}
+	if _, err := multi.HasSubmodules(ctx, "/repo"); err != nil {
+		t.Fatalf("HasSubmodules unexpected error: %v", err)
+	}
+	if err := multi.Fetch(ctx, "/repo"); err != nil {
+		t.Fatalf("Fetch unexpected error: %v", err)
+	}
+	if err := multi.PullRebase(ctx, "/repo"); err == nil {
+		t.Fatal("expected PullRebase unsupported error")
+	}
+	if err := multi.Push(ctx, "/repo"); err == nil {
+		t.Fatal("expected Push unsupported error")
+	}
+	if err := multi.SetUpstream(ctx, "/repo", "origin/main", "main"); err == nil {
+		t.Fatal("expected SetUpstream unsupported error")
+	}
+	if err := multi.SetRemoteURL(ctx, "/repo", "origin", "git@github.com:org/repo.git"); err == nil {
+		t.Fatal("expected SetRemoteURL unsupported error")
+	}
+	if _, err := multi.StashPush(ctx, "/repo", "msg"); err == nil {
+		t.Fatal("expected StashPush unsupported error")
+	}
+	if err := multi.StashPop(ctx, "/repo"); err == nil {
+		t.Fatal("expected StashPop unsupported error")
+	}
+	if err := multi.Clone(ctx, "git@github.com:org/repo.git", "/tmp/repo", "main", false); err == nil {
+		t.Fatal("expected Clone unsupported error")
+	}
+	if got := multi.NormalizeURL("git@github.com:org/repo.git"); got == "" {
+		t.Fatal("expected normalized url")
+	}
+	if got := multi.PrimaryRemote([]string{"origin"}); got != "origin" {
+		t.Fatalf("unexpected primary remote: %q", got)
+	}
+	if ok, _, err := multi.SupportsLocalUpdate(ctx, "/repo"); err != nil || !ok {
+		t.Fatalf("SupportsLocalUpdate unexpected result: ok=%v err=%v", ok, err)
+	}
+	if action, err := multi.FetchAction(ctx, "/repo"); err != nil || action == "" {
+		t.Fatalf("FetchAction unexpected result: action=%q err=%v", action, err)
+	}
+}
