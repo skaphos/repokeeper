@@ -788,6 +788,16 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 	}
 	mirror := entry.Type == "mirror"
 	branch := strings.TrimSpace(entry.Branch)
+	if !mirror && branch == "" {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    SyncOutcomeSkippedNoUpstream,
+			OK:         true,
+			ErrorClass: "skipped",
+			Error:      SyncErrorSkippedNoUpstream,
+		}
+	}
 	action := "git clone"
 	if mirror {
 		action += " --mirror"

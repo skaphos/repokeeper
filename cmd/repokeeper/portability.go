@@ -87,7 +87,8 @@ var exportCmd = &cobra.Command{
 				}
 			}
 			cfgCopy.Registry = cloneRegistry(cfgCopy.Registry)
-			populateExportBranches(cmd.Context(), cfgCopy.Registry, vcs.NewGitAdapter(nil).Head)
+			adapter := vcs.NewGitAdapter(nil)
+			populateExportBranches(cmd.Context(), cfgCopy.Registry, adapter.Head, adapter.TrackingStatus)
 			bundle.Registry = cfgCopy.Registry
 		} else {
 			cfgCopy.Registry = nil
@@ -506,7 +507,9 @@ func cloneImportedEntriesWithProgress(
 			continue
 		}
 		entry.Path = target
-		if entry.Status == "" || skipReasons[target] == "no remote URL configured" {
+		if entry.Status == "" ||
+			skipReasons[target] == "no remote URL configured" ||
+			skipReasons[target] == "no upstream branch configured" {
 			entry.Status = registry.StatusMissing
 		}
 		entry.LastSeen = time.Now()
@@ -678,6 +681,7 @@ func populateExportBranches(
 	ctx context.Context,
 	reg *registry.Registry,
 	headFn func(context.Context, string) (model.Head, error),
+	trackingFn func(context.Context, string) (model.Tracking, error),
 ) {
 	if reg == nil || headFn == nil {
 		return
@@ -699,6 +703,15 @@ func populateExportBranches(
 		branch := strings.TrimSpace(head.Branch)
 		if branch == "" {
 			continue
+		}
+		if trackingFn != nil {
+			tracking, err := trackingFn(ctx, path)
+			if err == nil && strings.TrimSpace(tracking.Upstream) == "" {
+				// Preserve "no upstream configured" intent in export bundles so
+				// import/reconcile can skip checkout attempts deterministically.
+				reg.Entries[i].Branch = ""
+				continue
+			}
 		}
 		reg.Entries[i].Branch = branch
 	}

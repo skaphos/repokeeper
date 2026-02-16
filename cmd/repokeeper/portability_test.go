@@ -172,6 +172,8 @@ func TestCloneImportedReposSkipsMissingAndNoUpstreamEntries(t *testing.T) {
 	}
 	if got := cfg.Registry.FindByRepoID("github.com/org/no-upstream"); got == nil || got.Path != filepath.Join(cwd, "team", "no-upstream") {
 		t.Fatalf("expected no-upstream repo path rewrite under import root, got %+v", got)
+	} else if got.Status != registry.StatusMissing {
+		t.Fatalf("expected no-upstream repo to remain missing until explicitly repaired, got %+v", got)
 	}
 }
 
@@ -275,7 +277,7 @@ func TestPopulateExportBranches(t *testing.T) {
 		default:
 			return model.Head{}, nil
 		}
-	})
+	}, nil)
 
 	if got, want := reg.Entries[0].Branch, "feature/a"; got != want {
 		t.Fatalf("expected branch %q, got %q", want, got)
@@ -288,6 +290,86 @@ func TestPopulateExportBranches(t *testing.T) {
 	}
 	if got, want := reg.Entries[3].Branch, "mirror-branch"; got != want {
 		t.Fatalf("expected mirror branch %q to remain, got %q", want, got)
+	}
+}
+
+func TestPopulateExportBranchesClearsNoUpstreamBranches(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r1", Path: "/repos/r1", Status: registry.StatusPresent, Branch: "old"},
+			{RepoID: "r2", Path: "/repos/r2", Status: registry.StatusPresent, Branch: "keep"},
+		},
+	}
+
+	populateExportBranches(
+		context.Background(),
+		reg,
+		func(_ context.Context, path string) (model.Head, error) {
+			switch path {
+			case "/repos/r1":
+				return model.Head{Branch: "main"}, nil
+			case "/repos/r2":
+				return model.Head{Branch: "release"}, nil
+			default:
+				return model.Head{}, nil
+			}
+		},
+		func(_ context.Context, path string) (model.Tracking, error) {
+			switch path {
+			case "/repos/r1":
+				return model.Tracking{}, nil
+			case "/repos/r2":
+				return model.Tracking{Upstream: "origin/release"}, nil
+			default:
+				return model.Tracking{}, nil
+			}
+		},
+	)
+
+	if got := reg.Entries[0].Branch; got != "" {
+		t.Fatalf("expected branch to be cleared when upstream missing, got %q", got)
+	}
+	if got, want := reg.Entries[1].Branch, "release"; got != want {
+		t.Fatalf("expected branch %q for upstream-tracked repo, got %q", want, got)
+	}
+}
+
+func TestPopulateExportBranchesWithTrackingErrorFallsBackToHead(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r1", Path: "/repos/r1", Status: registry.StatusPresent, Branch: "old"},
+		},
+	}
+
+	populateExportBranches(
+		context.Background(),
+		reg,
+		func(_ context.Context, _ string) (model.Head, error) {
+			return model.Head{Branch: "main"}, nil
+		},
+		func(_ context.Context, _ string) (model.Tracking, error) {
+			return model.Tracking{}, errors.New("tracking failed")
+		},
+	)
+
+	if got, want := reg.Entries[0].Branch, "main"; got != want {
+		t.Fatalf("expected tracking error to keep head branch %q, got %q", want, got)
+	}
+}
+
+func TestPopulateExportBranchesNoTrackingFunction(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r1", Path: "/repos/r1", Status: registry.StatusPresent, Branch: "old"},
+		},
+	}
+
+	populateExportBranches(context.Background(), reg, func(_ context.Context, _ string) (model.Head, error) {
+		return model.Head{Branch: "feature/a"}, nil
+	}, nil)
+
+	if got, want := reg.Entries[0].Branch, "feature/a"; got != want {
+		t.Fatalf("expected branch %q, got %q", want, got)
 	}
 }
 

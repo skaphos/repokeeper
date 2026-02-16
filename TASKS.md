@@ -279,9 +279,8 @@ Feedback captured and prioritized:
 - [x] P1: Keep Git default behavior unchanged while making mixed-root support explicit via `--vcs`.
 - [x] P1: Improve sync UX clarity for non-Git repos (`hg pull` safe fetch, explicit skip reason for `--update-local`).
 - [x] P2: Align command/help text to "repositories" language instead of Git-only wording where behavior is multi-VCS.
-- [ ] P1 (tomorrow): investigate upstream-missing metadata flow (scan -> registry -> export -> import) so repos known to have no upstream are classified as `skipped` during import/reconcile instead of clone `failed`, while persisting `status=missing` where appropriate.
+- [x] P1: preserve upstream-missing metadata flow (scan -> registry -> export -> import) so repos known to have no upstream are classified as `skipped` during import/reconcile instead of clone `failed`, while persisting `status=missing` where appropriate.
 - [x] P1: Add benchmark tracking workflow (`go tool task perf-bench`) that saves raw benchmark logs and appends structured history (`perf/history.jsonl`) for trend analysis over time.
-- [ ] Open question: should task orchestration move from `Taskfile` to `mise` (single runner), or remain `Taskfile`-first with optional `mise` wrappers/tool pinning?
 
 **Acceptance:**
 
@@ -298,6 +297,7 @@ Feedback captured and prioritized:
 - [ ] trigger batch actions for selected repos
 - [ ] progress updates + detail/action view
 - [ ] keybindings baseline: `/` filter, `space` select, `a` select all, `s` sync, `e` edit, `r` repair upstream, `enter` details/actions, `q` quit
+- [ ] Open question: should task orchestration move from `Taskfile` to `mise` (single runner), or remain `Taskfile`-first with optional `mise` wrappers/tool pinning?
 
 **Acceptance:**
 

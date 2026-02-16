@@ -220,6 +220,25 @@ func TestHandleMissingSyncEntry(t *testing.T) {
 	}
 }
 
+func TestHandleMissingSyncEntrySkipsNoUpstreamBranch(t *testing.T) {
+	entry := registry.Entry{
+		RepoID:    "repo-no-upstream",
+		Path:      "/missing",
+		RemoteURL: "git@github.com:org/repo.git",
+		Status:    registry.StatusMissing,
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{entry}}
+	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(&testRunner{}))
+
+	planned := eng.handleMissingSyncEntry(context.Background(), entry, SyncOptions{CheckoutMissing: true, DryRun: true})
+	if !planned.OK || planned.Outcome != SyncOutcomeSkippedNoUpstream || planned.Error != SyncErrorSkippedNoUpstream {
+		t.Fatalf("expected skipped no-upstream planned result, got %+v", planned)
+	}
+	if planned.Action != "" {
+		t.Fatalf("expected no clone action when upstream missing, got %q", planned.Action)
+	}
+}
+
 func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 	runner := &testRunner{responses: map[string]testResponse{
 		"/repo:rev-parse --is-bare-repository":    {out: "false"},
