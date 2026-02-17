@@ -28,8 +28,15 @@ var initCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if _, err := os.Stat(cfgPath); err == nil && !force {
-			return fmt.Errorf("config already exists at %q (use --force to overwrite)", cfgPath)
+		if _, err := os.Stat(cfgPath); err == nil {
+			if !force {
+				return fmt.Errorf("config already exists at %q (use --force to overwrite)", cfgPath)
+			}
+			// Ensure forced init replaces the existing config file rather than
+			// preserving any prior on-disk content.
+			if err := os.Remove(cfgPath); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("remove existing config %q: %w", cfgPath, err)
+			}
 		}
 
 		cfg := config.DefaultConfig()

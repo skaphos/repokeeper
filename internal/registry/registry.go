@@ -29,13 +29,13 @@ type Entry struct {
 	Branch      string            `yaml:"branch,omitempty"`
 	Labels      map[string]string `yaml:"labels,omitempty"`
 	Annotations map[string]string `yaml:"annotations,omitempty"`
-	LastSeen    time.Time         `yaml:"last_seen"`
+	LastSeen    time.Time         `yaml:"last_seen,omitempty"`
 	Status      EntryStatus       `yaml:"status"`
 }
 
 // Registry is the per-machine mapping of repo identities to local paths.
 type Registry struct {
-	UpdatedAt time.Time `yaml:"updated_at"`
+	UpdatedAt time.Time `yaml:"updated_at,omitempty"`
 	Entries   []Entry   `yaml:"repos"`
 }
 

@@ -35,6 +35,41 @@ func TestImportTargetRelativePath(t *testing.T) {
 	if got := importTargetRelativePath(entry, ""); got != "repo-z" {
 		t.Fatalf("expected repo-id fallback, got %q", got)
 	}
+
+	entry = registry.Entry{RepoID: "github.com/org/repo-r", Path: "team/repo-r"}
+	if got := importTargetRelativePath(entry, "/source/root"); got != "team/repo-r" {
+		t.Fatalf("expected already-relative path preserved, got %q", got)
+	}
+}
+
+func TestPrepareRegistryForExportStripsTimestampsAndRelativizesPaths(t *testing.T) {
+	now := time.Now()
+	reg := &registry.Registry{
+		UpdatedAt: now,
+		Entries: []registry.Entry{
+			{
+				RepoID:    "github.com/org/repo-a",
+				Path:      "/source/root/team/repo-a",
+				RemoteURL: "git@github.com:org/repo-a.git",
+				LastSeen:  now,
+				Status:    registry.StatusPresent,
+			},
+		},
+	}
+
+	got := prepareRegistryForExport(reg, "/source/root")
+	if got == nil || len(got.Entries) != 1 {
+		t.Fatalf("expected one exported entry, got %+v", got)
+	}
+	if !got.UpdatedAt.IsZero() {
+		t.Fatalf("expected updated_at stripped, got %v", got.UpdatedAt)
+	}
+	if !got.Entries[0].LastSeen.IsZero() {
+		t.Fatalf("expected last_seen stripped, got %v", got.Entries[0].LastSeen)
+	}
+	if got.Entries[0].Path != "team/repo-a" {
+		t.Fatalf("expected relative export path, got %q", got.Entries[0].Path)
+	}
 }
 
 func TestCloneImportedReposReportsSpecificTargetConflicts(t *testing.T) {
@@ -603,6 +638,15 @@ func TestExportCommandRunELoadsRegistryFromRegistryPath(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "repo_id: github.com/org/repo-a") {
 		t.Fatalf("expected exported registry entry, got: %q", got)
+	}
+	if !strings.Contains(got, "path: repo-a") {
+		t.Fatalf("expected root-relative exported path, got: %q", got)
+	}
+	if strings.Contains(got, "last_seen:") {
+		t.Fatalf("did not expect last_seen in export output, got: %q", got)
+	}
+	if strings.Contains(got, "updated_at:") {
+		t.Fatalf("did not expect updated_at in export output, got: %q", got)
 	}
 }
 

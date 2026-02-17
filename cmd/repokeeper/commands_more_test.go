@@ -148,6 +148,9 @@ func TestInitCommandForceBehavior(t *testing.T) {
 	origWD, _ := os.Getwd()
 	_ = os.Chdir(tmp)
 	defer func() { _ = os.Chdir(origWD) }()
+	repoPath := filepath.Join(tmp, "repo")
+	mustRunGit(t, tmp, "init", repoPath)
+	mustRunGit(t, repoPath, "commit", "--allow-empty", "-m", "init")
 
 	out := &bytes.Buffer{}
 	initCmd.SetOut(out)
@@ -169,6 +172,25 @@ func TestInitCommandForceBehavior(t *testing.T) {
 	_ = initCmd.Flags().Set("force", "true")
 	if err := initCmd.RunE(initCmd, nil); err != nil {
 		t.Fatalf("forced init failed: %v", err)
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config after forced init: %v", err)
+	}
+	initialCount := len(cfg.Registry.Entries)
+	if initialCount != 1 {
+		t.Fatalf("expected one registry entry after forced init, got %d", initialCount)
+	}
+
+	if err := initCmd.RunE(initCmd, nil); err != nil {
+		t.Fatalf("second forced init failed: %v", err)
+	}
+	cfg, err = config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config after second forced init: %v", err)
+	}
+	if got := len(cfg.Registry.Entries); got != initialCount {
+		t.Fatalf("expected reinit to replace registry content (len=%d), got len=%d", initialCount, got)
 	}
 }
 

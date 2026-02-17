@@ -87,6 +87,10 @@ var exportCmd = &cobra.Command{
 				}
 			}
 			cfgCopy.Registry = cloneRegistry(cfgCopy.Registry)
+			if inferredRoot := inferRegistrySharedRoot(cfgCopy.Registry); inferredRoot != "" {
+				bundle.Root = inferredRoot
+			}
+			cfgCopy.Registry = prepareRegistryForExport(cfgCopy.Registry, bundle.Root)
 			adapter := vcs.NewGitAdapter(nil)
 			populateExportBranches(cmd.Context(), cfgCopy.Registry, adapter.Head, adapter.TrackingStatus)
 			bundle.Registry = cfgCopy.Registry
@@ -624,6 +628,9 @@ func removeRegistryEntryByRepoID(reg *registry.Registry, repoID string) {
 }
 
 func importTargetRelativePath(entry registry.Entry, root string) string {
+	if rel, ok := cleanRelativePath(entry.Path); ok {
+		return rel
+	}
 	if rel, ok := relWithin(root, entry.Path); ok {
 		// Keep exported layout stable when the path is under the exported config root.
 		return rel
@@ -644,6 +651,103 @@ func importTargetRelativePath(entry registry.Entry, root string) string {
 		return "repo"
 	}
 	return name
+}
+
+func prepareRegistryForExport(reg *registry.Registry, root string) *registry.Registry {
+	if reg == nil {
+		return nil
+	}
+	out := cloneRegistry(reg)
+	out.UpdatedAt = time.Time{}
+	for i := range out.Entries {
+		entry := out.Entries[i]
+		entry.LastSeen = time.Time{}
+		entry.Path = exportEntryPath(entry.Path, root)
+		out.Entries[i] = entry
+	}
+	return out
+}
+
+func exportEntryPath(path, root string) string {
+	if rel, ok := relWithin(root, path); ok {
+		return rel
+	}
+	if rel, ok := cleanRelativePath(path); ok {
+		return rel
+	}
+	return filepath.Clean(path)
+}
+
+func cleanRelativePath(path string) (string, bool) {
+	cleaned := filepath.Clean(strings.TrimSpace(path))
+	if cleaned == "" || cleaned == "." || cleaned == string(filepath.Separator) || filepath.IsAbs(cleaned) {
+		return "", false
+	}
+	rel := filepath.ToSlash(cleaned)
+	if rel == ".." || strings.HasPrefix(rel, "../") {
+		return "", false
+	}
+	return rel, true
+}
+
+func inferRegistrySharedRoot(reg *registry.Registry) string {
+	if reg == nil || len(reg.Entries) == 0 {
+		return ""
+	}
+	absCount := 0
+	firstAbsPath := ""
+	var root string
+	for _, entry := range reg.Entries {
+		path := filepath.Clean(strings.TrimSpace(entry.Path))
+		if path == "" || !filepath.IsAbs(path) {
+			continue
+		}
+		absCount++
+		if firstAbsPath == "" {
+			firstAbsPath = path
+		}
+		if root == "" {
+			root = path
+			continue
+		}
+		root = commonPathRoot(root, path)
+		if root == "" || root == string(filepath.Separator) {
+			return root
+		}
+	}
+	if absCount == 1 && firstAbsPath != "" {
+		return filepath.Dir(firstAbsPath)
+	}
+	return root
+}
+
+func commonPathRoot(left, right string) string {
+	left = filepath.Clean(strings.TrimSpace(left))
+	right = filepath.Clean(strings.TrimSpace(right))
+	if left == "" || right == "" {
+		return ""
+	}
+	sep := string(filepath.Separator)
+	leftParts := strings.Split(left, sep)
+	rightParts := strings.Split(right, sep)
+	limit := len(leftParts)
+	if len(rightParts) < limit {
+		limit = len(rightParts)
+	}
+	shared := make([]string, 0, limit)
+	for i := 0; i < limit; i++ {
+		if leftParts[i] != rightParts[i] {
+			break
+		}
+		shared = append(shared, leftParts[i])
+	}
+	if len(shared) == 0 {
+		return ""
+	}
+	if len(shared) == 1 && shared[0] == "" {
+		return sep
+	}
+	return filepath.Clean(strings.Join(shared, sep))
 }
 
 func dropIgnoredImportEntries(cfg *config.Config, bundle exportBundle, cwd string) {
