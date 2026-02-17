@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/caarlos0/go-shellwords"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
@@ -156,7 +157,10 @@ func resolveEditorCommand() ([]string, error) {
 	if editor == "" {
 		return nil, fmt.Errorf("no editor configured; set VISUAL or EDITOR")
 	}
-	parts := strings.Fields(editor)
+	parts, err := shellwords.Parse(editor)
+	if err != nil {
+		return nil, fmt.Errorf("invalid editor command %q: %w", editor, err)
+	}
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("no editor configured; set VISUAL or EDITOR")
 	}

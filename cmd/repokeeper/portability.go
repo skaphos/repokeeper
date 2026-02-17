@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -404,12 +405,13 @@ func cloneImportedEntriesWithProgress(
 
 	adapter := vcs.NewGitAdapter(nil)
 	ignored := ignoredPathSet(cfg)
-	targets := make(map[string]registry.Entry, len(entries))
-	skipped := make(map[string]registry.Entry)
+	targets := make(map[string]importTargetPlan, len(entries))
+	skipped := make(map[string]importTargetPlan)
 	skipReasons := make(map[string]string)
 	for _, entry := range entries {
 		targetRel := importTargetRelativePath(entry, bundle.Root)
 		target := filepath.Clean(filepath.Join(cwd, targetRel))
+		targetKey := canonicalPathKey(target)
 
 		// Protect against path traversal/out-of-tree paths from malformed bundles.
 		relToCWD, err := filepath.Rel(cwd, target)
@@ -419,20 +421,20 @@ func cloneImportedEntriesWithProgress(
 		if strings.HasPrefix(relToCWD, ".."+string(filepath.Separator)) || relToCWD == ".." {
 			return nil, fmt.Errorf("refusing to clone outside current directory: %q", target)
 		}
-		if _, exists := targets[target]; exists {
+		if _, exists := targets[targetKey]; exists {
 			return nil, fmt.Errorf("multiple repos resolve to same target path %q", target)
 		}
-		targets[target] = entry
+		targets[targetKey] = importTargetPlan{path: target, entry: entry}
 
-		if ignored[target] {
-			skipped[target] = entry
-			skipReasons[target] = "path is ignored by local config"
+		if ignored[targetKey] {
+			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
+			skipReasons[targetKey] = "path is ignored by local config"
 			continue
 		}
 
 		if entry.Status == registry.StatusMissing {
-			skipped[target] = entry
-			skipReasons[target] = "marked missing in bundle"
+			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
+			skipReasons[targetKey] = "marked missing in bundle"
 			continue
 		}
 
@@ -441,14 +443,14 @@ func cloneImportedEntriesWithProgress(
 			// @todo(milestone-8): Preserve upstream-missing intent from source scan/export
 			// so import/reconcile classify these as explicit "skipped no upstream"
 			// instead of falling through to clone-time failures.
-			skipped[target] = entry
-			skipReasons[target] = "no remote URL configured"
+			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
+			skipReasons[targetKey] = "no remote URL configured"
 			continue
 		}
 
 		if entry.Type != "mirror" && strings.TrimSpace(entry.Branch) == "" {
-			skipped[target] = entry
-			skipReasons[target] = "no upstream branch configured"
+			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
+			skipReasons[targetKey] = "no upstream branch configured"
 			continue
 		}
 	}
@@ -468,10 +470,19 @@ func cloneImportedEntriesWithProgress(
 	}
 
 	failures := make([]engine.SyncResult, 0)
-	for target, entry := range targets {
-		if _, skip := skipped[target]; skip {
+	targetKeys := make([]string, 0, len(targets))
+	for key := range targets {
+		targetKeys = append(targetKeys, key)
+	}
+	sort.Strings(targetKeys)
+
+	for _, key := range targetKeys {
+		if _, skip := skipped[key]; skip {
 			continue
 		}
+		plan := targets[key]
+		target := plan.path
+		entry := plan.entry
 		result := engine.SyncResult{RepoID: entry.RepoID, Path: target, Action: "git clone"}
 		if progress != nil {
 			_ = progress.StartResult(result)
@@ -513,21 +524,30 @@ func cloneImportedEntriesWithProgress(
 			_ = progress.WriteResult(result)
 		}
 	}
-	for target, entry := range skipped {
-		if skipReasons[target] == "path is ignored by local config" {
+	skippedKeys := make([]string, 0, len(skipped))
+	for key := range skipped {
+		skippedKeys = append(skippedKeys, key)
+	}
+	sort.Strings(skippedKeys)
+
+	for _, key := range skippedKeys {
+		plan := skipped[key]
+		target := plan.path
+		entry := plan.entry
+		if skipReasons[key] == "path is ignored by local config" {
 			removeRegistryEntryByRepoID(cfg.Registry, entry.RepoID)
-			infof(cmd, "skipping import for %s: %s", entry.RepoID, skipReasons[target])
+			infof(cmd, "skipping import for %s: %s", entry.RepoID, skipReasons[key])
 			continue
 		}
 		entry.Path = target
 		if entry.Status == "" ||
-			skipReasons[target] == "no remote URL configured" ||
-			skipReasons[target] == "no upstream branch configured" {
+			skipReasons[key] == "no remote URL configured" ||
+			skipReasons[key] == "no upstream branch configured" {
 			entry.Status = registry.StatusMissing
 		}
 		entry.LastSeen = time.Now()
 		setRegistryEntryByRepoID(cfg.Registry, entry)
-		infof(cmd, "skipping import clone for %s: %s", entry.RepoID, skipReasons[target])
+		infof(cmd, "skipping import clone for %s: %s", entry.RepoID, skipReasons[key])
 	}
 	return failures, nil
 }
@@ -578,15 +598,20 @@ type importConflict struct {
 	entry  registry.Entry
 }
 
-func findImportTargetConflicts(targets map[string]registry.Entry, skippedLocal map[string]registry.Entry) []importConflict {
+type importTargetPlan struct {
+	path  string
+	entry registry.Entry
+}
+
+func findImportTargetConflicts(targets map[string]importTargetPlan, skippedLocal map[string]importTargetPlan) []importConflict {
 	conflicts := make([]importConflict, 0)
-	for target, entry := range targets {
-		if _, skip := skippedLocal[target]; skip {
+	for key, plan := range targets {
+		if _, skip := skippedLocal[key]; skip {
 			// Local-only entries are intentionally skipped and should not block import.
 			continue
 		}
-		if _, err := os.Stat(target); err == nil {
-			conflicts = append(conflicts, importConflict{target: target, entry: entry})
+		if _, err := os.Stat(plan.path); err == nil {
+			conflicts = append(conflicts, importConflict{target: plan.path, entry: plan.entry})
 		}
 	}
 	sort.Slice(conflicts, func(i, j int) bool {
@@ -765,11 +790,11 @@ func dropIgnoredImportEntries(cfg *config.Config, bundle exportBundle, cwd strin
 	}
 	kept := make([]registry.Entry, 0, len(cfg.Registry.Entries))
 	for _, entry := range cfg.Registry.Entries {
-		if ignored[filepath.Clean(entry.Path)] {
+		if ignored[canonicalPathKey(entry.Path)] {
 			continue
 		}
 		target := filepath.Clean(filepath.Join(cwd, importTargetRelativePath(entry, bundle.Root)))
-		if ignored[target] {
+		if ignored[canonicalPathKey(target)] {
 			continue
 		}
 		kept = append(kept, entry)
@@ -786,7 +811,7 @@ func ignoredPathSet(cfg *config.Config) map[string]bool {
 		if strings.TrimSpace(p) == "" {
 			continue
 		}
-		out[filepath.Clean(p)] = true
+		out[canonicalPathKey(p)] = true
 	}
 	return out
 }
@@ -869,8 +894,9 @@ func normalizePathLikeInput(path string) string {
 
 func relFromRootBasename(root, target string) (string, bool) {
 	rootClean := filepath.Clean(normalizePathLikeInput(root))
-	targetClean := filepath.Clean(normalizePathLikeInput(target))
-	if rootClean == "" || targetClean == "" || !filepath.IsAbs(targetClean) {
+	targetRaw := normalizePathLikeInput(target)
+	targetClean := filepath.Clean(targetRaw)
+	if rootClean == "" || targetClean == "" || !isAbsoluteLikePath(targetRaw, targetClean) {
 		return "", false
 	}
 	rootBase := filepath.Base(rootClean)
@@ -915,5 +941,23 @@ func isAbsoluteLikePath(raw, cleaned string) bool {
 		return true
 	}
 	trimmedRaw := strings.TrimSpace(raw)
-	return strings.HasPrefix(trimmedRaw, `/`) || strings.HasPrefix(trimmedRaw, `\`)
+	if strings.HasPrefix(trimmedRaw, `/`) || strings.HasPrefix(trimmedRaw, `\`) {
+		return true
+	}
+	// Treat Windows drive-absolute paths as absolute-like, even on non-Windows hosts.
+	if len(trimmedRaw) >= 3 && trimmedRaw[1] == ':' {
+		drive := trimmedRaw[0]
+		if (drive >= 'a' && drive <= 'z') || (drive >= 'A' && drive <= 'Z') {
+			return trimmedRaw[2] == '/' || trimmedRaw[2] == '\\'
+		}
+	}
+	return false
+}
+
+func canonicalPathKey(path string) string {
+	key := filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		key = strings.ToLower(key)
+	}
+	return key
 }

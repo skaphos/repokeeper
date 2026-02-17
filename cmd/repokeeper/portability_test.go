@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -50,6 +51,17 @@ func TestImportTargetRelativePath(t *testing.T) {
 	entry = registry.Entry{RepoID: "github.com/org/repo-x", Path: "/mnt/cache/sdp/team/repo-x"}
 	if got := importTargetRelativePath(entry, "/home/user/sdp"); got != "team/repo-x" {
 		t.Fatalf("expected root-basename fallback preserving project-relative suffix, got %q", got)
+	}
+}
+
+func TestImportTargetRelativePathWindowsDriveAbsolute(t *testing.T) {
+	entry := registry.Entry{
+		RepoID: "github.com/org/repo-a",
+		Path:   `C:\source\root\team\repo-a`,
+	}
+
+	if got := importTargetRelativePath(entry, `C:\source\root`); got != "team/repo-a" {
+		t.Fatalf("expected drive-root-relative target, got %q", got)
 	}
 }
 
@@ -290,6 +302,32 @@ func TestDropIgnoredImportEntriesRemovesIgnoredTargets(t *testing.T) {
 	}
 	if got := cfg.Registry.FindByRepoID("github.com/org/repo-b"); got == nil {
 		t.Fatal("expected non-ignored import entry to be retained")
+	}
+}
+
+func TestDropIgnoredImportEntriesCaseInsensitiveOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("windows-specific path matching behavior")
+	}
+
+	cwd := t.TempDir()
+	target := filepath.Join(cwd, "Team", "Repo-A")
+	cfg := &config.Config{
+		IgnoredPaths: []string{strings.ToUpper(target)},
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID: "github.com/org/repo-a",
+					Path:   "/source/root/team/repo-a",
+					Status: registry.StatusPresent,
+				},
+			},
+		},
+	}
+
+	dropIgnoredImportEntries(cfg, exportBundle{Root: "/source/root"}, cwd)
+	if got := cfg.Registry.FindByRepoID("github.com/org/repo-a"); got != nil {
+		t.Fatalf("expected case-insensitive ignored path removal on windows, got %+v", got)
 	}
 }
 

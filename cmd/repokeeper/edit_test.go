@@ -189,3 +189,34 @@ func TestEditRunEFailsWithoutEditor(t *testing.T) {
 		t.Fatalf("expected editor-required error, got %v", err)
 	}
 }
+
+func TestResolveEditorCommandParsesQuotedExecutable(t *testing.T) {
+	prevEditor := os.Getenv("EDITOR")
+	prevVisual := os.Getenv("VISUAL")
+	defer func() {
+		_ = os.Setenv("EDITOR", prevEditor)
+		_ = os.Setenv("VISUAL", prevVisual)
+	}()
+	_ = os.Unsetenv("VISUAL")
+
+	if runtime.GOOS == "windows" {
+		_ = os.Setenv("EDITOR", `"C:\Program Files\Editor\editor.exe" --wait`)
+		parts, err := resolveEditorCommand()
+		if err != nil {
+			t.Fatalf("resolve editor: %v", err)
+		}
+		if len(parts) != 2 || parts[0] != `C:\Program Files\Editor\editor.exe` || parts[1] != "--wait" {
+			t.Fatalf("unexpected parsed editor parts: %#v", parts)
+		}
+		return
+	}
+
+	_ = os.Setenv("EDITOR", `"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" --wait`)
+	parts, err := resolveEditorCommand()
+	if err != nil {
+		t.Fatalf("resolve editor: %v", err)
+	}
+	if len(parts) != 2 || parts[0] != "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" || parts[1] != "--wait" {
+		t.Fatalf("unexpected parsed editor parts: %#v", parts)
+	}
+}
