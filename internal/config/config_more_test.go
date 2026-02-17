@@ -8,6 +8,24 @@ import (
 	"testing"
 )
 
+func canonicalPath(path string) string {
+	cleaned := filepath.Clean(path)
+
+	if _, err := os.Stat(cleaned); err == nil {
+		if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
+			return filepath.Clean(resolved)
+		}
+	}
+
+	dir := filepath.Dir(cleaned)
+	base := filepath.Base(cleaned)
+	if resolvedDir, err := filepath.EvalSymlinks(dir); err == nil {
+		return filepath.Clean(filepath.Join(resolvedDir, base))
+	}
+
+	return cleaned
+}
+
 func TestInitConfigPathUsesGetwdWhenCWDMissing(t *testing.T) {
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -23,8 +41,9 @@ func TestInitConfigPathUsesGetwdWhenCWDMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InitConfigPath: %v", err)
 	}
-	if path != filepath.Join(tmp, LocalConfigFilename) {
-		t.Fatalf("unexpected init config path %q", path)
+	want := filepath.Join(tmp, LocalConfigFilename)
+	if canonicalPath(path) != canonicalPath(want) {
+		t.Fatalf("unexpected init config path %q (want %q)", path, want)
 	}
 }
 
@@ -47,7 +66,7 @@ func TestResolveConfigPathUsesGetwdWhenCWDMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveConfigPath: %v", err)
 	}
-	if path != localCfg {
+	if canonicalPath(path) != canonicalPath(localCfg) {
 		t.Fatalf("expected local config path %q, got %q", localCfg, path)
 	}
 }

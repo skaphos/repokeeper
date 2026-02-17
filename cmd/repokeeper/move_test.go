@@ -60,7 +60,18 @@ func TestMoveCommandMovesDirectoryAndUpdatesRegistry(t *testing.T) {
 		t.Fatalf("reload config: %v", err)
 	}
 	got := cfg.Registry.FindByRepoID("local:repo-move")
-	if got == nil || got.Path != filepath.Clean(targetAbs) {
+	if got == nil {
+		t.Fatalf("expected moved registry entry for local:repo-move")
+	}
+	gotPath, err := filepath.EvalSymlinks(got.Path)
+	if err != nil {
+		t.Fatalf("resolve moved registry path %q: %v", got.Path, err)
+	}
+	wantPath, err := filepath.EvalSymlinks(targetAbs)
+	if err != nil {
+		t.Fatalf("resolve expected target path %q: %v", targetAbs, err)
+	}
+	if filepath.Clean(gotPath) != filepath.Clean(wantPath) {
 		t.Fatalf("expected moved registry path %q, got %+v", filepath.Clean(targetAbs), got)
 	}
 }
