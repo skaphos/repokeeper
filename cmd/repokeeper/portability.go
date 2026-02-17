@@ -685,7 +685,7 @@ func exportEntryPath(path, root string) string {
 func cleanRelativePath(path string) (string, bool) {
 	raw := normalizePathLikeInput(path)
 	cleaned := filepath.Clean(raw)
-	if cleaned == "" || cleaned == "." || cleaned == string(filepath.Separator) || filepath.IsAbs(cleaned) {
+	if cleaned == "" || cleaned == "." || cleaned == string(filepath.Separator) || isAbsoluteLikePath(raw, cleaned) {
 		return "", false
 	}
 	rel := filepath.ToSlash(cleaned)
@@ -892,8 +892,9 @@ func relFromRootBasename(root, target string) (string, bool) {
 }
 
 func relativeFromAbsolutePath(path string) (string, bool) {
-	cleaned := filepath.Clean(normalizePathLikeInput(path))
-	if cleaned == "" || !filepath.IsAbs(cleaned) {
+	raw := normalizePathLikeInput(path)
+	cleaned := filepath.Clean(raw)
+	if cleaned == "" || !isAbsoluteLikePath(raw, cleaned) {
 		return "", false
 	}
 	withoutVolume := strings.TrimPrefix(cleaned, filepath.VolumeName(cleaned))
@@ -902,4 +903,17 @@ func relativeFromAbsolutePath(path string) (string, bool) {
 		return "", false
 	}
 	return cleanRelativePath(withoutLeadingSeps)
+}
+
+func isAbsoluteLikePath(raw, cleaned string) bool {
+	if filepath.IsAbs(cleaned) {
+		return true
+	}
+	// On Windows, paths rooted at the current drive (e.g. "\tmp\repo" or "/tmp/repo")
+	// are not filepath.IsAbs but should still be treated as absolute-ish.
+	if strings.HasPrefix(cleaned, string(filepath.Separator)) {
+		return true
+	}
+	trimmedRaw := strings.TrimSpace(raw)
+	return strings.HasPrefix(trimmedRaw, `/`) || strings.HasPrefix(trimmedRaw, `\`)
 }

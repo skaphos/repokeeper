@@ -185,7 +185,7 @@ func TestValidationAndRootEdgeCases(t *testing.T) {
 	if ConfigRoot("   ") != "" {
 		t.Fatal("expected blank config root for empty input")
 	}
-	if got := ResolveRegistryPath("", "/tmp/reg.yaml"); got != "/tmp/reg.yaml" {
+	if got := ResolveRegistryPath("", "/tmp/reg.yaml"); got != filepath.Clean("/tmp/reg.yaml") {
 		t.Fatalf("expected absolute registry path passthrough, got %q", got)
 	}
 	if got := ResolveRegistryPath("", "relative.yaml"); got != "relative.yaml" {

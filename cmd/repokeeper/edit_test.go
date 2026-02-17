@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,47 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/registry"
 )
+
+func writeEditorFixtureScript(t *testing.T, dir, repoPath string, invalidYAML bool) string {
+	t.Helper()
+
+	if runtime.GOOS == "windows" {
+		scriptPath := filepath.Join(dir, "editor.cmd")
+		var script string
+		if invalidYAML {
+			script = "@echo off\r\n> \"%~1\" echo not: [valid\r\n"
+		} else {
+			script = "@echo off\r\n" +
+				"> \"%~1\" (\r\n" +
+				"echo repo_id: github.com/org/repo-a\r\n" +
+				"echo path: " + repoPath + "\r\n" +
+				"echo remote_url: git@github.com:org/repo-a.git\r\n" +
+				"echo labels:\r\n" +
+				"echo   team: platform\r\n" +
+				"echo annotations:\r\n" +
+				"echo   owner: sre\r\n" +
+				"echo last_seen: 2026-01-01T00:00:00Z\r\n" +
+				"echo status: present\r\n" +
+				")\r\n"
+		}
+		if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+			t.Fatalf("write editor script: %v", err)
+		}
+		return scriptPath
+	}
+
+	scriptPath := filepath.Join(dir, "editor.sh")
+	var script string
+	if invalidYAML {
+		script = "#!/bin/sh\necho 'not: [valid' > \"$1\"\n"
+	} else {
+		script = "#!/bin/sh\ncat > \"$1\" <<'EOF'\nrepo_id: github.com/org/repo-a\npath: " + repoPath + "\nremote_url: git@github.com:org/repo-a.git\nlabels:\n  team: platform\nannotations:\n  owner: sre\nlast_seen: 2026-01-01T00:00:00Z\nstatus: present\nEOF\n"
+	}
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write editor script: %v", err)
+	}
+	return scriptPath
+}
 
 func TestTrackingBranchFromUpstream(t *testing.T) {
 	if got := trackingBranchFromUpstream("origin/main"); got != "main" {
@@ -77,11 +119,7 @@ func TestEditRunEUpdatesSingleRepoFromEditor(t *testing.T) {
 	cleanup := withTestConfig(t, cfgPath)
 	defer cleanup()
 
-	editorScript := filepath.Join(tmp, "editor.sh")
-	script := "#!/bin/sh\ncat > \"$1\" <<'EOF'\nrepo_id: github.com/org/repo-a\npath: " + repoPath + "\nremote_url: git@github.com:org/repo-a.git\nlabels:\n  team: platform\nannotations:\n  owner: sre\nlast_seen: 2026-01-01T00:00:00Z\nstatus: present\nEOF\n"
-	if err := os.WriteFile(editorScript, []byte(script), 0o755); err != nil {
-		t.Fatalf("write editor script: %v", err)
-	}
+	editorScript := writeEditorFixtureScript(t, tmp, repoPath, false)
 
 	prevEditor := os.Getenv("EDITOR")
 	if err := os.Setenv("EDITOR", editorScript); err != nil {
@@ -117,11 +155,7 @@ func TestEditRunERejectsInvalidEditedYAML(t *testing.T) {
 	defer cleanup()
 
 	tmp := t.TempDir()
-	editorScript := filepath.Join(tmp, "editor.sh")
-	script := "#!/bin/sh\necho 'not: [valid' > \"$1\"\n"
-	if err := os.WriteFile(editorScript, []byte(script), 0o755); err != nil {
-		t.Fatalf("write editor script: %v", err)
-	}
+	editorScript := writeEditorFixtureScript(t, tmp, "", true)
 	prevEditor := os.Getenv("EDITOR")
 	_ = os.Setenv("EDITOR", editorScript)
 	defer func() { _ = os.Setenv("EDITOR", prevEditor) }()
