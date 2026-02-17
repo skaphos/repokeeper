@@ -12,6 +12,9 @@ Thanks for contributing to RepoKeeper.
 
 - Create focused branches from `main`.
 - Keep commits small and scoped.
+- Use DCO sign-offs on every commit:
+  - `git commit --signoff ...`
+  - Required trailer format: `Signed-off-by: Your Name <you@example.com>`
 - Prefer Conventional Commits for release automation:
   - `feat:` -> minor
   - `fix:` / `perf:` -> patch
@@ -25,6 +28,9 @@ Examples:
 ## Coding Standards
 
 - Follow Go conventions and keep code readable.
+- Keep REUSE metadata valid:
+  - Source files should include SPDX headers (for example `SPDX-License-Identifier: MIT`).
+  - Use `reuse lint` to validate licensing metadata.
 - Format code:
   - `go tool task fmt`
 - Lint code:

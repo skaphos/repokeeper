@@ -7,6 +7,48 @@ on:
     branches: [main]
 
 jobs:
+  dco:
+    name: DCO
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify Signed-off-by on PR commits
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune origin "${BASE_REF}:${BASE_REF}"
+          missing=0
+          while IFS= read -r commit; do
+            [ -z "$commit" ] && continue
+            if ! git log -1 --pretty=%B "$commit" | grep -qi '^Signed-off-by: '; then
+              echo "Missing Signed-off-by trailer: $commit"
+              missing=1
+            fi
+          done < <(git rev-list "origin/${BASE_REF}..HEAD")
+
+          if [ "$missing" -ne 0 ]; then
+            echo "DCO check failed. Rebase/amend with: git commit --signoff"
+            exit 1
+          fi
+
+  reuse:
+    name: REUSE
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install REUSE tool
+        run: python -m pip install --upgrade pip reuse
+      - name: Run REUSE lint
+        run: reuse lint
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -95,7 +137,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test, integration, quality, perf]
+    needs: [dco, reuse, lint, test, integration, quality, perf]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -107,11 +149,13 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [lint, test, integration, quality, perf, build]
+    needs: [dco, reuse, lint, test, integration, quality, perf, build]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Publish workflow summary
         env:
+          DCO_RESULT: ${{ needs.dco.result }}
+          REUSE_RESULT: ${{ needs.reuse.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TEST_RESULT: ${{ needs.test.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
@@ -119,13 +163,13 @@ jobs:
           PERF_RESULT: ${{ needs.perf.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          total=6
+          total=8
           success=0
           failed=0
           skipped=0
           cancelled=0
 
-          for result in "$LINT_RESULT" "$TEST_RESULT" "$INTEGRATION_RESULT" "$QUALITY_RESULT" "$PERF_RESULT" "$BUILD_RESULT"; do
+          for result in "$DCO_RESULT" "$REUSE_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$INTEGRATION_RESULT" "$QUALITY_RESULT" "$PERF_RESULT" "$BUILD_RESULT"; do
             case "$result" in
               success) success=$((success + 1)) ;;
               failure) failed=$((failed + 1)) ;;
@@ -140,6 +184,8 @@ jobs:
             echo
             echo "| Job | Result |"
             echo "| --- | --- |"
+            echo "| dco | $DCO_RESULT |"
+            echo "| reuse | $REUSE_RESULT |"
             echo "| lint | $LINT_RESULT |"
             echo "| test | $TEST_RESULT |"
             echo "| integration | $INTEGRATION_RESULT |"
@@ -155,6 +201,8 @@ jobs:
             if [ "$failed" -gt 0 ]; then
               echo
               echo "### Key Failures"
+              if [ "$DCO_RESULT" = "failure" ]; then echo "- dco failed"; fi
+              if [ "$REUSE_RESULT" = "failure" ]; then echo "- reuse failed"; fi
               if [ "$LINT_RESULT" = "failure" ]; then echo "- lint failed"; fi
               if [ "$TEST_RESULT" = "failure" ]; then echo "- test failed"; fi
               if [ "$INTEGRATION_RESULT" = "failure" ]; then echo "- integration failed"; fi
