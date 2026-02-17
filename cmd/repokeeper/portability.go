@@ -14,6 +14,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
@@ -77,6 +78,7 @@ var exportCmd = &cobra.Command{
 			Root:       config.ConfigRoot(cfgPath),
 		}
 		cfgCopy := *cfg
+		var exportedRegistry *registry.Registry
 		if includeRegistry {
 			if cfgCopy.Registry == nil && cfgCopy.RegistryPath != "" {
 				reg, err := registry.Load(config.ResolveRegistryPath(cfgPath, cfgCopy.RegistryPath))
@@ -87,18 +89,18 @@ var exportCmd = &cobra.Command{
 					cfgCopy.Registry = reg
 				}
 			}
-			cfgCopy.Registry = cloneRegistry(cfgCopy.Registry)
-			if inferredRoot := inferRegistrySharedRoot(cfgCopy.Registry); inferredRoot != "" {
+			exportedRegistry = cloneRegistry(cfgCopy.Registry)
+			if inferredRoot := inferRegistrySharedRoot(exportedRegistry); inferredRoot != "" {
 				bundle.Root = inferredRoot
 			}
-			cfgCopy.Registry = prepareRegistryForExport(cfgCopy.Registry, bundle.Root)
+			exportedRegistry = prepareRegistryForExport(exportedRegistry, bundle.Root)
 			adapter := vcs.NewGitAdapter(nil)
-			populateExportBranches(cmd.Context(), cfgCopy.Registry, adapter.Head, adapter.TrackingStatus)
-			bundle.Registry = cfgCopy.Registry
-		} else {
-			cfgCopy.Registry = nil
-			bundle.Registry = nil
+			populateExportBranches(cmd.Context(), exportedRegistry, adapter.Head, adapter.TrackingStatus)
 		}
+		// Export bundles carry registry at the top level only.
+		// config.registry is always omitted to avoid duplicated payloads.
+		cfgCopy.Registry = nil
+		bundle.Registry = exportedRegistry
 		bundle.Config = cfgCopy
 
 		data, err := yaml.Marshal(&bundle)
@@ -488,18 +490,10 @@ func cloneImportedEntriesWithProgress(
 			return failures, err
 		}
 
-		cloneArgs := []string{"clone"}
-		if entry.Type == "mirror" {
-			cloneArgs = append(cloneArgs, "--mirror")
-		} else if strings.TrimSpace(entry.Branch) != "" {
-			// Preserve the exported branch so imported checkouts land on the same branch.
-			cloneArgs = append(cloneArgs, "--branch", strings.TrimSpace(entry.Branch), "--single-branch")
-		}
-		cloneArgs = append(cloneArgs, strings.TrimSpace(entry.RemoteURL), target)
 		if err := adapter.Clone(cmd.Context(), strings.TrimSpace(entry.RemoteURL), target, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
 			result.OK = false
-			result.ErrorClass = "unknown"
-			result.Error = fmt.Sprintf("git %q: %v", strings.Join(cloneArgs, " "), err)
+			result.ErrorClass = gitx.ClassifyError(err)
+			result.Error = importCloneFailureMessage(result.ErrorClass)
 			entry.Path = target
 			entry.Status = registry.StatusMissing
 			entry.LastSeen = time.Now()
@@ -636,6 +630,15 @@ func importTargetRelativePath(entry registry.Entry, root string) string {
 		// Keep exported layout stable when the path is under the exported config root.
 		return rel
 	}
+	if rel, ok := relFromRootBasename(root, entry.Path); ok {
+		// If roots differ across machines but share a stable folder name
+		// (for example ".../workspace/project"), keep the project-relative suffix.
+		return rel
+	}
+	if rel, ok := relativeFromAbsolutePath(entry.Path); ok {
+		// Preserve layout details from absolute bundle paths instead of flattening.
+		return rel
+	}
 
 	base := filepath.Base(entry.Path)
 	if base != "" && base != "." && base != string(filepath.Separator) {
@@ -680,7 +683,8 @@ func exportEntryPath(path, root string) string {
 }
 
 func cleanRelativePath(path string) (string, bool) {
-	cleaned := filepath.Clean(strings.TrimSpace(path))
+	raw := normalizePathLikeInput(path)
+	cleaned := filepath.Clean(raw)
 	if cleaned == "" || cleaned == "." || cleaned == string(filepath.Separator) || filepath.IsAbs(cleaned) {
 		return "", false
 	}
@@ -834,4 +838,68 @@ func populateExportBranches(
 		}
 		reg.Entries[i].Branch = branch
 	}
+}
+
+func importCloneFailureMessage(errorClass string) string {
+	switch strings.TrimSpace(errorClass) {
+	case "auth":
+		return "import-clone-auth"
+	case "network":
+		return "import-clone-network"
+	case "timeout":
+		return "import-clone-timeout"
+	case "corrupt":
+		return "import-clone-corrupt"
+	case "missing_remote":
+		return "import-clone-missing-remote"
+	default:
+		return "import-clone-failed"
+	}
+}
+
+func normalizePathLikeInput(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	// Treat backslashes as separators to keep imported bundles portable
+	// across operating systems.
+	return strings.ReplaceAll(trimmed, "\\", string(filepath.Separator))
+}
+
+func relFromRootBasename(root, target string) (string, bool) {
+	rootClean := filepath.Clean(normalizePathLikeInput(root))
+	targetClean := filepath.Clean(normalizePathLikeInput(target))
+	if rootClean == "" || targetClean == "" || !filepath.IsAbs(targetClean) {
+		return "", false
+	}
+	rootBase := filepath.Base(rootClean)
+	if rootBase == "" || rootBase == "." || rootBase == string(filepath.Separator) {
+		return "", false
+	}
+	pathWithoutVolume := strings.TrimPrefix(targetClean, filepath.VolumeName(targetClean))
+	parts := strings.Split(filepath.ToSlash(pathWithoutVolume), "/")
+	lastIdx := -1
+	for i, part := range parts {
+		if part == rootBase {
+			lastIdx = i
+		}
+	}
+	if lastIdx < 0 || lastIdx+1 >= len(parts) {
+		return "", false
+	}
+	return cleanRelativePath(strings.Join(parts[lastIdx+1:], "/"))
+}
+
+func relativeFromAbsolutePath(path string) (string, bool) {
+	cleaned := filepath.Clean(normalizePathLikeInput(path))
+	if cleaned == "" || !filepath.IsAbs(cleaned) {
+		return "", false
+	}
+	withoutVolume := strings.TrimPrefix(cleaned, filepath.VolumeName(cleaned))
+	withoutLeadingSeps := strings.TrimLeft(withoutVolume, `/\`)
+	if withoutLeadingSeps == "" {
+		return "", false
+	}
+	return cleanRelativePath(withoutLeadingSeps)
 }

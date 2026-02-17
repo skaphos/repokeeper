@@ -28,8 +28,8 @@ func TestImportTargetRelativePath(t *testing.T) {
 		t.Fatalf("expected root-relative target, got %q", got)
 	}
 
-	if got := importTargetRelativePath(entry, "/other/root"); got != "repo-a" {
-		t.Fatalf("expected basename fallback, got %q", got)
+	if got := importTargetRelativePath(entry, "/other/workspace"); got != "source/root/team/repo-a" {
+		t.Fatalf("expected absolute-path fallback preserving layout, got %q", got)
 	}
 
 	entry = registry.Entry{RepoID: "github.com/org/repo-z", Path: ""}
@@ -40,6 +40,16 @@ func TestImportTargetRelativePath(t *testing.T) {
 	entry = registry.Entry{RepoID: "github.com/org/repo-r", Path: "team/repo-r"}
 	if got := importTargetRelativePath(entry, "/source/root"); got != "team/repo-r" {
 		t.Fatalf("expected already-relative path preserved, got %q", got)
+	}
+
+	entry = registry.Entry{RepoID: "github.com/org/repo-w", Path: `team\repo-w`}
+	if got := importTargetRelativePath(entry, "/source/root"); got != "team/repo-w" {
+		t.Fatalf("expected windows separators normalized, got %q", got)
+	}
+
+	entry = registry.Entry{RepoID: "github.com/org/repo-x", Path: "/mnt/cache/sdp/team/repo-x"}
+	if got := importTargetRelativePath(entry, "/home/user/sdp"); got != "team/repo-x" {
+		t.Fatalf("expected root-basename fallback preserving project-relative suffix, got %q", got)
 	}
 }
 
@@ -237,6 +247,12 @@ func TestCloneImportedReposMarksFailedCloneAsMissing(t *testing.T) {
 	}
 	if len(failures) != 1 {
 		t.Fatalf("expected one clone failure, got %d", len(failures))
+	}
+	if got, want := failures[0].ErrorClass, "unknown"; got != want {
+		t.Fatalf("expected classified error %q, got %q", want, got)
+	}
+	if got, want := failures[0].Error, "import-clone-failed"; got != want {
+		t.Fatalf("expected normalized clone error %q, got %q", want, got)
 	}
 	entry := cfg.Registry.FindByRepoID("github.com/org/fails")
 	if entry == nil {
@@ -459,13 +475,13 @@ func TestCloneImportedReposRejectsDuplicateTargets(t *testing.T) {
 			Entries: []registry.Entry{
 				{
 					RepoID:    "github.com/org/repo-a",
-					Path:      "/x/repo",
+					Path:      "repo",
 					RemoteURL: "git@github.com:org/repo-a.git",
 					Status:    registry.StatusPresent,
 				},
 				{
 					RepoID:    "github.com/org/repo-b",
-					Path:      "/y/repo",
+					Path:      "./repo",
 					RemoteURL: "git@github.com:org/repo-b.git",
 					Status:    registry.StatusPresent,
 				},
@@ -648,6 +664,17 @@ func TestExportCommandRunELoadsRegistryFromRegistryPath(t *testing.T) {
 	}
 	if strings.Contains(got, "updated_at:") {
 		t.Fatalf("did not expect updated_at in export output, got: %q", got)
+	}
+
+	var exported exportBundle
+	if err := yaml.Unmarshal([]byte(got), &exported); err != nil {
+		t.Fatalf("unmarshal exported bundle: %v", err)
+	}
+	if exported.Config.Registry != nil {
+		t.Fatalf("expected config.registry omitted in export, got %+v", exported.Config.Registry)
+	}
+	if exported.Registry == nil || len(exported.Registry.Entries) != 1 {
+		t.Fatalf("expected top-level registry in export bundle, got %+v", exported.Registry)
 	}
 }
 
