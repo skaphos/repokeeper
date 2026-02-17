@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package tui provides the interactive Bubble Tea terminal UI (phase 2).
 package tui
 

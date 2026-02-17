@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package repokeeper
 
 import "github.com/spf13/cobra"

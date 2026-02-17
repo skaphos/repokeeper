@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package registry handles persistence and staleness detection for the
 // per-machine repo registry.
 package registry

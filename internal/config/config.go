@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package config handles loading, saving, and resolving the RepoKeeper
 // machine configuration file.
 package config

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package gitx provides helpers for executing git commands and parsing
 // their output. It shells out to the installed git binary.
 package gitx

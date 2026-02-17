@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package main
 
 import "github.com/skaphos/repokeeper/cmd/repokeeper"

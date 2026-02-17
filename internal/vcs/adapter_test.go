@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package vcs_test
 
 import (

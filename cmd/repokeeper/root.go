@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package repokeeper contains the Cobra command tree for the RepoKeeper CLI.
 package repokeeper
 

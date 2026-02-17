@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 package termstyle
 
 import "github.com/liggitt/tabwriter"

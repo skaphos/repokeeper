@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 //go:build integration
 
 package engine_test

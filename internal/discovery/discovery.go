@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package discovery walks configured root directories to find git repositories.
 package discovery
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package engine orchestrates the core operations: scan, status, and sync.
 // It coordinates between discovery, gitx, config, and registry packages.
 package engine

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // Package model defines the core data types used throughout RepoKeeper.
 package model
 
