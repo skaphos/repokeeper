@@ -1,0 +1,9 @@
+version = 1
+SPDX-PackageName = "repokeeper"
+SPDX-PackageDownloadLocation = "https://github.com/skaphos/repokeeper"
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Shawn Wells"
+SPDX-License-Identifier = "MIT"

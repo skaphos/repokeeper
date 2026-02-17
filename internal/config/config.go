@@ -158,6 +158,14 @@ func ResolveConfigPath(override, cwd string) (string, error) {
 // FindNearestConfigPath searches cwd and each parent directory for .repokeeper.yaml.
 // It returns an empty string when no local config file is found.
 func FindNearestConfigPath(cwd string) (string, error) {
+	info, err := os.Stat(cwd)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("cwd is not a directory: %s", cwd)
+	}
+
 	dir := cwd
 	for {
 		candidate := filepath.Join(dir, LocalConfigFilename)

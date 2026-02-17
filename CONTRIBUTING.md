@@ -29,7 +29,7 @@ Examples:
 
 - Follow Go conventions and keep code readable.
 - Keep REUSE metadata valid:
-  - Source files should include SPDX headers (for example `SPDX-License-Identifier: MIT`).
+  - Source files should include SPDX headers (for example an `SPDX-License-Identifier` header with value `MIT`).
   - Use `reuse lint` to validate licensing metadata.
 - Format code:
   - `go tool task fmt`
