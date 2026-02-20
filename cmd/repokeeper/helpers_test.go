@@ -33,15 +33,15 @@ func TestHasRegistryWarnings(t *testing.T) {
 	}
 }
 
-func TestStatusHasWarningsOrErrors(t *testing.T) {
+func TestStatusExitCode(t *testing.T) {
 	report := &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "r1"}}}
 	reg := &registry.Registry{}
-	if statusHasWarningsOrErrors(report, reg) {
-		t.Fatal("did not expect warnings")
+	if statusExitCode(report, reg) != 0 {
+		t.Fatal("did not expect non-zero exit code")
 	}
 	report.Repos[0].Error = "boom"
-	if !statusHasWarningsOrErrors(report, reg) {
-		t.Fatal("expected warnings")
+	if statusExitCode(report, reg) != 2 {
+		t.Fatal("expected exit code 2 for repo error")
 	}
 }
 
@@ -506,13 +506,13 @@ func TestColorizeAndTrackingDisplayBranches(t *testing.T) {
 	if !strings.Contains(colored, termstyle.Green) || !strings.Contains(colored, termstyle.Reset) {
 		t.Fatalf("expected ansi-wrapped output, got %q", colored)
 	}
-	if got := displayTrackingStatus(model.TrackingDiverged); !strings.Contains(got, "diverged") {
+	if got := displayTrackingStatus(false, model.TrackingDiverged); !strings.Contains(got, "diverged") {
 		t.Fatalf("expected diverged tracking label, got %q", got)
 	}
-	if got := displayTrackingStatus(model.TrackingGone); !strings.Contains(got, "gone") {
+	if got := displayTrackingStatus(false, model.TrackingGone); !strings.Contains(got, "gone") {
 		t.Fatalf("expected gone tracking label, got %q", got)
 	}
-	if got := displayTrackingStatus(model.TrackingNone); got != "none" {
+	if got := displayTrackingStatus(false, model.TrackingNone); got != "none" {
 		t.Fatalf("expected plain tracking status for none, got %q", got)
 	}
 }
@@ -542,8 +542,8 @@ func TestStatusWarningsAndWideMirrorRow(t *testing.T) {
 		},
 	}
 	reg := &registry.Registry{Entries: []registry.Entry{{Status: registry.StatusMoved}}}
-	if !statusHasWarningsOrErrors(report, reg) {
-		t.Fatal("expected moved registry status to trigger warnings")
+	if statusExitCode(report, reg) == 0 {
+		t.Fatal("expected moved registry status to trigger non-zero exit code")
 	}
 
 	out := &bytes.Buffer{}

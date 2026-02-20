@@ -151,26 +151,26 @@ func TestPrepareSyncEntryBranches(t *testing.T) {
 		Status:    registry.StatusPresent,
 	}
 
-	queue, immediate := eng.prepareSyncEntry(context.Background(), present, SyncOptions{})
+	queue, immediate := eng.prepareSyncEntry(context.Background(), present, SyncOptions{}, 0)
 	if !queue || immediate != nil {
 		t.Fatalf("expected queued present repo, got queue=%v immediate=%+v", queue, immediate)
 	}
 
-	queue, immediate = eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterMissing})
+	queue, immediate = eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterMissing}, 0)
 	if queue || immediate != nil {
 		t.Fatalf("expected missing-filter skip, got queue=%v immediate=%+v", queue, immediate)
 	}
 
 	missing := present
 	missing.Status = registry.StatusMissing
-	queue, immediate = eng.prepareSyncEntry(context.Background(), missing, SyncOptions{CheckoutMissing: false})
+	queue, immediate = eng.prepareSyncEntry(context.Background(), missing, SyncOptions{CheckoutMissing: false}, 0)
 	if queue || immediate == nil || immediate.Error != SyncErrorMissing {
 		t.Fatalf("expected missing immediate result, got queue=%v immediate=%+v", queue, immediate)
 	}
 
 	noUpstream := present
 	noUpstream.RemoteURL = ""
-	queue, immediate = eng.prepareSyncEntry(context.Background(), noUpstream, SyncOptions{})
+	queue, immediate = eng.prepareSyncEntry(context.Background(), noUpstream, SyncOptions{}, 0)
 	if queue || immediate == nil || immediate.Error != SyncErrorSkippedNoUpstream || !immediate.OK {
 		t.Fatalf("expected skipped_no_upstream immediate result, got queue=%v immediate=%+v", queue, immediate)
 	}
