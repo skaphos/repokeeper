@@ -47,11 +47,11 @@ var repairUpstreamCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+		cfgRoot := config.EffectiveRoot(cfgPath)
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		yes, _ := cmd.Flags().GetBool("yes")
+		yes := assumeYes(cmd)
 		only, _ := cmd.Flags().GetString("only")
 		format, _ := cmd.Flags().GetString("format")
 		mode, err := parseOutputMode(format)

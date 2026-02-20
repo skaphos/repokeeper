@@ -37,7 +37,7 @@ const (
 	FilterMissing        FilterKind = "missing"
 )
 
-const maxWorkerChannelBuffer = 100
+const workerChannelBufferMin = 1
 
 // Engine is the core orchestrator for RepoKeeper operations.
 type Engine struct {
@@ -74,7 +74,6 @@ type ScanOptions struct {
 	Roots          []string
 	Exclude        []string
 	FollowSymlinks bool
-	WriteRegistry  bool
 }
 
 // Scan discovers repos and updates the registry.
@@ -628,7 +627,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	results := make([]SyncResult, 0, len(entries))
 
 	for _, entry := range entries {
-		queue, immediate := e.prepareSyncEntry(ctx, entry, opts)
+		queue, immediate := e.prepareSyncEntry(ctx, entry, opts, timeoutSeconds)
 		if immediate != nil {
 			results = append(results, *immediate)
 		}
@@ -652,10 +651,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 
 func workerChannelBufferSize(entryCount int) int {
 	if entryCount <= 0 {
-		return 1
-	}
-	if entryCount > maxWorkerChannelBuffer {
-		return maxWorkerChannelBuffer
+		return workerChannelBufferMin
 	}
 	return entryCount
 }
@@ -691,7 +687,7 @@ func (e *Engine) syncSequentialStopOnError(ctx context.Context, opts SyncOptions
 	_, timeoutSeconds := e.syncRuntime(opts)
 	results := make([]SyncResult, 0, len(entries))
 	for _, entry := range entries {
-		queue, immediate := e.prepareSyncEntry(ctx, entry, opts)
+		queue, immediate := e.prepareSyncEntry(ctx, entry, opts, timeoutSeconds)
 		if immediate != nil {
 			results = append(results, *immediate)
 			if !immediate.OK {
@@ -713,7 +709,7 @@ func (e *Engine) syncSequentialStopOnError(ctx context.Context, opts SyncOptions
 	return results, nil
 }
 
-func (e *Engine) prepareSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions) (bool, *SyncResult) {
+func (e *Engine) prepareSyncEntry(ctx context.Context, entry registry.Entry, opts SyncOptions, timeoutSeconds int) (bool, *SyncResult) {
 	if opts.Filter == FilterMissing && entry.Status != registry.StatusMissing {
 		return false, nil
 	}
@@ -724,7 +720,13 @@ func (e *Engine) prepareSyncEntry(ctx context.Context, entry registry.Entry, opt
 	if opts.Filter == FilterGone && entry.Status != registry.StatusPresent {
 		return false, nil
 	}
-	matches, inspectFailure := e.syncEntryMatchesInspectFilter(ctx, entry, opts)
+	inspectCtx := ctx
+	if timeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		inspectCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+		defer cancel()
+	}
+	matches, inspectFailure := e.syncEntryMatchesInspectFilter(inspectCtx, entry, opts)
 	if inspectFailure != nil {
 		return false, inspectFailure
 	}
@@ -1251,12 +1253,7 @@ func findRegistryEntryForStatus(reg *registry.Registry, status model.RepoStatus)
 	if reg == nil {
 		return nil
 	}
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == status.RepoID && reg.Entries[i].Path == status.Path {
-			return &reg.Entries[i]
-		}
-	}
-	return reg.FindByRepoID(status.RepoID)
+	return reg.FindEntry(status.RepoID, status.Path)
 }
 
 func hasRemoteMismatch(status model.RepoStatus, entry registry.Entry) bool {
@@ -1303,15 +1300,5 @@ func findRegistryEntryForSyncResult(reg *registry.Registry, item SyncResult) *re
 	if reg == nil {
 		return nil
 	}
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == item.RepoID && reg.Entries[i].Path == item.Path {
-			return &reg.Entries[i]
-		}
-	}
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == item.RepoID {
-			return &reg.Entries[i]
-		}
-	}
-	return nil
+	return reg.FindEntry(item.RepoID, item.Path)
 }

@@ -20,10 +20,10 @@ func runCommand(ctx context.Context, dir, bin string, args ...string) (string, e
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		errText := strings.TrimSpace(stderr.String())
-		if errText == "" {
-			errText = err.Error()
+		if errText != "" {
+			return "", fmt.Errorf("%s %s: %s: %w", bin, strings.Join(args, " "), errText, err)
 		}
-		return "", fmt.Errorf("%s %s: %s", bin, strings.Join(args, " "), errText)
+		return "", fmt.Errorf("%s %s: %w", bin, strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(stdout.String()), nil
 }
