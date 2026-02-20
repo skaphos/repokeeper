@@ -331,6 +331,7 @@ func TestWriteStatusTableTinyModeRetainsSemanticColor(t *testing.T) {
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(writer)
+	runtimeStateFor(cmd).colorOutputEnabled = true
 	report := &model.StatusReport{
 		Repos: []model.RepoStatus{
 			{
