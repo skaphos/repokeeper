@@ -4,6 +4,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -93,6 +94,9 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if errors.Is(err, fs.ErrPermission) {
+				return fs.SkipDir
+			}
 			return err
 		}
 

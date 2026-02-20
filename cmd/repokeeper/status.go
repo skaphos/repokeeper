@@ -58,7 +58,7 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+		cfgRoot := config.EffectiveRoot(cfgPath)
 		debugf(cmd, "using config %s", cfgPath)
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
@@ -218,8 +218,8 @@ var statusCmd = &cobra.Command{
 			return fmt.Errorf("unsupported format %q", format)
 		}
 
-		if statusHasWarningsOrErrors(report, reg) {
-			raiseExitCode(cmd, 1)
+		if code := statusExitCode(report, reg); code > 0 {
+			raiseExitCode(cmd, code)
 		}
 		infof(cmd, "status completed: %d repos", len(report.Repos))
 		return nil
@@ -281,18 +281,18 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		}
 		path := formatCell(displayRepoPath(repo.Path, cwd, roots), wrap, pathMax)
 		branch = formatCell(branch, wrap, branchMax)
+		colorEnabled := runtimeStateFor(cmd).colorOutputEnabled
 		dirty := "-"
 		if repo.Worktree != nil {
 			if repo.Worktree.Dirty {
-				dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "yes", termstyle.Warn)
+				dirty = termstyle.Colorize(colorEnabled, "yes", termstyle.Warn)
 			} else {
-				dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "no", termstyle.Healthy)
+				dirty = termstyle.Colorize(colorEnabled, "no", termstyle.Healthy)
 			}
 		}
-		tracking := displayTrackingStatus(repo.Tracking.Status)
+		tracking := displayTrackingStatus(colorEnabled, repo.Tracking.Status)
 		if repo.Type == "mirror" {
-			// Mirrors are bare repos; tracking labels are not meaningful per branch.
-			tracking = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "mirror", termstyle.Info)
+			tracking = termstyle.Colorize(colorEnabled, "mirror", termstyle.Info)
 		}
 		if !wide {
 			row := []string{path}
@@ -365,7 +365,7 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 		}
 		path := formatCell(displayRepoPath(repo.Path, cwd, roots), wrap, pathMax)
 		branch = formatCell(branch, wrap, branchMax)
-		tracking := displayTrackingStatus(repo.Tracking.Status)
+		tracking := displayTrackingStatus(runtimeStateFor(cmd).colorOutputEnabled, repo.Tracking.Status)
 		reason := formatCell(advice.Reason, wrap, reasonMax)
 		action := formatCell(advice.RecommendedAction, wrap, actionMax)
 		if !wide {
@@ -401,14 +401,14 @@ func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cw
 	return w.Flush()
 }
 
-func displayTrackingStatus(status model.TrackingStatus) string {
+func displayTrackingStatus(colorEnabled bool, status model.TrackingStatus) string {
 	switch status {
 	case model.TrackingEqual:
-		return termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "up to date", termstyle.Healthy)
+		return termstyle.Colorize(colorEnabled, "up to date", termstyle.Healthy)
 	case model.TrackingDiverged:
-		return termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, string(status), termstyle.Error)
+		return termstyle.Colorize(colorEnabled, string(status), termstyle.Error)
 	case model.TrackingGone:
-		return termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, string(status), termstyle.Error)
+		return termstyle.Colorize(colorEnabled, string(status), termstyle.Error)
 	default:
 		return string(status)
 	}
@@ -447,18 +447,24 @@ func truncateASCII(value string, max int) string {
 	return value[:max-3] + "..."
 }
 
-func statusHasWarningsOrErrors(report *model.StatusReport, reg *registry.Registry) bool {
+func statusExitCode(report *model.StatusReport, reg *registry.Registry) int {
+	code := 0
 	for _, repo := range report.Repos {
-		if repo.Error != "" || repo.Tracking.Status == model.TrackingGone || (repo.Worktree != nil && repo.Worktree.Dirty) {
-			return true
+		if repo.Error != "" {
+			code = 2
+		} else if (repo.Tracking.Status == model.TrackingGone || (repo.Worktree != nil && repo.Worktree.Dirty)) && code < 1 {
+			code = 1
 		}
 	}
-	for _, entry := range reg.Entries {
-		if entry.Status == registry.StatusMissing || entry.Status == registry.StatusMoved {
-			return true
+	if code < 2 && reg != nil {
+		for _, entry := range reg.Entries {
+			if entry.Status == registry.StatusMissing || entry.Status == registry.StatusMoved {
+				code = 1
+				break
+			}
 		}
 	}
-	return false
+	return code
 }
 
 func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, roots []string) error {

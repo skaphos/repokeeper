@@ -37,7 +37,7 @@ var syncCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+		cfgRoot := config.EffectiveRoot(cfgPath)
 		debugf(cmd, "using config %s", cfgPath)
 
 		reg := cfg.Registry
@@ -51,7 +51,7 @@ var syncCmd = &cobra.Command{
 		timeout, _ := cmd.Flags().GetInt("timeout")
 		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		yes, _ := cmd.Flags().GetBool("yes")
+		yes := assumeYes(cmd)
 		updateLocal, _ := cmd.Flags().GetBool("update-local")
 		pushLocal, _ := cmd.Flags().GetBool("push-local")
 		rebaseDirty, _ := cmd.Flags().GetBool("rebase-dirty")
@@ -124,9 +124,6 @@ var syncCmd = &cobra.Command{
 			var streamWriter *syncProgressWriter
 			if streamResults {
 				streamWriter = newSyncProgressWriter(cmd, cwd, []string{cfgRoot})
-				if err != nil {
-					return err
-				}
 			}
 
 			results, err = eng.ExecuteSyncPlanWithCallbacks(cmd.Context(), plan, engine.SyncOptions{
@@ -301,10 +298,13 @@ func shouldStreamSyncResults(cmd *cobra.Command, dryRun bool, kind outputKind) b
 	if kind != outputKindTable && kind != outputKindWide {
 		return false
 	}
-	if cmd == nil || cmd.Name() != "repos" || cmd.Parent() == nil {
+	if cmd == nil {
 		return false
 	}
-	return cmd.Parent().Name() == "reconcile"
+	if cmd.Name() == "reconcile" {
+		return true
+	}
+	return cmd.Name() == "repos" && cmd.Parent() != nil && cmd.Parent().Name() == "reconcile"
 }
 
 func newSyncProgressWriter(cmd *cobra.Command, cwd string, roots []string) *syncProgressWriter {
@@ -504,6 +504,7 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 		tracking := string(model.TrackingNone)
 		path := formatCell(displayRepoPath(res.Path, cwd, roots), wrap, pathMax)
 		if found {
+			colorEnabled := runtimeStateFor(cmd).colorOutputEnabled
 			path = formatCell(displayRepoPath(repo.Path, cwd, roots), wrap, pathMax)
 			branch = repo.Head.Branch
 			if repo.Head.Detached {
@@ -514,16 +515,14 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			}
 			if repo.Worktree != nil {
 				if repo.Worktree.Dirty {
-					dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "yes", termstyle.Warn)
+					dirty = termstyle.Colorize(colorEnabled, "yes", termstyle.Warn)
 				} else {
-					dirty = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "no", termstyle.Healthy)
+					dirty = termstyle.Colorize(colorEnabled, "no", termstyle.Healthy)
 				}
 			}
-			tracking = displayTrackingStatus(repo.Tracking.Status)
+			tracking = displayTrackingStatus(colorEnabled, repo.Tracking.Status)
 			if repo.Type == "mirror" {
-				// Mirror repos do not have branch tracking semantics in the same way
-				// as a non-bare checkout.
-				tracking = termstyle.Colorize(runtimeStateFor(rootCmd).colorOutputEnabled, "mirror", termstyle.Info)
+				tracking = termstyle.Colorize(colorEnabled, "mirror", termstyle.Info)
 			}
 		}
 		action := formatCell(describeSyncAction(res), wrap, actionMax)
