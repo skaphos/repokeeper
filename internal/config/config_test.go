@@ -172,7 +172,7 @@ var _ = Describe("Config", func() {
 
 	It("uses config directory as effective root", func() {
 		cfgPath := filepath.Join("/tmp", "workspace", ".repokeeper.yaml")
-		Expect(config.EffectiveRoot(cfgPath, nil)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace"))))
+		Expect(config.EffectiveRoot(cfgPath)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace"))))
 	})
 
 	It("returns an RFC3339 timestamp for last updated", func() {

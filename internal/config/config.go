@@ -250,10 +250,9 @@ func ConfigRoot(configPath string) string {
 }
 
 // EffectiveRoot returns the inferred root for commands that need a default
-// scan/display root.
-func EffectiveRoot(configPath string, cfg *Config) string {
-	_ = cfg
-	// Root selection is path-derived only; config-based root fallbacks were retired.
+// scan/display root. Root selection is path-derived only; config-based root
+// fallbacks were retired.
+func EffectiveRoot(configPath string) string {
 	return ConfigRoot(configPath)
 }
 

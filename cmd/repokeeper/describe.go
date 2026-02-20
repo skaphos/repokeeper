@@ -46,7 +46,7 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+	cfgRoot := config.EffectiveRoot(cfgPath)
 	debugf(cmd, "using config %s", cfgPath)
 
 	registryOverride, _ := cmd.Flags().GetString("registry")

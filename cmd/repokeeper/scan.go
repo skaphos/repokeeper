@@ -60,7 +60,7 @@ var scanCmd = &cobra.Command{
 		eng := engine.New(cfg, reg, adapter)
 		scanRoots := strutil.SplitCSV(roots)
 		if len(scanRoots) == 0 {
-			scanRoots = []string{config.EffectiveRoot(cfgPath, cfg)}
+			scanRoots = []string{config.EffectiveRoot(cfgPath)}
 		}
 
 		statuses, err := eng.Scan(cmd.Context(), engine.ScanOptions{

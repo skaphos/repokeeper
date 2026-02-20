@@ -166,3 +166,29 @@ func (r *Registry) FindByRepoID(repoID string) *Entry {
 	}
 	return nil
 }
+
+// FindEntry returns the entry matching repoID and path (exact match first,
+// then repoID-only fallback), or nil if not found.
+func (r *Registry) FindEntry(repoID, path string) *Entry {
+	idx := r.FindEntryIndex(repoID, path)
+	if idx < 0 {
+		return nil
+	}
+	return &r.Entries[idx]
+}
+
+// FindEntryIndex returns the index of the entry matching repoID and path
+// (exact match first, then repoID-only fallback), or -1 if not found.
+func (r *Registry) FindEntryIndex(repoID, path string) int {
+	for i := range r.Entries {
+		if r.Entries[i].RepoID == repoID && r.Entries[i].Path == path {
+			return i
+		}
+	}
+	for i := range r.Entries {
+		if r.Entries[i].RepoID == repoID {
+			return i
+		}
+	}
+	return -1
+}

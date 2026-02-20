@@ -128,17 +128,7 @@ func ApplyPlans(ctx context.Context, plans []Plan, reg *registry.Registry, mode 
 }
 
 func findRegistryEntryIndexForStatus(reg *registry.Registry, repo model.RepoStatus) int {
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == repo.RepoID && reg.Entries[i].Path == repo.Path {
-			return i
-		}
-	}
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == repo.RepoID {
-			return i
-		}
-	}
-	return -1
+	return reg.FindEntryIndex(repo.RepoID, repo.Path)
 }
 
 func primaryRemoteURL(repo model.RepoStatus) string {

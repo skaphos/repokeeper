@@ -29,7 +29,7 @@ var moveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+		cfgRoot := config.EffectiveRoot(cfgPath)
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
 		var reg *registry.Registry

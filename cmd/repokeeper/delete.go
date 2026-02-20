@@ -29,7 +29,7 @@ var deleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfgRoot := config.EffectiveRoot(cfgPath, cfg)
+		cfgRoot := config.EffectiveRoot(cfgPath)
 		trackingOnly, _ := cmd.Flags().GetBool("tracking-only")
 
 		registryOverride, _ := cmd.Flags().GetString("registry")
