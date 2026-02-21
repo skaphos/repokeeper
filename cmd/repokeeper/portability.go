@@ -14,7 +14,6 @@ import (
 	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
@@ -404,6 +403,7 @@ func cloneImportedEntriesWithProgress(
 	}
 
 	adapter := vcs.NewGitAdapter(nil)
+	classifier := vcs.NewGitErrorClassifier()
 	ignored := ignoredPathSet(cfg)
 	targets := make(map[string]importTargetPlan, len(entries))
 	skipped := make(map[string]importTargetPlan)
@@ -503,7 +503,7 @@ func cloneImportedEntriesWithProgress(
 
 		if err := adapter.Clone(cmd.Context(), strings.TrimSpace(entry.RemoteURL), target, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
 			result.OK = false
-			result.ErrorClass = gitx.ClassifyError(err)
+			result.ErrorClass = classifier.ClassifyError(err)
 			result.Error = importCloneFailureMessage(result.ErrorClass)
 			entry.Path = target
 			entry.Status = registry.StatusMissing

@@ -41,7 +41,7 @@ func TestScanUpdatesRegistry(t *testing.T) {
 
 	cfg := &config.Config{Exclude: []string{}}
 	reg := &registry.Registry{}
-	eng := New(cfg, reg, vcs.NewGitAdapter(nil))
+	eng := New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil)
 	statuses, err := eng.Scan(context.Background(), ScanOptions{Roots: []string{root}})
 	if err != nil {
 		t.Fatalf("scan failed: %v", err)
@@ -63,7 +63,7 @@ func TestScanSkipsIgnoredPaths(t *testing.T) {
 
 	cfg := &config.Config{Exclude: []string{}, IgnoredPaths: []string{repo}}
 	reg := &registry.Registry{}
-	eng := New(cfg, reg, vcs.NewGitAdapter(nil))
+	eng := New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil)
 
 	statuses, err := eng.Scan(context.Background(), ScanOptions{Roots: []string{root}})
 	if err != nil {
@@ -128,7 +128,7 @@ func TestSyncRuntime(t *testing.T) {
 	eng := New(&config.Config{Defaults: config.Defaults{
 		Concurrency:    3,
 		TimeoutSeconds: 9,
-	}}, &registry.Registry{}, vcs.NewGitAdapter(nil))
+	}}, &registry.Registry{}, vcs.NewGitAdapter(nil), nil, nil)
 
 	concurrency, timeout := eng.syncRuntime(SyncOptions{})
 	if concurrency != 3 || timeout != 9 {
@@ -142,7 +142,7 @@ func TestSyncRuntime(t *testing.T) {
 }
 
 func TestPrepareSyncEntryBranches(t *testing.T) {
-	eng := New(&config.Config{Defaults: config.Defaults{MainBranch: "main"}}, &registry.Registry{}, vcs.NewGitAdapter(nil))
+	eng := New(&config.Config{Defaults: config.Defaults{MainBranch: "main"}}, &registry.Registry{}, vcs.NewGitAdapter(nil), nil, nil)
 
 	present := registry.Entry{
 		RepoID:    "repo",
@@ -181,7 +181,7 @@ func TestSyncEntryMatchesInspectFilterFailure(t *testing.T) {
 		"/repo:rev-parse --is-bare-repository": {out: "false"},
 		"/repo:remote":                         {err: errors.New("permission denied")},
 	}}
-	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner))
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil)
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent}
 
 	match, failure := eng.syncEntryMatchesInspectFilter(context.Background(), entry, SyncOptions{Filter: FilterDirty})
@@ -205,7 +205,7 @@ func TestHandleMissingSyncEntry(t *testing.T) {
 	runner := &testRunner{responses: map[string]testResponse{
 		":clone --branch main --single-branch git@github.com:org/repo.git /missing": {out: ""},
 	}}
-	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(runner))
+	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(runner), nil, nil)
 
 	planned := eng.handleMissingSyncEntry(context.Background(), entry, SyncOptions{CheckoutMissing: true, DryRun: true})
 	if planned.Outcome != "planned_checkout_missing" || planned.Error != SyncErrorDryRun || !strings.Contains(planned.Action, "git clone") {
@@ -232,7 +232,7 @@ func TestHandleMissingSyncEntrySkipsNoUpstreamBranch(t *testing.T) {
 		Status:    registry.StatusMissing,
 	}
 	reg := &registry.Registry{Entries: []registry.Entry{entry}}
-	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(&testRunner{}))
+	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(&testRunner{}), nil, nil)
 
 	planned := eng.handleMissingSyncEntry(context.Background(), entry, SyncOptions{CheckoutMissing: true, DryRun: true})
 	if !planned.OK || planned.Outcome != SyncOutcomeSkippedNoUpstream || planned.Error != SyncErrorSkippedNoUpstream {
@@ -257,7 +257,7 @@ func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 		"/repo:config --file .gitmodules --get-regexp submodule":                                          {err: errors.New("none")},
 		"/repo:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {out: ""},
 	}}
-	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner))
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil)
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", RemoteURL: "git@github.com:org/repo.git", Status: registry.StatusPresent}
 
 	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true, PushLocal: true})
@@ -280,7 +280,7 @@ func TestRunSyncRebaseApply(t *testing.T) {
 		"/repo:-c fetch.recurseSubmodules=false pull --rebase --no-recurse-submodules": {out: ""},
 		"/repo:stash pop": {out: "Applied stash"},
 	}}
-	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner))
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil)
 	entry := registry.Entry{RepoID: "repo", Path: "/repo"}
 	status := &model.RepoStatus{Worktree: &model.Worktree{Dirty: true}}
 
@@ -295,19 +295,19 @@ func TestRunSyncRebaseApply(t *testing.T) {
 
 func TestInspectFailureResult(t *testing.T) {
 	entry := registry.Entry{RepoID: "repo", Path: "/repo"}
-	res := inspectFailureResult(entry, errors.New("permission denied"))
+	res := inspectFailureResult(entry, errors.New("permission denied"), nil)
 	if res.RepoID != "repo" || res.Path != "/repo" || res.Outcome != "failed_inspect" || res.ErrorClass != "auth" {
 		t.Fatalf("unexpected inspect failure result: %+v", res)
 	}
 }
 
 func TestEngineGuardErrors(t *testing.T) {
-	eng := New(&config.Config{}, nil, vcs.NewGitAdapter(nil))
+	eng := New(&config.Config{}, nil, vcs.NewGitAdapter(nil), nil, nil)
 	if _, err := eng.Scan(context.Background(), ScanOptions{}); err == nil {
 		t.Fatal("expected scan no roots error")
 	}
 
-	eng = New(&config.Config{}, nil, vcs.NewGitAdapter(nil))
+	eng = New(&config.Config{}, nil, vcs.NewGitAdapter(nil), nil, nil)
 	if _, err := eng.Status(context.Background(), StatusOptions{}); err == nil {
 		t.Fatal("expected status registry not loaded error")
 	}
@@ -326,7 +326,7 @@ func TestExecuteSyncPlanAppliesActions(t *testing.T) {
 	}}
 	eng := New(&config.Config{}, &registry.Registry{Entries: []registry.Entry{
 		{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo.git"},
-	}}, vcs.NewGitAdapter(runner))
+	}}, vcs.NewGitAdapter(runner), nil, nil)
 
 	plan := []SyncResult{{
 		RepoID:  "repo",
@@ -354,7 +354,7 @@ func TestExecuteSyncPlanStopsOnFailure(t *testing.T) {
 	eng := New(&config.Config{}, &registry.Registry{Entries: []registry.Entry{
 		{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo1.git"},
 		{RepoID: "repo2", Path: "/repo2", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo2.git"},
-	}}, vcs.NewGitAdapter(runner))
+	}}, vcs.NewGitAdapter(runner), nil, nil)
 
 	plan := []SyncResult{
 		{RepoID: "repo1", Path: "/repo1", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
@@ -373,7 +373,7 @@ func TestExecuteSyncPlanStopsOnFailure(t *testing.T) {
 }
 
 func TestExecuteSyncPlanStopsOnNonDryRunFailure(t *testing.T) {
-	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(nil))
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(nil), nil, nil)
 	plan := []SyncResult{
 		{RepoID: "repo1", Path: "/repo1", OK: false, Error: "boom", Outcome: "failed_fetch"},
 		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
@@ -400,7 +400,7 @@ func TestExecuteSyncPlanCloneAction(t *testing.T) {
 			Status:    registry.StatusMissing,
 		},
 	}}
-	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(runner))
+	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(runner), nil, nil)
 
 	plan := []SyncResult{{
 		RepoID:  "missing",
@@ -429,7 +429,7 @@ func TestExecuteSyncPlanWithCallbackInvokesPerResult(t *testing.T) {
 	}}
 	eng := New(&config.Config{}, &registry.Registry{Entries: []registry.Entry{
 		{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent, RemoteURL: "git@github.com:org/repo.git"},
-	}}, vcs.NewGitAdapter(runner))
+	}}, vcs.NewGitAdapter(runner), nil, nil)
 
 	plan := []SyncResult{{
 		RepoID:  "repo",
@@ -474,10 +474,10 @@ func TestFilterAndLookupEdgeBranches(t *testing.T) {
 		t.Fatal("expected nil status lookup for nil registry")
 	}
 
-	if hasRemoteMismatch(model.RepoStatus{RepoID: "github.com/org/repo"}, registry.Entry{}) {
+	if hasRemoteMismatch(model.RepoStatus{RepoID: "github.com/org/repo"}, registry.Entry{}, nil) {
 		t.Fatal("expected no mismatch when registry remote is empty")
 	}
-	if hasRemoteMismatch(model.RepoStatus{}, registry.Entry{RemoteURL: "not-a-normalizable-url"}) {
+	if hasRemoteMismatch(model.RepoStatus{}, registry.Entry{RemoteURL: "not-a-normalizable-url"}, nil) {
 		t.Fatal("expected no mismatch when status repo id is empty")
 	}
 
@@ -511,7 +511,7 @@ func TestRunSyncHelperEdgeBranches(t *testing.T) {
 		"/repo:rev-parse --is-bare-repository": {out: "false"},
 		"/repo:remote":                         {err: errors.New("permission denied")},
 	}}
-	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(inspectFailRunner))
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(inspectFailRunner), nil, nil)
 	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true})
 	if dry.Outcome != "failed_inspect" || dry.ErrorClass != "auth" {
 		t.Fatalf("expected inspect failure dry-run result, got %+v", dry)
@@ -529,7 +529,7 @@ func TestRunSyncHelperEdgeBranches(t *testing.T) {
 		"/repo:rev-list --left-right --count main...origin/main": {out: "0\t0"},
 		"/repo:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
 	}}
-	eng = New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(filterGoneRunner))
+	eng = New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(filterGoneRunner), nil, nil)
 	gone := eng.runSyncApply(context.Background(), entry, SyncOptions{Filter: FilterGone})
 	if !gone.OK || gone.Outcome != "skipped" || gone.Error != SyncErrorSkipped {
 		t.Fatalf("expected filter-gone skip result, got %+v", gone)
@@ -551,9 +551,11 @@ func (u *unsupportedLocalUpdateAdapter) FetchAction(context.Context, string) (st
 func TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(t *testing.T) {
 	adapter := &unsupportedLocalUpdateAdapter{planAdapter: &planAdapter{}}
 	eng := &Engine{
-		cfg:      &config.Config{},
-		registry: &registry.Registry{},
-		adapter:  adapter,
+		cfg:        &config.Config{},
+		registry:   &registry.Registry{},
+		adapter:    adapter,
+		classifier: vcs.NewGitErrorClassifier(),
+		normalizer: vcs.NewGitURLNormalizer(),
 	}
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent}
 
@@ -577,5 +579,72 @@ func TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(t *testing.T) {
 	}
 	if len(adapter.calls) != 1 || adapter.calls[0] != "fetch:/repo" {
 		t.Fatalf("expected fetch-only apply call sequence, got %+v", adapter.calls)
+	}
+}
+
+func TestWorkerChannelBufferSize(t *testing.T) {
+	tests := []struct {
+		name        string
+		entryCount  int
+		concurrency int
+		expected    int
+	}{
+		{
+			name:        "zero entries returns min",
+			entryCount:  0,
+			concurrency: 8,
+			expected:    1,
+		},
+		{
+			name:        "negative entries returns min",
+			entryCount:  -1,
+			concurrency: 8,
+			expected:    1,
+		},
+		{
+			name:        "small registry uncapped",
+			entryCount:  5,
+			concurrency: 8,
+			expected:    5,
+		},
+		{
+			name:        "large registry capped at max(2*concurrency, 64)",
+			entryCount:  10000,
+			concurrency: 8,
+			expected:    64,
+		},
+		{
+			name:        "large registry with high concurrency",
+			entryCount:  10000,
+			concurrency: 64,
+			expected:    128,
+		},
+		{
+			name:        "medium registry at cap boundary",
+			entryCount:  100,
+			concurrency: 64,
+			expected:    100,
+		},
+		{
+			name:        "medium registry exceeds cap",
+			entryCount:  150,
+			concurrency: 64,
+			expected:    128,
+		},
+		{
+			name:        "single entry",
+			entryCount:  1,
+			concurrency: 8,
+			expected:    1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := workerChannelBufferSize(tt.entryCount, tt.concurrency)
+			if got != tt.expected {
+				t.Errorf("workerChannelBufferSize(%d, %d) = %d, want %d", tt.entryCount, tt.concurrency, got, tt.expected)
+			}
+		})
 	}
 }

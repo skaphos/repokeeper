@@ -104,7 +104,7 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		eng := engine.New(cfg, reg, adapter)
+		eng := engine.New(cfg, reg, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer())
 
 		if roots != "" {
 			debugf(cmd, "rescanning roots override")

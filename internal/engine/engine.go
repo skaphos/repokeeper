@@ -16,7 +16,6 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/discovery"
-	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
@@ -42,22 +41,32 @@ const workerChannelBufferMin = 1
 
 // Engine is the core orchestrator for RepoKeeper operations.
 type Engine struct {
-	cfg      *config.Config
-	registry *registry.Registry
-	adapter  vcs.Adapter
+	cfg        *config.Config
+	registry   *registry.Registry
+	adapter    vcs.Adapter
+	classifier vcs.ErrorClassifier
+	normalizer vcs.URLNormalizer
 
 	registryMu sync.Mutex
 }
 
 // New creates a new Engine with the given configuration.
-func New(cfg *config.Config, reg *registry.Registry, adapter vcs.Adapter) *Engine {
+func New(cfg *config.Config, reg *registry.Registry, adapter vcs.Adapter, classifier vcs.ErrorClassifier, normalizer vcs.URLNormalizer) *Engine {
 	if adapter == nil {
 		adapter = vcs.NewGitAdapter(nil)
 	}
+	if classifier == nil {
+		classifier = vcs.NewGitErrorClassifier()
+	}
+	if normalizer == nil {
+		normalizer = vcs.NewGitURLNormalizer()
+	}
 	return &Engine{
-		cfg:      cfg,
-		registry: reg,
-		adapter:  adapter,
+		cfg:        cfg,
+		registry:   reg,
+		adapter:    adapter,
+		classifier: classifier,
+		normalizer: normalizer,
 	}
 }
 
@@ -231,7 +240,7 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 	entries := append([]registry.Entry(nil), e.registry.Entries...)
 	results := make([]model.RepoStatus, 0, len(entries))
 	sem := make(chan struct{}, concurrency)
-	out := make(chan result, workerChannelBufferSize(len(entries)))
+	out := make(chan result, workerChannelBufferSize(len(entries), concurrency))
 	spawned := 0
 
 	for _, entry := range entries {
@@ -266,7 +275,7 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 					Type:       entry.Type,
 					Tracking:   model.Tracking{Status: model.TrackingNone},
 					Error:      err.Error(),
-					ErrorClass: gitx.ClassifyError(err),
+					ErrorClass: e.classifier.ClassifyError(err),
 				}}
 				return
 			}
@@ -443,7 +452,7 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResult, opts SyncOptions, onStart SyncStartCallback, onComplete SyncResultCallback) []SyncResult {
 	concurrency, timeoutSeconds := e.syncRuntime(opts)
 	sem := make(chan struct{}, concurrency)
-	out := make(chan SyncResult, workerChannelBufferSize(len(plan)))
+	out := make(chan SyncResult, workerChannelBufferSize(len(plan), concurrency))
 	spawned := 0
 	results := make([]SyncResult, 0, len(plan))
 
@@ -514,7 +523,7 @@ func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) S
 		executed.OK = false
 		executed.Outcome = SyncOutcomeFailedCheckoutMissing
 		executed.Error = err.Error()
-		executed.ErrorClass = gitx.ClassifyError(err)
+		executed.ErrorClass = e.classifier.ClassifyError(err)
 		return executed
 	}
 	executed.OK = true
@@ -529,31 +538,31 @@ func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult
 	stashed := false
 	if strings.Contains(action, "git fetch --all") {
 		if err := e.adapter.Fetch(ctx, executed.Path); err != nil {
-			return failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
+			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
 		}
 		executed.Outcome = SyncOutcomeFetched
 	}
 	if strings.Contains(action, "stash push") {
 		created, err := e.adapter.StashPush(ctx, executed.Path, "repokeeper: pre-rebase stash")
 		if err != nil {
-			return failedPlannedSyncResult(executed, SyncOutcomeFailedStash, err)
+			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedStash, err)
 		}
 		stashed = created
 	}
 	if strings.Contains(action, "pull --rebase") {
 		if err := e.adapter.PullRebase(ctx, executed.Path); err != nil {
-			return failedPlannedSyncResult(executed, SyncOutcomeFailedRebase, err)
+			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedRebase, err)
 		}
 		executed.Outcome = outcomeForRebase(stashed)
 	}
 	if strings.Contains(action, "stash pop") && stashed {
 		if err := e.adapter.StashPop(ctx, executed.Path); err != nil {
-			return failedPlannedSyncResult(executed, SyncOutcomeFailedStashPop, err)
+			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedStashPop, err)
 		}
 	}
 	if strings.Contains(action, "git push") {
 		if err := e.adapter.Push(ctx, executed.Path); err != nil {
-			return failedPlannedSyncResult(executed, SyncOutcomeFailedPush, err)
+			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedPush, err)
 		}
 		executed.Outcome = SyncOutcomePushed
 	}
@@ -561,10 +570,10 @@ func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult
 	return executed
 }
 
-func failedPlannedSyncResult(executed SyncResult, outcome OutcomeKind, err error) SyncResult {
+func (e *Engine) failedPlannedSyncResult(executed SyncResult, outcome OutcomeKind, err error) SyncResult {
 	executed.OK = false
 	executed.Outcome = outcome
-	executed.ErrorClass = gitx.ClassifyError(err)
+	executed.ErrorClass = e.classifier.ClassifyError(err)
 	executed.Error = syncFailureMessage(outcome, executed.ErrorClass, err)
 	return executed
 }
@@ -627,7 +636,7 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	}
 
 	sem := make(chan struct{}, concurrency)
-	out := make(chan SyncResult, workerChannelBufferSize(len(entries)))
+	out := make(chan SyncResult, workerChannelBufferSize(len(entries), concurrency))
 	spawned := 0
 	results := make([]SyncResult, 0, len(entries))
 
@@ -654,11 +663,16 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	return results, nil
 }
 
-func workerChannelBufferSize(entryCount int) int {
+// workerChannelBufferSize returns a bounded buffer size for the sync worker
+// channel. For small registries the buffer equals entryCount; for large
+// registries it is capped at max(2*concurrency, 64) to avoid unbounded
+// memory allocation.
+func workerChannelBufferSize(entryCount, concurrency int) int {
 	if entryCount <= 0 {
 		return workerChannelBufferMin
 	}
-	return entryCount
+	cap := max(2*concurrency, 64)
+	return min(entryCount, cap)
 }
 
 func (e *Engine) syncRuntime(opts SyncOptions) (int, int) {
@@ -758,7 +772,7 @@ func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry regist
 	}
 	status, err := e.InspectRepo(ctx, entry.Path)
 	if err != nil {
-		failure := inspectFailureResult(entry, err)
+		failure := inspectFailureResult(entry, err, e.classifier)
 		return false, &failure
 	}
 	switch opts.Filter {
@@ -771,7 +785,7 @@ func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry regist
 	case FilterDiverged:
 		return status.Tracking.Status == model.TrackingDiverged, nil
 	case FilterRemoteMismatch:
-		return hasRemoteMismatch(*status, entry), nil
+		return hasRemoteMismatch(*status, entry, e.normalizer), nil
 	default:
 		return true, nil
 	}
@@ -832,7 +846,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 			Outcome:    SyncOutcomeFailedCheckoutMissing,
 			OK:         false,
 			Error:      err.Error(),
-			ErrorClass: gitx.ClassifyError(err),
+			ErrorClass: e.classifier.ClassifyError(err),
 			Action:     action,
 		}
 	}
@@ -860,7 +874,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 	if opts.UpdateLocal {
 		supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
 		if err != nil {
-			return inspectFailureResult(entry, err)
+			return inspectFailureResult(entry, err, e.classifier)
 		}
 		if !supported {
 			return SyncResult{
@@ -878,7 +892,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 		// match live execution as closely as possible.
 		status, err := e.InspectRepo(ctx, entry.Path)
 		if err != nil {
-			return inspectFailureResult(entry, err)
+			return inspectFailureResult(entry, err, e.classifier)
 		}
 		if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
 			action += " && git push"
@@ -926,14 +940,14 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 	if opts.Filter == FilterGone {
 		status, err := e.InspectRepo(ctx, entry.Path)
 		if err != nil {
-			return inspectFailureResult(entry, err)
+			return inspectFailureResult(entry, err, e.classifier)
 		}
 		if status.Tracking.Status != model.TrackingGone {
 			return SyncResult{RepoID: entry.RepoID, Path: entry.Path, Outcome: SyncOutcomeSkipped, OK: true, Error: SyncErrorSkipped}
 		}
 	}
 	if err := e.adapter.Fetch(ctx, entry.Path); err != nil {
-		class := gitx.ClassifyError(err)
+		class := e.classifier.ClassifyError(err)
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
@@ -948,7 +962,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 	}
 	supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
 	if err != nil {
-		return inspectFailureResult(entry, err)
+		return inspectFailureResult(entry, err, e.classifier)
 	}
 	if !supported {
 		return SyncResult{
@@ -963,7 +977,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 	}
 	status, err := e.InspectRepo(ctx, entry.Path)
 	if err != nil {
-		return inspectFailureResult(entry, err)
+		return inspectFailureResult(entry, err, e.classifier)
 	}
 	if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
 		if err := e.adapter.Push(ctx, entry.Path); err != nil {
@@ -973,7 +987,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 				Outcome:    SyncOutcomeFailedPush,
 				OK:         false,
 				Error:      err.Error(),
-				ErrorClass: gitx.ClassifyError(err),
+				ErrorClass: e.classifier.ClassifyError(err),
 				Action:     "git push",
 			}
 		}
@@ -1018,7 +1032,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 				Outcome:    SyncOutcomeFailedStash,
 				OK:         false,
 				Error:      err.Error(),
-				ErrorClass: gitx.ClassifyError(err),
+				ErrorClass: e.classifier.ClassifyError(err),
 				Action:     "git stash push -u -m \"repokeeper: pre-rebase stash\"",
 			}
 		}
@@ -1033,7 +1047,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 			Outcome:    SyncOutcomeFailedRebase,
 			OK:         false,
 			Error:      err.Error(),
-			ErrorClass: gitx.ClassifyError(err),
+			ErrorClass: e.classifier.ClassifyError(err),
 			Action:     action,
 		}
 	}
@@ -1045,7 +1059,7 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 				Outcome:    SyncOutcomeFailedStashPop,
 				OK:         false,
 				Error:      err.Error(),
-				ErrorClass: gitx.ClassifyError(err),
+				ErrorClass: e.classifier.ClassifyError(err),
 				Action:     action + " && git stash pop",
 			}
 		}
@@ -1060,14 +1074,17 @@ func (e *Engine) runSyncRebaseApply(ctx context.Context, entry registry.Entry, s
 	}
 }
 
-func inspectFailureResult(entry registry.Entry, err error) SyncResult {
+func inspectFailureResult(entry registry.Entry, err error, classifier vcs.ErrorClassifier) SyncResult {
+	if classifier == nil {
+		classifier = vcs.NewGitErrorClassifier()
+	}
 	return SyncResult{
 		RepoID:     entry.RepoID,
 		Path:       entry.Path,
 		Outcome:    SyncOutcomeFailedInspect,
 		OK:         false,
 		Error:      err.Error(),
-		ErrorClass: gitx.ClassifyError(err),
+		ErrorClass: classifier.ClassifyError(err),
 	}
 }
 
@@ -1253,7 +1270,7 @@ func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Regist
 		if entry == nil {
 			return false
 		}
-		return hasRemoteMismatch(status, *entry)
+		return hasRemoteMismatch(status, *entry, nil)
 	case FilterErrors:
 		return status.Error != ""
 	default:
@@ -1268,12 +1285,15 @@ func findRegistryEntryForStatus(reg *registry.Registry, status model.RepoStatus)
 	return reg.FindEntry(status.RepoID, status.Path)
 }
 
-func hasRemoteMismatch(status model.RepoStatus, entry registry.Entry) bool {
+func hasRemoteMismatch(status model.RepoStatus, entry registry.Entry, normalizer vcs.URLNormalizer) bool {
+	if normalizer == nil {
+		normalizer = vcs.NewGitURLNormalizer()
+	}
 	regRemote := strings.TrimSpace(entry.RemoteURL)
 	if regRemote == "" {
 		return false
 	}
-	normalizedRegistry := gitx.NormalizeURL(regRemote)
+	normalizedRegistry := normalizer.NormalizeURL(regRemote)
 	if normalizedRegistry == "" {
 		normalizedRegistry = regRemote
 	}

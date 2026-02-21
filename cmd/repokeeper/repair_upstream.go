@@ -10,7 +10,6 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
@@ -74,7 +73,8 @@ var repairUpstreamCmd = &cobra.Command{
 		}
 
 		adapter := vcs.NewGitAdapter(nil)
-		eng := engine.New(cfg, reg, adapter)
+		classifier := vcs.NewGitErrorClassifier()
+		eng := engine.New(cfg, reg, adapter, classifier, vcs.NewGitURLNormalizer())
 		report, err := eng.Status(cmd.Context(), engine.StatusOptions{
 			Filter:      engine.FilterAll,
 			Concurrency: 0,
@@ -182,7 +182,7 @@ var repairUpstreamCmd = &cobra.Command{
 			if err := adapter.SetUpstream(cmd.Context(), entry.Path, targetUpstream, repo.Head.Branch); err != nil {
 				res.OK = false
 				res.Action = "failed"
-				res.ErrorClass = gitx.ClassifyError(err)
+				res.ErrorClass = classifier.ClassifyError(err)
 				res.Error = err.Error()
 				results = append(results, res)
 				continue

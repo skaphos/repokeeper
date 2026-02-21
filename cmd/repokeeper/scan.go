@@ -14,6 +14,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
 
@@ -57,7 +58,7 @@ var scanCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		eng := engine.New(cfg, reg, adapter)
+		eng := engine.New(cfg, reg, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer())
 		scanRoots := strutil.SplitCSV(roots)
 		if len(scanRoots) == 0 {
 			scanRoots = []string{config.EffectiveRoot(cfgPath)}

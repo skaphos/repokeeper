@@ -9,6 +9,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 type planAdapter struct {
@@ -224,21 +225,23 @@ func TestFindRegistryEntryForStatusAndReplace(t *testing.T) {
 }
 
 func TestHasRemoteMismatchCases(t *testing.T) {
-	if hasRemoteMismatch(model.RepoStatus{RepoID: "github.com/org/repo"}, registry.Entry{}) {
+	if hasRemoteMismatch(model.RepoStatus{RepoID: "github.com/org/repo"}, registry.Entry{}, nil) {
 		t.Fatal("expected false for blank registry remote")
 	}
-	if hasRemoteMismatch(model.RepoStatus{}, registry.Entry{RemoteURL: "git@github.com:org/repo.git"}) {
+	if hasRemoteMismatch(model.RepoStatus{}, registry.Entry{RemoteURL: "git@github.com:org/repo.git"}, nil) {
 		t.Fatal("expected false for blank status repo id")
 	}
 	if hasRemoteMismatch(
 		model.RepoStatus{RepoID: "github.com/org/repo"},
 		registry.Entry{RemoteURL: "git@github.com:org/repo.git"},
+		nil,
 	) {
 		t.Fatal("expected normalized same remotes to match")
 	}
 	if !hasRemoteMismatch(
 		model.RepoStatus{RepoID: "github.com/other/repo"},
 		registry.Entry{RemoteURL: "git@github.com:org/repo.git"},
+		nil,
 	) {
 		t.Fatal("expected mismatch for differing remotes")
 	}
@@ -330,7 +333,7 @@ func TestExecuteSyncPlanAppliesPlannedActions(t *testing.T) {
 			{RepoID: "clone", Path: "/repos/clone", RemoteURL: "git@github.com:org/clone.git", Branch: "main", Status: registry.StatusMissing},
 		},
 	}
-	eng := &Engine{registry: reg, adapter: adapter}
+	eng := &Engine{registry: reg, adapter: adapter, classifier: vcs.NewGitErrorClassifier(), normalizer: vcs.NewGitURLNormalizer()}
 	plan := []SyncResult{
 		{RepoID: "fetch", Path: "/repos/fetch", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
 		{RepoID: "rebase", Path: "/repos/rebase", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop"},
@@ -373,8 +376,10 @@ func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
 		},
 	}
 	eng := &Engine{
-		registry: &registry.Registry{},
-		adapter:  adapter,
+		registry:   &registry.Registry{},
+		adapter:    adapter,
+		classifier: vcs.NewGitErrorClassifier(),
+		normalizer: vcs.NewGitURLNormalizer(),
 	}
 	plan := []SyncResult{
 		{RepoID: "a", Path: "/repos/a", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
@@ -431,7 +436,7 @@ func TestSyncFailureMessageFetchClasses(t *testing.T) {
 }
 
 func TestNewInitializesDefaultAdapter(t *testing.T) {
-	eng := New(&config.Config{}, &registry.Registry{}, nil)
+	eng := New(&config.Config{}, &registry.Registry{}, nil, nil, nil)
 	if eng.Adapter() == nil {
 		t.Fatal("expected engine.New to set default adapter when nil")
 	}

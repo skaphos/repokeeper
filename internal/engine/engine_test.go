@@ -78,7 +78,7 @@ var _ = Describe("Engine", func() {
 			"/repo:rev-list --left-right --count main...origin/main": {out: "0\t0"},
 			"/repo:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
 		}}
-		eng := engine.New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil)
 		status, err := eng.InspectRepo(context.Background(), "/repo")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status.RepoID).To(Equal("github.com/org/repo"))
@@ -92,7 +92,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			DryRun:      true,
 			Concurrency: 1,
@@ -111,7 +111,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			DryRun:      true,
 			Concurrency: 1,
@@ -130,7 +130,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "missing", Path: filepath.Join("C:", "missing"), Status: registry.StatusMissing, LastSeen: time.Now().Add(-48 * time.Hour)},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Filter: engine.FilterMissing,
 			DryRun: true,
@@ -156,7 +156,7 @@ var _ = Describe("Engine", func() {
 				},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Filter:          engine.FilterMissing,
 			CheckoutMissing: true,
@@ -194,7 +194,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo2", Path: "/repo2", RemoteURL: "git@github.com:org/repo2.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Filter:      engine.FilterDirty,
 			DryRun:      true,
@@ -234,7 +234,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo2", Path: "/repo2", RemoteURL: "git@github.com:org/repo2.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Filter:      engine.FilterDiverged,
 			DryRun:      true,
@@ -275,7 +275,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "github.com/org/repo2", Path: "/repo2", RemoteURL: "git@github.com:org/repo2.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Filter:      engine.FilterRemoteMismatch,
 			DryRun:      true,
@@ -299,7 +299,7 @@ var _ = Describe("Engine", func() {
 			started: make(chan struct{}, 3),
 			release: make(chan struct{}),
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 2, Concurrency: 1}}, reg, vcs.NewGitAdapter(blocker))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 2, Concurrency: 1}}, reg, vcs.NewGitAdapter(blocker), nil, nil)
 
 		done := make(chan []engine.SyncResult, 1)
 		go func() {
@@ -332,7 +332,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(blocker))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(blocker), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Concurrency: 1,
 			Timeout:     1,
@@ -367,7 +367,7 @@ var _ = Describe("Engine", func() {
 			responses[repoPath+":config --file .gitmodules --get-regexp submodule"] = mockResponse{err: errors.New("none")}
 		}
 
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 4}}, reg, vcs.NewGitAdapter(&mockRunner{responses: responses}))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 4}}, reg, vcs.NewGitAdapter(&mockRunner{responses: responses}), nil, nil)
 		report, err := eng.Status(context.Background(), engine.StatusOptions{Filter: engine.FilterAll, Concurrency: 4, Timeout: 1})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(report.Repos).To(HaveLen(12))
@@ -404,7 +404,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 
 		all, err := eng.Status(context.Background(), engine.StatusOptions{Filter: engine.FilterAll, Concurrency: 2, Timeout: 1})
 		Expect(err).NotTo(HaveOccurred())
@@ -429,7 +429,7 @@ var _ = Describe("Engine", func() {
 		failing := &mockRunner{responses: map[string]mockResponse{
 			"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {err: errors.New("could not resolve host")},
 		}}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(failing))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(failing), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(results).To(HaveLen(1))
@@ -447,7 +447,7 @@ var _ = Describe("Engine", func() {
 		runner := &mockRunner{responses: map[string]mockResponse{
 			"/repo1:-c fetch.recurseSubmodules=false fetch --all --prune --prune-tags --no-recurse-submodules": {err: errors.New("could not resolve host")},
 		}}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 2}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Concurrency:     2,
 			Timeout:         1,
@@ -479,7 +479,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1, UpdateLocal: true})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(results).To(HaveLen(1))
@@ -506,7 +506,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1, UpdateLocal: true})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(results).To(HaveLen(1))
@@ -534,7 +534,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Concurrency: 1,
 			Timeout:     1,
@@ -570,7 +570,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1, UpdateLocal: true, RebaseDirty: true})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(results).To(HaveLen(1))
@@ -599,7 +599,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 
 		results, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 1, UpdateLocal: true})
 		Expect(err).NotTo(HaveOccurred())
@@ -634,7 +634,7 @@ var _ = Describe("Engine", func() {
 				{RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil)
 
 		skipped, err := eng.Sync(context.Background(), engine.SyncOptions{
 			Concurrency:       1,

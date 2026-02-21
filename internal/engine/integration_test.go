@@ -37,7 +37,7 @@ var _ = Describe("Engine integration", func() {
 
 		cfg := &config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}
 		reg := &registry.Registry{}
-		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil)
 
 		results, err := eng.Scan(context.Background(), engine.ScanOptions{
 			Roots:          []string{realRoot, linkedRoot},
@@ -53,7 +53,7 @@ var _ = Describe("Engine integration", func() {
 		bare := filepath.Join(base, "bare.git")
 		runGit("", "init", "--bare", bare)
 
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, &registry.Registry{}, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, &registry.Registry{}, vcs.NewGitAdapter(nil), nil, nil)
 		status, err := eng.InspectRepo(context.Background(), bare)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(status.Bare).To(BeTrue())
@@ -70,7 +70,7 @@ var _ = Describe("Engine integration", func() {
 				{RepoID: "missing-repo", Path: missing, Status: registry.StatusMissing},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil)
 		report, err := eng.Status(context.Background(), engine.StatusOptions{Filter: engine.FilterAll, Concurrency: 1, Timeout: 5})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(report.Repos).To(HaveLen(1))
@@ -102,7 +102,7 @@ var _ = Describe("Engine integration", func() {
 				{RepoID: "repo1", Path: work, RemoteURL: remote, Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil)
 		_, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 5})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -146,7 +146,7 @@ var _ = Describe("Engine integration", func() {
 				{RepoID: "repo1", Path: work, RemoteURL: remote, Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil)
 		_, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 5})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -186,7 +186,7 @@ var _ = Describe("Engine integration", func() {
 				{RepoID: "repo1", Path: work, RemoteURL: remote, Status: registry.StatusPresent},
 			},
 		}
-		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil)
 		_, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 5})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -204,7 +204,7 @@ var _ = Describe("Engine integration", func() {
 
 		cfg := &config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}
 		reg := &registry.Registry{}
-		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil)
 
 		_, err := eng.Scan(context.Background(), engine.ScanOptions{
 			Roots:          []string{base},
@@ -231,7 +231,7 @@ var _ = Describe("Engine integration", func() {
 
 		cfg := &config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}
 		reg := &registry.Registry{}
-		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil))
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil)
 
 		_, err := eng.Scan(context.Background(), engine.ScanOptions{
 			Roots:          []string{base},
