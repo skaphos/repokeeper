@@ -232,12 +232,25 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 		timeoutSeconds = e.cfg.Defaults.TimeoutSeconds
 	}
 
+	entries := e.loadStatusEntries()
+	results := e.collectStatusResults(ctx, entries, concurrency, timeoutSeconds, opts.Filter)
+	return e.buildStatusReport(results), nil
+}
+
+// loadStatusEntries snapshots the registry entries to decouple worker scheduling
+// from concurrent registry updates.
+func (e *Engine) loadStatusEntries() []registry.Entry {
+	return append([]registry.Entry(nil), e.registry.Entries...)
+}
+
+// collectStatusResults runs all repo inspections concurrently using the semaphore+channel
+// pattern, drains results, and applies the filter. The concurrency model is preserved
+// exactly: semaphore controls parallelism, out channel buffers worker output.
+func (e *Engine) collectStatusResults(ctx context.Context, entries []registry.Entry, concurrency, timeoutSeconds int, filter FilterKind) []model.RepoStatus {
 	type result struct {
 		status model.RepoStatus
 	}
 
-	// Snapshot entries to decouple worker scheduling from concurrent registry updates.
-	entries := append([]registry.Entry(nil), e.registry.Entries...)
 	results := make([]model.RepoStatus, 0, len(entries))
 	sem := make(chan struct{}, concurrency)
 	out := make(chan result, workerChannelBufferSize(len(entries), concurrency))
@@ -248,59 +261,64 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 		spawned++
 		go func(entry registry.Entry) {
 			defer func() { <-sem }()
-			if entry.Status == registry.StatusMissing {
-				out <- result{status: model.RepoStatus{
-					RepoID:     entry.RepoID,
-					Path:       entry.Path,
-					Type:       entry.Type,
-					Tracking:   model.Tracking{Status: model.TrackingNone},
-					Error:      "path missing",
-					ErrorClass: "missing",
-				}}
-				return
-			}
-			repoCtx := ctx
-			if timeoutSeconds > 0 {
-				var cancel context.CancelFunc
-				repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-				defer cancel()
-			}
-			status, err := e.InspectRepo(repoCtx, entry.Path)
-			if err != nil {
-				// Preserve partial results: represent per-repo inspect failures in-band
-				// instead of aborting the full status run.
-				out <- result{status: model.RepoStatus{
-					RepoID:     entry.RepoID,
-					Path:       entry.Path,
-					Type:       entry.Type,
-					Tracking:   model.Tracking{Status: model.TrackingNone},
-					Error:      err.Error(),
-					ErrorClass: e.classifier.ClassifyError(err),
-				}}
-				return
-			}
-			if status.RepoID == "" {
-				status.RepoID = entry.RepoID
-			}
-			if entry.Type != "" {
-				status.Type = entry.Type
-			}
-			out <- result{status: *status}
+			out <- result{status: e.statusWorker(ctx, entry, timeoutSeconds)}
 		}(entry)
 	}
 
 	for i := 0; i < spawned; i++ {
 		res := <-out
-		if filterStatus(opts.Filter, res.status, e.registry) {
+		if filterStatus(filter, res.status, e.registry) {
 			results = append(results, res.status)
 		}
 	}
-	sortRepoStatuses(results)
+	return results
+}
 
+func (e *Engine) statusWorker(ctx context.Context, entry registry.Entry, timeoutSeconds int) model.RepoStatus {
+	if entry.Status == registry.StatusMissing {
+		return model.RepoStatus{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Type:       entry.Type,
+			Tracking:   model.Tracking{Status: model.TrackingNone},
+			Error:      "path missing",
+			ErrorClass: "missing",
+		}
+	}
+	repoCtx := ctx
+	if timeoutSeconds > 0 {
+		var cancel context.CancelFunc
+		repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+		defer cancel()
+	}
+	status, err := e.InspectRepo(repoCtx, entry.Path)
+	if err != nil {
+		// Preserve partial results: represent per-repo inspect failures in-band
+		// instead of aborting the full status run.
+		return model.RepoStatus{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Type:       entry.Type,
+			Tracking:   model.Tracking{Status: model.TrackingNone},
+			Error:      err.Error(),
+			ErrorClass: e.classifier.ClassifyError(err),
+		}
+	}
+	if status.RepoID == "" {
+		status.RepoID = entry.RepoID
+	}
+	if entry.Type != "" {
+		status.Type = entry.Type
+	}
+	return *status
+}
+
+func (e *Engine) buildStatusReport(results []model.RepoStatus) *model.StatusReport {
+	sortRepoStatuses(results)
 	return &model.StatusReport{
 		GeneratedAt: time.Now(),
 		Repos:       results,
-	}, nil
+	}
 }
 
 // SyncOptions configures a sync operation.
