@@ -140,9 +140,15 @@ jobs:
     needs: [dco, reuse, lint, test, integration, quality, perf]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          install-only: true
       - name: Run CI build task
         run: go tool task build-ci
 
