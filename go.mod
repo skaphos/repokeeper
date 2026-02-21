@@ -1,6 +1,6 @@
 module github.com/skaphos/repokeeper
 
-go 1.25.5
+go 1.25.7
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
