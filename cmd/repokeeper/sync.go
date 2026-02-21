@@ -88,7 +88,7 @@ var syncCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		eng := engine.New(cfg, reg, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer())
+		eng := engine.New(cfg, reg, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), nil)
 		plan, err := eng.Sync(cmd.Context(), engine.SyncOptions{
 			Filter:               filter,
 			Concurrency:          concurrency,

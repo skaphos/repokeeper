@@ -298,7 +298,7 @@ func cloneImportedEntriesWithProgress(
 		return nil, nil
 	}
 
-	eng := engine.New(cfg, cfg.Registry, vcs.NewGitAdapter(nil), vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer())
+	eng := engine.New(cfg, cfg.Registry, vcs.NewGitAdapter(nil), vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), nil)
 	plan, err := eng.PlanImportClones(entries, engine.ImportCloneOptions{
 		CWD:                       cwd,
 		BundleRoot:                bundle.Root,

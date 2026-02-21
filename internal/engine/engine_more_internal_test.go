@@ -8,6 +8,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/obs"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
 )
@@ -333,7 +334,7 @@ func TestExecuteSyncPlanAppliesPlannedActions(t *testing.T) {
 			{RepoID: "clone", Path: "/repos/clone", RemoteURL: "git@github.com:org/clone.git", Branch: "main", Status: registry.StatusMissing},
 		},
 	}
-	eng := &Engine{registry: reg, adapter: adapter, classifier: vcs.NewGitErrorClassifier(), normalizer: vcs.NewGitURLNormalizer()}
+	eng := &Engine{registry: reg, adapter: adapter, classifier: vcs.NewGitErrorClassifier(), normalizer: vcs.NewGitURLNormalizer(), logger: obs.NopLogger()}
 	plan := []SyncResult{
 		{RepoID: "fetch", Path: "/repos/fetch", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
 		{RepoID: "rebase", Path: "/repos/rebase", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop"},
@@ -380,6 +381,7 @@ func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
 		adapter:    adapter,
 		classifier: vcs.NewGitErrorClassifier(),
 		normalizer: vcs.NewGitURLNormalizer(),
+		logger:     obs.NopLogger(),
 	}
 	plan := []SyncResult{
 		{RepoID: "a", Path: "/repos/a", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
@@ -436,7 +438,7 @@ func TestSyncFailureMessageFetchClasses(t *testing.T) {
 }
 
 func TestNewInitializesDefaultAdapter(t *testing.T) {
-	eng := New(&config.Config{}, &registry.Registry{}, nil, nil, nil)
+	eng := New(&config.Config{}, &registry.Registry{}, nil, nil, nil, nil)
 	if eng.Adapter() == nil {
 		t.Fatal("expected engine.New to set default adapter when nil")
 	}

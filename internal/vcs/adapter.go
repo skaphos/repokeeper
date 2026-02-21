@@ -6,6 +6,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/obs"
 )
 
 // Adapter defines the VCS operations RepoKeeper relies on.
@@ -34,27 +35,34 @@ type Adapter interface {
 // GitAdapter implements Adapter using the git CLI via gitx.
 type GitAdapter struct {
 	Runner gitx.Runner
+	Logger obs.Logger
 }
 
-func NewGitAdapter(runner gitx.Runner) *GitAdapter {
+func NewGitAdapter(runner gitx.Runner, logger ...obs.Logger) *GitAdapter {
 	if runner == nil {
 		runner = &gitx.GitRunner{}
 	}
-	return &GitAdapter{Runner: runner}
+	var l obs.Logger
+	if len(logger) > 0 && logger[0] != nil {
+		l = logger[0]
+	} else {
+		l = obs.NopLogger()
+	}
+	return &GitAdapter{Runner: runner, Logger: l}
 }
 
 func (g *GitAdapter) Name() string { return "git" }
 
 func (g *GitAdapter) IsRepo(ctx context.Context, dir string) (bool, error) {
-	return gitx.IsRepo(ctx, g.Runner, dir)
+	return gitx.IsRepo(ctx, g.Runner, dir, g.Logger)
 }
 
 func (g *GitAdapter) IsBare(ctx context.Context, dir string) (bool, error) {
-	return gitx.IsBare(ctx, g.Runner, dir)
+	return gitx.IsBare(ctx, g.Runner, dir, g.Logger)
 }
 
 func (g *GitAdapter) Remotes(ctx context.Context, dir string) ([]model.Remote, error) {
-	return gitx.Remotes(ctx, g.Runner, dir)
+	return gitx.Remotes(ctx, g.Runner, dir, g.Logger)
 }
 
 func (g *GitAdapter) Head(ctx context.Context, dir string) (model.Head, error) {

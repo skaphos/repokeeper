@@ -48,7 +48,7 @@ var initCmd = &cobra.Command{
 			return err
 		}
 
-		eng := engine.New(&cfg, cfg.Registry, vcs.NewGitAdapter(nil), vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer())
+		eng := engine.New(&cfg, cfg.Registry, vcs.NewGitAdapter(nil), vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), nil)
 		if _, err := eng.Scan(cmd.Context(), engine.ScanOptions{Roots: []string{config.ConfigRoot(cfgPath)}}); err != nil {
 			return err
 		}

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/obs"
 )
 
 // Runner executes git commands in a given repo directory.
@@ -41,27 +42,33 @@ func (g *GitRunner) Run(ctx context.Context, dir string, args ...string) (string
 }
 
 // IsRepo checks whether the given path is inside a git working tree.
-func IsRepo(ctx context.Context, r Runner, dir string) (bool, error) {
+func IsRepo(ctx context.Context, r Runner, dir string, logger obs.Logger) (bool, error) {
 	out, err := r.Run(ctx, dir, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		// Treat probe failure as "not a repo" to keep discovery/status resilient.
+		if logger != nil {
+			logger.Warnf("IsRepo probe failed for %s: %v", dir, err)
+		}
 		return false, nil
 	}
 	return strings.TrimSpace(out) == "true", nil
 }
 
 // IsBare checks whether the given path is a bare git repository.
-func IsBare(ctx context.Context, r Runner, dir string) (bool, error) {
+func IsBare(ctx context.Context, r Runner, dir string, logger obs.Logger) (bool, error) {
 	out, err := r.Run(ctx, dir, "rev-parse", "--is-bare-repository")
 	if err != nil {
 		// Mirror IsRepo behavior: command failure should not hard-fail callers.
+		if logger != nil {
+			logger.Warnf("IsBare probe failed for %s: %v", dir, err)
+		}
 		return false, nil
 	}
 	return strings.TrimSpace(out) == "true", nil
 }
 
 // Remotes returns all configured remotes for the repo.
-func Remotes(ctx context.Context, r Runner, dir string) ([]model.Remote, error) {
+func Remotes(ctx context.Context, r Runner, dir string, logger obs.Logger) ([]model.Remote, error) {
 	out, err := r.Run(ctx, dir, "remote")
 	if err != nil {
 		return nil, fmt.Errorf("git remote: %w", err)
@@ -78,6 +85,9 @@ func Remotes(ctx context.Context, r Runner, dir string) ([]model.Remote, error) 
 		}
 		url, err := r.Run(ctx, dir, "remote", "get-url", name)
 		if err != nil {
+			if logger != nil {
+				logger.Warnf("remote get-url %s failed for %s: %v", name, dir, err)
+			}
 			continue
 		}
 		remotes = append(remotes, model.Remote{

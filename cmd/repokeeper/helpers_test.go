@@ -746,7 +746,7 @@ func TestRemoteMismatchReconcileHelpers(t *testing.T) {
 		},
 	}
 
-	eng := engine.New(nil, reg, vcs.NewGitAdapter(nil), nil, nil)
+	eng := engine.New(nil, reg, vcs.NewGitAdapter(nil), nil, nil, nil)
 	plans := eng.BuildRemoteMismatchPlans(repos, remoteMismatchReconcileRegistry)
 	if len(plans) != 1 {
 		t.Fatalf("expected one registry reconcile plan, got %d", len(plans))

@@ -63,7 +63,7 @@ func benchmarkEngineWithRepos(repoCount int) *Engine {
 	}
 	cfg := &config.Config{Defaults: config.Defaults{Concurrency: 8, TimeoutSeconds: 30}}
 	reg := &registry.Registry{Entries: entries}
-	return New(cfg, reg, &benchAdapter{}, nil, nil)
+	return New(cfg, reg, &benchAdapter{}, nil, nil, nil)
 }
 
 func BenchmarkSyncDryRunPlan(b *testing.B) {

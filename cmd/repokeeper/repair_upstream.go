@@ -74,7 +74,7 @@ var repairUpstreamCmd = &cobra.Command{
 
 		adapter := vcs.NewGitAdapter(nil)
 		classifier := vcs.NewGitErrorClassifier()
-		eng := engine.New(cfg, reg, adapter, classifier, vcs.NewGitURLNormalizer())
+		eng := engine.New(cfg, reg, adapter, classifier, vcs.NewGitURLNormalizer(), nil)
 		report, err := eng.Status(cmd.Context(), engine.StatusOptions{
 			Filter:      engine.FilterAll,
 			Concurrency: 0,

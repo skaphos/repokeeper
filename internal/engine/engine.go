@@ -17,6 +17,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/discovery"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/obs"
 	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
@@ -46,12 +47,13 @@ type Engine struct {
 	adapter    vcs.Adapter
 	classifier vcs.ErrorClassifier
 	normalizer vcs.URLNormalizer
+	logger     obs.Logger
 
 	registryMu sync.Mutex
 }
 
 // New creates a new Engine with the given configuration.
-func New(cfg *config.Config, reg *registry.Registry, adapter vcs.Adapter, classifier vcs.ErrorClassifier, normalizer vcs.URLNormalizer) *Engine {
+func New(cfg *config.Config, reg *registry.Registry, adapter vcs.Adapter, classifier vcs.ErrorClassifier, normalizer vcs.URLNormalizer, logger obs.Logger) *Engine {
 	if adapter == nil {
 		adapter = vcs.NewGitAdapter(nil)
 	}
@@ -61,12 +63,16 @@ func New(cfg *config.Config, reg *registry.Registry, adapter vcs.Adapter, classi
 	if normalizer == nil {
 		normalizer = vcs.NewGitURLNormalizer()
 	}
+	if logger == nil {
+		logger = obs.NopLogger()
+	}
 	return &Engine{
 		cfg:        cfg,
 		registry:   reg,
 		adapter:    adapter,
 		classifier: classifier,
 		normalizer: normalizer,
+		logger:     logger,
 	}
 }
 
@@ -465,6 +471,7 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 		}
 
 		executed := e.executePlannedSyncItem(ctx, item)
+		e.logSyncFailureHint(executed)
 		results = append(results, executed)
 		if onComplete != nil {
 			onComplete(executed)
@@ -508,7 +515,9 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 				repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
 				defer cancel()
 			}
-			out <- e.executePlannedSyncItem(repoCtx, item)
+			res := e.executePlannedSyncItem(repoCtx, item)
+			e.logSyncFailureHint(res)
+			out <- res
 		}(item)
 	}
 
@@ -688,7 +697,9 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 	}
 
 	for i := 0; i < spawned; i++ {
-		results = append(results, <-out)
+		res := <-out
+		e.logSyncFailureHint(res)
+		results = append(results, res)
 	}
 	sortSyncResults(results)
 	return results, nil
@@ -749,6 +760,7 @@ func (e *Engine) syncSequentialStopOnError(ctx context.Context, opts SyncOptions
 			continue
 		}
 		res := e.runSyncEntry(ctx, entry, opts, timeoutSeconds)
+		e.logSyncFailureHint(res)
 		results = append(results, res)
 		if !res.OK {
 			sortSyncResults(results)
@@ -1233,7 +1245,10 @@ func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatu
 			return nil, err
 		}
 	}
-	hasSubmodules, _ := e.adapter.HasSubmodules(ctx, path)
+	hasSubmodules, subErr := e.adapter.HasSubmodules(ctx, path)
+	if subErr != nil {
+		e.logger.Warnf("HasSubmodules check failed for %s: %v", path, subErr)
+	}
 
 	return &model.RepoStatus{
 		RepoID:        repoID,

@@ -58,7 +58,7 @@ var scanCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		eng := engine.New(cfg, reg, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer())
+		eng := engine.New(cfg, reg, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), nil)
 		scanRoots := strutil.SplitCSV(roots)
 		if len(scanRoots) == 0 {
 			scanRoots = []string{config.EffectiveRoot(cfgPath)}

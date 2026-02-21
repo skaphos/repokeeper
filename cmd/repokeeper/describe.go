@@ -80,7 +80,7 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 		repo.ErrorClass = "missing"
 	} else {
 		classifier := vcs.NewGitErrorClassifier()
-		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil), classifier, vcs.NewGitURLNormalizer())
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil), classifier, vcs.NewGitURLNormalizer(), nil)
 		status, err := eng.InspectRepo(cmd.Context(), entry.Path)
 		if err != nil {
 			repo.Error = err.Error()

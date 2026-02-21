@@ -45,7 +45,7 @@ var _ = Describe("IsRepo", func() {
 		mock := &MockRunner{Responses: map[string]MockResponse{
 			"/repo:rev-parse --is-inside-work-tree": {Output: "true"},
 		}}
-		ok, err := gitx.IsRepo(context.Background(), mock, "/repo")
+		ok, err := gitx.IsRepo(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
 	})
@@ -54,7 +54,7 @@ var _ = Describe("IsRepo", func() {
 		mock := &MockRunner{Responses: map[string]MockResponse{
 			"/repo:rev-parse --is-inside-work-tree": {Err: errors.New("not a repo")},
 		}}
-		ok, err := gitx.IsRepo(context.Background(), mock, "/repo")
+		ok, err := gitx.IsRepo(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
 	})
@@ -63,7 +63,7 @@ var _ = Describe("IsRepo", func() {
 		mock := &MockRunner{Responses: map[string]MockResponse{
 			"/repo:rev-parse --is-inside-work-tree": {Output: "false"},
 		}}
-		ok, err := gitx.IsRepo(context.Background(), mock, "/repo")
+		ok, err := gitx.IsRepo(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
 	})
@@ -74,7 +74,7 @@ var _ = Describe("IsBare", func() {
 		mock := &MockRunner{Responses: map[string]MockResponse{
 			"/repo:rev-parse --is-bare-repository": {Output: "true"},
 		}}
-		ok, err := gitx.IsBare(context.Background(), mock, "/repo")
+		ok, err := gitx.IsBare(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
 	})
@@ -83,7 +83,7 @@ var _ = Describe("IsBare", func() {
 		mock := &MockRunner{Responses: map[string]MockResponse{
 			"/repo:rev-parse --is-bare-repository": {Output: "false"},
 		}}
-		ok, err := gitx.IsBare(context.Background(), mock, "/repo")
+		ok, err := gitx.IsBare(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeFalse())
 	})
@@ -130,7 +130,7 @@ var _ = Describe("Remotes", func() {
 			"/repo:remote get-url origin":   {Output: "https://github.com/org/repo.git"},
 			"/repo:remote get-url upstream": {Output: "https://github.com/other/repo.git"},
 		}}
-		remotes, err := gitx.Remotes(context.Background(), mock, "/repo")
+		remotes, err := gitx.Remotes(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(remotes).To(Equal([]model.Remote{
 			{Name: "origin", URL: "https://github.com/org/repo.git"},
@@ -142,7 +142,7 @@ var _ = Describe("Remotes", func() {
 		mock := &MockRunner{Responses: map[string]MockResponse{
 			"/repo:remote": {Output: ""},
 		}}
-		remotes, err := gitx.Remotes(context.Background(), mock, "/repo")
+		remotes, err := gitx.Remotes(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(remotes).To(BeNil())
 	})
@@ -153,7 +153,7 @@ var _ = Describe("Remotes", func() {
 			"/repo:remote get-url origin": {Output: "https://github.com/org/repo.git"},
 			"/repo:remote get-url bad":    {Err: errors.New("no such remote")},
 		}}
-		remotes, err := gitx.Remotes(context.Background(), mock, "/repo")
+		remotes, err := gitx.Remotes(context.Background(), mock, "/repo", nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(remotes).To(HaveLen(1))
 		Expect(remotes[0].Name).To(Equal("origin"))
@@ -314,11 +314,11 @@ var _ = Describe("GitRunner with real git", func() {
 		_, err := runner.Run(ctx, tmpDir, "init")
 		Expect(err).NotTo(HaveOccurred())
 
-		ok, err := gitx.IsRepo(ctx, runner, tmpDir)
+		ok, err := gitx.IsRepo(ctx, runner, tmpDir, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ok).To(BeTrue())
 
-		bare, err := gitx.IsBare(ctx, runner, tmpDir)
+		bare, err := gitx.IsBare(ctx, runner, tmpDir, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bare).To(BeFalse())
 	})
@@ -331,7 +331,7 @@ var _ = Describe("GitRunner with real git", func() {
 		_, err := runner.Run(ctx, "", "init", "--bare", bareDir)
 		Expect(err).NotTo(HaveOccurred())
 
-		bare, err := gitx.IsBare(ctx, runner, bareDir)
+		bare, err := gitx.IsBare(ctx, runner, bareDir, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(bare).To(BeTrue())
 	})
