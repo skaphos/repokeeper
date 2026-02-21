@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -395,159 +394,39 @@ func cloneImportedEntriesWithProgress(
 	if cfg == nil || cfg.Registry == nil {
 		return nil, nil
 	}
-	if entries == nil {
-		entries = cfg.Registry.Entries
+
+	eng := engine.New(cfg, cfg.Registry, vcs.NewGitAdapter(nil), vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer())
+	plan, err := eng.PlanImportClones(entries, engine.ImportCloneOptions{
+		CWD:                       cwd,
+		BundleRoot:                bundle.Root,
+		DangerouslyDeleteExisting: dangerouslyDeleteExisting,
+		ResolveTargetRelativePath: importTargetRelativePath,
+	})
+	if err != nil {
+		return nil, err
 	}
-	if len(entries) == 0 {
-		return nil, nil
-	}
 
-	adapter := vcs.NewGitAdapter(nil)
-	classifier := vcs.NewGitErrorClassifier()
-	ignored := ignoredPathSet(cfg)
-	targets := make(map[string]importTargetPlan, len(entries))
-	skipped := make(map[string]importTargetPlan)
-	skipReasons := make(map[string]string)
-	for _, entry := range entries {
-		targetRel := importTargetRelativePath(entry, bundle.Root)
-		target := filepath.Clean(filepath.Join(cwd, targetRel))
-		targetKey := pathutil.CanonicalNormalize(target)
-
-		// Protect against path traversal/out-of-tree paths from malformed bundles.
-		relToCWD, err := filepath.Rel(cwd, target)
-		if err != nil {
-			return nil, err
-		}
-		if strings.HasPrefix(relToCWD, ".."+string(filepath.Separator)) || relToCWD == ".." {
-			return nil, fmt.Errorf("refusing to clone outside current directory: %q", target)
-		}
-		if _, exists := targets[targetKey]; exists {
-			return nil, fmt.Errorf("multiple repos resolve to same target path %q", target)
-		}
-		targets[targetKey] = importTargetPlan{path: target, entry: entry}
-
-		if ignored[targetKey] {
-			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
-			skipReasons[targetKey] = "path is ignored by local config"
-			continue
-		}
-
-		if entry.Status == registry.StatusMissing {
-			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
-			skipReasons[targetKey] = "marked missing in bundle"
-			continue
-		}
-
-		remoteURL := strings.TrimSpace(entry.RemoteURL)
-		if remoteURL == "" {
-			// @todo(milestone-8): Preserve upstream-missing intent from source scan/export
-			// so import/reconcile classify these as explicit "skipped no upstream"
-			// instead of falling through to clone-time failures.
-			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
-			skipReasons[targetKey] = "no remote URL configured"
-			continue
-		}
-
-		if entry.Type != "mirror" && strings.TrimSpace(entry.Branch) == "" {
-			skipped[targetKey] = importTargetPlan{path: target, entry: entry}
-			skipReasons[targetKey] = "no upstream branch configured"
-			continue
-		}
-	}
-	if !dangerouslyDeleteExisting {
-		conflicts := findImportTargetConflicts(targets, skipped)
-		if len(conflicts) > 0 {
-			var lines []string
-			for _, conflict := range conflicts {
-				lines = append(lines, fmt.Sprintf("%s (repo: %s)", conflict.target, conflict.entry.RepoID))
+	failures, err := eng.ExecuteImportClones(cmd.Context(), plan, engine.ImportCloneCallbacks{
+		OnStart: func(result engine.SyncResult) {
+			if progress != nil {
+				_ = progress.StartResult(result)
 			}
-			return nil, fmt.Errorf(
-				"import target conflicts detected under %s:\n- %s\nre-run with --dangerously-delete-existing to replace these paths",
-				cwd,
-				strings.Join(lines, "\n- "),
-			)
-		}
-	}
-
-	failures := make([]engine.SyncResult, 0)
-	targetKeys := make([]string, 0, len(targets))
-	for key := range targets {
-		targetKeys = append(targetKeys, key)
-	}
-	sort.Strings(targetKeys)
-
-	for _, key := range targetKeys {
-		if _, skip := skipped[key]; skip {
-			continue
-		}
-		plan := targets[key]
-		target := plan.path
-		entry := plan.entry
-		result := engine.SyncResult{RepoID: entry.RepoID, Path: target, Action: "git clone"}
-		if progress != nil {
-			_ = progress.StartResult(result)
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return failures, err
-		}
-		if _, err := os.Stat(target); err == nil {
-			if !dangerouslyDeleteExisting {
-				return failures, fmt.Errorf("target path already exists: %q (use --dangerously-delete-existing to replace)", target)
-			}
-			if err := os.RemoveAll(target); err != nil {
-				return failures, fmt.Errorf("failed to remove existing path %q: %w", target, err)
-			}
-		} else if !os.IsNotExist(err) {
-			return failures, err
-		}
-
-		if err := adapter.Clone(cmd.Context(), strings.TrimSpace(entry.RemoteURL), target, strings.TrimSpace(entry.Branch), entry.Type == "mirror"); err != nil {
-			result.OK = false
-			result.ErrorClass = classifier.ClassifyError(err)
-			result.Error = importCloneFailureMessage(result.ErrorClass)
-			entry.Path = target
-			entry.Status = registry.StatusMissing
-			entry.LastSeen = time.Now()
-			setRegistryEntryByRepoID(cfg.Registry, entry)
-			failures = append(failures, result)
+		},
+		OnComplete: func(result engine.SyncResult) {
 			if progress != nil {
 				_ = progress.WriteResult(result)
 			}
+		},
+	})
+	if err != nil {
+		return failures, err
+	}
+	for _, skipped := range plan.Skipped {
+		if skipped.Reason == "path is ignored by local config" {
+			infof(cmd, "skipping import for %s: %s", skipped.Entry.RepoID, skipped.Reason)
 			continue
 		}
-		entry.Path = target
-		entry.Status = registry.StatusPresent
-		entry.LastSeen = time.Now()
-		setRegistryEntryByRepoID(cfg.Registry, entry)
-		result.OK = true
-		if progress != nil {
-			_ = progress.WriteResult(result)
-		}
-	}
-	skippedKeys := make([]string, 0, len(skipped))
-	for key := range skipped {
-		skippedKeys = append(skippedKeys, key)
-	}
-	sort.Strings(skippedKeys)
-
-	for _, key := range skippedKeys {
-		plan := skipped[key]
-		target := plan.path
-		entry := plan.entry
-		if skipReasons[key] == "path is ignored by local config" {
-			removeRegistryEntryByRepoID(cfg.Registry, entry.RepoID)
-			infof(cmd, "skipping import for %s: %s", entry.RepoID, skipReasons[key])
-			continue
-		}
-		entry.Path = target
-		if entry.Status == "" ||
-			skipReasons[key] == "no remote URL configured" ||
-			skipReasons[key] == "no upstream branch configured" {
-			entry.Status = registry.StatusMissing
-		}
-		entry.LastSeen = time.Now()
-		setRegistryEntryByRepoID(cfg.Registry, entry)
-		infof(cmd, "skipping import clone for %s: %s", entry.RepoID, skipReasons[key])
+		infof(cmd, "skipping import clone for %s: %s", skipped.Entry.RepoID, skipped.Reason)
 	}
 	return failures, nil
 }
@@ -591,33 +470,6 @@ func selectMergeCloneEntries(local, bundled *registry.Registry, policy importCon
 		}
 	}
 	return selected
-}
-
-type importConflict struct {
-	target string
-	entry  registry.Entry
-}
-
-type importTargetPlan struct {
-	path  string
-	entry registry.Entry
-}
-
-func findImportTargetConflicts(targets map[string]importTargetPlan, skippedLocal map[string]importTargetPlan) []importConflict {
-	conflicts := make([]importConflict, 0)
-	for key, plan := range targets {
-		if _, skip := skippedLocal[key]; skip {
-			// Local-only entries are intentionally skipped and should not block import.
-			continue
-		}
-		if _, err := os.Stat(plan.path); err == nil {
-			conflicts = append(conflicts, importConflict{target: plan.path, entry: plan.entry})
-		}
-	}
-	sort.Slice(conflicts, func(i, j int) bool {
-		return conflicts[i].target < conflicts[j].target
-	})
-	return conflicts
 }
 
 func setRegistryEntryByRepoID(reg *registry.Registry, entry registry.Entry) {
@@ -861,23 +713,6 @@ func populateExportBranches(
 			}
 		}
 		reg.Entries[i].Branch = branch
-	}
-}
-
-func importCloneFailureMessage(errorClass string) string {
-	switch strings.TrimSpace(errorClass) {
-	case "auth":
-		return "import-clone-auth"
-	case "network":
-		return "import-clone-network"
-	case "timeout":
-		return "import-clone-timeout"
-	case "corrupt":
-		return "import-clone-corrupt"
-	case "missing_remote":
-		return "import-clone-missing-remote"
-	default:
-		return "import-clone-failed"
 	}
 }
 

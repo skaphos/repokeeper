@@ -746,7 +746,8 @@ func TestRemoteMismatchReconcileHelpers(t *testing.T) {
 		},
 	}
 
-	plans := buildRemoteMismatchPlans(repos, reg, vcs.NewGitAdapter(nil), remoteMismatchReconcileRegistry)
+	eng := engine.New(nil, reg, vcs.NewGitAdapter(nil), nil, nil)
+	plans := eng.BuildRemoteMismatchPlans(repos, remoteMismatchReconcileRegistry)
 	if len(plans) != 1 {
 		t.Fatalf("expected one registry reconcile plan, got %d", len(plans))
 	}
@@ -755,7 +756,7 @@ func TestRemoteMismatchReconcileHelpers(t *testing.T) {
 	}
 
 	cmd := &cobra.Command{}
-	if err := applyRemoteMismatchPlans(cmd, plans, reg, remoteMismatchReconcileRegistry); err != nil {
+	if err := eng.ApplyRemoteMismatchPlans(cmd.Context(), plans, remoteMismatchReconcileRegistry); err != nil {
 		t.Fatalf("apply registry reconcile: %v", err)
 	}
 	if got := reg.Entries[0].RemoteURL; got != "git@github.com:org/repo-a.git" {

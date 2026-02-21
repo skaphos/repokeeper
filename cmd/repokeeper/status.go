@@ -14,7 +14,6 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/remotemismatch"
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
@@ -31,15 +30,15 @@ type divergedAdvice struct {
 	RecommendedAction string `json:"recommended_action"`
 }
 
-type remoteMismatchReconcileMode = remotemismatch.ReconcileMode
+type remoteMismatchReconcileMode = engine.RemoteMismatchReconcileMode
 
 const (
-	remoteMismatchReconcileNone     = remotemismatch.ReconcileNone
-	remoteMismatchReconcileRegistry = remotemismatch.ReconcileRegistry
-	remoteMismatchReconcileGit      = remotemismatch.ReconcileGit
+	remoteMismatchReconcileNone     = engine.RemoteMismatchReconcileNone
+	remoteMismatchReconcileRegistry = engine.RemoteMismatchReconcileRegistry
+	remoteMismatchReconcileGit      = engine.RemoteMismatchReconcileGit
 )
 
-type remoteMismatchPlan = remotemismatch.Plan
+type remoteMismatchPlan = engine.RemoteMismatchPlan
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -136,7 +135,7 @@ var statusCmd = &cobra.Command{
 		}
 		enrichReportWithRegistryMetadata(report, reg)
 		report = filterStatusReportByLabels(report, labelSelector)
-		plans := buildRemoteMismatchPlans(report.Repos, reg, adapter, reconcileMode)
+		plans := eng.BuildRemoteMismatchPlans(report.Repos, reconcileMode)
 		if len(plans) > 0 {
 			logOutputWriteFailure(cmd, "status remote mismatch plan", writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone))
 		}
@@ -151,7 +150,7 @@ var statusCmd = &cobra.Command{
 					return nil
 				}
 			}
-			if err := applyRemoteMismatchPlans(cmd, plans, reg, reconcileMode); err != nil {
+			if err := eng.ApplyRemoteMismatchPlans(cmd.Context(), plans, reconcileMode); err != nil {
 				return err
 			}
 			if reconcileMode == remoteMismatchReconcileRegistry {
@@ -670,11 +669,7 @@ func filterStatusReportByLabels(report *model.StatusReport, reqs []labelRequirem
 }
 
 func parseRemoteMismatchReconcileMode(raw string) (remoteMismatchReconcileMode, error) {
-	return remotemismatch.ParseReconcileMode(raw)
-}
-
-func buildRemoteMismatchPlans(repos []model.RepoStatus, reg *registry.Registry, adapter vcs.Adapter, mode remoteMismatchReconcileMode) []remoteMismatchPlan {
-	return remotemismatch.BuildPlans(repos, reg, adapter, mode)
+	return engine.ParseRemoteMismatchReconcileMode(raw)
 }
 
 func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd string, roots []string, dryRun bool) error {
@@ -706,8 +701,4 @@ func writeRemoteMismatchPlan(cmd *cobra.Command, plans []remoteMismatchPlan, cwd
 		[]string{"PATH", "ACTION", "PRIMARY_REMOTE", "GIT_REMOTE_URL", "REGISTRY_REMOTE_URL", "REPO"},
 		rows,
 	)
-}
-
-func applyRemoteMismatchPlans(cmd *cobra.Command, plans []remoteMismatchPlan, reg *registry.Registry, mode remoteMismatchReconcileMode) error {
-	return remotemismatch.ApplyPlans(cmd.Context(), plans, reg, mode, vcs.NewGitAdapter(nil), nil)
 }

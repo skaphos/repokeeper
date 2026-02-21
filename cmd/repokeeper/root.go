@@ -6,8 +6,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
+	"github.com/skaphos/repokeeper/internal/urlutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -53,8 +56,11 @@ func Execute() {
 
 // ExecuteWithExitCode runs the root command and returns a shell-friendly exit code.
 func ExecuteWithExitCode() int {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	state := &runtimeState{}
-	rootCmd.SetContext(context.WithValue(context.Background(), runtimeStateKey{}, state))
+	rootCmd.SetContext(context.WithValue(ctx, runtimeStateKey{}, state))
 	if err := rootCmd.Execute(); err != nil {
 		if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
 			return 3
@@ -87,7 +93,16 @@ func debugf(cmd *cobra.Command, format string, args ...any) {
 	if isQuiet(cmd) || verbosity(cmd) <= 0 {
 		return
 	}
-	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", args...); err != nil {
+	// Redact URLs with embedded credentials in debug output to prevent accidental credential leakage.
+	redactedArgs := make([]any, len(args))
+	for i, arg := range args {
+		if str, ok := arg.(string); ok {
+			redactedArgs[i] = urlutil.RedactCredentials(str)
+		} else {
+			redactedArgs[i] = arg
+		}
+	}
+	if _, err := fmt.Fprintf(cmd.ErrOrStderr(), format+"\n", redactedArgs...); err != nil {
 		if _, fallbackErr := fmt.Fprintf(os.Stderr, "repokeeper: output write failure (debug): %v\n", err); fallbackErr != nil {
 			return
 		}
