@@ -18,6 +18,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/discovery"
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
@@ -171,15 +172,14 @@ func pathUnderAnyRoot(path string, roots []string) bool {
 }
 
 func ignoredPathSet(cfg *config.Config) map[string]bool {
-	out := make(map[string]bool)
 	if cfg == nil {
-		return out
+		return make(map[string]bool)
 	}
-	for _, p := range cfg.IgnoredPaths {
-		if strings.TrimSpace(p) == "" {
-			continue
-		}
-		out[filepath.Clean(p)] = true
+	// Convert pathutil.IgnoredPathSet result (map[string]struct{}) to map[string]bool
+	pathSet := pathutil.IgnoredPathSet(cfg.IgnoredPaths, pathutil.CleanNormalize)
+	out := make(map[string]bool, len(pathSet))
+	for k := range pathSet {
+		out[k] = true
 	}
 	return out
 }
@@ -326,6 +326,10 @@ type SyncResult struct {
 	ErrorClass string
 	// Action is a shell-like description of the executed or planned action.
 	Action string
+	// Planned indicates this item is a dry-run plan entry to be applied later.
+	Planned bool
+	// SkipReason carries typed skip rationale for outcomes that intentionally skip work.
+	SkipReason string
 }
 
 // SyncResultCallback is invoked for each sync result as it is produced.
@@ -364,6 +368,7 @@ const (
 	SyncOutcomeStashedRebased        OutcomeKind = "stashed_rebased"
 	SyncOutcomeFailedInspect         OutcomeKind = "failed_inspect"
 
+	// Deprecated: use SyncResult.Planned instead of Error == SyncErrorDryRun.
 	SyncErrorDryRun                   = "dry-run"
 	SyncErrorMissing                  = "missing"
 	SyncErrorSkipped                  = "skipped"
@@ -410,7 +415,7 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 			onStart(item)
 		}
 		// Non-dry-run execution only applies actions that were explicitly planned.
-		if item.Error != SyncErrorDryRun {
+		if !item.Planned {
 			results = append(results, item)
 			if onComplete != nil {
 				onComplete(item)
@@ -447,7 +452,7 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 			onStart(item)
 		}
 		// Only planned actions are executed. Precomputed non-dry-run items pass through.
-		if item.Error != SyncErrorDryRun {
+		if !item.Planned {
 			results = append(results, item)
 			if onComplete != nil {
 				onComplete(item)
@@ -817,6 +822,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 			OK:      true,
 			Error:   SyncErrorDryRun,
 			Action:  action,
+			Planned: true,
 		}
 	}
 	if err := e.adapter.Clone(ctx, remoteURL, entry.Path, branch, mirror); err != nil {
@@ -865,6 +871,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 				ErrorClass: "skipped",
 				Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
 				Action:     action,
+				SkipReason: reason,
 			}
 		}
 		// We still inspect during dry-run so skip reasons and planned actions
@@ -882,6 +889,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 				OK:      true,
 				Error:   SyncErrorDryRun,
 				Action:  action,
+				Planned: true,
 			}
 		}
 		if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
@@ -898,6 +906,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 				ErrorClass: "skipped",
 				Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
 				Action:     action,
+				SkipReason: reason,
 			}
 		}
 		action += " && git pull --rebase --no-recurse-submodules"
@@ -909,6 +918,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 		OK:      true,
 		Error:   SyncErrorDryRun,
 		Action:  action,
+		Planned: true,
 	}
 }
 
@@ -948,6 +958,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 			OK:         true,
 			ErrorClass: "skipped",
 			Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
+			SkipReason: reason,
 		}
 	}
 	status, err := e.InspectRepo(ctx, entry.Path)
@@ -987,6 +998,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 			OK:         true,
 			ErrorClass: "skipped",
 			Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
+			SkipReason: reason,
 		}
 	}
 	return e.runSyncRebaseApply(ctx, entry, status, opts.RebaseDirty)

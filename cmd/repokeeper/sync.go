@@ -191,7 +191,7 @@ var syncCmd = &cobra.Command{
 				raiseExitCode(cmd, 2)
 				continue
 			}
-			if strings.HasPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix) {
+			if _, skippedLocalUpdate := syncLocalUpdateSkipReason(res); skippedLocalUpdate {
 				raiseExitCode(cmd, 1)
 			}
 		}
@@ -604,8 +604,7 @@ func describeSyncAction(res engine.SyncResult) string {
 	action := strings.TrimSpace(res.Action)
 
 	// Prefer explicit skip reasons from the engine over heuristic action parsing.
-	if strings.HasPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix) {
-		reason := strings.TrimSpace(strings.TrimPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix))
+	if reason, skippedLocalUpdate := syncLocalUpdateSkipReason(res); skippedLocalUpdate {
 		if reason == "already up to date" {
 			return "fetch"
 		}
@@ -654,6 +653,17 @@ func describeSyncAction(res engine.SyncResult) string {
 		return "-"
 	}
 	return action
+}
+
+func syncLocalUpdateSkipReason(res engine.SyncResult) (string, bool) {
+	if res.Outcome == engine.SyncOutcomeSkippedLocalUpdate || res.SkipReason != "" {
+		return strings.TrimSpace(res.SkipReason), true
+	}
+	reason, ok := strings.CutPrefix(res.Error, engine.SyncErrorSkippedLocalUpdatePrefix)
+	if !ok {
+		return "", false
+	}
+	return strings.TrimSpace(reason), true
 }
 
 func writeSyncFailureSummary(cmd *cobra.Command, results []engine.SyncResult, cwd string, roots []string) error {

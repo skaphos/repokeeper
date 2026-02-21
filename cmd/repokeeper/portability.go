@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
@@ -411,7 +411,7 @@ func cloneImportedEntriesWithProgress(
 	for _, entry := range entries {
 		targetRel := importTargetRelativePath(entry, bundle.Root)
 		target := filepath.Clean(filepath.Join(cwd, targetRel))
-		targetKey := canonicalPathKey(target)
+		targetKey := pathutil.CanonicalNormalize(target)
 
 		// Protect against path traversal/out-of-tree paths from malformed bundles.
 		relToCWD, err := filepath.Rel(cwd, target)
@@ -790,11 +790,11 @@ func dropIgnoredImportEntries(cfg *config.Config, bundle exportBundle, cwd strin
 	}
 	kept := make([]registry.Entry, 0, len(cfg.Registry.Entries))
 	for _, entry := range cfg.Registry.Entries {
-		if ignored[canonicalPathKey(entry.Path)] {
+		if ignored[pathutil.CanonicalNormalize(entry.Path)] {
 			continue
 		}
 		target := filepath.Clean(filepath.Join(cwd, importTargetRelativePath(entry, bundle.Root)))
-		if ignored[canonicalPathKey(target)] {
+		if ignored[pathutil.CanonicalNormalize(target)] {
 			continue
 		}
 		kept = append(kept, entry)
@@ -803,15 +803,14 @@ func dropIgnoredImportEntries(cfg *config.Config, bundle exportBundle, cwd strin
 }
 
 func ignoredPathSet(cfg *config.Config) map[string]bool {
-	out := make(map[string]bool)
 	if cfg == nil {
-		return out
+		return make(map[string]bool)
 	}
-	for _, p := range cfg.IgnoredPaths {
-		if strings.TrimSpace(p) == "" {
-			continue
-		}
-		out[canonicalPathKey(p)] = true
+	// Convert pathutil.IgnoredPathSet result (map[string]struct{}) to map[string]bool
+	pathSet := pathutil.IgnoredPathSet(cfg.IgnoredPaths, pathutil.CanonicalNormalize)
+	out := make(map[string]bool, len(pathSet))
+	for k := range pathSet {
+		out[k] = true
 	}
 	return out
 }
@@ -952,12 +951,4 @@ func isAbsoluteLikePath(raw, cleaned string) bool {
 		}
 	}
 	return false
-}
-
-func canonicalPathKey(path string) string {
-	key := filepath.Clean(path)
-	if runtime.GOOS == "windows" {
-		key = strings.ToLower(key)
-	}
-	return key
 }

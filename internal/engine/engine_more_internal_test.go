@@ -332,10 +332,10 @@ func TestExecuteSyncPlanAppliesPlannedActions(t *testing.T) {
 	}
 	eng := &Engine{registry: reg, adapter: adapter}
 	plan := []SyncResult{
-		{RepoID: "fetch", Path: "/repos/fetch", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
-		{RepoID: "rebase", Path: "/repos/rebase", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop"},
-		{RepoID: "push", Path: "/repos/push", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git push"},
-		{RepoID: "clone", Path: "/repos/clone", OK: true, Error: "dry-run", Action: "git clone --branch main --single-branch git@github.com:org/clone.git /repos/clone"},
+		{RepoID: "fetch", Path: "/repos/fetch", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "rebase", Path: "/repos/rebase", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop"},
+		{RepoID: "push", Path: "/repos/push", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git push"},
+		{RepoID: "clone", Path: "/repos/clone", OK: true, Error: "dry-run", Planned: true, Action: "git clone --branch main --single-branch git@github.com:org/clone.git /repos/clone"},
 		{RepoID: "skip", Path: "/repos/skip", OK: true, Error: "skipped-no-upstream"},
 	}
 	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
@@ -377,8 +377,8 @@ func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
 		adapter:  adapter,
 	}
 	plan := []SyncResult{
-		{RepoID: "a", Path: "/repos/a", OK: true, Error: "dry-run", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
-		{RepoID: "b", Path: "/repos/b", OK: true, Error: "dry-run", Action: "git push"},
+		{RepoID: "a", Path: "/repos/a", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "b", Path: "/repos/b", OK: true, Error: "dry-run", Planned: true, Action: "git push"},
 	}
 	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
 	if err != nil {

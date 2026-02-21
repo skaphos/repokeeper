@@ -211,6 +211,9 @@ func TestHandleMissingSyncEntry(t *testing.T) {
 	if planned.Outcome != "planned_checkout_missing" || planned.Error != SyncErrorDryRun || !strings.Contains(planned.Action, "git clone") {
 		t.Fatalf("unexpected planned missing result: %+v", planned)
 	}
+	if !planned.Planned {
+		t.Fatalf("expected planned missing result to set Planned=true: %+v", planned)
+	}
 
 	applied := eng.handleMissingSyncEntry(context.Background(), entry, SyncOptions{CheckoutMissing: true})
 	if !applied.OK || applied.Outcome != "checkout_missing" {
@@ -260,6 +263,9 @@ func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true, PushLocal: true})
 	if dry.Outcome != "planned_push" || dry.Error != SyncErrorDryRun || !strings.Contains(dry.Action, "git push") {
 		t.Fatalf("unexpected dry-run push plan: %+v", dry)
+	}
+	if !dry.Planned {
+		t.Fatalf("expected dry-run push plan to set Planned=true: %+v", dry)
 	}
 
 	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: false})
@@ -329,6 +335,7 @@ func TestExecuteSyncPlanAppliesActions(t *testing.T) {
 		Error:   SyncErrorDryRun,
 		Outcome: "planned_fetch",
 		Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop && git push",
+		Planned: true,
 	}}
 	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
 	if err != nil {
@@ -350,8 +357,8 @@ func TestExecuteSyncPlanStopsOnFailure(t *testing.T) {
 	}}, vcs.NewGitAdapter(runner))
 
 	plan := []SyncResult{
-		{RepoID: "repo1", Path: "/repo1", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
-		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "repo1", Path: "/repo1", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
+		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
 	}
 	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
 	if err != nil {
@@ -369,7 +376,7 @@ func TestExecuteSyncPlanStopsOnNonDryRunFailure(t *testing.T) {
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(nil))
 	plan := []SyncResult{
 		{RepoID: "repo1", Path: "/repo1", OK: false, Error: "boom", Outcome: "failed_fetch"},
-		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
+		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
 	}
 	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
 	if err != nil {
@@ -402,6 +409,7 @@ func TestExecuteSyncPlanCloneAction(t *testing.T) {
 		Error:   SyncErrorDryRun,
 		Outcome: "planned_checkout_missing",
 		Action:  "git clone --branch main --single-branch git@github.com:org/missing.git /missing",
+		Planned: true,
 	}}
 	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
 	if err != nil {
@@ -430,6 +438,7 @@ func TestExecuteSyncPlanWithCallbackInvokesPerResult(t *testing.T) {
 		Error:   SyncErrorDryRun,
 		Outcome: SyncOutcomePlannedFetch,
 		Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules",
+		Planned: true,
 	}}
 
 	seen := 0
