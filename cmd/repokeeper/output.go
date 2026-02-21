@@ -10,5 +10,5 @@ func logOutputWriteFailure(cmd *cobra.Command, context string, err error) {
 	if err == nil {
 		return
 	}
-	debugf(cmd, "ignored output write failure (%s): %v", context, err)
+	infof(cmd, "ignored output write failure (%s): %v", context, err)
 }

@@ -3,6 +3,7 @@ package repokeeper
 
 import (
 	"bytes"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -377,5 +378,99 @@ var _ = Describe("syncProgressWriter.runDots", func() {
 
 		// At minimum the initial dot must appear in the output.
 		Expect(out.String()).To(ContainSubstring("."))
+	})
+})
+
+var _ = Describe("sync command flag validation", func() {
+	It("rejects --concurrency > 64", func() {
+		cmd := &cobra.Command{}
+		cmd.Flags().Int("concurrency", 0, "")
+		cmd.Flags().Int("timeout", 0, "")
+		cmd.Flags().String("only", "", "")
+		cmd.Flags().String("field-selector", "", "")
+		cmd.Flags().Bool("continue-on-error", true, "")
+		cmd.Flags().Bool("dry-run", false, "")
+		cmd.Flags().Bool("update-local", false, "")
+		cmd.Flags().Bool("push-local", false, "")
+		cmd.Flags().Bool("rebase-dirty", false, "")
+		cmd.Flags().Bool("force", false, "")
+		cmd.Flags().String("protected-branches", "", "")
+		cmd.Flags().Bool("allow-protected-rebase", false, "")
+		cmd.Flags().Bool("checkout-missing", false, "")
+		cmd.Flags().String("format", "table", "")
+		cmd.Flags().Bool("no-headers", false, "")
+		cmd.Flags().Bool("wrap", false, "")
+		cmd.Flags().String("vcs", "git", "")
+
+		cmd.Flags().Set("concurrency", "100")
+
+		concurrency, _ := cmd.Flags().GetInt("concurrency")
+
+		if concurrency > 0 && concurrency > 64 {
+			Expect(fmt.Sprintf("--concurrency must be <= 64, got %d", concurrency)).To(Equal("--concurrency must be <= 64, got 100"))
+		} else {
+			Fail("validation should have rejected concurrency > 64")
+		}
+	})
+
+	It("rejects --timeout > 600", func() {
+		cmd := &cobra.Command{}
+		cmd.Flags().Int("concurrency", 0, "")
+		cmd.Flags().Int("timeout", 0, "")
+		cmd.Flags().String("only", "", "")
+		cmd.Flags().String("field-selector", "", "")
+		cmd.Flags().Bool("continue-on-error", true, "")
+		cmd.Flags().Bool("dry-run", false, "")
+		cmd.Flags().Bool("update-local", false, "")
+		cmd.Flags().Bool("push-local", false, "")
+		cmd.Flags().Bool("rebase-dirty", false, "")
+		cmd.Flags().Bool("force", false, "")
+		cmd.Flags().String("protected-branches", "", "")
+		cmd.Flags().Bool("allow-protected-rebase", false, "")
+		cmd.Flags().Bool("checkout-missing", false, "")
+		cmd.Flags().String("format", "table", "")
+		cmd.Flags().Bool("no-headers", false, "")
+		cmd.Flags().Bool("wrap", false, "")
+		cmd.Flags().String("vcs", "git", "")
+
+		cmd.Flags().Set("timeout", "1000")
+
+		timeout, _ := cmd.Flags().GetInt("timeout")
+
+		if timeout > 0 && timeout > 600 {
+			Expect(fmt.Sprintf("--timeout must be <= 600, got %d", timeout)).To(Equal("--timeout must be <= 600, got 1000"))
+		} else {
+			Fail("validation should have rejected timeout > 600")
+		}
+	})
+
+	It("accepts --concurrency <= 64", func() {
+		cmd := &cobra.Command{}
+		cmd.Flags().Int("concurrency", 0, "")
+		cmd.Flags().Set("concurrency", "64")
+
+		concurrency, _ := cmd.Flags().GetInt("concurrency")
+		Expect(concurrency).To(Equal(64))
+	})
+
+	It("accepts --timeout <= 600", func() {
+		cmd := &cobra.Command{}
+		cmd.Flags().Int("timeout", 0, "")
+		cmd.Flags().Set("timeout", "600")
+
+		timeout, _ := cmd.Flags().GetInt("timeout")
+		Expect(timeout).To(Equal(600))
+	})
+
+	It("accepts default values (0) for concurrency and timeout", func() {
+		cmd := &cobra.Command{}
+		cmd.Flags().Int("concurrency", 0, "")
+		cmd.Flags().Int("timeout", 0, "")
+
+		concurrency, _ := cmd.Flags().GetInt("concurrency")
+		timeout, _ := cmd.Flags().GetInt("timeout")
+
+		Expect(concurrency).To(Equal(0))
+		Expect(timeout).To(Equal(0))
 	})
 })

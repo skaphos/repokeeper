@@ -7,11 +7,28 @@ linters:
     - errcheck
     - unused
     - misspell
+    - depguard
 
 formatters:
   enable:
     - gofmt
     - goimports
+
+linters-settings:
+  depguard:
+    rules:
+      engine-no-gitx:
+        files:
+          - "**/internal/engine/**"
+        deny:
+          - pkg: "github.com/skaphos/repokeeper/internal/gitx"
+            desc: "engine must use vcs.ErrorClassifier/URLNormalizer interfaces, not gitx directly"
+      cmd-no-gitx:
+        files:
+          - "**/cmd/repokeeper/**"
+        deny:
+          - pkg: "github.com/skaphos/repokeeper/internal/gitx"
+            desc: "cmd must use vcs.ErrorClassifier interface, not gitx directly"
 
 run:
   timeout: 5m

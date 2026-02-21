@@ -408,6 +408,17 @@ const (
 	SyncErrorFetchTimeout             = "sync-fetch-timeout"
 	SyncErrorFetchCorrupt             = "sync-fetch-corrupt"
 	SyncErrorFetchMissingRemote       = "sync-fetch-missing-remote"
+
+	// Skip reasons for pull/rebase policy checks
+	SyncReasonUnknownStatus               = "unknown status"
+	SyncReasonBareRepository              = "bare repository"
+	SyncReasonDetachedHead                = "detached HEAD"
+	SyncReasonDirtyStateUnknown           = "dirty state unknown"
+	SyncReasonDirtyWorkingTree            = "dirty working tree"
+	SyncReasonUpstreamNoLongerExists      = "upstream no longer exists"
+	SyncReasonBranchNotTrackingUpstream   = "branch is not tracking an upstream"
+	SyncReasonBranchHasLocalCommitsToPush = "branch has local commits to push"
+	SyncReasonAlreadyUpToDate             = "already up to date"
 )
 
 // ExecuteSyncPlan executes a previously computed dry-run sync plan.
@@ -616,10 +627,14 @@ func syncFailureMessage(outcome OutcomeKind, class string, err error) string {
 	return err.Error()
 }
 
+// localUpdateCapable defines the interface for adapters that support local update capabilities.
+type localUpdateCapable interface {
+	SupportsLocalUpdate(context.Context, string) (bool, string, error)
+	FetchAction(context.Context, string) (string, error)
+}
+
 func supportsLocalUpdate(ctx context.Context, adapter vcs.Adapter, dir string) (bool, string, error) {
-	capable, ok := adapter.(interface {
-		SupportsLocalUpdate(context.Context, string) (bool, string, error)
-	})
+	capable, ok := adapter.(localUpdateCapable)
 	if !ok {
 		return true, "", nil
 	}
@@ -627,9 +642,7 @@ func supportsLocalUpdate(ctx context.Context, adapter vcs.Adapter, dir string) (
 }
 
 func syncFetchAction(ctx context.Context, adapter vcs.Adapter, dir string) string {
-	provider, ok := adapter.(interface {
-		FetchAction(context.Context, string) (string, error)
-	})
+	provider, ok := adapter.(localUpdateCapable)
 	if !ok {
 		return "git fetch --all --prune --prune-tags --no-recurse-submodules"
 	}
@@ -1118,37 +1131,37 @@ func pullRebaseSkipReason(status *model.RepoStatus, opts PullRebasePolicyOptions
 	// This function is intentionally ordered from hard-safety checks to
 	// state-based policy checks so callers get stable, actionable reasons.
 	if status == nil {
-		return "unknown status"
+		return SyncReasonUnknownStatus
 	}
 	if status.Bare {
-		return "bare repository"
+		return SyncReasonBareRepository
 	}
 	if status.Head.Detached {
-		return "detached HEAD"
+		return SyncReasonDetachedHead
 	}
 	if matchesProtectedBranch(status.Head.Branch, opts.ProtectedBranches) && !opts.AllowProtectedRebase {
 		return fmt.Sprintf("branch %q is protected", status.Head.Branch)
 	}
 	if status.Worktree == nil {
-		return "dirty state unknown"
+		return SyncReasonDirtyStateUnknown
 	}
 	if status.Worktree.Dirty && !opts.RebaseDirty {
-		return "dirty working tree"
+		return SyncReasonDirtyWorkingTree
 	}
 	if status.Tracking.Status == model.TrackingGone {
-		return "upstream no longer exists"
+		return SyncReasonUpstreamNoLongerExists
 	}
 	if status.Tracking.Upstream == "" || status.Tracking.Status == model.TrackingNone {
-		return "branch is not tracking an upstream"
+		return SyncReasonBranchNotTrackingUpstream
 	}
 	if status.Tracking.Status == model.TrackingAhead {
-		return "branch has local commits to push"
+		return SyncReasonBranchHasLocalCommitsToPush
 	}
 	if status.Tracking.Status == model.TrackingDiverged && !opts.Force {
 		return "branch has diverged (use --force to rebase anyway)"
 	}
 	if status.Tracking.Status == model.TrackingEqual {
-		return "already up to date"
+		return SyncReasonAlreadyUpToDate
 	}
 	return ""
 }

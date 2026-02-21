@@ -67,6 +67,12 @@ var syncCmd = &cobra.Command{
 		}
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 		wrap, _ := cmd.Flags().GetBool("wrap")
+		if concurrency > 0 && concurrency > 64 {
+			return fmt.Errorf("--concurrency must be <= 64, got %d", concurrency)
+		}
+		if timeout > 0 && timeout > 600 {
+			return fmt.Errorf("--timeout must be <= 600, got %d", timeout)
+		}
 		if rebaseDirty && !updateLocal {
 			return fmt.Errorf("--rebase-dirty requires --update-local")
 		}
@@ -606,7 +612,7 @@ func describeSyncAction(res engine.SyncResult) string {
 
 	// Prefer explicit skip reasons from the engine over heuristic action parsing.
 	if reason, skippedLocalUpdate := syncLocalUpdateSkipReason(res); skippedLocalUpdate {
-		if reason == "already up to date" {
+		if reason == engine.SyncReasonAlreadyUpToDate {
 			return "fetch"
 		}
 		if reason == "" {
