@@ -3,7 +3,6 @@ package urlutil
 
 import (
 	"net/url"
-	"regexp"
 	"strings"
 )
 
@@ -67,12 +66,4 @@ func RedactCredentials(rawURL string) string {
 
 	// Malformed or unrecognized format; return unchanged
 	return rawURL
-}
-
-// redactWithRegex is a fallback regex-based redaction for non-standard formats.
-// Not currently used but kept for reference if needed in the future.
-var credentialPattern = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://)[^@/]+@`)
-
-func redactWithRegex(rawURL string) string {
-	return credentialPattern.ReplaceAllString(rawURL, `$1***@`)
 }

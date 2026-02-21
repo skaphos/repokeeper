@@ -11,5 +11,5 @@ func TestNopLoggerDoesNotPanic(t *testing.T) {
 }
 
 func TestNopLoggerSatisfiesInterface(t *testing.T) {
-	var _ Logger = NopLogger()
+	var _ = NopLogger()
 }

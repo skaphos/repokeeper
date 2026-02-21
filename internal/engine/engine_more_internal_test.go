@@ -4,6 +4,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/skaphos/repokeeper/internal/config"
@@ -14,6 +15,7 @@ import (
 )
 
 type planAdapter struct {
+	mu            sync.Mutex
 	fetchErrByDir map[string]error
 	pushErrByDir  map[string]error
 	pullErrByDir  map[string]error
@@ -37,35 +39,51 @@ func (p *planAdapter) TrackingStatus(context.Context, string) (model.Tracking, e
 }
 func (p *planAdapter) HasSubmodules(context.Context, string) (bool, error) { return false, nil }
 func (p *planAdapter) Fetch(_ context.Context, dir string) error {
+	p.mu.Lock()
 	p.calls = append(p.calls, "fetch:"+dir)
+	p.mu.Unlock()
 	return p.fetchErrByDir[dir]
 }
 func (p *planAdapter) PullRebase(_ context.Context, dir string) error {
+	p.mu.Lock()
 	p.calls = append(p.calls, "pull:"+dir)
+	p.mu.Unlock()
 	return p.pullErrByDir[dir]
 }
 func (p *planAdapter) Push(_ context.Context, dir string) error {
+	p.mu.Lock()
 	p.calls = append(p.calls, "push:"+dir)
+	p.mu.Unlock()
 	return p.pushErrByDir[dir]
 }
 func (p *planAdapter) SetUpstream(_ context.Context, dir, upstream, branch string) error {
+	p.mu.Lock()
 	p.calls = append(p.calls, "set-upstream:"+dir+":"+upstream+":"+branch)
+	p.mu.Unlock()
 	return nil
 }
 func (p *planAdapter) SetRemoteURL(_ context.Context, dir, remote, remoteURL string) error {
+	p.mu.Lock()
 	p.calls = append(p.calls, "set-remote-url:"+dir+":"+remote+":"+remoteURL)
+	p.mu.Unlock()
 	return nil
 }
 func (p *planAdapter) StashPush(_ context.Context, dir, _ string) (bool, error) {
+	p.mu.Lock()
 	p.calls = append(p.calls, "stash-push:"+dir)
+	p.mu.Unlock()
 	return p.stashCreated, p.stashErrByDir[dir]
 }
 func (p *planAdapter) StashPop(_ context.Context, dir string) error {
+	p.mu.Lock()
 	p.calls = append(p.calls, "stash-pop:"+dir)
+	p.mu.Unlock()
 	return p.popErrByDir[dir]
 }
 func (p *planAdapter) Clone(_ context.Context, _ string, targetPath, _ string, _ bool) error {
+	p.mu.Lock()
 	p.calls = append(p.calls, "clone:"+targetPath)
+	p.mu.Unlock()
 	return p.cloneErrByDir[targetPath]
 }
 func (p *planAdapter) NormalizeURL(rawURL string) string { return rawURL }

@@ -19,28 +19,28 @@ var _ = Describe("describeSyncAction", func() {
 			Expect(describeSyncAction(res)).To(Equal(want))
 		},
 
-		// SyncErrorDryRun ("dry-run") is NOT matched by any special-case error
+		// Planned=true (dry-run mode) is NOT matched by any special-case error
 		// check, so it falls through to action-string heuristics.
-		// CRITICAL: This is the sentinel that Task 7 replaces; capturing its exact
-		// behaviour here ensures no regression.
-		Entry("SyncErrorDryRun + empty action + OK=true → fetch",
-			engine.SyncResult{Error: engine.SyncErrorDryRun, OK: true},
+		// CRITICAL: These entries capture the behaviour of the dry-run sentinel
+		// (formerly SyncErrorDryRun, now the Planned field) to guard against regression.
+		Entry("Planned=true + empty action + OK=true → fetch",
+			engine.SyncResult{Planned: true, OK: true},
 			"fetch"),
-		Entry("SyncErrorDryRun + empty action + OK=false → dash",
-			engine.SyncResult{Error: engine.SyncErrorDryRun, OK: false},
+		Entry("Planned=true + empty action + OK=false → dash",
+			engine.SyncResult{Planned: true, OK: false},
 			"-"),
-		Entry("SyncErrorDryRun + fetch action → fetch",
+		Entry("Planned=true + fetch action → fetch",
 			engine.SyncResult{
-				Error:  engine.SyncErrorDryRun,
-				Action: "git fetch --all --prune --prune-tags --no-recurse-submodules",
-				OK:     true,
+				Planned: true,
+				Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules",
+				OK:      true,
 			},
 			"fetch"),
-		Entry("SyncErrorDryRun + fetch+rebase action → fetch + rebase",
+		Entry("Planned=true + fetch+rebase action → fetch + rebase",
 			engine.SyncResult{
-				Error:  engine.SyncErrorDryRun,
-				Action: "git fetch --all --prune && git pull --rebase --no-recurse-submodules",
-				OK:     true,
+				Planned: true,
+				Action:  "git fetch --all --prune && git pull --rebase --no-recurse-submodules",
+				OK:      true,
 			},
 			"fetch + rebase"),
 
@@ -402,7 +402,7 @@ var _ = Describe("sync command flag validation", func() {
 		cmd.Flags().Bool("wrap", false, "")
 		cmd.Flags().String("vcs", "git", "")
 
-		cmd.Flags().Set("concurrency", "100")
+		Expect(cmd.Flags().Set("concurrency", "100")).To(Succeed())
 
 		concurrency, _ := cmd.Flags().GetInt("concurrency")
 
@@ -433,7 +433,7 @@ var _ = Describe("sync command flag validation", func() {
 		cmd.Flags().Bool("wrap", false, "")
 		cmd.Flags().String("vcs", "git", "")
 
-		cmd.Flags().Set("timeout", "1000")
+		Expect(cmd.Flags().Set("timeout", "1000")).To(Succeed())
 
 		timeout, _ := cmd.Flags().GetInt("timeout")
 
@@ -447,7 +447,7 @@ var _ = Describe("sync command flag validation", func() {
 	It("accepts --concurrency <= 64", func() {
 		cmd := &cobra.Command{}
 		cmd.Flags().Int("concurrency", 0, "")
-		cmd.Flags().Set("concurrency", "64")
+		Expect(cmd.Flags().Set("concurrency", "64")).To(Succeed())
 
 		concurrency, _ := cmd.Flags().GetInt("concurrency")
 		Expect(concurrency).To(Equal(64))
@@ -456,7 +456,7 @@ var _ = Describe("sync command flag validation", func() {
 	It("accepts --timeout <= 600", func() {
 		cmd := &cobra.Command{}
 		cmd.Flags().Int("timeout", 0, "")
-		cmd.Flags().Set("timeout", "600")
+		Expect(cmd.Flags().Set("timeout", "600")).To(Succeed())
 
 		timeout, _ := cmd.Flags().GetInt("timeout")
 		Expect(timeout).To(Equal(600))
