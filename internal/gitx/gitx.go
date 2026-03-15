@@ -270,6 +270,16 @@ func StashPop(ctx context.Context, r Runner, dir string) error {
 }
 
 // Clone runs a clone operation. Branch is ignored for mirror clones.
+func ResetHard(ctx context.Context, r Runner, dir string) error {
+	out, err := r.Run(ctx, dir, "reset", "--hard", "HEAD")
+	return wrapRunError("git reset --hard HEAD", out, err)
+}
+
+func CleanFD(ctx context.Context, r Runner, dir string) error {
+	out, err := r.Run(ctx, dir, "clean", "-f", "-d")
+	return wrapRunError("git clean -f -d", out, err)
+}
+
 func Clone(ctx context.Context, r Runner, remoteURL, targetPath, branch string, mirror bool) error {
 	args := []string{"clone"}
 	if mirror {

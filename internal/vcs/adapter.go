@@ -27,6 +27,8 @@ type Adapter interface {
 	SetRemoteURL(ctx context.Context, dir, remote, remoteURL string) error
 	StashPush(ctx context.Context, dir, message string) (bool, error)
 	StashPop(ctx context.Context, dir string) error
+	ResetHard(ctx context.Context, dir string) error
+	CleanFD(ctx context.Context, dir string) error
 	Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error
 	NormalizeURL(rawURL string) string
 	PrimaryRemote(remoteNames []string) string
@@ -107,6 +109,14 @@ func (g *GitAdapter) StashPush(ctx context.Context, dir, message string) (bool, 
 
 func (g *GitAdapter) StashPop(ctx context.Context, dir string) error {
 	return gitx.StashPop(ctx, g.Runner, dir)
+}
+
+func (g *GitAdapter) ResetHard(ctx context.Context, dir string) error {
+	return gitx.ResetHard(ctx, g.Runner, dir)
+}
+
+func (g *GitAdapter) CleanFD(ctx context.Context, dir string) error {
+	return gitx.CleanFD(ctx, g.Runner, dir)
 }
 
 func (g *GitAdapter) Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error {

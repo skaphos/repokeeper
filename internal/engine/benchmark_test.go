@@ -42,6 +42,8 @@ func (b *benchAdapter) StashPush(context.Context, string, string) (bool, error) 
 	return false, nil
 }
 func (b *benchAdapter) StashPop(context.Context, string) error                    { return nil }
+func (b *benchAdapter) ResetHard(context.Context, string) error                   { return nil }
+func (b *benchAdapter) CleanFD(context.Context, string) error                     { return nil }
 func (b *benchAdapter) Clone(context.Context, string, string, string, bool) error { return nil }
 func (b *benchAdapter) NormalizeURL(rawURL string) string                         { return rawURL }
 func (b *benchAdapter) PrimaryRemote(remoteNames []string) string {

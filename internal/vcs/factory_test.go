@@ -91,7 +91,9 @@ func (m *multiStubAdapter) SetRemoteURL(context.Context, string, string, string)
 func (m *multiStubAdapter) StashPush(context.Context, string, string) (bool, error) {
 	return false, errors.New("unsupported")
 }
-func (m *multiStubAdapter) StashPop(context.Context, string) error { return errors.New("unsupported") }
+func (m *multiStubAdapter) StashPop(context.Context, string) error  { return errors.New("unsupported") }
+func (m *multiStubAdapter) ResetHard(context.Context, string) error { return errors.New("unsupported") }
+func (m *multiStubAdapter) CleanFD(context.Context, string) error   { return errors.New("unsupported") }
 func (m *multiStubAdapter) Clone(context.Context, string, string, string, bool) error {
 	return errors.New("unsupported")
 }

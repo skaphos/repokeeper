@@ -84,6 +84,10 @@ func (h *HgAdapter) StashPush(context.Context, string, string) (bool, error) {
 
 func (h *HgAdapter) StashPop(context.Context, string) error { return errUnsupportedForHg }
 
+func (h *HgAdapter) ResetHard(context.Context, string) error { return errUnsupportedForHg }
+
+func (h *HgAdapter) CleanFD(context.Context, string) error { return errUnsupportedForHg }
+
 func (h *HgAdapter) Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error {
 	args := []string{"clone"}
 	if strings.TrimSpace(branch) != "" {

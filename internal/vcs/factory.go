@@ -185,8 +185,23 @@ func (m *MultiAdapter) StashPop(ctx context.Context, dir string) error {
 	return adapter.StashPop(ctx, dir)
 }
 
+func (m *MultiAdapter) ResetHard(ctx context.Context, dir string) error {
+	adapter, err := m.adapterForPath(ctx, dir)
+	if err != nil {
+		return err
+	}
+	return adapter.ResetHard(ctx, dir)
+}
+
+func (m *MultiAdapter) CleanFD(ctx context.Context, dir string) error {
+	adapter, err := m.adapterForPath(ctx, dir)
+	if err != nil {
+		return err
+	}
+	return adapter.CleanFD(ctx, dir)
+}
+
 func (m *MultiAdapter) Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error {
-	// Clone target backend defaults to the first selected adapter.
 	return m.adapters[0].Clone(ctx, remoteURL, targetPath, branch, mirror)
 }
 

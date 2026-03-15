@@ -86,8 +86,10 @@ func (p *planAdapter) Clone(_ context.Context, _ string, targetPath, _ string, _
 	p.mu.Unlock()
 	return p.cloneErrByDir[targetPath]
 }
-func (p *planAdapter) NormalizeURL(rawURL string) string { return rawURL }
-func (p *planAdapter) PrimaryRemote(_ []string) string   { return "origin" }
+func (p *planAdapter) ResetHard(context.Context, string) error { return nil }
+func (p *planAdapter) CleanFD(context.Context, string) error   { return nil }
+func (p *planAdapter) NormalizeURL(rawURL string) string       { return rawURL }
+func (p *planAdapter) PrimaryRemote(_ []string) string         { return "origin" }
 
 func TestPullRebaseSkipReasonTable(t *testing.T) {
 	tests := []struct {

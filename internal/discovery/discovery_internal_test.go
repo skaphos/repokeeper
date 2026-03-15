@@ -59,10 +59,10 @@ func (s *stubAdapter) SetRemoteURL(context.Context, string, string, string) erro
 func (s *stubAdapter) StashPush(context.Context, string, string) (bool, error) {
 	return false, nil
 }
-func (s *stubAdapter) StashPop(context.Context, string) error { return nil }
-func (s *stubAdapter) Clone(context.Context, string, string, string, bool) error {
-	return nil
-}
+func (s *stubAdapter) StashPop(context.Context, string) error                    { return nil }
+func (s *stubAdapter) ResetHard(context.Context, string) error                   { return nil }
+func (s *stubAdapter) CleanFD(context.Context, string) error                     { return nil }
+func (s *stubAdapter) Clone(context.Context, string, string, string, bool) error { return nil }
 func (s *stubAdapter) NormalizeURL(rawURL string) string {
 	if s.normalizeURLFn == nil {
 		return rawURL
