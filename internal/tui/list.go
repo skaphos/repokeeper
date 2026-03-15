@@ -13,6 +13,7 @@ func renderListView(m tuiModel) string {
 
 	cols := defaultColumns()
 	widths := distributeWidths(cols, m.width)
+	list := m.visibleList()
 
 	var b strings.Builder
 
@@ -23,6 +24,13 @@ func renderListView(m tuiModel) string {
 	}
 	if m.loading {
 		title += "  " + loadingStyle.Render("loading…")
+	}
+	if m.filterText != "" {
+		title += fmt.Sprintf("  [%d match", len(list))
+		if len(list) != 1 {
+			title += "es"
+		}
+		title += "]"
 	}
 	b.WriteString(titleStyle.Render(title))
 	b.WriteByte('\n')
@@ -36,18 +44,22 @@ func renderListView(m tuiModel) string {
 	if m.err != nil {
 		b.WriteString(errorTextStyle.Render(fmt.Sprintf("Error: %s", m.err)))
 		b.WriteByte('\n')
-	} else if len(m.repos) == 0 && !m.loading {
-		b.WriteString(loadingStyle.Render("No repositories found. Run `repokeeper scan` first."))
+	} else if len(list) == 0 && !m.loading {
+		if m.filterText != "" {
+			b.WriteString(loadingStyle.Render(fmt.Sprintf("No matches for %q", m.filterText)))
+		} else {
+			b.WriteString(loadingStyle.Render("No repositories found. Run `repokeeper scan` first."))
+		}
 		b.WriteByte('\n')
 	} else {
 		visible := visibleRows(m)
 		start := m.offset
 		end := start + visible
-		if end > len(m.repos) {
-			end = len(m.repos)
+		if end > len(list) {
+			end = len(list)
 		}
 		for i := start; i < end; i++ {
-			row := renderStyledRow(cols, widths, m.repos[i])
+			row := renderStyledRow(cols, widths, list[i])
 			if i == m.cursor {
 				row = cursorStyle.Render(row)
 			}
@@ -56,7 +68,15 @@ func renderListView(m tuiModel) string {
 		}
 	}
 
-	b.WriteString(statusBarStyle.Render("q: quit"))
+	if m.filterMode {
+		b.WriteString(statusBarStyle.Render(fmt.Sprintf("Filter: %s█", m.filterText)))
+	} else {
+		helpKeys := "↑↓/jk: nav  /: filter  f5: refresh  q: quit"
+		if m.filterText != "" {
+			helpKeys = "↑↓/jk: nav  /: filter  esc: clear  f5: refresh  q: quit"
+		}
+		b.WriteString(statusBarStyle.Render(helpKeys))
+	}
 
 	return b.String()
 }

@@ -181,3 +181,118 @@ func TestUpdateWindowSize(t *testing.T) {
 		t.Fatalf("expected width=120,height=40 got width=%d,height=%d", nm.width, nm.height)
 	}
 }
+
+func TestMoveCursorDown(t *testing.T) {
+	t.Parallel()
+
+	repos := make([]model.RepoStatus, 5)
+	m := tuiModel{repos: repos, width: 120, height: 20}
+	nm, cmd := m.Update(tea.KeyPressMsg{Code: 'j'})
+	if cmd != nil {
+		t.Fatal("expected nil cmd")
+	}
+	if nm.(tuiModel).cursor != 1 {
+		t.Fatalf("expected cursor=1, got %d", nm.(tuiModel).cursor)
+	}
+}
+
+func TestMoveCursorUp(t *testing.T) {
+	t.Parallel()
+
+	repos := make([]model.RepoStatus, 5)
+	m := tuiModel{repos: repos, cursor: 2, width: 120, height: 20}
+	nm, _ := m.Update(tea.KeyPressMsg{Code: 'k'})
+	if nm.(tuiModel).cursor != 1 {
+		t.Fatalf("expected cursor=1, got %d", nm.(tuiModel).cursor)
+	}
+}
+
+func TestMoveCursorClampAtZero(t *testing.T) {
+	t.Parallel()
+
+	repos := make([]model.RepoStatus, 3)
+	m := tuiModel{repos: repos, cursor: 0, width: 120, height: 20}
+	nm, _ := m.Update(tea.KeyPressMsg{Code: 'k'})
+	if nm.(tuiModel).cursor != 0 {
+		t.Fatalf("expected cursor=0 (clamped), got %d", nm.(tuiModel).cursor)
+	}
+}
+
+func TestMoveCursorClampAtEnd(t *testing.T) {
+	t.Parallel()
+
+	repos := make([]model.RepoStatus, 3)
+	m := tuiModel{repos: repos, cursor: 2, width: 120, height: 20}
+	nm, _ := m.Update(tea.KeyPressMsg{Code: 'j'})
+	if nm.(tuiModel).cursor != 2 {
+		t.Fatalf("expected cursor=2 (clamped), got %d", nm.(tuiModel).cursor)
+	}
+}
+
+func TestFilterModeActivation(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{}
+	nm, _ := m.Update(tea.KeyPressMsg{Code: '/'})
+	if !nm.(tuiModel).filterMode {
+		t.Fatal("expected filterMode=true after /")
+	}
+}
+
+func TestFilterModeTyping(t *testing.T) {
+	t.Parallel()
+
+	repos := []model.RepoStatus{{RepoID: "acme/backend"}, {RepoID: "tools/cli"}}
+	m := tuiModel{repos: repos, filterMode: true}
+	nm, _ := m.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	next := nm.(tuiModel)
+	if next.filterText != "a" {
+		t.Fatalf("expected filterText='a', got %q", next.filterText)
+	}
+	if len(next.filteredRepos) != 1 || next.filteredRepos[0].RepoID != "acme/backend" {
+		t.Fatalf("expected filteredRepos=[acme/backend], got %v", next.filteredRepos)
+	}
+}
+
+func TestFilterModeEscClears(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{filterMode: true, filterText: "abc", filteredRepos: []model.RepoStatus{{RepoID: "x"}}}
+	nm, _ := m.handleFilterKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	next := nm.(tuiModel)
+	if next.filterMode {
+		t.Fatal("expected filterMode=false after esc")
+	}
+	if next.filterText != "" {
+		t.Fatalf("expected filterText='', got %q", next.filterText)
+	}
+}
+
+func TestEscInListClearsFilter(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{filterText: "abc", filteredRepos: []model.RepoStatus{{RepoID: "x"}}}
+	nm, _ := m.handleListKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	next := nm.(tuiModel)
+	if next.filterText != "" {
+		t.Fatalf("expected filterText='', got %q", next.filterText)
+	}
+}
+
+func TestF5TriggersRefresh(t *testing.T) {
+	t.Parallel()
+
+	eng := &mockEngine{statusResult: &model.StatusReport{}}
+	m := tuiModel{engine: eng}
+	nm, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyF5})
+	if !nm.(tuiModel).loading {
+		t.Fatal("expected loading=true after f5")
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd from f5")
+	}
+	result := cmd()
+	if _, ok := result.(statusReportMsg); !ok {
+		t.Fatalf("expected statusReportMsg, got %T", result)
+	}
+}

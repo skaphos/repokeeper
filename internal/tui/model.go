@@ -31,11 +31,15 @@ type tuiModel struct {
 	mode          viewMode
 	width, height int
 
-	repos   []model.RepoStatus
-	cursor  int
-	offset  int
-	loading bool
-	err     error
+	repos         []model.RepoStatus
+	filteredRepos []model.RepoStatus
+	cursor        int
+	offset        int
+	loading       bool
+	err           error
+
+	filterMode bool
+	filterText string
 }
 
 func newModel(eng EngineAPI, reg *registry.Registry, cfgPath string) tuiModel {
@@ -81,6 +85,13 @@ func registryEntryToPartialStatus(entry registry.Entry) model.RepoStatus {
 		s.ErrorClass = "missing"
 	}
 	return s
+}
+
+func (m tuiModel) visibleList() []model.RepoStatus {
+	if m.filterText != "" {
+		return m.filteredRepos
+	}
+	return m.repos
 }
 
 func (m tuiModel) Init() tea.Cmd {
