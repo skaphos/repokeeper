@@ -40,6 +40,14 @@ type tuiModel struct {
 
 	filterMode bool
 	filterText string
+
+	selected map[string]bool
+
+	syncPlan     []engine.SyncResult
+	syncResults  []engine.SyncResult
+	syncProgress map[string]engine.SyncResult
+	syncDone     bool
+	syncErr      error
 }
 
 func newModel(eng EngineAPI, reg *registry.Registry, cfgPath string) tuiModel {

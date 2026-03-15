@@ -60,8 +60,14 @@ func renderListView(m tuiModel) string {
 		}
 		for i := start; i < end; i++ {
 			row := renderStyledRow(cols, widths, list[i])
+			sel := " "
+			if m.selected[list[i].RepoID] {
+				sel = "●"
+			}
 			if i == m.cursor {
-				row = cursorStyle.Render(row)
+				row = cursorStyle.Render(sel + row)
+			} else {
+				row = sel + row
 			}
 			b.WriteString(row)
 			b.WriteByte('\n')
@@ -71,9 +77,13 @@ func renderListView(m tuiModel) string {
 	if m.filterMode {
 		b.WriteString(statusBarStyle.Render(fmt.Sprintf("Filter: %s█", m.filterText)))
 	} else {
-		helpKeys := "↑↓/jk: nav  /: filter  f5: refresh  q: quit"
+		selCount := len(m.selected)
+		helpKeys := "↑↓/jk: nav  space: select  a: all  s: sync  /: filter  f5: refresh  q: quit"
 		if m.filterText != "" {
-			helpKeys = "↑↓/jk: nav  /: filter  esc: clear  f5: refresh  q: quit"
+			helpKeys = "↑↓/jk: nav  space: select  a: all  s: sync  /: filter  esc: clear  f5: refresh  q: quit"
+		}
+		if selCount > 0 {
+			helpKeys = fmt.Sprintf("%d selected  |  ", selCount) + helpKeys
 		}
 		b.WriteString(statusBarStyle.Render(helpKeys))
 	}
