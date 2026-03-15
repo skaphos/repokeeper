@@ -45,6 +45,13 @@ func (e *mockEngine) InspectRepo(ctx context.Context, path string) (*model.RepoS
 func (e *mockEngine) RepairUpstream(ctx context.Context, repoID, cfgPath string) (engine.RepairUpstreamResult, error) {
 	return engine.RepairUpstreamResult{}, nil
 }
+func (e *mockEngine) ResetRepo(ctx context.Context, repoID, cfgPath string) error { return nil }
+func (e *mockEngine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteFiles bool) error {
+	return nil
+}
+func (e *mockEngine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cfgPath string, mirror bool) error {
+	return nil
+}
 
 func (e *mockEngine) Registry() *registry.Registry {
 	return e.reg

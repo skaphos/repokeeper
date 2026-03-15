@@ -24,6 +24,9 @@ type EngineAPI interface {
 	) ([]engine.SyncResult, error)
 	InspectRepo(ctx context.Context, path string) (*model.RepoStatus, error)
 	RepairUpstream(ctx context.Context, repoID, cfgPath string) (engine.RepairUpstreamResult, error)
+	ResetRepo(ctx context.Context, repoID, cfgPath string) error
+	DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteFiles bool) error
+	CloneAndRegister(ctx context.Context, remoteURL, targetPath, cfgPath string, mirror bool) error
 	Registry() *registry.Registry
 	Config() *config.Config
 }

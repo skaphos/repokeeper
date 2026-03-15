@@ -18,6 +18,9 @@ const (
 	viewSyncPlan
 	viewProgress
 	viewRepairConfirm
+	viewResetConfirm
+	viewDeleteConfirm
+	viewAdd
 )
 
 type statusReportMsg struct {
@@ -55,6 +58,16 @@ type tuiModel struct {
 
 	repairRepoID         string
 	repairTargetUpstream string
+
+	resetRepoID string
+
+	deleteRepoID   string
+	deleteRepoPath string
+
+	addURL    string
+	addPath   string
+	addMirror bool
+	addField  int
 
 	statusMsg     string
 	statusIsError bool

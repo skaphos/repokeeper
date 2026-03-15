@@ -3,6 +3,7 @@ package tui
 
 import (
 	"context"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/skaphos/repokeeper/internal/engine"
@@ -41,6 +42,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case repairDoneMsg:
 		return m.handleRepairDone(msg)
+
+	case resetDoneMsg:
+		return m.handleResetDone(msg)
+
+	case deleteDoneMsg:
+		return m.handleDeleteDone(msg)
+
+	case addDoneMsg:
+		return m.handleAddDone(msg)
 	}
 	return m, nil
 }
@@ -58,6 +68,12 @@ func (m tuiModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleDetailKey(msg)
 	case viewRepairConfirm:
 		return m.handleRepairConfirmKey(msg)
+	case viewResetConfirm:
+		return m.handleResetConfirmKey(msg)
+	case viewDeleteConfirm:
+		return m.handleDeleteConfirmKey(msg)
+	case viewAdd:
+		return m.handleAddKey(msg)
 	default:
 		if m.filterMode {
 			return m.handleFilterKey(msg)
@@ -128,6 +144,15 @@ func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "r":
 		return m.startRepair()
+
+	case "ctrl+x":
+		return m.startReset()
+
+	case "ctrl+d":
+		return m.startDelete()
+
+	case "n":
+		return m.startAdd()
 	}
 	return m, nil
 }
@@ -366,6 +391,203 @@ func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
 		m.loading = false
 	}
 	return m, nil
+}
+
+func (m tuiModel) startReset() (tea.Model, tea.Cmd) {
+	list := m.visibleList()
+	if len(list) == 0 || m.cursor >= len(list) {
+		return m, nil
+	}
+	m.mode = viewResetConfirm
+	m.resetRepoID = list[m.cursor].RepoID
+	return m, nil
+}
+
+func (m tuiModel) handleResetConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y":
+		repoID := m.resetRepoID
+		m.mode = viewList
+		m.resetRepoID = ""
+		return m, resetRepoCmd(m.engine, repoID, m.cfgPath)
+	default:
+		m.mode = viewList
+		m.resetRepoID = ""
+		return m, nil
+	}
+}
+
+func (m tuiModel) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.statusMsg = "reset error: " + msg.err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	m.statusMsg = "reset: " + msg.repoID
+	m.statusIsError = false
+	m.loading = true
+	reg := m.engine.Registry()
+	if reg != nil && len(reg.Entries) > 0 {
+		m.pendingInspections = len(reg.Entries)
+		return m, streamStatusCmd(m.engine, reg.Entries)
+	}
+	return m, loadStatusCmd(m.engine)
+}
+
+func (m tuiModel) startDelete() (tea.Model, tea.Cmd) {
+	list := m.visibleList()
+	if len(list) == 0 || m.cursor >= len(list) {
+		return m, nil
+	}
+	m.mode = viewDeleteConfirm
+	m.deleteRepoID = list[m.cursor].RepoID
+	m.deleteRepoPath = list[m.cursor].Path
+	return m, nil
+}
+
+func (m tuiModel) handleDeleteConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "u":
+		repoID := m.deleteRepoID
+		m.mode = viewList
+		m.deleteRepoID = ""
+		m.deleteRepoPath = ""
+		m.cursor = 0
+		return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, false)
+	case "d":
+		repoID := m.deleteRepoID
+		m.mode = viewList
+		m.deleteRepoID = ""
+		m.deleteRepoPath = ""
+		m.cursor = 0
+		return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, true)
+	default:
+		m.mode = viewList
+		m.deleteRepoID = ""
+		m.deleteRepoPath = ""
+		return m, nil
+	}
+}
+
+func (m tuiModel) handleDeleteDone(msg deleteDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.statusMsg = "delete error: " + msg.err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	m.statusMsg = "deleted: " + msg.repoID
+	m.statusIsError = false
+	m.loading = true
+	reg := m.engine.Registry()
+	if reg != nil && len(reg.Entries) > 0 {
+		m.pendingInspections = len(reg.Entries)
+		return m, streamStatusCmd(m.engine, reg.Entries)
+	}
+	return m, loadStatusCmd(m.engine)
+}
+
+func (m tuiModel) startAdd() (tea.Model, tea.Cmd) {
+	m.mode = viewAdd
+	m.addURL = ""
+	m.addPath = ""
+	m.addMirror = false
+	m.addField = addFieldURL
+	return m, nil
+}
+
+func (m tuiModel) handleAddKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = viewList
+		m.addURL = ""
+		m.addPath = ""
+		m.addMirror = false
+		m.addField = addFieldURL
+		return m, nil
+
+	case "enter":
+		switch m.addField {
+		case addFieldURL:
+			if strings.TrimSpace(m.addURL) == "" {
+				return m, nil
+			}
+			m.addField = addFieldPath
+		case addFieldPath:
+			m.addField = addFieldMirror
+		case addFieldMirror:
+			url := strings.TrimSpace(m.addURL)
+			path := resolvedAddPath(m)
+			if url == "" || path == "" {
+				m.statusMsg = "URL and path are required"
+				m.statusIsError = true
+				m.mode = viewList
+				return m, nil
+			}
+			m.mode = viewList
+			return m, cloneAndRegisterCmd(m.engine, url, path, m.cfgPath, m.addMirror)
+		}
+		return m, nil
+
+	case "backspace":
+		switch m.addField {
+		case addFieldURL:
+			if len(m.addURL) > 0 {
+				r := []rune(m.addURL)
+				m.addURL = string(r[:len(r)-1])
+			}
+		case addFieldPath:
+			if len(m.addPath) > 0 {
+				r := []rune(m.addPath)
+				m.addPath = string(r[:len(r)-1])
+			}
+		}
+		return m, nil
+
+	case "space":
+		if m.addField == addFieldMirror {
+			m.addMirror = !m.addMirror
+		} else if t := msg.Text; t != "" {
+			m = m.addFieldAppend(t)
+		}
+		return m, nil
+
+	default:
+		if t := msg.Text; t != "" {
+			m = m.addFieldAppend(t)
+		}
+	}
+	return m, nil
+}
+
+func (m tuiModel) addFieldAppend(text string) tuiModel {
+	switch m.addField {
+	case addFieldURL:
+		m.addURL += text
+	case addFieldPath:
+		m.addPath += text
+	}
+	return m
+}
+
+func (m tuiModel) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
+	m.addURL = ""
+	m.addPath = ""
+	m.addMirror = false
+	m.addField = addFieldURL
+	if msg.err != nil {
+		m.statusMsg = "add error: " + msg.err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	m.statusMsg = "added: " + msg.repoID
+	m.statusIsError = false
+	m.loading = true
+	reg := m.engine.Registry()
+	if reg != nil && len(reg.Entries) > 0 {
+		m.pendingInspections = len(reg.Entries)
+		return m, streamStatusCmd(m.engine, reg.Entries)
+	}
+	return m, loadStatusCmd(m.engine)
 }
 
 func (m tuiModel) startRepair() (tea.Model, tea.Cmd) {
