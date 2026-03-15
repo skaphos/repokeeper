@@ -12,7 +12,7 @@ func renderListView(m tuiModel) string {
 	}
 
 	cols := defaultColumns()
-	widths := distributeWidths(cols, m.width)
+	widths := distributeWidths(cols, m.width-1)
 	list := m.visibleList()
 
 	var b strings.Builder

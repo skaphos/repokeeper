@@ -38,6 +38,9 @@ func matchesFilter(r model.RepoStatus, q string) bool {
 	if strings.Contains(strings.ToLower(string(r.Tracking.Status)), q) {
 		return true
 	}
+	if strings.Contains(strings.ToLower(colValueStatus(r)), q) {
+		return true
+	}
 	if strings.Contains(strings.ToLower(r.ErrorClass), q) {
 		return true
 	}

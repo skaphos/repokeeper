@@ -101,3 +101,11 @@ func TestFilterRowsSharedBranch(t *testing.T) {
 		t.Fatalf("expected 2 repos on main, got %d: %v", len(got), got)
 	}
 }
+
+func TestFilterRowsByDisplayLabel(t *testing.T) {
+	t.Parallel()
+	got := filterRows(testRepos, "up to date")
+	if len(got) != 1 || got[0].RepoID != "acme/backend" {
+		t.Fatalf("expected [acme/backend] for 'up to date', got %v", got)
+	}
+}
