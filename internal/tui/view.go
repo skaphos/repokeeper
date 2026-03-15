@@ -12,6 +12,8 @@ func (m tuiModel) View() tea.View {
 
 func (m tuiModel) renderCurrentView() string {
 	switch m.mode {
+	case viewDetail:
+		return renderDetailView(m)
 	case viewSyncPlan:
 		return renderSyncPlanView(m)
 	case viewProgress:

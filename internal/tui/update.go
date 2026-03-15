@@ -39,12 +39,23 @@ func (m tuiModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleSyncPlanKey(msg)
 	case viewProgress:
 		return m.handleSyncProgressKey(msg)
+	case viewDetail:
+		return m.handleDetailKey(msg)
 	default:
 		if m.filterMode {
 			return m.handleFilterKey(msg)
 		}
 		return m.handleListKey(msg)
 	}
+}
+
+func (m tuiModel) handleDetailKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc", "backspace":
+		m.mode = viewList
+		return m, nil
+	}
+	return m, nil
 }
 
 func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -83,6 +94,16 @@ func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "s":
 		return m.startSync()
+
+	case "enter":
+		list := m.visibleList()
+		if len(list) > 0 && m.cursor < len(list) {
+			m.mode = viewDetail
+		}
+		return m, nil
+
+	case "e", "r":
+		return m, nil
 	}
 	return m, nil
 }
