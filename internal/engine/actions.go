@@ -1,0 +1,144 @@
+// SPDX-License-Identifier: MIT
+package engine
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/registry"
+)
+
+func (e *Engine) ResetRepo(ctx context.Context, repoID, cfgPath string) error {
+	e.registryMu.Lock()
+	reg := e.registry
+	e.registryMu.Unlock()
+
+	if reg == nil {
+		return fmt.Errorf("registry not available")
+	}
+	var entry registry.Entry
+	found := false
+	for _, en := range reg.Entries {
+		if en.RepoID == repoID {
+			entry = en
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("repo %q not found in registry", repoID)
+	}
+	if entry.Status == registry.StatusMissing {
+		return fmt.Errorf("repo %q path is missing on disk", repoID)
+	}
+
+	if err := e.adapter.ResetHard(ctx, entry.Path); err != nil {
+		return fmt.Errorf("git reset --hard HEAD: %w", err)
+	}
+	if err := e.adapter.CleanFD(ctx, entry.Path); err != nil {
+		return fmt.Errorf("git clean -f -d: %w", err)
+	}
+	return nil
+}
+
+func (e *Engine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteFiles bool) error {
+	e.registryMu.Lock()
+	reg := e.registry
+	cfg := e.cfg
+	e.registryMu.Unlock()
+
+	if reg == nil {
+		return fmt.Errorf("registry not available")
+	}
+	var entryPath string
+	newEntries := make([]registry.Entry, 0, len(reg.Entries))
+	for _, en := range reg.Entries {
+		if en.RepoID == repoID {
+			entryPath = en.Path
+			continue
+		}
+		newEntries = append(newEntries, en)
+	}
+	if entryPath == "" {
+		return fmt.Errorf("repo %q not found in registry", repoID)
+	}
+
+	e.registryMu.Lock()
+	reg.Entries = newEntries
+	reg.UpdatedAt = time.Now()
+	e.registryMu.Unlock()
+
+	cfg.Registry = reg
+	if err := config.Save(cfg, cfgPath); err != nil {
+		return fmt.Errorf("saving registry after delete: %w", err)
+	}
+
+	if deleteFiles && entryPath != "" {
+		if err := os.RemoveAll(entryPath); err != nil {
+			return fmt.Errorf("deleting %s from disk: %w", entryPath, err)
+		}
+	}
+	return nil
+}
+
+func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cfgPath string, mirror bool) error {
+	if err := e.adapter.Clone(ctx, remoteURL, targetPath, "", mirror); err != nil {
+		return fmt.Errorf("git clone: %w", err)
+	}
+
+	repoID := e.adapter.NormalizeURL(remoteURL)
+	if repoID == "" {
+		repoID = "local:" + filepath.ToSlash(targetPath)
+	}
+
+	repoType := "checkout"
+	if mirror {
+		repoType = "mirror"
+	}
+
+	entry := registry.Entry{
+		RepoID:   repoID,
+		Path:     targetPath,
+		Type:     repoType,
+		Status:   registry.StatusPresent,
+		LastSeen: time.Now(),
+	}
+	if !mirror {
+		entry.Branch = repoDefaultBranch(remoteURL, targetPath)
+	}
+
+	e.upsertRegistryEntry(entry)
+
+	e.registryMu.Lock()
+	reg := e.registry
+	cfg := e.cfg
+	e.registryMu.Unlock()
+	cfg.Registry = reg
+	if err := config.Save(cfg, cfgPath); err != nil {
+		return fmt.Errorf("saving registry after clone: %w", err)
+	}
+	return nil
+}
+
+func repoDefaultBranch(_ string, targetPath string) string {
+	return ""
+}
+
+func repoNameFromURL(rawURL string) string {
+	trimmed := strings.TrimSuffix(strings.TrimSpace(rawURL), ".git")
+	trimmed = strings.TrimSuffix(trimmed, "/")
+	parts := strings.Split(trimmed, "/")
+	if len(parts) == 0 {
+		return ""
+	}
+	name := parts[len(parts)-1]
+	if colon := strings.LastIndex(name, ":"); colon >= 0 {
+		name = name[colon+1:]
+	}
+	return name
+}
