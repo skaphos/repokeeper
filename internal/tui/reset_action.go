@@ -21,6 +21,8 @@ func resetRepoCmd(eng EngineAPI, repoID, cfgPath string) tea.Cmd {
 	}
 }
 
+var resetOptions = []string{"Cancel", "Yes, reset"}
+
 func renderResetConfirmView(m tuiModel) string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("Reset Repository"))
@@ -35,9 +37,9 @@ func renderResetConfirmView(m tuiModel) string {
 	b.WriteString(errorTextStyle.Render("  All uncommitted changes and untracked files will be permanently lost."))
 	b.WriteByte('\n')
 	b.WriteByte('\n')
-	b.WriteString("  Proceed?")
+	b.WriteString("  " + renderModalButtons(resetOptions, m.modalCursor))
 	b.WriteByte('\n')
 	b.WriteByte('\n')
-	b.WriteString(statusBarStyle.Render("y: confirm reset  n/esc: cancel (default)"))
+	b.WriteString(statusBarStyle.Render("←/→ or h/l: select  enter: confirm  esc: cancel"))
 	return b.String()
 }

@@ -192,22 +192,42 @@ func (m tuiModel) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+var syncPlanOptionCount = 2
+
 func (m tuiModel) handleSyncPlanKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y", "enter":
+	if msg.String() == "esc" {
+		m.mode = viewList
+		m.syncPlan = nil
+		m.modalCursor = 0
+		return m, nil
+	}
+	left, right := isModalNav(msg)
+	if left {
+		m = modalMoveLeft(m, syncPlanOptionCount)
+		return m, nil
+	}
+	if right {
+		m = modalMoveRight(m, syncPlanOptionCount)
+		return m, nil
+	}
+	if msg.String() == "enter" {
+		if m.modalCursor == 0 {
+			m.mode = viewList
+			m.syncPlan = nil
+			m.modalCursor = 0
+			return m, nil
+		}
 		if len(m.syncPlan) == 0 {
 			m.mode = viewList
+			m.modalCursor = 0
 			return m, nil
 		}
 		m.mode = viewProgress
 		m.syncProgress = make(map[string]engine.SyncResult)
 		m.syncDone = false
 		m.syncErr = nil
+		m.modalCursor = 0
 		return m, executeSyncCmd(m)
-	case "n", "esc":
-		m.mode = viewList
-		m.syncPlan = nil
-		return m, nil
 	}
 	return m, nil
 }
@@ -289,6 +309,7 @@ func (m tuiModel) startSync() (tea.Model, tea.Cmd) {
 	m.mode = viewSyncPlan
 	m.syncPlan = nil
 	m.loading = true
+	m.modalCursor = 0
 	return m, buildSyncPlanCmd(m.engine, m.selected)
 }
 
@@ -400,21 +421,41 @@ func (m tuiModel) startReset() (tea.Model, tea.Cmd) {
 	}
 	m.mode = viewResetConfirm
 	m.resetRepoID = list[m.cursor].RepoID
+	m.modalCursor = 0
 	return m, nil
 }
 
+var resetOptionCount = 2
+
 func (m tuiModel) handleResetConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y":
-		repoID := m.resetRepoID
+	if msg.String() == "esc" {
 		m.mode = viewList
 		m.resetRepoID = ""
-		return m, resetRepoCmd(m.engine, repoID, m.cfgPath)
-	default:
-		m.mode = viewList
-		m.resetRepoID = ""
+		m.modalCursor = 0
 		return m, nil
 	}
+	left, right := isModalNav(msg)
+	if left {
+		m = modalMoveLeft(m, resetOptionCount)
+		return m, nil
+	}
+	if right {
+		m = modalMoveRight(m, resetOptionCount)
+		return m, nil
+	}
+	if msg.String() == "enter" {
+		if m.modalCursor == 1 {
+			repoID := m.resetRepoID
+			m.mode = viewList
+			m.resetRepoID = ""
+			m.modalCursor = 0
+			return m, resetRepoCmd(m.engine, repoID, m.cfgPath)
+		}
+		m.mode = viewList
+		m.resetRepoID = ""
+		m.modalCursor = 0
+	}
+	return m, nil
 }
 
 func (m tuiModel) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
@@ -442,31 +483,55 @@ func (m tuiModel) startDelete() (tea.Model, tea.Cmd) {
 	m.mode = viewDeleteConfirm
 	m.deleteRepoID = list[m.cursor].RepoID
 	m.deleteRepoPath = list[m.cursor].Path
+	m.modalCursor = 0
 	return m, nil
 }
 
+var deleteOptionCount = 3
+
 func (m tuiModel) handleDeleteConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "u":
-		repoID := m.deleteRepoID
+	if msg.String() == "esc" {
 		m.mode = viewList
 		m.deleteRepoID = ""
 		m.deleteRepoPath = ""
-		m.cursor = 0
-		return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, false)
-	case "d":
-		repoID := m.deleteRepoID
-		m.mode = viewList
-		m.deleteRepoID = ""
-		m.deleteRepoPath = ""
-		m.cursor = 0
-		return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, true)
-	default:
-		m.mode = viewList
-		m.deleteRepoID = ""
-		m.deleteRepoPath = ""
+		m.modalCursor = 0
 		return m, nil
 	}
+	left, right := isModalNav(msg)
+	if left {
+		m = modalMoveLeft(m, deleteOptionCount)
+		return m, nil
+	}
+	if right {
+		m = modalMoveRight(m, deleteOptionCount)
+		return m, nil
+	}
+	if msg.String() == "enter" {
+		switch m.modalCursor {
+		case 1:
+			repoID := m.deleteRepoID
+			m.mode = viewList
+			m.deleteRepoID = ""
+			m.deleteRepoPath = ""
+			m.modalCursor = 0
+			m.cursor = 0
+			return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, false)
+		case 2:
+			repoID := m.deleteRepoID
+			m.mode = viewList
+			m.deleteRepoID = ""
+			m.deleteRepoPath = ""
+			m.modalCursor = 0
+			m.cursor = 0
+			return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, true)
+		default:
+			m.mode = viewList
+			m.deleteRepoID = ""
+			m.deleteRepoPath = ""
+			m.modalCursor = 0
+		}
+	}
+	return m, nil
 }
 
 func (m tuiModel) handleDeleteDone(msg deleteDoneMsg) (tea.Model, tea.Cmd) {
@@ -600,19 +665,43 @@ func (m tuiModel) startRepair() (tea.Model, tea.Cmd) {
 	m.mode = viewRepairConfirm
 	m.repairRepoID = repoID
 	m.repairTargetUpstream = target
+	m.modalCursor = 0
 	return m, nil
 }
 
+var repairOptionCount = 2
+
 func (m tuiModel) handleRepairConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y", "enter":
-		m.mode = viewList
-		return m, repairUpstreamCmd(m.engine, m.repairRepoID, m.cfgPath)
-	case "n", "esc":
+	if msg.String() == "esc" || (msg.String() == "enter" && m.repairTargetUpstream == "") {
 		m.mode = viewList
 		m.repairRepoID = ""
 		m.repairTargetUpstream = ""
+		m.modalCursor = 0
 		return m, nil
+	}
+	left, right := isModalNav(msg)
+	if left {
+		m = modalMoveLeft(m, repairOptionCount)
+		return m, nil
+	}
+	if right {
+		m = modalMoveRight(m, repairOptionCount)
+		return m, nil
+	}
+	if msg.String() == "enter" {
+		if m.modalCursor == 0 {
+			m.mode = viewList
+			m.repairRepoID = ""
+			m.repairTargetUpstream = ""
+			m.modalCursor = 0
+			return m, nil
+		}
+		repoID := m.repairRepoID
+		m.mode = viewList
+		m.repairRepoID = ""
+		m.repairTargetUpstream = ""
+		m.modalCursor = 0
+		return m, repairUpstreamCmd(m.engine, repoID, m.cfgPath)
 	}
 	return m, nil
 }

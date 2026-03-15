@@ -91,11 +91,11 @@ func TestHandleSyncPlanKeyConfirm(t *testing.T) {
 	t.Parallel()
 
 	plan := []engine.SyncResult{{RepoID: "a", Planned: true}}
-	m := tuiModel{mode: viewSyncPlan, syncPlan: plan}
-	nm, cmd := m.handleSyncPlanKey(tea.KeyPressMsg{Code: 'y'})
+	m := tuiModel{mode: viewSyncPlan, syncPlan: plan, modalCursor: 1}
+	nm, cmd := m.handleSyncPlanKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	next := nm.(tuiModel)
 	if next.mode != viewProgress {
-		t.Fatalf("expected viewProgress on y, got %v", next.mode)
+		t.Fatalf("expected viewProgress on enter with cursor=1, got %v", next.mode)
 	}
 	if cmd == nil {
 		t.Fatal("expected cmd after confirmation")
@@ -106,7 +106,7 @@ func TestHandleSyncPlanKeyCancel(t *testing.T) {
 	t.Parallel()
 
 	plan := []engine.SyncResult{{RepoID: "a", Planned: true}}
-	m := tuiModel{mode: viewSyncPlan, syncPlan: plan}
+	m := tuiModel{mode: viewSyncPlan, syncPlan: plan, modalCursor: 0}
 	nm, _ := m.handleSyncPlanKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	next := nm.(tuiModel)
 	if next.mode != viewList {
@@ -114,6 +114,51 @@ func TestHandleSyncPlanKeyCancel(t *testing.T) {
 	}
 	if next.syncPlan != nil {
 		t.Fatal("expected syncPlan cleared on cancel")
+	}
+}
+
+func TestHandleSyncPlanKeyCancelViaEnterOnCancel(t *testing.T) {
+	t.Parallel()
+
+	plan := []engine.SyncResult{{RepoID: "a", Planned: true}}
+	m := tuiModel{mode: viewSyncPlan, syncPlan: plan, modalCursor: 0}
+	nm, cmd := m.handleSyncPlanKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	next := nm.(tuiModel)
+	if next.mode != viewList {
+		t.Fatalf("expected viewList when cursor=0 (Cancel), got %v", next.mode)
+	}
+	if cmd != nil {
+		t.Fatal("expected nil cmd when cancelling via modal")
+	}
+}
+
+func TestModalNavMovesRight(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{mode: viewSyncPlan, modalCursor: 0}
+	nm, _ := m.handleSyncPlanKey(tea.KeyPressMsg{Code: tea.KeyRight})
+	if nm.(tuiModel).modalCursor != 1 {
+		t.Fatalf("expected modalCursor=1, got %d", nm.(tuiModel).modalCursor)
+	}
+}
+
+func TestModalNavMovesLeft(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{mode: viewSyncPlan, modalCursor: 1}
+	nm, _ := m.handleSyncPlanKey(tea.KeyPressMsg{Code: tea.KeyLeft})
+	if nm.(tuiModel).modalCursor != 0 {
+		t.Fatalf("expected modalCursor=0, got %d", nm.(tuiModel).modalCursor)
+	}
+}
+
+func TestModalNavClampsAtEdges(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{mode: viewSyncPlan, modalCursor: 0}
+	nm, _ := m.handleSyncPlanKey(tea.KeyPressMsg{Code: tea.KeyLeft})
+	if nm.(tuiModel).modalCursor != 0 {
+		t.Fatalf("expected cursor to stay at 0, got %d", nm.(tuiModel).modalCursor)
 	}
 }
 

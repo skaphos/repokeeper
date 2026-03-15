@@ -91,7 +91,10 @@ func renderSyncPlanView(m tuiModel) string {
 	}
 
 	b.WriteByte('\n')
-	b.WriteString(statusBarStyle.Render("y/enter: confirm  n/esc: cancel"))
+	b.WriteString("  " + renderModalButtons([]string{"Cancel", "Confirm sync"}, m.modalCursor))
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	b.WriteString(statusBarStyle.Render("←/→ or h/l: select  enter: confirm  esc: cancel"))
 	return b.String()
 }
 

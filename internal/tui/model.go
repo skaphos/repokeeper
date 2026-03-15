@@ -69,6 +69,8 @@ type tuiModel struct {
 	addMirror bool
 	addField  int
 
+	modalCursor int
+
 	statusMsg     string
 	statusIsError bool
 }

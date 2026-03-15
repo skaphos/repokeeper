@@ -21,6 +21,8 @@ func deleteRepoCmd(eng EngineAPI, repoID, cfgPath string, deleteFiles bool) tea.
 	}
 }
 
+var deleteOptions = []string{"Cancel", "Unregister only", "Delete from disk"}
+
 func renderDeleteConfirmView(m tuiModel) string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("Delete Repository"))
@@ -28,15 +30,15 @@ func renderDeleteConfirmView(m tuiModel) string {
 	b.WriteString(" " + renderDivider([]int{m.width - 2}))
 	b.WriteByte('\n')
 	b.WriteByte('\n')
-	b.WriteString(fmt.Sprintf("  Repo: %s\n", m.deleteRepoID))
-	b.WriteString(fmt.Sprintf("  Path: %s\n", m.deleteRepoPath))
+	b.WriteString(fmt.Sprintf("  Repo:  %s\n", m.deleteRepoID))
+	b.WriteString(fmt.Sprintf("  Path:  %s\n", m.deleteRepoPath))
 	b.WriteByte('\n')
-	b.WriteString("  What would you like to do?\n")
+	b.WriteString("  Unregister only — removes from repokeeper, files stay on disk\n")
+	b.WriteString("  Delete from disk — unregisters AND permanently deletes the directory\n")
 	b.WriteByte('\n')
-	b.WriteString("  [u] Unregister only  — remove from repokeeper registry, keep files on disk\n")
-	b.WriteString("  [d] Delete files too — unregister AND permanently delete from disk\n")
-	b.WriteString("  [n] Cancel (default)\n")
+	b.WriteString("  " + renderModalButtons(deleteOptions, m.modalCursor))
 	b.WriteByte('\n')
-	b.WriteString(statusBarStyle.Render("u: unregister  d: delete from disk  n/esc: cancel (default)"))
+	b.WriteByte('\n')
+	b.WriteString(statusBarStyle.Render("←/→ or h/l: select  enter: confirm  esc: cancel"))
 	return b.String()
 }

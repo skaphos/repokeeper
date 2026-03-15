@@ -70,25 +70,32 @@ func resolveRepairTarget(m tuiModel) (repoID, targetUpstream string, err error) 
 	return repo.RepoID, remote + "/" + targetBranch, nil
 }
 
+var repairOptions = []string{"Cancel", "Repair upstream"}
+
 func renderRepairConfirmView(m tuiModel) string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("Repair Upstream"))
 	b.WriteByte('\n')
-	b.WriteString(renderDivider([]int{m.width - 1}))
+	b.WriteString(" " + renderDivider([]int{m.width - 2}))
 	b.WriteByte('\n')
 	b.WriteByte('\n')
 
 	if m.repairTargetUpstream == "" {
-		b.WriteString(errorTextStyle.Render("Cannot determine target upstream — no remote or branch configured."))
+		b.WriteString(errorTextStyle.Render("  Cannot determine target upstream — no remote or branch configured."))
+		b.WriteByte('\n')
+		b.WriteByte('\n')
+		b.WriteString("  " + renderModalButtons([]string{"OK"}, 0))
 	} else {
 		b.WriteString(fmt.Sprintf("  Repo:   %s\n", m.repairRepoID))
 		b.WriteString(fmt.Sprintf("  Target: %s\n", m.repairTargetUpstream))
 		b.WriteByte('\n')
-		b.WriteString("  Set upstream tracking to target?")
+		b.WriteString("  Set upstream tracking to target?\n")
+		b.WriteByte('\n')
+		b.WriteString("  " + renderModalButtons(repairOptions, m.modalCursor))
 	}
 
 	b.WriteByte('\n')
 	b.WriteByte('\n')
-	b.WriteString(statusBarStyle.Render("y/enter: confirm  n/esc: cancel"))
+	b.WriteString(statusBarStyle.Render("←/→ or h/l: select  enter: confirm  esc: cancel"))
 	return b.String()
 }
