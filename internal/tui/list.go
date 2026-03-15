@@ -35,15 +35,21 @@ func renderListView(m tuiModel) string {
 	b.WriteString(titleStyle.Render(title))
 	b.WriteByte('\n')
 
-	b.WriteString(headerStyle.Render(renderHeader(cols, widths)))
+	// Leading space aligns header/divider with data rows (which are prefixed
+	// by the 1-char selection marker ●/space).
+	b.WriteString(headerStyle.Render(" " + renderHeader(cols, widths)))
 	b.WriteByte('\n')
 
-	b.WriteString(renderDivider(widths))
+	b.WriteString(" " + renderDivider(widths))
 	b.WriteByte('\n')
+
+	visible := visibleRows(m)
+	renderedRows := 0
 
 	if m.err != nil {
 		b.WriteString(errorTextStyle.Render(fmt.Sprintf("Error: %s", m.err)))
 		b.WriteByte('\n')
+		renderedRows = 1
 	} else if len(list) == 0 && !m.loading {
 		if m.filterText != "" {
 			b.WriteString(loadingStyle.Render(fmt.Sprintf("No matches for %q", m.filterText)))
@@ -51,8 +57,8 @@ func renderListView(m tuiModel) string {
 			b.WriteString(loadingStyle.Render("No repositories found. Run `repokeeper scan` first."))
 		}
 		b.WriteByte('\n')
+		renderedRows = 1
 	} else {
-		visible := visibleRows(m)
 		start := m.offset
 		end := start + visible
 		if end > len(list) {
@@ -71,7 +77,13 @@ func renderListView(m tuiModel) string {
 			}
 			b.WriteString(row)
 			b.WriteByte('\n')
+			renderedRows++
 		}
+	}
+
+	// Pad with blank lines so the footer is pinned to the bottom of the terminal.
+	for range visible - renderedRows {
+		b.WriteByte('\n')
 	}
 
 	if m.filterMode {
