@@ -29,6 +29,13 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case syncDoneMsg:
 		return m.handleSyncDone(msg)
+
+	case repoStatusMsg:
+		return m.handleRepoStatus(msg)
+
+	case streamDoneMsg:
+		m.loading = false
+		return m, nil
 	}
 	return m, nil
 }
@@ -311,7 +318,29 @@ func (m tuiModel) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
+	updated := false
+	for i, r := range m.repos {
+		if r.RepoID == msg.status.RepoID || r.Path == msg.status.Path {
+			m.repos[i] = msg.status
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		m.repos = append(m.repos, msg.status)
+	}
+	if m.filterText != "" {
+		m.filteredRepos = filterRows(m.repos, m.filterText)
+	}
+	return m, nil
+}
+
 func refreshStatusCmd(eng EngineAPI) tea.Cmd {
+	reg := eng.Registry()
+	if reg != nil && len(reg.Entries) > 0 {
+		return streamStatusCmd(eng, reg.Entries)
+	}
 	return func() tea.Msg {
 		report, err := eng.Status(context.Background(), engine.StatusOptions{
 			Filter: engine.FilterAll,

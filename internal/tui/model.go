@@ -103,7 +103,11 @@ func (m tuiModel) visibleList() []model.RepoStatus {
 }
 
 func (m tuiModel) Init() tea.Cmd {
-	return loadStatusCmd(m.engine)
+	reg := m.engine.Registry()
+	if reg == nil || len(reg.Entries) == 0 {
+		return loadStatusCmd(m.engine)
+	}
+	return streamStatusCmd(m.engine, reg.Entries)
 }
 
 func loadStatusCmd(eng EngineAPI) tea.Cmd {
