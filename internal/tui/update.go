@@ -32,6 +32,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case repoStatusMsg:
 		return m.handleRepoStatus(msg)
+
+	case editReadyMsg:
+		return m.handleEditReady(msg)
+
+	case editDoneMsg:
+		return m.handleEditDone(msg)
+
+	case repairDoneMsg:
+		return m.handleRepairDone(msg)
 	}
 	return m, nil
 }
@@ -47,6 +56,8 @@ func (m tuiModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleSyncProgressKey(msg)
 	case viewDetail:
 		return m.handleDetailKey(msg)
+	case viewRepairConfirm:
+		return m.handleRepairConfirmKey(msg)
 	default:
 		if m.filterMode {
 			return m.handleFilterKey(msg)
@@ -112,8 +123,11 @@ func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "e", "r":
-		return m, nil
+	case "e":
+		return m, prepareEditCmd(m)
+
+	case "r":
+		return m.startRepair()
 	}
 	return m, nil
 }
@@ -350,6 +364,86 @@ func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
 	m.pendingInspections--
 	if m.pendingInspections <= 0 {
 		m.loading = false
+	}
+	return m, nil
+}
+
+func (m tuiModel) startRepair() (tea.Model, tea.Cmd) {
+	repoID, target, err := resolveRepairTarget(m)
+	if err != nil {
+		m.statusMsg = err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	m.mode = viewRepairConfirm
+	m.repairRepoID = repoID
+	m.repairTargetUpstream = target
+	return m, nil
+}
+
+func (m tuiModel) handleRepairConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y", "enter":
+		m.mode = viewList
+		return m, repairUpstreamCmd(m.engine, m.repairRepoID, m.cfgPath)
+	case "n", "esc":
+		m.mode = viewList
+		m.repairRepoID = ""
+		m.repairTargetUpstream = ""
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m tuiModel) handleEditReady(msg editReadyMsg) (tea.Model, tea.Cmd) {
+	_, cmd := handleEditReady(msg)
+	return m, cmd
+}
+
+func (m tuiModel) handleEditDone(msg editDoneMsg) (tea.Model, tea.Cmd) {
+	m.mode = viewList
+	if msg.err != nil {
+		m.statusMsg = "edit error: " + msg.err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	if !msg.saved {
+		m.statusMsg = "no changes"
+		m.statusIsError = false
+		return m, nil
+	}
+	m.statusMsg = "updated " + msg.repoID
+	m.statusIsError = false
+	m.loading = true
+	reg := m.engine.Registry()
+	if reg != nil && len(reg.Entries) > 0 {
+		m.pendingInspections = len(reg.Entries)
+		return m, streamStatusCmd(m.engine, reg.Entries)
+	}
+	return m, loadStatusCmd(m.engine)
+}
+
+func (m tuiModel) handleRepairDone(msg repairDoneMsg) (tea.Model, tea.Cmd) {
+	m.repairRepoID = ""
+	m.repairTargetUpstream = ""
+	if msg.err != nil {
+		m.statusMsg = "repair error: " + msg.err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	m.statusIsError = false
+	switch msg.result.Action {
+	case "repaired":
+		m.statusMsg = "repaired: " + msg.result.RepoID
+		m.loading = true
+		reg := m.engine.Registry()
+		if reg != nil && len(reg.Entries) > 0 {
+			m.pendingInspections = len(reg.Entries)
+			return m, streamStatusCmd(m.engine, reg.Entries)
+		}
+		return m, loadStatusCmd(m.engine)
+	default:
+		m.statusMsg = msg.result.Action + ": " + msg.result.RepoID
 	}
 	return m, nil
 }

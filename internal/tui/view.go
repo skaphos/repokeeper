@@ -14,6 +14,8 @@ func (m tuiModel) renderCurrentView() string {
 	switch m.mode {
 	case viewDetail:
 		return renderDetailView(m)
+	case viewRepairConfirm:
+		return renderRepairConfirmView(m)
 	case viewSyncPlan:
 		return renderSyncPlanView(m)
 	case viewProgress:

@@ -42,6 +42,10 @@ func (e *mockEngine) InspectRepo(ctx context.Context, path string) (*model.RepoS
 	return nil, nil
 }
 
+func (e *mockEngine) RepairUpstream(ctx context.Context, repoID, cfgPath string) (engine.RepairUpstreamResult, error) {
+	return engine.RepairUpstreamResult{}, nil
+}
+
 func (e *mockEngine) Registry() *registry.Registry {
 	return e.reg
 }

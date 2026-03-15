@@ -17,6 +17,7 @@ const (
 	viewDetail
 	viewSyncPlan
 	viewProgress
+	viewRepairConfirm
 )
 
 type statusReportMsg struct {
@@ -51,6 +52,12 @@ type tuiModel struct {
 	syncProgress map[string]engine.SyncResult
 	syncDone     bool
 	syncErr      error
+
+	repairRepoID         string
+	repairTargetUpstream string
+
+	statusMsg     string
+	statusIsError bool
 }
 
 func newModel(eng EngineAPI, reg *registry.Registry, cfgPath string) tuiModel {

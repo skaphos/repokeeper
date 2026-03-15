@@ -76,11 +76,17 @@ func renderListView(m tuiModel) string {
 
 	if m.filterMode {
 		b.WriteString(statusBarStyle.Render(fmt.Sprintf("Filter: %s█", m.filterText)))
+	} else if m.statusMsg != "" {
+		style := statusBarStyle
+		if m.statusIsError {
+			style = errorTextStyle
+		}
+		b.WriteString(style.Render(m.statusMsg))
 	} else {
 		selCount := len(m.selected)
-		helpKeys := "↑↓/jk: nav  space: select  a: all  s: sync  /: filter  f5: refresh  q: quit"
+		helpKeys := "↑↓/jk: nav  space: select  a: all  s: sync  e: edit  r: repair  /: filter  f5: refresh  q: quit"
 		if m.filterText != "" {
-			helpKeys = "↑↓/jk: nav  space: select  a: all  s: sync  /: filter  esc: clear  f5: refresh  q: quit"
+			helpKeys = "↑↓/jk: nav  space: select  a: all  s: sync  e: edit  r: repair  /: filter  esc: clear  f5: refresh  q: quit"
 		}
 		if selCount > 0 {
 			helpKeys = fmt.Sprintf("%d selected  |  ", selCount) + helpKeys

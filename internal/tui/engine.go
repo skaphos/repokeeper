@@ -23,8 +23,10 @@ type EngineAPI interface {
 		onComplete engine.SyncResultCallback,
 	) ([]engine.SyncResult, error)
 	InspectRepo(ctx context.Context, path string) (*model.RepoStatus, error)
+	RepairUpstream(ctx context.Context, repoID, cfgPath string) (engine.RepairUpstreamResult, error)
 	Registry() *registry.Registry
 	Config() *config.Config
 }
 
+// Compile-time check: *engine.Engine must satisfy EngineAPI.
 var _ EngineAPI = (*engine.Engine)(nil)
