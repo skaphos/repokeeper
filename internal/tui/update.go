@@ -32,15 +32,14 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case repoStatusMsg:
 		return m.handleRepoStatus(msg)
-
-	case streamDoneMsg:
-		m.loading = false
-		return m, nil
 	}
 	return m, nil
 }
 
 func (m tuiModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "ctrl+c" {
+		return m, tea.Quit
+	}
 	switch m.mode {
 	case viewSyncPlan:
 		return m.handleSyncPlanKey(msg)
@@ -67,7 +66,7 @@ func (m tuiModel) handleDetailKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "q":
 		return m, tea.Quit
 
 	case "j", "down":
@@ -82,6 +81,10 @@ func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "f5":
 		m.loading = true
+		reg := m.engine.Registry()
+		if reg != nil {
+			m.pendingInspections = len(reg.Entries)
+		}
 		return m, refreshStatusCmd(m.engine)
 
 	case "esc":
@@ -253,13 +256,24 @@ func (m tuiModel) startSync() (tea.Model, tea.Cmd) {
 func executeSyncCmd(m tuiModel) tea.Cmd {
 	plan := m.syncPlan
 	eng := m.engine
+	prog := m.program
 	return func() tea.Msg {
+		onStart := func(r engine.SyncResult) {
+			if prog != nil {
+				prog.Send(syncProgressMsg{result: r, started: true})
+			}
+		}
+		onComplete := func(r engine.SyncResult) {
+			if prog != nil {
+				prog.Send(syncProgressMsg{result: r, started: false})
+			}
+		}
 		results, err := eng.ExecuteSyncPlanWithCallbacks(
 			context.Background(),
 			plan,
 			engine.SyncOptions{ContinueOnError: true},
-			nil,
-			nil,
+			onStart,
+			onComplete,
 		)
 		return syncDoneMsg{results: results, err: err}
 	}
@@ -332,6 +346,10 @@ func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.filterText != "" {
 		m.filteredRepos = filterRows(m.repos, m.filterText)
+	}
+	m.pendingInspections--
+	if m.pendingInspections <= 0 {
+		m.loading = false
 	}
 	return m, nil
 }

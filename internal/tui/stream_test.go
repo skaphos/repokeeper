@@ -54,13 +54,23 @@ func TestHandleRepoStatusUpdatesFilteredResults(t *testing.T) {
 	}
 }
 
-func TestStreamDoneSetsLoadingFalse(t *testing.T) {
+func TestLastRepoStatusClearsLoading(t *testing.T) {
 	t.Parallel()
 
-	m := tuiModel{loading: true}
-	nm, _ := m.Update(streamDoneMsg{})
-	if nm.(tuiModel).loading {
-		t.Fatal("expected loading=false after streamDoneMsg")
+	m := tuiModel{
+		repos:              []model.RepoStatus{{RepoID: "a", Path: "/a"}, {RepoID: "b", Path: "/b"}},
+		loading:            true,
+		pendingInspections: 2,
+	}
+	nm, _ := m.handleRepoStatus(repoStatusMsg{status: model.RepoStatus{RepoID: "a", Path: "/a"}})
+	next := nm.(tuiModel)
+	if !next.loading {
+		t.Fatal("expected loading=true while 1 inspection pending")
+	}
+	nm2, _ := next.handleRepoStatus(repoStatusMsg{status: model.RepoStatus{RepoID: "b", Path: "/b"}})
+	next2 := nm2.(tuiModel)
+	if next2.loading {
+		t.Fatal("expected loading=false after last inspection")
 	}
 }
 

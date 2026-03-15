@@ -27,6 +27,7 @@ type statusReportMsg struct {
 type tuiModel struct {
 	engine  EngineAPI
 	cfgPath string
+	program *tea.Program
 
 	mode          viewMode
 	width, height int
@@ -40,6 +41,8 @@ type tuiModel struct {
 
 	filterMode bool
 	filterText string
+
+	pendingInspections int
 
 	selected map[string]bool
 
@@ -58,12 +61,17 @@ func newModel(eng EngineAPI, reg *registry.Registry, cfgPath string) tuiModel {
 			repos = append(repos, registryEntryToPartialStatus(entry))
 		}
 	}
+	pending := 0
+	if reg != nil {
+		pending = len(reg.Entries)
+	}
 	return tuiModel{
-		engine:  eng,
-		cfgPath: cfgPath,
-		repos:   repos,
-		loading: true,
-		mode:    viewList,
+		engine:             eng,
+		cfgPath:            cfgPath,
+		repos:              repos,
+		loading:            true,
+		mode:               viewList,
+		pendingInspections: pending,
 	}
 }
 

@@ -28,6 +28,7 @@ func Run(ctx context.Context, cfg *config.Config, reg *registry.Registry, cfgPat
 func RunWithEngine(ctx context.Context, eng EngineAPI, reg *registry.Registry, cfgPath string) error {
 	m := newModel(eng, reg, cfgPath)
 	p := tea.NewProgram(m, tea.WithContext(ctx))
+	m.program = p
 	_, err := p.Run()
 	return err
 }

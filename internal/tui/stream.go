@@ -13,20 +13,13 @@ type repoStatusMsg struct {
 	status model.RepoStatus
 }
 
-type streamDoneMsg struct{}
-
 func streamStatusCmd(eng EngineAPI, entries []registry.Entry) tea.Cmd {
-	return tea.Batch(streamEntries(eng, entries)...)
-}
-
-func streamEntries(eng EngineAPI, entries []registry.Entry) []tea.Cmd {
-	cmds := make([]tea.Cmd, 0, len(entries)+1)
+	cmds := make([]tea.Cmd, 0, len(entries))
 	for _, entry := range entries {
 		entry := entry
 		cmds = append(cmds, inspectEntryCmd(eng, entry))
 	}
-	cmds = append(cmds, func() tea.Msg { return streamDoneMsg{} })
-	return cmds
+	return tea.Batch(cmds...)
 }
 
 func inspectEntryCmd(eng EngineAPI, entry registry.Entry) tea.Cmd {

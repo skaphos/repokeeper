@@ -68,6 +68,9 @@ func TestNewModelWithRegistry(t *testing.T) {
 	if m.mode != viewList {
 		t.Fatalf("expected mode viewList, got %v", m.mode)
 	}
+	if m.pendingInspections != 2 {
+		t.Fatalf("expected pendingInspections=2, got %d", m.pendingInspections)
+	}
 }
 
 func TestNewModelWithNilRegistry(t *testing.T) {
@@ -137,20 +140,24 @@ func TestHandleKeyQuitQ(t *testing.T) {
 	}
 }
 
-func TestHandleKeyQuitCtrlC(t *testing.T) {
+func TestHandleKeyQuitCtrlCGlobal(t *testing.T) {
 	t.Parallel()
 
-	m := tuiModel{}
-	next, cmd := m.handleKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
-	nm := next.(tuiModel)
-	if nm.cursor != m.cursor || nm.offset != m.offset {
-		t.Fatal("expected unchanged model state")
+	for _, mode := range []viewMode{viewList, viewDetail, viewSyncPlan, viewProgress} {
+		m := tuiModel{mode: mode}
+		_, cmd := m.handleKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+		if cmd == nil {
+			t.Fatalf("expected quit command in mode %v", mode)
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatalf("expected tea.QuitMsg in mode %v, got %T", mode, cmd())
+		}
 	}
+
+	m := tuiModel{filterMode: true}
+	_, cmd := m.handleKey(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	if cmd == nil {
-		t.Fatal("expected quit command")
-	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Fatalf("expected tea.QuitMsg, got %T", cmd())
+		t.Fatal("expected quit command in filter mode")
 	}
 }
 
