@@ -78,7 +78,7 @@ func renderAddView(m tuiModel) string {
 		if v == "" {
 			v = placeholder
 		}
-		b.WriteString(fmt.Sprintf("%s%-20s %s\n", prefix, label+":", v))
+		fmt.Fprintf(&b, "%s%-20s %s\n", prefix, label+":", v)
 	}
 
 	field("URL", m.addURL, m.addField == addFieldURL)
@@ -99,7 +99,7 @@ func renderAddView(m tuiModel) string {
 	if m.addMirror {
 		mirrorVal = "Yes"
 	}
-	b.WriteString(fmt.Sprintf("%s%-20s %s\n", mirrorPrefix, "Mirror clone:", mirrorVal))
+	fmt.Fprintf(&b, "%s%-20s %s\n", mirrorPrefix, "Mirror clone:", mirrorVal)
 	if m.addField == addFieldMirror {
 		b.WriteString("                       (space to toggle)\n")
 	}

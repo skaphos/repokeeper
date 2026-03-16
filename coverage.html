@@ -1,0 +1,540 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>discovery: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/skaphos/repokeeper/internal/discovery/discovery.go (79.6%)</option>
+				
+				<option value="file1">github.com/skaphos/repokeeper/internal/registry/registry.go (73.8%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// SPDX-License-Identifier: MIT
+// Package discovery walks configured root directories to find git repositories.
+package discovery
+
+import (
+        "context"
+        "errors"
+        "io/fs"
+        "os"
+        "path/filepath"
+        "strings"
+
+        "github.com/bmatcuk/doublestar/v4"
+        "github.com/skaphos/repokeeper/internal/model"
+        "github.com/skaphos/repokeeper/internal/vcs"
+)
+
+// Result represents a discovered git repository.
+type Result struct {
+        Path          string // absolute path to the repo root
+        RepoID        string // normalized remote URL
+        RemoteURL     string // raw remote URL of the primary remote
+        PrimaryRemote string // primary remote name
+        Remotes       []model.Remote
+        Bare          bool // true if bare repo
+}
+
+// Options configures the discovery scan.
+type Options struct {
+        Roots          []string
+        Exclude        []string // glob patterns to skip
+        FollowSymlinks bool
+        Adapter        vcs.Adapter
+}
+
+// Scan walks all roots and returns discovered repos.
+// It skips directories matching exclude patterns and does not recurse
+// into .git directories or matched exclusions.
+func Scan(ctx context.Context, opts Options) ([]Result, error) <span class="cov8" title="1">{
+        if opts.Adapter == nil </span><span class="cov8" title="1">{
+                opts.Adapter = vcs.NewGitAdapter(nil)
+        }</span>
+
+        <span class="cov8" title="1">visited := make(map[string]struct{})
+        var results []Result
+        skipDirs := make(map[string]struct{})
+
+        for _, root := range opts.Roots </span><span class="cov8" title="1">{
+                if root == "" </span><span class="cov8" title="1">{
+                        continue</span>
+                }
+                <span class="cov8" title="1">absRoot, err := filepath.Abs(root)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov8" title="1">if err := walkRoot(ctx, absRoot, opts, visited, skipDirs, &amp;results); err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+        }
+
+        <span class="cov8" title="1">return results, nil</span>
+}
+
+// MatchesExclude checks whether a path matches any of the given exclude
+// glob patterns.
+func MatchesExclude(path string, patterns []string) bool <span class="cov8" title="1">{
+        if len(patterns) == 0 </span><span class="cov8" title="1">{
+                return false
+        }</span>
+        <span class="cov8" title="1">slashPath := filepath.ToSlash(path)
+        for _, pattern := range patterns </span><span class="cov8" title="1">{
+                pattern = filepath.ToSlash(pattern)
+                match, err := doublestar.Match(pattern, slashPath)
+                if err != nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+                <span class="cov8" title="1">if match </span><span class="cov8" title="1">{
+                        return true
+                }</span>
+        }
+        <span class="cov8" title="1">return false</span>
+}
+
+func walkRoot(ctx context.Context, root string, opts Options, visited map[string]struct{}, skipDirs map[string]struct{}, results *[]Result) error <span class="cov8" title="1">{
+        realRoot := root
+        if resolved, err := filepath.EvalSymlinks(root); err == nil </span><span class="cov8" title="1">{
+                realRoot = resolved
+        }</span>
+        // Track resolved roots so the same tree is not walked twice via different symlink paths.
+        <span class="cov8" title="1">if _, ok := visited[realRoot]; ok </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">visited[realRoot] = struct{}{}
+
+        return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error </span><span class="cov8" title="1">{
+                if err != nil </span><span class="cov0" title="0">{
+                        if errors.Is(err, fs.ErrPermission) </span><span class="cov0" title="0">{
+                                return fs.SkipDir
+                        }</span>
+                        <span class="cov0" title="0">return err</span>
+                }
+
+                <span class="cov8" title="1">if d.Type()&amp;os.ModeSymlink != 0 &amp;&amp; d.IsDir() &amp;&amp; !opts.FollowSymlinks </span><span class="cov0" title="0">{
+                        return fs.SkipDir
+                }</span>
+
+                <span class="cov8" title="1">if d.IsDir() </span><span class="cov8" title="1">{
+                        if _, ok := skipDirs[path]; ok </span><span class="cov8" title="1">{
+                                return fs.SkipDir
+                        }</span>
+                        <span class="cov8" title="1">if d.Name() == ".git" </span><span class="cov0" title="0">{
+                                // Never recurse through git internals during root discovery.
+                                return fs.SkipDir
+                        }</span>
+                        <span class="cov8" title="1">if MatchesExclude(path, opts.Exclude) </span><span class="cov8" title="1">{
+                                return fs.SkipDir
+                        }</span>
+                } else<span class="cov0" title="0"> {
+                        return nil
+                }</span>
+
+                <span class="cov8" title="1">isRepoRoot, bare, gitdir, err := detectRepo(ctx, opts.Adapter, path)
+                if err != nil </span><span class="cov0" title="0">{
+                        return err
+                }</span>
+                <span class="cov8" title="1">if isRepoRoot </span><span class="cov8" title="1">{
+                        if gitdir != "" </span><span class="cov8" title="1">{
+                                // Linked worktrees can share a gitdir outside the repo path; mark it
+                                // skipped so we do not treat it as an independent repository later.
+                                skipDirs[gitdir] = struct{}{}
+                        }</span>
+                        <span class="cov8" title="1">result, err := buildResult(ctx, opts.Adapter, path, bare)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                        <span class="cov8" title="1">*results = append(*results, result)
+                        return fs.SkipDir</span>
+                }
+
+                <span class="cov8" title="1">if d.Type()&amp;os.ModeSymlink != 0 &amp;&amp; d.IsDir() &amp;&amp; opts.FollowSymlinks </span><span class="cov0" title="0">{
+                        target, err := filepath.EvalSymlinks(path)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil
+                        }</span>
+                        <span class="cov0" title="0">info, err := os.Stat(target)
+                        if err != nil || !info.IsDir() </span><span class="cov0" title="0">{
+                                return nil
+                        }</span>
+                        <span class="cov0" title="0">if err := walkRoot(ctx, target, opts, visited, skipDirs, results); err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                        // The symlink target was scanned recursively; skip duplicate walk from the link.
+                        <span class="cov0" title="0">return fs.SkipDir</span>
+                }
+
+                <span class="cov8" title="1">return nil</span>
+        })
+}
+
+func detectRepo(ctx context.Context, adapter vcs.Adapter, dir string) (bool, bool, string, error) <span class="cov8" title="1">{
+        gitPath := filepath.Join(dir, ".git")
+        if info, err := os.Stat(gitPath); err == nil </span><span class="cov8" title="1">{
+                if info.Mode().IsRegular() </span><span class="cov8" title="1">{
+                        // A file-based .git indicates a linked worktree with an external gitdir.
+                        if gitdir, ok := gitdirFromFile(gitPath); ok </span><span class="cov8" title="1">{
+                                bare, _ := adapter.IsBare(ctx, dir)
+                                return true, bare, gitdir, nil
+                        }</span>
+                }
+                <span class="cov8" title="1">bare, err := adapter.IsBare(ctx, dir)
+                if err != nil </span><span class="cov8" title="1">{
+                        return true, false, "", nil
+                }</span>
+                <span class="cov8" title="1">return true, bare, "", nil</span>
+        }
+
+        // Bare repo heuristic: HEAD file and objects dir.
+        <span class="cov8" title="1">if _, err := os.Stat(filepath.Join(dir, "HEAD")); err == nil </span><span class="cov8" title="1">{
+                if info, err := os.Stat(filepath.Join(dir, "objects")); err == nil &amp;&amp; info.IsDir() </span><span class="cov8" title="1">{
+                        return true, true, "", nil
+                }</span>
+        }
+
+        <span class="cov8" title="1">ok, err := adapter.IsRepo(ctx, dir)
+        if err != nil </span><span class="cov8" title="1">{
+                return false, false, "", err
+        }</span>
+        <span class="cov8" title="1">if ok </span><span class="cov0" title="0">{
+                bare, _ := adapter.IsBare(ctx, dir)
+                return true, bare, "", nil
+        }</span>
+        <span class="cov8" title="1">return false, false, "", nil</span>
+}
+
+func gitdirFromFile(path string) (string, bool) <span class="cov8" title="1">{
+        data, err := os.ReadFile(path)
+        if err != nil </span><span class="cov8" title="1">{
+                return "", false
+        }</span>
+        <span class="cov8" title="1">content := strings.TrimSpace(string(data))
+        if !strings.HasPrefix(content, "gitdir:") </span><span class="cov8" title="1">{
+                return "", false
+        }</span>
+        <span class="cov8" title="1">raw := strings.TrimSpace(strings.TrimPrefix(content, "gitdir:"))
+        if raw == "" </span><span class="cov8" title="1">{
+                return "", false
+        }</span>
+        <span class="cov8" title="1">if filepath.IsAbs(raw) </span><span class="cov8" title="1">{
+                return filepath.Clean(raw), true
+        }</span>
+        <span class="cov8" title="1">return filepath.Clean(filepath.Join(filepath.Dir(path), raw)), true</span>
+}
+
+func buildResult(ctx context.Context, adapter vcs.Adapter, dir string, bare bool) (Result, error) <span class="cov8" title="1">{
+        remotes, err := adapter.Remotes(ctx, dir)
+        if err != nil </span><span class="cov8" title="1">{
+                return Result{}, err
+        }</span>
+        <span class="cov8" title="1">var remoteNames []string
+        for _, r := range remotes </span><span class="cov8" title="1">{
+                remoteNames = append(remoteNames, r.Name)
+        }</span>
+        <span class="cov8" title="1">primary := adapter.PrimaryRemote(remoteNames)
+        var remoteURL string
+        for _, r := range remotes </span><span class="cov8" title="1">{
+                if r.Name == primary </span><span class="cov8" title="1">{
+                        remoteURL = r.URL
+                        break</span>
+                }
+        }
+        <span class="cov8" title="1">return Result{
+                Path:          dir,
+                RepoID:        adapter.NormalizeURL(remoteURL),
+                RemoteURL:     remoteURL,
+                PrimaryRemote: primary,
+                Remotes:       remotes,
+                Bare:          bare,
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// SPDX-License-Identifier: MIT
+// Package registry handles persistence and staleness detection for the
+// per-machine repo registry.
+package registry
+
+import (
+        "errors"
+        "os"
+        "path/filepath"
+        "time"
+
+        "go.yaml.in/yaml/v3"
+)
+
+// EntryStatus represents whether a registry entry's path is still valid.
+type EntryStatus string
+
+const (
+        StatusPresent EntryStatus = "present"
+        StatusMissing EntryStatus = "missing"
+        StatusMoved   EntryStatus = "moved"
+)
+
+// Entry is a single repo entry in the registry.
+type Entry struct {
+        RepoID      string            `yaml:"repo_id"`
+        Path        string            `yaml:"path"`
+        RemoteURL   string            `yaml:"remote_url"`
+        Type        string            `yaml:"type,omitempty"` // checkout | mirror
+        Branch      string            `yaml:"branch,omitempty"`
+        Labels      map[string]string `yaml:"labels,omitempty"`
+        Annotations map[string]string `yaml:"annotations,omitempty"`
+        LastSeen    time.Time         `yaml:"last_seen,omitempty"`
+        Status      EntryStatus       `yaml:"status"`
+}
+
+// Registry is the per-machine mapping of repo identities to local paths.
+type Registry struct {
+        UpdatedAt time.Time `yaml:"updated_at,omitempty"`
+        Entries   []Entry   `yaml:"repos"`
+}
+
+// Load reads a registry file from the given path.
+func Load(path string) (*Registry, error) <span class="cov8" title="1">{
+        data, err := os.ReadFile(path)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">var reg Registry
+        if err := yaml.Unmarshal(data, &amp;reg); err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">return &amp;reg, nil</span>
+}
+
+// Save writes the registry to the given path.
+func Save(reg *Registry, path string) error <span class="cov8" title="1">{
+        if reg == nil </span><span class="cov0" title="0">{
+                return errors.New("registry is nil")
+        }</span>
+        <span class="cov8" title="1">dir := filepath.Dir(path)
+        if err := os.MkdirAll(dir, 0o755); err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">data, err := yaml.Marshal(reg)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov8" title="1">return os.WriteFile(path, data, 0o644)</span>
+}
+
+// Upsert adds or updates an entry in the registry by repo_id.
+// If the repo_id already exists, it updates path, last_seen, and status.
+// If new, it appends the entry.
+func (r *Registry) Upsert(entry Entry) <span class="cov8" title="1">{
+        for i := range r.Entries </span><span class="cov8" title="1">{
+                if r.Entries[i].RepoID == entry.RepoID </span><span class="cov8" title="1">{
+                        if r.Entries[i].Path != entry.Path </span><span class="cov8" title="1">{
+                                entry.Status = StatusMoved
+                        }</span> else<span class="cov8" title="1"> if entry.Status == "" </span><span class="cov0" title="0">{
+                                entry.Status = StatusPresent
+                        }</span>
+                        <span class="cov8" title="1">if entry.Type == "" </span><span class="cov8" title="1">{
+                                entry.Type = r.Entries[i].Type
+                        }</span>
+                        <span class="cov8" title="1">if entry.Branch == "" </span><span class="cov8" title="1">{
+                                entry.Branch = r.Entries[i].Branch
+                        }</span>
+                        <span class="cov8" title="1">if entry.Labels == nil &amp;&amp; len(r.Entries[i].Labels) &gt; 0 </span><span class="cov8" title="1">{
+                                entry.Labels = cloneStringMap(r.Entries[i].Labels)
+                        }</span>
+                        <span class="cov8" title="1">if entry.Annotations == nil &amp;&amp; len(r.Entries[i].Annotations) &gt; 0 </span><span class="cov8" title="1">{
+                                entry.Annotations = cloneStringMap(r.Entries[i].Annotations)
+                        }</span>
+                        <span class="cov8" title="1">r.Entries[i].Path = entry.Path
+                        r.Entries[i].RemoteURL = entry.RemoteURL
+                        r.Entries[i].Type = entry.Type
+                        r.Entries[i].Branch = entry.Branch
+                        r.Entries[i].Labels = entry.Labels
+                        r.Entries[i].Annotations = entry.Annotations
+                        r.Entries[i].LastSeen = entry.LastSeen
+                        r.Entries[i].Status = entry.Status
+                        return</span>
+                }
+        }
+        <span class="cov8" title="1">if entry.Status == "" </span><span class="cov0" title="0">{
+                entry.Status = StatusPresent
+        }</span>
+        <span class="cov8" title="1">r.Entries = append(r.Entries, entry)</span>
+}
+
+func cloneStringMap(in map[string]string) map[string]string <span class="cov8" title="1">{
+        if len(in) == 0 </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">out := make(map[string]string, len(in))
+        for k, v := range in </span><span class="cov8" title="1">{
+                out[k] = v
+        }</span>
+        <span class="cov8" title="1">return out</span>
+}
+
+// ValidatePaths checks all entries against the filesystem and marks
+// entries as missing or moved as appropriate.
+func (r *Registry) ValidatePaths() error <span class="cov8" title="1">{
+        for i := range r.Entries </span><span class="cov8" title="1">{
+                _, err := os.Stat(r.Entries[i].Path)
+                if err != nil </span><span class="cov8" title="1">{
+                        if os.IsNotExist(err) </span><span class="cov8" title="1">{
+                                r.Entries[i].Status = StatusMissing
+                                continue</span>
+                        }
+                        <span class="cov0" title="0">return err</span>
+                }
+                <span class="cov8" title="1">r.Entries[i].Status = StatusPresent</span>
+        }
+        <span class="cov8" title="1">return nil</span>
+}
+
+// PruneStale removes entries marked as missing that are older than
+// the given threshold.
+func (r *Registry) PruneStale(olderThan time.Duration) int <span class="cov8" title="1">{
+        if olderThan &lt;= 0 </span><span class="cov0" title="0">{
+                return 0
+        }</span>
+        <span class="cov8" title="1">now := time.Now()
+        var kept []Entry
+        pruned := 0
+        for _, entry := range r.Entries </span><span class="cov8" title="1">{
+                if entry.Status == StatusMissing &amp;&amp; entry.LastSeen.Before(now.Add(-olderThan)) </span><span class="cov8" title="1">{
+                        pruned++
+                        continue</span>
+                }
+                <span class="cov8" title="1">kept = append(kept, entry)</span>
+        }
+        <span class="cov8" title="1">r.Entries = kept
+        return pruned</span>
+}
+
+// FindByRepoID returns the entry matching the given repo_id, or nil.
+func (r *Registry) FindByRepoID(repoID string) *Entry <span class="cov8" title="1">{
+        for i := range r.Entries </span><span class="cov8" title="1">{
+                if r.Entries[i].RepoID == repoID </span><span class="cov8" title="1">{
+                        return &amp;r.Entries[i]
+                }</span>
+        }
+        <span class="cov0" title="0">return nil</span>
+}
+
+// FindEntry returns the entry matching repoID and path (exact match first,
+// then repoID-only fallback), or nil if not found.
+func (r *Registry) FindEntry(repoID, path string) *Entry <span class="cov0" title="0">{
+        idx := r.FindEntryIndex(repoID, path)
+        if idx &lt; 0 </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov0" title="0">return &amp;r.Entries[idx]</span>
+}
+
+// FindEntryIndex returns the index of the entry matching repoID and path
+// (exact match first, then repoID-only fallback), or -1 if not found.
+func (r *Registry) FindEntryIndex(repoID, path string) int <span class="cov0" title="0">{
+        for i := range r.Entries </span><span class="cov0" title="0">{
+                if r.Entries[i].RepoID == repoID &amp;&amp; r.Entries[i].Path == path </span><span class="cov0" title="0">{
+                        return i
+                }</span>
+        }
+        <span class="cov0" title="0">for i := range r.Entries </span><span class="cov0" title="0">{
+                if r.Entries[i].RepoID == repoID </span><span class="cov0" title="0">{
+                        return i
+                }</span>
+        }
+        <span class="cov0" title="0">return -1</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

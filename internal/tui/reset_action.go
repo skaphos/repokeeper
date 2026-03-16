@@ -30,7 +30,7 @@ func renderResetConfirmView(m tuiModel) string {
 	b.WriteString(" " + renderDivider([]int{m.width - 2}))
 	b.WriteByte('\n')
 	b.WriteByte('\n')
-	b.WriteString(fmt.Sprintf("  Repo: %s\n", m.resetRepoID))
+	fmt.Fprintf(&b, "  Repo: %s\n", m.resetRepoID)
 	b.WriteByte('\n')
 	b.WriteString(errorTextStyle.Render("  WARNING: This will run git reset --hard HEAD and git clean -f -d."))
 	b.WriteByte('\n')

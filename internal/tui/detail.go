@@ -22,7 +22,7 @@ func renderDetailView(m tuiModel) string {
 	b.WriteByte('\n')
 
 	field := func(label, value string) {
-		b.WriteString(fmt.Sprintf("  %-18s %s\n", label+":", value))
+		fmt.Fprintf(&b, "  %-18s %s\n", label+":", value)
 	}
 
 	field("Path", r.Path)
@@ -39,7 +39,7 @@ func renderDetailView(m tuiModel) string {
 		b.WriteString(headerStyle.Render("Remotes"))
 		b.WriteByte('\n')
 		for _, rem := range r.Remotes {
-			b.WriteString(fmt.Sprintf("  %-10s %s\n", rem.Name, rem.URL))
+			fmt.Fprintf(&b, "  %-10s %s\n", rem.Name, rem.URL)
 		}
 		b.WriteByte('\n')
 	}
@@ -48,7 +48,7 @@ func renderDetailView(m tuiModel) string {
 		b.WriteString(headerStyle.Render("Labels"))
 		b.WriteByte('\n')
 		for k, v := range r.Labels {
-			b.WriteString(fmt.Sprintf("  %s=%s\n", k, v))
+			fmt.Fprintf(&b, "  %s=%s\n", k, v)
 		}
 		b.WriteByte('\n')
 	}
@@ -57,7 +57,7 @@ func renderDetailView(m tuiModel) string {
 		b.WriteString(headerStyle.Render("Annotations"))
 		b.WriteByte('\n')
 		for k, v := range r.Annotations {
-			b.WriteString(fmt.Sprintf("  %s=%s\n", k, v))
+			fmt.Fprintf(&b, "  %s=%s\n", k, v)
 		}
 		b.WriteByte('\n')
 	}
@@ -69,9 +69,9 @@ func renderDetailView(m tuiModel) string {
 		if !r.LastSync.OK {
 			ok = "✗"
 		}
-		b.WriteString(fmt.Sprintf("  %s  %s\n", ok, relativeTime(r.LastSync.At)))
+		fmt.Fprintf(&b, "  %s  %s\n", ok, relativeTime(r.LastSync.At))
 		if r.LastSync.Error != "" {
-			b.WriteString(fmt.Sprintf("  Error: %s\n", r.LastSync.Error))
+			fmt.Fprintf(&b, "  Error: %s\n", r.LastSync.Error)
 		}
 		b.WriteByte('\n')
 	}

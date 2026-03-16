@@ -263,3 +263,24 @@ func TestScanDefaultsAndEmptyRoots(t *testing.T) {
 		t.Fatalf("unexpected scan results: %+v", results)
 	}
 }
+
+func TestMatchesExcludeWithInvalidPattern(t *testing.T) {
+	// Test that MatchesExclude gracefully handles invalid glob patterns
+	// by continuing to the next pattern instead of failing.
+	// An unclosed bracket is an invalid pattern that causes doublestar.Match to error.
+	path := "/some/path/to/file"
+	patterns := []string{"[invalid", "*.go"}
+
+	// Should not panic or error; should return false since no valid pattern matches
+	result := MatchesExclude(path, patterns)
+	if result {
+		t.Fatalf("expected MatchesExclude to return false for non-matching patterns")
+	}
+
+	// Test with a pattern that matches after an invalid one
+	patterns = []string{"[invalid", "**/path/**"}
+	result = MatchesExclude(path, patterns)
+	if !result {
+		t.Fatalf("expected MatchesExclude to return true when a valid pattern matches")
+	}
+}

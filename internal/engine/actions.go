@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
@@ -127,18 +126,4 @@ func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cf
 
 func repoDefaultBranch(_ string, targetPath string) string {
 	return ""
-}
-
-func repoNameFromURL(rawURL string) string {
-	trimmed := strings.TrimSuffix(strings.TrimSpace(rawURL), ".git")
-	trimmed = strings.TrimSuffix(trimmed, "/")
-	parts := strings.Split(trimmed, "/")
-	if len(parts) == 0 {
-		return ""
-	}
-	name := parts[len(parts)-1]
-	if colon := strings.LastIndex(name, ":"); colon >= 0 {
-		name = name[colon+1:]
-	}
-	return name
 }

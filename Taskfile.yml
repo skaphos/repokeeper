@@ -42,9 +42,9 @@ tasks:
       - go tool ginkgo ./...
 
   test-cover:
-    desc: Run tests with coverage output
+    desc: Run tests with coverage output (excludes scripts/perf)
     cmds:
-      - go test -coverprofile=coverage.out ./...
+      - go test -coverprofile=coverage.out $(go list ./... | grep -v scripts/perf)
 
   test-cover-check:
     desc: Run tests with coverage and enforce per-package thresholds

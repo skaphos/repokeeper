@@ -86,8 +86,8 @@ func renderRepairConfirmView(m tuiModel) string {
 		b.WriteByte('\n')
 		b.WriteString("  " + renderModalButtons([]string{"OK"}, 0))
 	} else {
-		b.WriteString(fmt.Sprintf("  Repo:   %s\n", m.repairRepoID))
-		b.WriteString(fmt.Sprintf("  Target: %s\n", m.repairTargetUpstream))
+		fmt.Fprintf(&b, "  Repo:   %s\n", m.repairRepoID)
+		fmt.Fprintf(&b, "  Target: %s\n", m.repairTargetUpstream)
 		b.WriteByte('\n')
 		b.WriteString("  Set upstream tracking to target?\n")
 		b.WriteByte('\n')

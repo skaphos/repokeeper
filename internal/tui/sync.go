@@ -49,25 +49,6 @@ func buildSyncPlanCmd(eng EngineAPI, repoIDs map[string]bool) tea.Cmd {
 	}
 }
 
-func executeSyncPlanCmd(prog *tea.Program, eng EngineAPI, plan []engine.SyncResult) tea.Cmd {
-	return func() tea.Msg {
-		onStart := func(r engine.SyncResult) {
-			prog.Send(syncProgressMsg{result: r, started: true})
-		}
-		onComplete := func(r engine.SyncResult) {
-			prog.Send(syncProgressMsg{result: r, started: false})
-		}
-		results, err := eng.ExecuteSyncPlanWithCallbacks(
-			context.Background(),
-			plan,
-			engine.SyncOptions{ContinueOnError: true},
-			onStart,
-			onComplete,
-		)
-		return syncDoneMsg{results: results, err: err}
-	}
-}
-
 func renderSyncPlanView(m tuiModel) string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("Sync Plan"))

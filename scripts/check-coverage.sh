@@ -10,15 +10,18 @@ if [[ ! -f "$profile" ]]; then
   exit 1
 fi
 
+skip_pkg() {
+  local pkg="$1"
+  case "$pkg" in
+    # Excluded from coverage thresholds: development-only tooling scripts.
+    github.com/skaphos/repokeeper/scripts/perf) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 threshold_for_pkg() {
   local pkg="$1"
   case "$pkg" in
-    # Temporary exception: command wiring is still under active refactor and
-    # will be raised toward 80% as Milestone 6.x/7 testability work lands.
-    github.com/skaphos/repokeeper/cmd/repokeeper) echo 65 ;;
-    # Tooling command wrapper; core parsing/persistence paths are covered,
-    # but command-entry/exec wiring stays intentionally thin.
-    github.com/skaphos/repokeeper/scripts/perf) echo 40 ;;
     *) echo "$default_threshold" ;;
   esac
 }
@@ -54,6 +57,12 @@ for row in "${coverage_rows[@]}"; do
   pct="$(awk '{print $2}' <<<"$row")"
   covered="$(awk '{print $3}' <<<"$row")"
   total="$(awk '{print $4}' <<<"$row")"
+
+  if skip_pkg "$pkg"; then
+    printf "  %-55s %6.2f%% (%s/%s) [skipped]\n" "$pkg" "$pct" "$covered" "$total"
+    continue
+  fi
+
   threshold="$(threshold_for_pkg "$pkg")"
 
   printf "  %-55s %6.2f%% (%s/%s) [min %s%%]\n" "$pkg" "$pct" "$covered" "$total" "$threshold"
