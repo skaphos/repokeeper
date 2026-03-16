@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 package tui
 
-import "charm.land/lipgloss/v2"
+import (
+	"charm.land/lipgloss/v2"
+	"github.com/skaphos/repokeeper/internal/model"
+)
 
-// Semantic color palette - mirrors termstyle semantics via lipgloss.
 var (
 	colorHealthy = lipgloss.Color("2")
 	colorWarn    = lipgloss.Color("3")
@@ -31,3 +33,23 @@ var (
 	syncedOKStyle       = lipgloss.NewStyle().Foreground(colorHealthy)
 	syncedFailStyle     = lipgloss.NewStyle().Foreground(colorError)
 )
+
+func trackingRowStyle(r model.RepoStatus) lipgloss.Style {
+	if r.Error != "" || r.ErrorClass != "" {
+		return lipgloss.NewStyle().Foreground(colorError)
+	}
+	switch r.Tracking.Status {
+	case model.TrackingBehind, model.TrackingDiverged, model.TrackingGone:
+		return lipgloss.NewStyle().Foreground(colorError)
+	case model.TrackingEqual:
+		if r.Worktree != nil && r.Worktree.Dirty {
+			return lipgloss.NewStyle().Foreground(colorWarn)
+		}
+		return lipgloss.NewStyle().Foreground(colorHealthy)
+	default:
+		if r.Worktree != nil && r.Worktree.Dirty {
+			return lipgloss.NewStyle().Foreground(colorWarn)
+		}
+		return lipgloss.NewStyle()
+	}
+}

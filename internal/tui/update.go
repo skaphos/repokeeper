@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -542,13 +543,24 @@ func (m tuiModel) handleDeleteDone(msg deleteDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	m.statusMsg = "deleted: " + msg.repoID
 	m.statusIsError = false
-	m.loading = true
-	reg := m.engine.Registry()
-	if reg != nil && len(reg.Entries) > 0 {
-		m.pendingInspections = len(reg.Entries)
-		return m, streamStatusCmd(m.engine, reg.Entries)
+	m.repos = removeRepoByID(m.repos, msg.repoID)
+	if m.filterText != "" {
+		m.filteredRepos = removeRepoByID(m.filteredRepos, msg.repoID)
 	}
-	return m, loadStatusCmd(m.engine)
+	if m.cursor >= len(m.visibleList()) && m.cursor > 0 {
+		m.cursor--
+	}
+	return m, nil
+}
+
+func removeRepoByID(repos []model.RepoStatus, repoID string) []model.RepoStatus {
+	out := repos[:0]
+	for _, r := range repos {
+		if r.RepoID != repoID {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 func (m tuiModel) startAdd() (tea.Model, tea.Cmd) {

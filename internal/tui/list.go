@@ -73,7 +73,7 @@ func renderListView(m tuiModel) string {
 			if i == m.cursor {
 				row = cursorStyle.Render(sel + row)
 			} else {
-				row = sel + row
+				row = sel + trackingRowStyle(list[i]).Render(row)
 			}
 			b.WriteString(row)
 			b.WriteByte('\n')
