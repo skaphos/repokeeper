@@ -11,6 +11,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/vcs"
 )
@@ -721,5 +722,5 @@ func TestRemoteMismatchWrapperFunctions(t *testing.T) {
 }
 
 func pathCleanCanonical(path string) string {
-	return filepath.Clean(path)
+	return pathutil.CanonicalNormalize(path)
 }
