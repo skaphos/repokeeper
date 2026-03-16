@@ -17,7 +17,7 @@
 - `goreleaser build --snapshot --clean`: snapshot build for all platforms (goreleaser managed via `.tool-versions`, not `go tool`).
 
 ## Coding Style & Naming Conventions
-- Go version: `go 1.25` (see `go.mod`).
+- Go version: `go 1.26` (see `go.mod`).
 - Formatting: `gofmt` and `goimports` are enforced via `golangci-lint`.
 - Naming: follow Go conventions (exported `PascalCase`, unexported `camelCase`).
 - Tests: filename suffix `_test.go`; suite files follow `*_suite_test.go`.
@@ -45,6 +45,8 @@
 - Keep branches focused: one logical change per PR. Split unrelated concerns into separate PRs.
 - All commits must be signed (global SSH signing via 1Password is configured; do not pass `-S` manually).
 - Use concise, imperative subjects (example: "Add registry staleness check") and include context in the body if needed.
+- **All commits MUST be cryptographically signed AND carry a DCO sign-off.** Always pass both `-S` and `-s` to `git commit` (e.g. `git commit -S -s -m "..."`). The repo uses SSH signing; the key and `commit.gpgsign = true` are set in git config. Never omit `-S`, never use `--no-gpg-sign`.
+- Use concise, imperative subjects (example: “Add registry staleness check”) and include context in the body if needed.
 - For release automation, prefer Conventional Commits so `svu` can infer semantic version bumps:
   - `feat:` -> minor bump
   - `fix:` -> patch bump
