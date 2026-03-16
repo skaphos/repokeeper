@@ -24,6 +24,7 @@ var _ = Describe("Run", func() {
 			BeNil(),
 			MatchError(context.Canceled),
 			MatchError(ContainSubstring("bubbletea: could not create cancelable reader")),
+			MatchError(ContainSubstring("bubbletea: error opening TTY")),
 		))
 	})
 })
