@@ -121,7 +121,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Run performance benchmark task
+      - name: Run quick benchmark baseline (pull request)
+        if: github.event_name == 'pull_request'
+        run: go tool task perf-bench-quick
+      - name: Run full benchmark (push to main)
+        if: github.event_name == 'push'
         run: go tool task perf-bench
       - name: Upload performance artifacts
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

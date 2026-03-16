@@ -28,6 +28,17 @@ jobs:
           owner: skaphos
           repositories: homebrew-tools
           skip-token-revoke: false
+      - name: Run full performance benchmarks
+        run: go tool task perf-bench
+      - name: Upload performance artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-release-${{ github.ref_name }}
+          path: |
+            perf/history.jsonl
+            perf/runs/*.txt
+          if-no-files-found: warn
+          retention-days: 90
       - name: Determine GoReleaser args
         id: goreleaser_args
         shell: bash

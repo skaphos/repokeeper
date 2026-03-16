@@ -84,8 +84,13 @@ tasks:
     cmds:
       - go tool govulncheck ./...
 
+  perf-bench-quick:
+    desc: Run a single lightweight benchmark pass for PR baseline checks (fast, count=1)
+    cmds:
+      - go run ./scripts/perf -history perf/history.jsonl -raw-dir perf/runs -packages ./internal/engine -bench . -benchtime 1x -count 1
+
   perf-bench:
-    desc: Run benchmarks and append a timestamped history record
+    desc: Run benchmarks and append a timestamped history record (count=5, used on main and at release)
     cmds:
       - go run ./scripts/perf -history perf/history.jsonl -raw-dir perf/runs -packages ./internal/engine -bench . -benchtime 1x -count 5
 
