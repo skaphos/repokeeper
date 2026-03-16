@@ -12,7 +12,7 @@ func renderListView(m tuiModel) string {
 	}
 
 	cols := defaultColumns()
-	widths := distributeWidths(cols, m.width-1)
+	widths := distributeWidths(cols, m.width)
 	list := m.visibleList()
 
 	var b strings.Builder
@@ -35,12 +35,10 @@ func renderListView(m tuiModel) string {
 	b.WriteString(titleStyle.Render(title))
 	b.WriteByte('\n')
 
-	// Leading space aligns header/divider with data rows (which are prefixed
-	// by the 1-char selection marker ●/space).
-	b.WriteString(headerStyle.Render(" " + renderHeader(cols, widths)))
+	b.WriteString(headerStyle.Render(renderHeader(cols, widths)))
 	b.WriteByte('\n')
 
-	b.WriteString(" " + renderDivider(widths))
+	b.WriteString(renderDivider(widths))
 	b.WriteByte('\n')
 
 	visible := visibleRows(m)
@@ -66,14 +64,12 @@ func renderListView(m tuiModel) string {
 		}
 		for i := start; i < end; i++ {
 			row := renderStyledRow(cols, widths, list[i])
-			sel := " "
-			if m.selected[list[i].RepoID] {
-				sel = "●"
-			}
 			if i == m.cursor {
-				row = cursorStyle.Render(sel + row)
+				row = cursorStyle.Render(row)
+			} else if m.selected[list[i].RepoID] {
+				row = selectedStyle.Render(trackingRowStyle(list[i]).Render(row))
 			} else {
-				row = sel + trackingRowStyle(list[i]).Render(row)
+				row = trackingRowStyle(list[i]).Render(row)
 			}
 			b.WriteString(row)
 			b.WriteByte('\n')
@@ -95,11 +91,11 @@ func renderListView(m tuiModel) string {
 		}
 		b.WriteString(style.Render(m.statusMsg))
 	} else {
-		selCount := len(m.selected)
 		helpKeys := "↑↓/jk: nav  space: select  a: all  s: sync  e: edit  r: repair  ctrl+x: reset  ctrl+d: delete  n: add  /: filter  f5: refresh  q: quit"
 		if m.filterText != "" {
 			helpKeys = "↑↓/jk: nav  space: select  a: all  s: sync  e: edit  r: repair  ctrl+x: reset  ctrl+d: delete  n: add  /: filter  esc: clear  f5: refresh  q: quit"
 		}
+		selCount := len(m.selected)
 		if selCount > 0 {
 			helpKeys = fmt.Sprintf("%d selected  |  ", selCount) + helpKeys
 		}
