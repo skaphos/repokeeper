@@ -113,7 +113,7 @@ func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if reg != nil {
 			m.pendingInspections = len(reg.Entries)
 		}
-		return m, refreshStatusCmd(m.engine)
+		return m, refreshStatusCmd(m.context(), m.engine)
 
 	case "esc":
 		if m.filterText != "" {
@@ -242,7 +242,7 @@ func (m tuiModel) handleSyncProgressKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		m.syncDone = false
 		m.syncErr = nil
 		m.loading = true
-		return m, refreshStatusCmd(m.engine)
+		return m, refreshStatusCmd(m.context(), m.engine)
 	}
 	return m, nil
 }
@@ -319,10 +319,11 @@ func (m tuiModel) startSync() (tea.Model, tea.Cmd) {
 			repoIDs = map[string]bool{list[m.cursor].RepoID: true}
 		}
 	}
-	return m, buildSyncPlanCmd(m.engine, repoIDs)
+	return m, buildSyncPlanCmd(m.context(), m.engine, repoIDs)
 }
 
 func executeSyncCmd(m tuiModel) tea.Cmd {
+	ctx := m.context()
 	plan := m.syncPlan
 	eng := m.engine
 	prog := m.program
@@ -338,7 +339,7 @@ func executeSyncCmd(m tuiModel) tea.Cmd {
 			}
 		}
 		results, err := eng.ExecuteSyncPlanWithCallbacks(
-			context.Background(),
+			ctx,
 			plan,
 			engine.SyncOptions{ContinueOnError: true},
 			onStart,
@@ -381,9 +382,7 @@ func (m tuiModel) handleSyncProgress(msg syncProgressMsg) (tea.Model, tea.Cmd) {
 		m.syncProgress = make(map[string]engine.SyncResult)
 	}
 	r := msg.result
-	if msg.started {
-		r.Planned = true
-	}
+	r.Planned = msg.started
 	m.syncProgress[r.RepoID] = r
 	return m, nil
 }
@@ -479,9 +478,9 @@ func (m tuiModel) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
 	reg := m.engine.Registry()
 	if reg != nil && len(reg.Entries) > 0 {
 		m.pendingInspections = len(reg.Entries)
-		return m, streamStatusCmd(m.engine, reg.Entries)
+		return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
 	}
-	return m, loadStatusCmd(m.engine)
+	return m, loadStatusCmd(m.context(), m.engine)
 }
 
 func (m tuiModel) startDelete() (tea.Model, tea.Cmd) {
@@ -670,9 +669,9 @@ func (m tuiModel) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
 	reg := m.engine.Registry()
 	if reg != nil && len(reg.Entries) > 0 {
 		m.pendingInspections = len(reg.Entries)
-		return m, streamStatusCmd(m.engine, reg.Entries)
+		return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
 	}
-	return m, loadStatusCmd(m.engine)
+	return m, loadStatusCmd(m.context(), m.engine)
 }
 
 func (m tuiModel) startRepair() (tea.Model, tea.Cmd) {
@@ -749,9 +748,9 @@ func (m tuiModel) handleEditDone(msg editDoneMsg) (tea.Model, tea.Cmd) {
 	reg := m.engine.Registry()
 	if reg != nil && len(reg.Entries) > 0 {
 		m.pendingInspections = len(reg.Entries)
-		return m, streamStatusCmd(m.engine, reg.Entries)
+		return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
 	}
-	return m, loadStatusCmd(m.engine)
+	return m, loadStatusCmd(m.context(), m.engine)
 }
 
 func (m tuiModel) handleRepairDone(msg repairDoneMsg) (tea.Model, tea.Cmd) {
@@ -770,24 +769,19 @@ func (m tuiModel) handleRepairDone(msg repairDoneMsg) (tea.Model, tea.Cmd) {
 		reg := m.engine.Registry()
 		if reg != nil && len(reg.Entries) > 0 {
 			m.pendingInspections = len(reg.Entries)
-			return m, streamStatusCmd(m.engine, reg.Entries)
+			return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
 		}
-		return m, loadStatusCmd(m.engine)
+		return m, loadStatusCmd(m.context(), m.engine)
 	default:
 		m.statusMsg = msg.result.Action + ": " + msg.result.RepoID
 	}
 	return m, nil
 }
 
-func refreshStatusCmd(eng EngineAPI) tea.Cmd {
+func refreshStatusCmd(ctx context.Context, eng EngineAPI) tea.Cmd {
 	reg := eng.Registry()
 	if reg != nil && len(reg.Entries) > 0 {
-		return streamStatusCmd(eng, reg.Entries)
+		return streamStatusCmd(ctx, eng, reg.Entries)
 	}
-	return func() tea.Msg {
-		report, err := eng.Status(context.Background(), engine.StatusOptions{
-			Filter: engine.FilterAll,
-		})
-		return statusReportMsg{report: report, err: err}
-	}
+	return loadStatusCmd(ctx, eng)
 }

@@ -31,6 +31,7 @@ type statusReportMsg struct {
 type tuiModel struct {
 	engine  EngineAPI
 	cfgPath string
+	ctx     context.Context
 	program *tea.Program
 
 	mode          viewMode
@@ -75,7 +76,14 @@ type tuiModel struct {
 	statusIsError bool
 }
 
-func newModel(eng EngineAPI, reg *registry.Registry, cfgPath string) tuiModel {
+func (m tuiModel) context() context.Context {
+	if m.ctx != nil {
+		return m.ctx
+	}
+	return context.Background()
+}
+
+func newModel(ctx context.Context, eng EngineAPI, reg *registry.Registry, cfgPath string) tuiModel {
 	var repos []model.RepoStatus
 	if reg != nil {
 		repos = make([]model.RepoStatus, 0, len(reg.Entries))
@@ -90,6 +98,7 @@ func newModel(eng EngineAPI, reg *registry.Registry, cfgPath string) tuiModel {
 	return tuiModel{
 		engine:             eng,
 		cfgPath:            cfgPath,
+		ctx:                ctx,
 		repos:              repos,
 		loading:            true,
 		mode:               viewList,
@@ -135,14 +144,14 @@ func (m tuiModel) visibleList() []model.RepoStatus {
 func (m tuiModel) Init() tea.Cmd {
 	reg := m.engine.Registry()
 	if reg == nil || len(reg.Entries) == 0 {
-		return loadStatusCmd(m.engine)
+		return loadStatusCmd(m.context(), m.engine)
 	}
-	return streamStatusCmd(m.engine, reg.Entries)
+	return streamStatusCmd(m.context(), m.engine, reg.Entries)
 }
 
-func loadStatusCmd(eng EngineAPI) tea.Cmd {
+func loadStatusCmd(ctx context.Context, eng EngineAPI) tea.Cmd {
 	return func() tea.Msg {
-		report, err := eng.Status(context.Background(), engine.StatusOptions{
+		report, err := eng.Status(ctx, engine.StatusOptions{
 			Filter: engine.FilterAll,
 		})
 		return statusReportMsg{report: report, err: err}

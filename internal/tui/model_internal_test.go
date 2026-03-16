@@ -69,7 +69,7 @@ func TestNewModelWithRegistry(t *testing.T) {
 		{RepoID: "repo/b", Path: "/tmp/b", Type: "mirror", Status: registry.StatusMissing},
 	}}
 
-	m := newModel(&mockEngine{}, reg, "")
+	m := newModel(context.Background(), &mockEngine{}, reg, "")
 	if len(m.repos) != 2 {
 		t.Fatalf("expected 2 repos, got %d", len(m.repos))
 	}
@@ -87,7 +87,7 @@ func TestNewModelWithRegistry(t *testing.T) {
 func TestNewModelWithNilRegistry(t *testing.T) {
 	t.Parallel()
 
-	m := newModel(&mockEngine{}, nil, "")
+	m := newModel(context.Background(), &mockEngine{}, nil, "")
 	if len(m.repos) != 0 {
 		t.Fatalf("expected no repos, got %d", len(m.repos))
 	}

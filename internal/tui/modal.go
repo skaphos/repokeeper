@@ -39,9 +39,9 @@ func modalMoveRight(m tuiModel, n int) tuiModel {
 
 func isModalNav(msg tea.KeyPressMsg) (left, right bool) {
 	switch msg.String() {
-	case "left", "h", "k":
+	case "left", "h":
 		return true, false
-	case "right", "l", "j", "tab":
+	case "right", "l", "tab":
 		return false, true
 	}
 	return false, false

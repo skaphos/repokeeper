@@ -13,18 +13,18 @@ type repoStatusMsg struct {
 	status model.RepoStatus
 }
 
-func streamStatusCmd(eng EngineAPI, entries []registry.Entry) tea.Cmd {
+func streamStatusCmd(ctx context.Context, eng EngineAPI, entries []registry.Entry) tea.Cmd {
 	cmds := make([]tea.Cmd, 0, len(entries))
 	for _, entry := range entries {
 		entry := entry
-		cmds = append(cmds, inspectEntryCmd(eng, entry))
+		cmds = append(cmds, inspectEntryCmd(ctx, eng, entry))
 	}
 	return tea.Batch(cmds...)
 }
 
-func inspectEntryCmd(eng EngineAPI, entry registry.Entry) tea.Cmd {
+func inspectEntryCmd(ctx context.Context, eng EngineAPI, entry registry.Entry) tea.Cmd {
 	return func() tea.Msg {
-		status, err := eng.InspectRepo(context.Background(), entry.Path)
+		status, err := eng.InspectRepo(ctx, entry.Path)
 		if err != nil {
 			return repoStatusMsg{status: model.RepoStatus{
 				RepoID:     entry.RepoID,

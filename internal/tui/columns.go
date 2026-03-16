@@ -223,6 +223,9 @@ func renderHeader(cols []columnDef, widths []int) string {
 func renderDivider(widths []int) string {
 	parts := make([]string, len(widths))
 	for i, w := range widths {
+		if w < 0 {
+			w = 0
+		}
 		parts[i] = strings.Repeat("─", w)
 	}
 	return strings.Join(parts, "─┼─")

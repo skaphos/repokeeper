@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 func (e *Engine) ResetRepo(ctx context.Context, repoID, cfgPath string) error {
@@ -78,9 +80,36 @@ func (e *Engine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteF
 	}
 
 	if deleteFiles && entryPath != "" {
-		if err := os.RemoveAll(entryPath); err != nil {
-			return fmt.Errorf("deleting %s from disk: %w", entryPath, err)
+		if err := safeRemoveAll(entryPath); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// safeRemoveAll wraps os.RemoveAll with defensive checks to prevent accidental
+// deletion of non-absolute paths, filesystem roots, or non-directory targets.
+func safeRemoveAll(path string) error {
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("refusing to delete non-absolute path %q", path)
+	}
+	clean := filepath.Clean(path)
+	// Reject filesystem roots: a path is a root when its parent equals itself.
+	if clean == filepath.Dir(clean) {
+		return fmt.Errorf("refusing to delete filesystem root %q", clean)
+	}
+	info, err := os.Stat(clean)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat %q: %w", clean, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("refusing to delete non-directory path %q", clean)
+	}
+	if err := os.RemoveAll(clean); err != nil {
+		return fmt.Errorf("deleting %q from disk: %w", clean, err)
 	}
 	return nil
 }
@@ -108,7 +137,7 @@ func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cf
 		LastSeen: time.Now(),
 	}
 	if !mirror {
-		entry.Branch = repoDefaultBranch(remoteURL, targetPath)
+		entry.Branch = repoDefaultBranch(ctx, e.adapter, targetPath)
 	}
 
 	e.upsertRegistryEntry(entry)
@@ -124,6 +153,10 @@ func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cf
 	return nil
 }
 
-func repoDefaultBranch(_ string, targetPath string) string {
-	return ""
+func repoDefaultBranch(ctx context.Context, adapter vcs.Adapter, targetPath string) string {
+	head, err := adapter.Head(ctx, targetPath)
+	if err != nil || head.Detached {
+		return ""
+	}
+	return strings.TrimSpace(head.Branch)
 }

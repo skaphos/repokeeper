@@ -59,8 +59,9 @@ func init() {
 // subcommand and stdout is an interactive terminal. Falls back to help text
 // when output is piped or redirected.
 func rootRunE(cmd *cobra.Command, _ []string) error {
-	file, ok := cmd.OutOrStdout().(*os.File)
-	if !ok || !isTerminalFD(int(file.Fd())) {
+	outFile, outOK := cmd.OutOrStdout().(*os.File)
+	inFile, inOK := cmd.InOrStdin().(*os.File)
+	if !outOK || !isTerminalFD(int(outFile.Fd())) || !inOK || !isTerminalFD(int(inFile.Fd())) {
 		return cmd.Help()
 	}
 

@@ -25,10 +25,10 @@ type syncDoneMsg struct {
 	err     error
 }
 
-func buildSyncPlanCmd(eng EngineAPI, repoIDs map[string]bool) tea.Cmd {
+func buildSyncPlanCmd(ctx context.Context, eng EngineAPI, repoIDs map[string]bool) tea.Cmd {
 	return func() tea.Msg {
 		filter := engine.FilterAll
-		plan, err := eng.Sync(context.Background(), engine.SyncOptions{
+		plan, err := eng.Sync(ctx, engine.SyncOptions{
 			Filter:          filter,
 			DryRun:          true,
 			ContinueOnError: true,

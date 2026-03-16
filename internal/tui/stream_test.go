@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"context"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -84,7 +85,7 @@ func TestInitUsesStreamWhenRegistryHasEntries(t *testing.T) {
 		},
 	}
 	eng := &mockEngine{reg: reg}
-	m := newModel(eng, reg, "")
+	m := newModel(context.Background(), eng, reg, "")
 
 	cmd := m.Init()
 	if cmd == nil {
@@ -97,7 +98,7 @@ func TestInitFallsBackToStatusWhenRegistryEmpty(t *testing.T) {
 
 	reg := &registry.Registry{}
 	eng := &mockEngine{reg: reg, statusResult: &model.StatusReport{}}
-	m := newModel(eng, reg, "")
+	m := newModel(context.Background(), eng, reg, "")
 
 	cmd := m.Init()
 	if cmd == nil {

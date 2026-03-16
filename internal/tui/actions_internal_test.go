@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"strings"
@@ -620,16 +621,22 @@ func TestResolveRepairTarget(t *testing.T) {
 func TestModalHelpers(t *testing.T) {
 	t.Parallel()
 
-	for _, key := range []tea.KeyPressMsg{{Code: tea.KeyLeft}, {Code: 'h'}, {Code: 'k'}} {
+	for _, key := range []tea.KeyPressMsg{{Code: tea.KeyLeft}, {Code: 'h'}} {
 		left, right := isModalNav(key)
 		if !left || right {
 			t.Fatalf("expected left nav for %q", key.String())
 		}
 	}
-	for _, key := range []tea.KeyPressMsg{{Code: tea.KeyRight}, {Code: 'l'}, {Code: 'j'}, {Code: tea.KeyTab}} {
+	for _, key := range []tea.KeyPressMsg{{Code: tea.KeyRight}, {Code: 'l'}, {Code: tea.KeyTab}} {
 		left, right := isModalNav(key)
 		if left || !right {
 			t.Fatalf("expected right nav for %q", key.String())
+		}
+	}
+	for _, key := range []tea.KeyPressMsg{{Code: 'j'}, {Code: 'k'}} {
+		left, right := isModalNav(key)
+		if left || right {
+			t.Fatalf("expected j/k to produce no modal nav, got left=%v right=%v for %q", left, right, key.String())
 		}
 	}
 
@@ -818,10 +825,10 @@ func TestViewDispatchAndOtherHelpers(t *testing.T) {
 	}
 
 	eng := &mockEngine{statusResult: &model.StatusReport{Repos: []model.RepoStatus{{RepoID: "a"}}}}
-	if cmd := streamStatusCmd(eng, []registry.Entry{{RepoID: "a", Path: "/tmp/a"}}); cmd == nil {
+	if cmd := streamStatusCmd(context.Background(), eng, []registry.Entry{{RepoID: "a", Path: "/tmp/a"}}); cmd == nil {
 		t.Fatal("expected streamStatusCmd non-nil")
 	}
-	cmd := loadStatusCmd(eng)
+	cmd := loadStatusCmd(context.Background(), eng)
 	if cmd == nil {
 		t.Fatal("expected loadStatusCmd non-nil")
 	}
@@ -829,11 +836,11 @@ func TestViewDispatchAndOtherHelpers(t *testing.T) {
 		t.Fatalf("expected statusReportMsg, got %T", cmd())
 	}
 
-	refreshWithEntries := refreshStatusCmd(&mockEngine{reg: &registry.Registry{Entries: []registry.Entry{{RepoID: "a", Path: "/tmp/a"}}}})
+	refreshWithEntries := refreshStatusCmd(context.Background(), &mockEngine{reg: &registry.Registry{Entries: []registry.Entry{{RepoID: "a", Path: "/tmp/a"}}}})
 	if refreshWithEntries == nil {
 		t.Fatal("expected refresh cmd with registry entries")
 	}
-	refreshWithoutEntries := refreshStatusCmd(&mockEngine{statusResult: &model.StatusReport{}})
+	refreshWithoutEntries := refreshStatusCmd(context.Background(), &mockEngine{statusResult: &model.StatusReport{}})
 	if refreshWithoutEntries == nil {
 		t.Fatal("expected refresh cmd without entries")
 	}
