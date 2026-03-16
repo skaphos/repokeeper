@@ -14,10 +14,10 @@
 - `go tool ginkgo ./...`: run the Ginkgo test suite.
 - `go test -coverprofile=coverage.out ./...`: run tests with coverage output.
 - `go tool golangci-lint run ./...`: run linting (gofmt/goimports and static checks; v2 config).
-- `goreleaser build --snapshot --clean`: snapshot build for all platforms.
+- `goreleaser build --snapshot --clean`: snapshot build for all platforms (goreleaser managed via `.tool-versions`, not `go tool`).
 
 ## Coding Style & Naming Conventions
-- Go version: `go 1.25` (see `go.mod`).
+- Go version: `go 1.26` (see `go.mod`).
 - Formatting: `gofmt` and `goimports` are enforced via `golangci-lint`.
 - Naming: follow Go conventions (exported `PascalCase`, unexported `camelCase`).
 - Tests: filename suffix `_test.go`; suite files follow `*_suite_test.go`.
@@ -34,17 +34,27 @@
 - Avoid noise comments that restate the code; comments should explain why, not just what.
 
 ## Commit & Pull Request Guidelines
-- This checkout does not include Git history, so no project-specific commit convention is detectable.
-- All commits must be signed (for example, use `git commit -S` with a configured GPG or SSH signing key).
+- **All changes must be delivered via a pull request. Never commit directly to `main`.**
+- Branch naming: use a prefix that matches the change type:
+  - `feature/<short-description>` — new functionality
+  - `bug/<short-description>` — bug fixes
+  - `chore/<short-description>` — maintenance, deps, tooling
+  - `docs/<short-description>` — documentation only
+  - `ci/<short-description>` — CI/CD pipeline changes
+  - `refactor/<short-description>` — internal restructuring without behaviour change
+- Keep branches focused: one logical change per PR. Split unrelated concerns into separate PRs.
+- All commits must be signed (global SSH signing via 1Password is configured; do not pass `-S` manually).
+- Use concise, imperative subjects (example: "Add registry staleness check") and include context in the body if needed.
+- **All commits MUST be cryptographically signed AND carry a DCO sign-off.** Always pass both `-S` and `-s` to `git commit` (e.g. `git commit -S -s -m "..."`). The repo uses SSH signing; the key and `commit.gpgsign = true` are set in git config. Never omit `-S`, never use `--no-gpg-sign`.
 - Use concise, imperative subjects (example: “Add registry staleness check”) and include context in the body if needed.
 - For release automation, prefer Conventional Commits so `svu` can infer semantic version bumps:
-- `feat:` -> minor bump
-- `fix:` -> patch bump
-- `perf:` -> patch bump
-- `refactor:`, `chore:`, `task:`, `docs:`, `test:`, `build:`, `ci:` -> no release bump by default unless configured otherwise
-- Any `!` in the type/scope or a `BREAKING CHANGE:` footer -> major bump
-- Example subjects: `feat(sync): add opt-in pull --rebase`, `fix(ci): make coverage command shell-safe`
-- PRs should include: summary, testing performed, and doc updates when behavior changes (`README.md` or `DESIGN.md`).
+  - `feat:` -> minor bump
+  - `fix:` -> patch bump
+  - `perf:` -> patch bump
+  - `refactor:`, `chore:`, `task:`, `docs:`, `test:`, `build:`, `ci:` -> no release bump by default unless configured otherwise
+  - Any `!` in the type/scope or a `BREAKING CHANGE:` footer -> major bump
+  - Example subjects: `feat(sync): add opt-in pull --rebase`, `fix(ci): make coverage command shell-safe`
+- PRs should include: summary, testing performed, and doc updates when behaviour changes (`README.md` or `DESIGN.md`).
 
 ## Configuration & Safety Notes
 - Config lives in platform config dirs (example: `%APPDATA%\\repokeeper\\config.yaml` on Windows).

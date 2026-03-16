@@ -34,7 +34,7 @@ tasks:
   build-ci:
     desc: Build all configured platform binaries (CI-style snapshot build)
     cmds:
-      - go tool goreleaser build --snapshot --clean
+      - goreleaser build --snapshot --clean
 
   test:
     desc: Run test suite
