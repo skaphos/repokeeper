@@ -28,7 +28,7 @@ jobs:
               echo "Missing Signed-off-by trailer: $commit"
               missing=1
             fi
-          done < <(git rev-list "origin/${BASE_REF}..HEAD")
+          done < <(git rev-list --no-merges "origin/${BASE_REF}..HEAD")
 
           if [ "$missing" -ne 0 ]; then
             echo "DCO check failed. Rebase/amend with: git commit --signoff"
