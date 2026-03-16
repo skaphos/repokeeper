@@ -12,7 +12,7 @@ func renderListView(m tuiModel) string {
 	}
 
 	cols := defaultColumns()
-	widths := distributeWidths(cols, m.width)
+	widths := distributeWidths(cols, m.width-1)
 	list := m.visibleList()
 
 	var b strings.Builder
@@ -35,10 +35,10 @@ func renderListView(m tuiModel) string {
 	b.WriteString(titleStyle.Render(title))
 	b.WriteByte('\n')
 
-	b.WriteString(headerStyle.Render(renderHeader(cols, widths)))
+	b.WriteString(headerStyle.Render(" " + renderHeader(cols, widths)))
 	b.WriteByte('\n')
 
-	b.WriteString(renderDivider(widths))
+	b.WriteString(" " + renderDivider(widths))
 	b.WriteByte('\n')
 
 	visible := visibleRows(m)
@@ -64,12 +64,14 @@ func renderListView(m tuiModel) string {
 		}
 		for i := start; i < end; i++ {
 			row := renderStyledRow(cols, widths, list[i])
+			sel := " "
+			if m.selected[list[i].RepoID] {
+				sel = "●"
+			}
 			if i == m.cursor {
-				row = cursorStyle.Render(row)
-			} else if m.selected[list[i].RepoID] {
-				row = selectedStyle.Render(trackingRowStyle(list[i]).Render(row))
+				row = cursorStyle.Render(sel + row)
 			} else {
-				row = trackingRowStyle(list[i]).Render(row)
+				row = sel + trackingRowStyle(list[i]).Render(row)
 			}
 			b.WriteString(row)
 			b.WriteByte('\n')

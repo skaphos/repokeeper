@@ -311,7 +311,15 @@ func (m tuiModel) startSync() (tea.Model, tea.Cmd) {
 	m.syncPlan = nil
 	m.loading = true
 	m.modalCursor = 0
-	return m, buildSyncPlanCmd(m.engine, m.selected)
+
+	repoIDs := m.selected
+	if len(repoIDs) == 0 {
+		list := m.visibleList()
+		if m.cursor < len(list) {
+			repoIDs = map[string]bool{list[m.cursor].RepoID: true}
+		}
+	}
+	return m, buildSyncPlanCmd(m.engine, repoIDs)
 }
 
 func executeSyncCmd(m tuiModel) tea.Cmd {

@@ -32,7 +32,6 @@ var (
 	errorClassStyle     = lipgloss.NewStyle().Foreground(colorError)
 	syncedOKStyle       = lipgloss.NewStyle().Foreground(colorHealthy)
 	syncedFailStyle     = lipgloss.NewStyle().Foreground(colorError)
-	selectedStyle       = lipgloss.NewStyle().Bold(true)
 )
 
 func trackingRowStyle(r model.RepoStatus) lipgloss.Style {
