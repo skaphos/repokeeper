@@ -2,6 +2,8 @@
 package repokeeper
 
 import (
+	"path/filepath"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -13,7 +15,7 @@ var _ = Describe("exportEntryPath", func() {
 		},
 		Entry("absolute path within root returns relative", "/source/root/team/repo", "/source/root", "team/repo"),
 		Entry("already-relative path returned unchanged", "team/repo", "/source/root", "team/repo"),
-		Entry("absolute path outside root returns cleaned absolute", "/opt/repo", "/source/root", "/opt/repo"),
+		Entry("absolute path outside root returns cleaned absolute", "/opt/repo", "/source/root", filepath.FromSlash("/opt/repo")),
 		Entry("path with spaces within root returns space-preserved relative", "/source/root/my repo", "/source/root", "my repo"),
 		Entry("windows backslash separators normalized to forward slash", `team\repo`, "/source/root", "team/repo"),
 		Entry("empty path and empty root fall back to filepath.Clean dot", "", "", "."),

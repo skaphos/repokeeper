@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -547,7 +548,7 @@ func TestHelpersAndPathResolution(t *testing.T) {
 	if got := resolvedAddPath(tuiModel{addPath: "/tmp/x"}); got != "/tmp/x" {
 		t.Fatalf("expected explicit path, got %q", got)
 	}
-	if got := resolvedAddPath(tuiModel{addURL: "https://github.com/acme/tool.git"}); !strings.HasSuffix(got, "/tool") {
+	if got := resolvedAddPath(tuiModel{addURL: "https://github.com/acme/tool.git"}); filepath.Base(got) != "tool" {
 		t.Fatalf("expected default path suffix /tool, got %q", got)
 	}
 	if got := resolvedAddPath(tuiModel{}); got != "" {
