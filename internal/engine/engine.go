@@ -266,8 +266,9 @@ func (e *Engine) collectStatusResults(ctx context.Context, entries []registry.En
 		sem <- struct{}{}
 		spawned++
 		go func(entry registry.Entry) {
-			defer func() { <-sem }()
-			out <- result{status: e.statusWorker(ctx, entry, timeoutSeconds)}
+			status := e.statusWorker(ctx, entry, timeoutSeconds)
+			<-sem // release before writing to out to prevent deadlock when out is full
+			out <- result{status: status}
 		}(entry)
 	}
 
@@ -507,16 +508,17 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 		sem <- struct{}{}
 		spawned++
 		go func(item SyncResult) {
-			defer func() { <-sem }()
-
 			repoCtx := ctx
+			var cancel context.CancelFunc
 			if timeoutSeconds > 0 {
-				var cancel context.CancelFunc
 				repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-				defer cancel()
 			}
 			res := e.executePlannedSyncItem(repoCtx, item)
+			if cancel != nil {
+				cancel()
+			}
 			e.logSyncFailureHint(res)
+			<-sem
 			out <- res
 		}(item)
 	}
@@ -691,8 +693,9 @@ func (e *Engine) Sync(ctx context.Context, opts SyncOptions) ([]SyncResult, erro
 		sem <- struct{}{}
 		spawned++
 		go func(entry registry.Entry) {
-			defer func() { <-sem }()
-			out <- e.runSyncEntry(ctx, entry, opts, timeoutSeconds)
+			res := e.runSyncEntry(ctx, entry, opts, timeoutSeconds)
+			<-sem
+			out <- res
 		}(entry)
 	}
 
