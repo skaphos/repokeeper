@@ -38,12 +38,12 @@ func (a *adapterStub) SetRemoteURL(_ context.Context, dir, remote, remoteURL str
 	a.setRemoteCalls = append(a.setRemoteCalls, dir+":"+remote+":"+remoteURL)
 	return a.setRemoteErr
 }
-func (a *adapterStub) StashPush(context.Context, string, string) (bool, error) { return false, nil }
-func (a *adapterStub) StashPop(context.Context, string) error                  { return nil }
-func (a *adapterStub) Clone(context.Context, string, string, string, bool) error {
-	return nil
-}
-func (a *adapterStub) NormalizeURL(rawURL string) string { return rawURL }
+func (a *adapterStub) StashPush(context.Context, string, string) (bool, error)   { return false, nil }
+func (a *adapterStub) StashPop(context.Context, string) error                    { return nil }
+func (a *adapterStub) ResetHard(context.Context, string) error                   { return nil }
+func (a *adapterStub) CleanFD(context.Context, string) error                     { return nil }
+func (a *adapterStub) Clone(context.Context, string, string, string, bool) error { return nil }
+func (a *adapterStub) NormalizeURL(rawURL string) string                         { return rawURL }
 func (a *adapterStub) PrimaryRemote(remoteNames []string) string {
 	if len(remoteNames) == 0 {
 		return ""

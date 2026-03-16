@@ -59,10 +59,10 @@ func (s *stubAdapter) SetRemoteURL(context.Context, string, string, string) erro
 func (s *stubAdapter) StashPush(context.Context, string, string) (bool, error) {
 	return false, nil
 }
-func (s *stubAdapter) StashPop(context.Context, string) error { return nil }
-func (s *stubAdapter) Clone(context.Context, string, string, string, bool) error {
-	return nil
-}
+func (s *stubAdapter) StashPop(context.Context, string) error                    { return nil }
+func (s *stubAdapter) ResetHard(context.Context, string) error                   { return nil }
+func (s *stubAdapter) CleanFD(context.Context, string) error                     { return nil }
+func (s *stubAdapter) Clone(context.Context, string, string, string, bool) error { return nil }
 func (s *stubAdapter) NormalizeURL(rawURL string) string {
 	if s.normalizeURLFn == nil {
 		return rawURL
@@ -261,5 +261,26 @@ func TestScanDefaultsAndEmptyRoots(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].Path != repo {
 		t.Fatalf("unexpected scan results: %+v", results)
+	}
+}
+
+func TestMatchesExcludeWithInvalidPattern(t *testing.T) {
+	// Test that MatchesExclude gracefully handles invalid glob patterns
+	// by continuing to the next pattern instead of failing.
+	// An unclosed bracket is an invalid pattern that causes doublestar.Match to error.
+	path := "/some/path/to/file"
+	patterns := []string{"[invalid", "*.go"}
+
+	// Should not panic or error; should return false since no valid pattern matches
+	result := MatchesExclude(path, patterns)
+	if result {
+		t.Fatalf("expected MatchesExclude to return false for non-matching patterns")
+	}
+
+	// Test with a pattern that matches after an invalid one
+	patterns = []string{"[invalid", "**/path/**"}
+	result = MatchesExclude(path, patterns)
+	if !result {
+		t.Fatalf("expected MatchesExclude to return true when a valid pattern matches")
 	}
 }

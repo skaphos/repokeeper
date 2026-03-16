@@ -46,7 +46,6 @@
 - All commits must be signed (global SSH signing via 1Password is configured; do not pass `-S` manually).
 - Use concise, imperative subjects (example: "Add registry staleness check") and include context in the body if needed.
 - **All commits MUST be cryptographically signed AND carry a DCO sign-off.** Always pass both `-S` and `-s` to `git commit` (e.g. `git commit -S -s -m "..."`). The repo uses SSH signing; the key and `commit.gpgsign = true` are set in git config. Never omit `-S`, never use `--no-gpg-sign`.
-- Use concise, imperative subjects (example: “Add registry staleness check”) and include context in the body if needed.
 - For release automation, prefer Conventional Commits so `svu` can infer semantic version bumps:
   - `feat:` -> minor bump
   - `fix:` -> patch bump

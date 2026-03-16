@@ -305,7 +305,6 @@ Feedback captured and prioritized:
 - [ ] trigger batch actions for selected repos
 - [ ] progress updates + detail/action view
 - [ ] keybindings baseline: `/` filter, `space` select, `a` select all, `s` sync, `e` edit, `r` repair upstream, `enter` details/actions, `q` quit
-- [ ] Open question: should task orchestration move from `Taskfile` to `mise` (single runner), or remain `Taskfile`-first with optional `mise` wrappers/tool pinning?
 
 **Acceptance:**
 

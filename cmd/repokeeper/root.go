@@ -10,6 +10,8 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/tui"
 	"github.com/skaphos/repokeeper/internal/urlutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -47,6 +49,38 @@ func init() {
 	rootCmd.PersistentFlags().String("config", "", "override config file path")
 	rootCmd.PersistentFlags().Bool("no-color", false, "disable colored output")
 	rootCmd.PersistentFlags().Bool("yes", false, "accept mutating actions without interactive confirmation")
+
+	// Register the no-args TUI entry point after rootCmd is fully initialized to
+	// avoid an initialization cycle (RunE references configOverride → rootCmd).
+	rootCmd.RunE = rootRunE
+}
+
+// rootRunE launches the interactive TUI when repokeeper is invoked with no
+// subcommand and stdout is an interactive terminal. Falls back to help text
+// when output is piped or redirected.
+func rootRunE(cmd *cobra.Command, _ []string) error {
+	outFile, outOK := cmd.OutOrStdout().(*os.File)
+	inFile, inOK := cmd.InOrStdin().(*os.File)
+	if !outOK || !isTerminalFD(int(outFile.Fd())) || !inOK || !isTerminalFD(int(inFile.Fd())) {
+		return cmd.Help()
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	cfgPath, err := config.ResolveConfigPath(configOverride(cmd), cwd)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return err
+	}
+	if cfg.Registry == nil {
+		return fmt.Errorf("registry not found in %q (run repokeeper scan first)", cfgPath)
+	}
+	return tui.Run(cmd.Context(), cfg, cfg.Registry, cfgPath)
 }
 
 // Execute runs the root command.

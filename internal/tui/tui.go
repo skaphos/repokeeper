@@ -1,12 +1,34 @@
 // SPDX-License-Identifier: MIT
-// Package tui provides the interactive Bubble Tea terminal UI (phase 2).
+// Package tui provides the interactive Bubble Tea terminal UI.
 package tui
 
-// Run launches the interactive TUI.
-func Run() error {
-	// TODO: implement in phase 2
-	// - Bubble Tea model/update/view
-	// - Bubbles table component
-	// - Lipgloss styling
-	return nil
+import (
+	"context"
+	"fmt"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
+)
+
+func Run(ctx context.Context, cfg *config.Config, reg *registry.Registry, cfgPath string) error {
+	if cfg == nil {
+		return fmt.Errorf("tui: config is required")
+	}
+	adapter, err := vcs.NewAdapterForSelection("git")
+	if err != nil {
+		return fmt.Errorf("tui: selecting VCS adapter: %w", err)
+	}
+	eng := engine.New(cfg, reg, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), nil)
+	return RunWithEngine(ctx, eng, reg, cfgPath)
+}
+
+func RunWithEngine(ctx context.Context, eng EngineAPI, reg *registry.Registry, cfgPath string) error {
+	m := newModel(ctx, eng, reg, cfgPath)
+	p := tea.NewProgram(m, tea.WithContext(ctx))
+	m.program = p
+	_, err := p.Run()
+	return err
 }
