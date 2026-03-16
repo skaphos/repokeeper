@@ -39,6 +39,8 @@ jobs:
             perf/runs/*.txt
           if-no-files-found: warn
           retention-days: 90
+      - name: Restore perf history to clean state
+        run: git restore perf/history.jsonl
       - name: Determine GoReleaser args
         id: goreleaser_args
         shell: bash
