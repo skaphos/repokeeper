@@ -3,7 +3,7 @@ module github.com/skaphos/repokeeper
 go 1.26.1
 
 require (
-	charm.land/bubbletea/v2 v2.0.1
+	charm.land/bubbletea/v2 v2.0.2
 	charm.land/lipgloss/v2 v2.0.0
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/caarlos0/go-shellwords v1.0.12
