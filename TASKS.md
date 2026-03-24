@@ -280,7 +280,7 @@ Feedback captured and prioritized:
 - [x] P1: Improve sync UX clarity for non-Git repos (`hg pull` safe fetch, explicit skip reason for `--update-local`).
 - [x] P2: Align command/help text to "repositories" language instead of Git-only wording where behavior is multi-VCS.
 - [x] P1: preserve upstream-missing metadata flow (scan -> registry -> export -> import) so repos known to have no upstream are classified as `skipped` during import/reconcile instead of clone `failed`, while persisting `status=missing` where appropriate.
-- [x] P1: Add benchmark tracking workflow (`go -C tools tool task perf-bench`) that saves raw benchmark logs and appends structured history (`perf/history.jsonl`) for trend analysis over time.
+- [x] P1: Add benchmark tracking workflow (`go -C tools tool task -d .. perf-bench`) that saves raw benchmark logs and appends structured history (`perf/history.jsonl`) for trend analysis over time.
 - [x] P1: add per-repository `labels` metadata in registry (key/value) and expose mutation commands (`edit`/`add`) to set, update, and remove labels.
 - [x] P1: add per-repository `annotations` metadata in registry (key/value, non-selector metadata) and expose mutation commands (`edit`/`add`) to set, update, and remove annotations.
 - [x] P1: support label-based filtering in repository list/get flows (for example `get repos -l team=platform`, `-l env in (prod,stage)` phase-in), with deterministic behavior in table/wide/json outputs.
