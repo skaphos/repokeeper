@@ -15,11 +15,11 @@ This repository releases via Git tags and GitHub Actions.
 
 Use the same checks CI runs:
 
-- `go tool task ci`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task ci`
 
 Optional version preview:
 
-- `go tool task version-next`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task version-next`
 
 ## 2. Choose and Create the Version Tag
 

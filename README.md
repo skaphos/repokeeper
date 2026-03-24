@@ -181,41 +181,41 @@ Optional local checkout update:
 ## Development
 
 ```bash
+# List all task targets without installing task globally
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task --list
+
 # Run tests
-go tool ginkgo ./...
+go run -modfile=tools/go.mod github.com/onsi/ginkgo/v2/ginkgo ./...
 
 # Run with coverage
 go test -coverprofile=coverage.out ./...
 
 # Run with coverage and enforce per-package thresholds
-go tool task test-cover-check
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task test-cover-check
 
 # Run coverage and print lowest-covered packages/functions
-go tool task coverage-report
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task coverage-report
 
 # Run performance benchmarks and append historical record
-go tool task perf-bench
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task perf-bench
 
 # Lint
-go tool golangci-lint run ./...
+go run -modfile=tools/go.mod github.com/golangci/golangci-lint/v2/cmd/golangci-lint run ./...
 
 # Build locally
 go build -o repokeeper .
 
 # Build locally (task runner)
-go tool task build
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task build
 
 # CI-style full platform build (task runner)
-go tool task build-ci
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task build-ci
 
 # Run standard CI pipeline locally (lint/test/staticcheck/vuln/build-ci)
-go tool task ci
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task ci
 
 # Format imports + code
-go tool task fmt
-
-# List all task targets
-go tool task --list
+go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task fmt
 ```
 
 ## License

@@ -4,9 +4,9 @@ Thanks for contributing to RepoKeeper.
 
 ## Development Setup
 
-- Go version: see `go.mod` (`go 1.25`).
-- Install task runner and tools used by `Taskfile.yml`:
-  - `go tool task --list`
+- Go version: see `go.mod` (`go 1.26.1`).
+- Run task targets without installing tools globally:
+  - `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task --list`
 
 ## Branching and Commits
 
@@ -32,23 +32,23 @@ Examples:
   - Source files should include SPDX headers (for example an `SPDX-License-Identifier` header with value `MIT`).
   - Use `reuse lint` to validate licensing metadata.
 - Format code:
-  - `go tool task fmt`
+  - `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task fmt`
 - Lint code:
-  - `go tool task lint`
+  - `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task lint`
 
 ## Testing
 
 Run before opening a PR:
 
-- `go tool task test`
-- `go tool task test-cover`
-- `go tool task test-integration`
-- `go tool task staticcheck`
-- `go tool task vuln`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task test`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task test-cover`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task test-integration`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task staticcheck`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task vuln`
 
 Or run full local CI:
 
-- `go tool task ci`
+- `go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task ci`
 
 ## Pull Requests
 

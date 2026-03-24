@@ -58,7 +58,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run lint task
-        run: go tool task lint
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task lint
 
   test:
     name: Test
@@ -72,7 +72,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run coverage test task
-        run: go tool task test-cover
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task test-cover
       - name: Debug internal/config on failure
         if: failure()
         run: go test -v -count=1 ./internal/config || true
@@ -98,7 +98,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run integration test task
-        run: go tool task test-integration
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task test-integration
 
   quality:
     name: Static Analysis
@@ -109,9 +109,9 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Run staticcheck task
-        run: go tool task staticcheck
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task staticcheck
       - name: Run vulnerability task
-        run: go tool task vuln
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task vuln
 
   perf:
     name: Performance Benchmarks
@@ -123,10 +123,10 @@ jobs:
           go-version-file: go.mod
       - name: Run quick benchmark baseline (pull request)
         if: github.event_name == 'pull_request'
-        run: go tool task perf-bench-quick
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task perf-bench-quick
       - name: Run full benchmark (push to main)
         if: github.event_name == 'push'
-        run: go tool task perf-bench
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task perf-bench
       - name: Upload performance artifacts
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
@@ -154,7 +154,7 @@ jobs:
           version: "~> v2"
           install-only: true
       - name: Run CI build task
-        run: go tool task build-ci
+        run: go run -modfile=tools/go.mod github.com/go-task/task/v3/cmd/task build-ci
 
   summary:
     name: CI Summary
