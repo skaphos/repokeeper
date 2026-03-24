@@ -187,7 +187,7 @@ func supportedSkillRootsByRuntime() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	configDir, err := os.UserConfigDir()
+	configDir, err := userConfigDir()
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +196,13 @@ func supportedSkillRootsByRuntime() (map[string]string, error) {
 		"agents":   filepath.Join(home, ".agents", "skills"),
 		"opencode": filepath.Join(configDir, "opencode", "skills"),
 	}, nil
+}
+
+func userConfigDir() (string, error) {
+	if path := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); path != "" {
+		return path, nil
+	}
+	return os.UserConfigDir()
 }
 
 func skillInstalledAt(root string) (bool, error) {
