@@ -617,6 +617,49 @@ func TestIndexRunEWriteDeclinedDoesNotWrite(t *testing.T) {
 	}
 }
 
+func TestIndexRunEFailsEarlyWhenMetadataExistsWithoutForce(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-index")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, ".repokeeper-repo.yaml"), []byte("apiVersion: repokeeper/v1\nkind: RepoMetadata\nname: Existing\n"), 0o644); err != nil {
+		t.Fatalf("write existing metadata: %v", err)
+	}
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{RepoID: "github.com/org/repo-index", Path: repoPath, Status: registry.StatusPresent, LastSeen: time.Now()}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+	yesCleanup := withAssumeYes(t, false)
+	defer yesCleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	indexCmd.SetOut(out)
+	indexCmd.SetErr(errOut)
+	defer indexCmd.SetOut(os.Stdout)
+	defer indexCmd.SetErr(os.Stderr)
+	indexCmd.SetIn(strings.NewReader("\n\n\n\n\n\n\n"))
+	defer indexCmd.SetIn(os.Stdin)
+	_ = indexCmd.Flags().Set("write", "true")
+	_ = indexCmd.Flags().Set("force", "false")
+
+	err := indexCmd.RunE(indexCmd, []string{"github.com/org/repo-index"})
+	if err == nil || !strings.Contains(err.Error(), "use --force to overwrite") {
+		t.Fatalf("expected overwrite guidance error, got %v", err)
+	}
+	if strings.Contains(out.String(), "# Repo metadata preview") {
+		t.Fatalf("expected no preview output before early failure, got %q", out.String())
+	}
+	if strings.Contains(errOut.String(), "Write repo metadata") {
+		t.Fatalf("expected no confirmation prompt before early failure, got %q", errOut.String())
+	}
+}
+
 func TestIndexRunEWritesWithYes(t *testing.T) {
 	tmp := t.TempDir()
 	repoPath := filepath.Join(tmp, "repo-index")

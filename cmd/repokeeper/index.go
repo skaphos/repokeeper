@@ -59,6 +59,9 @@ var indexCmd = &cobra.Command{
 		default:
 			return fmt.Errorf("load existing repo metadata: %w (use --force to replace)", existingErr)
 		}
+		if writeFile && existingErr == nil && !force {
+			return fmt.Errorf("repo metadata already exists at %s (use --force to overwrite)", existingPath)
+		}
 
 		proposal, err := buildIndexProposal(entry, existing, yes, cmd.InOrStdin(), cmd.ErrOrStderr())
 		if err != nil {
