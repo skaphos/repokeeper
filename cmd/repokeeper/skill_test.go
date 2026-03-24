@@ -14,6 +14,7 @@ func withSkillEnv(t *testing.T) (home string, configHome string) {
 	home = t.TempDir()
 	configHome = filepath.Join(home, ".config")
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", configHome)
 	return home, configHome
 }

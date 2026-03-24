@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -125,7 +126,7 @@ func TestValidateRejectsInvalidMetadata(t *testing.T) {
 		{name: "empty metadata", metadata: &model.RepoMetadata{}, wantErr: "must declare at least one non-empty field"},
 		{name: "invalid label key", metadata: &model.RepoMetadata{Name: "Repo", Labels: map[string]string{"bad key": "docs"}}, wantErr: "cannot contain whitespace or '='"},
 		{name: "invalid entrypoint key", metadata: &model.RepoMetadata{Name: "Repo", Entrypoints: map[string]string{"bad key": "README.md"}}, wantErr: "invalid entrypoint key"},
-		{name: "absolute entrypoint path", metadata: &model.RepoMetadata{Name: "Repo", Entrypoints: map[string]string{"readme": "/tmp/README.md"}}, wantErr: "must be relative"},
+		{name: "absolute entrypoint path", metadata: &model.RepoMetadata{Name: "Repo", Entrypoints: map[string]string{"readme": testAbsolutePath()}}, wantErr: "must be relative"},
 		{name: "traversing authoritative path", metadata: &model.RepoMetadata{Name: "Repo", Paths: model.RepoMetadataPaths{Authoritative: []string{"../docs"}}}, wantErr: "must stay within the repository root"},
 		{name: "empty provides entry", metadata: &model.RepoMetadata{Name: "Repo", Provides: []string{"docs", "  "}}, wantErr: "provides entries cannot be empty"},
 		{name: "missing related repo id", metadata: &model.RepoMetadata{Name: "Repo", RelatedRepos: []model.RepoMetadataRelatedRepo{{Relationship: "depends-on"}}}, wantErr: "related_repos entries require repo_id"},
@@ -140,6 +141,13 @@ func TestValidateRejectsInvalidMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testAbsolutePath() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(`C:\`, "tmp", "README.md")
+	}
+	return filepath.Join(string(filepath.Separator), "tmp", "README.md")
 }
 
 func TestNormalizeTrimsFiltersAndSorts(t *testing.T) {
