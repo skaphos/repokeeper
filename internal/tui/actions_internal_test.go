@@ -674,13 +674,13 @@ func TestViewsAndRendering(t *testing.T) {
 		Tracking:         model.Tracking{Status: model.TrackingEqual, Upstream: "origin/main"},
 		Worktree:         &model.Worktree{Dirty: true, Staged: 1, Unstaged: 2, Untracked: 3},
 		Remotes:          []model.Remote{{Name: "origin", URL: "git@github.com:acme/backend.git"}},
-		Labels:           map[string]string{"team": "platform"},
-		Annotations:      map[string]string{"owner": "devx"},
+		Labels:           map[string]string{"team": "platform", "tier": "backend"},
+		Annotations:      map[string]string{"owner": "devx", "runbook": "docs/runbook.md"},
 		RepoMetadataFile: "/work/backend/.repokeeper-repo.yaml",
 		RepoMetadata: &model.RepoMetadata{
 			Name:        "Backend",
-			Labels:      map[string]string{"role": "service"},
-			Entrypoints: map[string]string{"readme": "README.md"},
+			Labels:      map[string]string{"domain": "platform", "role": "service"},
+			Entrypoints: map[string]string{"readme": "README.md", "service": "cmd/backend"},
 			Paths:       model.RepoMetadataPaths{Authoritative: []string{"docs/"}},
 			Provides:    []string{"api"},
 			RelatedRepos: []model.RepoMetadataRelatedRepo{{
@@ -781,6 +781,41 @@ func TestViewsAndRendering(t *testing.T) {
 	if !strings.Contains(renderListView(tuiModel{width: 100, height: 20, statusMsg: "ok"}), "ok") {
 		t.Fatal("expected status message row")
 	}
+}
+
+func TestRenderDetailViewDeterministicMapOrder(t *testing.T) {
+	t.Parallel()
+
+	detail := renderDetailView(tuiModel{width: 100, repos: []model.RepoStatus{{
+		RepoID:        "acme/backend",
+		Path:          "/work/backend",
+		Type:          "checkout",
+		PrimaryRemote: "origin",
+		Head:          model.Head{Branch: "main"},
+		Labels:        map[string]string{"zeta": "last", "alpha": "first"},
+		Annotations:   map[string]string{"owner": "devx", "docs": "README.md"},
+		RepoMetadata: &model.RepoMetadata{
+			Labels:      map[string]string{"role": "service", "domain": "platform"},
+			Entrypoints: map[string]string{"service": "cmd/backend", "readme": "README.md"},
+		},
+	}}, cursor: 0})
+
+	assertOrdered := func(before, after string) {
+		t.Helper()
+		beforeIndex := strings.Index(detail, before)
+		afterIndex := strings.Index(detail, after)
+		if beforeIndex == -1 || afterIndex == -1 {
+			t.Fatalf("expected detail view to contain %q and %q, got %q", before, after, detail)
+		}
+		if beforeIndex >= afterIndex {
+			t.Fatalf("expected %q before %q, got %q", before, after, detail)
+		}
+	}
+
+	assertOrdered("  alpha=first", "  zeta=last")
+	assertOrdered("  docs=README.md", "  owner=devx")
+	assertOrdered("    domain=platform", "    role=service")
+	assertOrdered("    readme=README.md", "    service=cmd/backend")
 }
 
 func TestViewDispatchAndOtherHelpers(t *testing.T) {

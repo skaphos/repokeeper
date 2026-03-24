@@ -3,6 +3,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/model"
@@ -47,7 +48,8 @@ func renderDetailView(m tuiModel) string {
 	if len(r.Labels) > 0 {
 		b.WriteString(headerStyle.Render("Labels"))
 		b.WriteByte('\n')
-		for k, v := range r.Labels {
+		for _, k := range sortedKeys(r.Labels) {
+			v := r.Labels[k]
 			fmt.Fprintf(&b, "  %s=%s\n", k, v)
 		}
 		b.WriteByte('\n')
@@ -56,7 +58,8 @@ func renderDetailView(m tuiModel) string {
 	if len(r.Annotations) > 0 {
 		b.WriteString(headerStyle.Render("Annotations"))
 		b.WriteByte('\n')
-		for k, v := range r.Annotations {
+		for _, k := range sortedKeys(r.Annotations) {
+			v := r.Annotations[k]
 			fmt.Fprintf(&b, "  %s=%s\n", k, v)
 		}
 		b.WriteByte('\n')
@@ -77,13 +80,15 @@ func renderDetailView(m tuiModel) string {
 			}
 			if len(r.RepoMetadata.Labels) > 0 {
 				b.WriteString("  Labels:\n")
-				for k, v := range r.RepoMetadata.Labels {
+				for _, k := range sortedKeys(r.RepoMetadata.Labels) {
+					v := r.RepoMetadata.Labels[k]
 					fmt.Fprintf(&b, "    %s=%s\n", k, v)
 				}
 			}
 			if len(r.RepoMetadata.Entrypoints) > 0 {
 				b.WriteString("  Entrypoints:\n")
-				for k, v := range r.RepoMetadata.Entrypoints {
+				for _, k := range sortedKeys(r.RepoMetadata.Entrypoints) {
+					v := r.RepoMetadata.Entrypoints[k]
 					fmt.Fprintf(&b, "    %s=%s\n", k, v)
 				}
 			}
@@ -129,6 +134,15 @@ func renderDetailView(m tuiModel) string {
 
 	b.WriteString(statusBarStyle.Render("esc/q: back  e: edit metadata  r: repair upstream"))
 	return b.String()
+}
+
+func sortedKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func repoType(r model.RepoStatus) string {
