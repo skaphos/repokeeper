@@ -62,6 +62,57 @@ func renderDetailView(m tuiModel) string {
 		b.WriteByte('\n')
 	}
 
+	if r.RepoMetadataFile != "" || r.RepoMetadata != nil || r.RepoMetadataError != "" {
+		b.WriteString(headerStyle.Render("Repo Metadata"))
+		b.WriteByte('\n')
+		if r.RepoMetadataFile != "" {
+			fmt.Fprintf(&b, "  File: %s\n", r.RepoMetadataFile)
+		}
+		if r.RepoMetadata != nil {
+			if r.RepoMetadata.Name != "" {
+				fmt.Fprintf(&b, "  Name: %s\n", r.RepoMetadata.Name)
+			}
+			if r.RepoMetadata.RepoID != "" {
+				fmt.Fprintf(&b, "  Repo ID: %s\n", r.RepoMetadata.RepoID)
+			}
+			if len(r.RepoMetadata.Labels) > 0 {
+				b.WriteString("  Labels:\n")
+				for k, v := range r.RepoMetadata.Labels {
+					fmt.Fprintf(&b, "    %s=%s\n", k, v)
+				}
+			}
+			if len(r.RepoMetadata.Entrypoints) > 0 {
+				b.WriteString("  Entrypoints:\n")
+				for k, v := range r.RepoMetadata.Entrypoints {
+					fmt.Fprintf(&b, "    %s=%s\n", k, v)
+				}
+			}
+			if len(r.RepoMetadata.Paths.Authoritative) > 0 {
+				fmt.Fprintf(&b, "  Authoritative: %s\n", strings.Join(r.RepoMetadata.Paths.Authoritative, ", "))
+			}
+			if len(r.RepoMetadata.Paths.LowValue) > 0 {
+				fmt.Fprintf(&b, "  Low value: %s\n", strings.Join(r.RepoMetadata.Paths.LowValue, ", "))
+			}
+			if len(r.RepoMetadata.Provides) > 0 {
+				fmt.Fprintf(&b, "  Provides: %s\n", strings.Join(r.RepoMetadata.Provides, ", "))
+			}
+			if len(r.RepoMetadata.RelatedRepos) > 0 {
+				b.WriteString("  Related repos:\n")
+				for _, related := range r.RepoMetadata.RelatedRepos {
+					if related.Relationship == "" {
+						fmt.Fprintf(&b, "    %s\n", related.RepoID)
+						continue
+					}
+					fmt.Fprintf(&b, "    %s (%s)\n", related.RepoID, related.Relationship)
+				}
+			}
+		}
+		if r.RepoMetadataError != "" {
+			fmt.Fprintf(&b, "  Error: %s\n", r.RepoMetadataError)
+		}
+		b.WriteByte('\n')
+	}
+
 	if r.LastSync != nil {
 		b.WriteString(headerStyle.Render("Last Sync"))
 		b.WriteByte('\n')

@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 )
 
 type repoStatusMsg struct {
@@ -26,13 +27,15 @@ func inspectEntryCmd(ctx context.Context, eng EngineAPI, entry registry.Entry) t
 	return func() tea.Msg {
 		status, err := eng.InspectRepo(ctx, entry.Path)
 		if err != nil {
-			return repoStatusMsg{status: model.RepoStatus{
+			partial := model.RepoStatus{
 				RepoID:     entry.RepoID,
 				Path:       entry.Path,
 				Type:       entry.Type,
 				Error:      err.Error(),
 				ErrorClass: "inspect",
-			}}
+			}
+			repometa.Apply(&partial)
+			return repoStatusMsg{status: partial}
 		}
 		if status.RepoID == "" {
 			status.RepoID = entry.RepoID
