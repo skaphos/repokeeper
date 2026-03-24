@@ -11,7 +11,7 @@ var testRepos = []model.RepoStatus{
 	{RepoID: "acme/backend", Path: "/work/backend", Head: model.Head{Branch: "main"}, Tracking: model.Tracking{Status: model.TrackingEqual}},
 	{RepoID: "acme/frontend", Path: "/work/frontend", Head: model.Head{Branch: "feat/ui"}, Tracking: model.Tracking{Status: model.TrackingAhead}},
 	{RepoID: "acme/infra", Path: "/work/infra", Head: model.Head{Branch: "main"}, ErrorClass: "network"},
-	{RepoID: "tools/cli", Path: "/work/cli", Head: model.Head{Branch: "develop"}, Labels: map[string]string{"team": "platform"}},
+	{RepoID: "tools/cli", Path: "/work/cli", Head: model.Head{Branch: "develop"}, Labels: map[string]string{"team": "platform"}, RepoMetadata: &model.RepoMetadata{Provides: []string{"workspace-discovery"}, Labels: map[string]string{"role": "tooling"}}},
 }
 
 func TestFilterRowsEmptyQuery(t *testing.T) {
@@ -107,5 +107,18 @@ func TestFilterRowsByDisplayLabel(t *testing.T) {
 	got := filterRows(testRepos, "up to date")
 	if len(got) != 1 || got[0].RepoID != "acme/backend" {
 		t.Fatalf("expected [acme/backend] for 'up to date', got %v", got)
+	}
+}
+
+func TestFilterRowsByRepoMetadata(t *testing.T) {
+	t.Parallel()
+	got := filterRows(testRepos, "workspace-discovery")
+	if len(got) != 1 || got[0].RepoID != "tools/cli" {
+		t.Fatalf("expected [tools/cli] for repo metadata search, got %v", got)
+	}
+
+	got = filterRows(testRepos, "tooling")
+	if len(got) != 1 || got[0].RepoID != "tools/cli" {
+		t.Fatalf("expected [tools/cli] for repo metadata labels, got %v", got)
 	}
 }
