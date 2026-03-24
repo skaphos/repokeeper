@@ -20,6 +20,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/obs"
 	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 )
@@ -154,6 +155,7 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 			Remotes:       res.Remotes,
 			PrimaryRemote: res.PrimaryRemote,
 		})
+		repometa.Apply(&statuses[len(statuses)-1])
 	}
 	for i := range e.registry.Entries {
 		entryPath := filepath.Clean(e.registry.Entries[i].Path)
@@ -302,7 +304,7 @@ func (e *Engine) statusWorker(ctx context.Context, entry registry.Entry, timeout
 	if err != nil {
 		// Preserve partial results: represent per-repo inspect failures in-band
 		// instead of aborting the full status run.
-		return model.RepoStatus{
+		partial := model.RepoStatus{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
 			Type:       entry.Type,
@@ -310,6 +312,8 @@ func (e *Engine) statusWorker(ctx context.Context, entry registry.Entry, timeout
 			Error:      err.Error(),
 			ErrorClass: e.classifier.ClassifyError(err),
 		}
+		repometa.Apply(&partial)
+		return partial
 	}
 	if status.RepoID == "" {
 		status.RepoID = entry.RepoID
@@ -1253,7 +1257,7 @@ func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatu
 		e.logger.Warnf("HasSubmodules check failed for %s: %v", path, subErr)
 	}
 
-	return &model.RepoStatus{
+	status := &model.RepoStatus{
 		RepoID:        repoID,
 		Path:          path,
 		Bare:          bare,
@@ -1263,7 +1267,9 @@ func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatu
 		Worktree:      worktree,
 		Tracking:      tracking,
 		Submodules:    model.Submodules{HasSubmodules: hasSubmodules},
-	}, nil
+	}
+	repometa.Apply(status)
+	return status, nil
 }
 
 func (e *Engine) upsertRegistryEntry(entry registry.Entry) {

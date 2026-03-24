@@ -522,6 +522,46 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "ANNOTATIONS: %s\n", metadataMapString(repo.Annotations)); err != nil {
 		return err
 	}
+	if repo.RepoMetadataFile != "" {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_FILE: %s\n", repo.RepoMetadataFile); err != nil {
+			return err
+		}
+	}
+	if repo.RepoMetadata != nil {
+		if repo.RepoMetadata.Name != "" {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_NAME: %s\n", repo.RepoMetadata.Name); err != nil {
+				return err
+			}
+		}
+		if repo.RepoMetadata.RepoID != "" {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_REPO_ID: %s\n", repo.RepoMetadata.RepoID); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_LABELS: %s\n", metadataMapString(repo.RepoMetadata.Labels)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_ENTRYPOINTS: %s\n", metadataMapString(repo.RepoMetadata.Entrypoints)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_AUTHORITATIVE_PATHS: %s\n", metadataListString(repo.RepoMetadata.Paths.Authoritative)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_LOW_VALUE_PATHS: %s\n", metadataListString(repo.RepoMetadata.Paths.LowValue)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_PROVIDES: %s\n", metadataListString(repo.RepoMetadata.Provides)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_RELATED_REPOS: %s\n", relatedReposString(repo.RepoMetadata.RelatedRepos)); err != nil {
+			return err
+		}
+	}
+	if repo.RepoMetadataError != "" {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_ERROR: %s\n", repo.RepoMetadataError); err != nil {
+			return err
+		}
+	}
 	ahead := "-"
 	if repo.Tracking.Ahead != nil {
 		ahead = fmt.Sprintf("%d", *repo.Tracking.Ahead)
@@ -617,6 +657,31 @@ func metadataMapString(values map[string]string) string {
 	parts := make([]string, 0, len(values))
 	for k, v := range values {
 		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
+}
+
+func metadataListString(values []string) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	parts := append([]string(nil), values...)
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
+}
+
+func relatedReposString(values []model.RepoMetadataRelatedRepo) string {
+	if len(values) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		if strings.TrimSpace(value.Relationship) == "" {
+			parts = append(parts, value.RepoID)
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s:%s", value.RepoID, value.Relationship))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, ",")
