@@ -472,9 +472,9 @@ Per-machine mapping of repo-id to local path.
 ```yaml
 updated_at: "2026-02-10T16:00:00-06:00"
 repos:
-- repo_id: "github.com/example/tools-foo"
-  path: "/Users/shawn/code/tools-foo"
-  remote_url: "git@github.com:example/tools-foo.git"
+  - repo_id: "github.com/example/tools-foo"
+    path: "/Users/shawn/code/tools-foo"
+    remote_url: "git@github.com:example/tools-foo.git"
     type: "checkout"    # checkout | mirror
     branch: "main"      # optional preferred branch for checkout clones
     last_seen: "2026-02-10T16:00:00-06:00"
