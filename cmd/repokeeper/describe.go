@@ -13,6 +13,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 )
@@ -85,6 +86,7 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			repo.Error = err.Error()
 			repo.ErrorClass = classifier.ClassifyError(err)
+			repometa.Apply(&repo)
 		} else {
 			repo = *status
 			if repo.RepoID == "" {

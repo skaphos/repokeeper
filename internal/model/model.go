@@ -72,6 +72,44 @@ type SyncResult struct {
 	Error string `json:"error,omitempty" yaml:"error,omitempty"`
 }
 
+// RepoMetadataPaths groups path hints declared by a repository.
+type RepoMetadataPaths struct {
+	// Authoritative highlights the paths most worth consulting first.
+	Authoritative []string `json:"authoritative,omitempty" yaml:"authoritative,omitempty"`
+	// LowValue highlights paths that are usually less useful for navigation.
+	LowValue []string `json:"low_value,omitempty" yaml:"low_value,omitempty"`
+}
+
+// RepoMetadataRelatedRepo describes a relationship to another repository.
+type RepoMetadataRelatedRepo struct {
+	// RepoID is the referenced repository identity.
+	RepoID string `json:"repo_id" yaml:"repo_id"`
+	// Relationship is an optional free-form relationship label.
+	Relationship string `json:"relationship,omitempty" yaml:"relationship,omitempty"`
+}
+
+// RepoMetadata describes source-controlled repo-local metadata discovered at runtime.
+type RepoMetadata struct {
+	// APIVersion is an optional schema version marker for the metadata file.
+	APIVersion string `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+	// Kind is an optional schema kind marker for the metadata file.
+	Kind string `json:"kind,omitempty" yaml:"kind,omitempty"`
+	// RepoID is an optional repo-local assertion of the repository identity.
+	RepoID string `json:"repo_id,omitempty" yaml:"repo_id,omitempty"`
+	// Name is an optional human-friendly repository name.
+	Name string `json:"name,omitempty" yaml:"name,omitempty"`
+	// Labels are generic taxonomy labels declared by the repository.
+	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	// Entrypoints are named starting points within the repository.
+	Entrypoints map[string]string `json:"entrypoints,omitempty" yaml:"entrypoints,omitempty"`
+	// Paths groups repository path relevance hints.
+	Paths RepoMetadataPaths `json:"paths,omitempty" yaml:"paths,omitempty"`
+	// Provides lists capabilities or artifacts this repository offers.
+	Provides []string `json:"provides,omitempty" yaml:"provides,omitempty"`
+	// RelatedRepos lists known related repositories and their relationships.
+	RelatedRepos []RepoMetadataRelatedRepo `json:"related_repos,omitempty" yaml:"related_repos,omitempty"`
+}
+
 // RepoStatus is the full status report for a single repository.
 type RepoStatus struct {
 	// RepoID is the normalized identity for the repository (usually derived from remote URL).
@@ -84,6 +122,12 @@ type RepoStatus struct {
 	Labels map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	// Annotations are user-defined key/value metadata for non-selector notes.
 	Annotations map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
+	// RepoMetadataFile is the repo-local metadata file path when one was discovered.
+	RepoMetadataFile string `json:"repo_metadata_file,omitempty" yaml:"repo_metadata_file,omitempty"`
+	// RepoMetadataError captures non-fatal repo-local metadata discovery or validation errors.
+	RepoMetadataError string `json:"repo_metadata_error,omitempty" yaml:"repo_metadata_error,omitempty"`
+	// RepoMetadata carries source-controlled repo-local metadata when available.
+	RepoMetadata *RepoMetadata `json:"repo_metadata,omitempty" yaml:"repo_metadata,omitempty"`
 	// Bare indicates whether the repository has no working tree.
 	Bare bool `json:"bare" yaml:"bare"`
 	// Remotes contains all configured remotes.

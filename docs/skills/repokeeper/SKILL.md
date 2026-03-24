@@ -1,0 +1,223 @@
+---
+name: repokeeper
+description: Use RepoKeeper to initialize workspace tracking, discover repositories, inspect health, label registry entries, navigate safely, and run safe update workflows. Use this when a task involves multiple local repositories, registry hygiene, repo status checks, or safe synchronization.
+license: MIT
+compatibility: opencode
+metadata:
+  author: skaphos
+  source: repokeeper
+---
+
+# RepoKeeper
+
+Use RepoKeeper as the first stop for multi-repository work. It tells you what repositories exist, where they live, how healthy they are, and which ones can be updated safely.
+
+## When to use
+
+Use this skill when you need to:
+
+- initialize RepoKeeper for a workspace
+- discover repositories under one or more roots
+- inspect repository health before editing or syncing
+- label or annotate repositories in the machine-local registry
+- find the right repository before browsing files
+- update repositories safely without guessing which ones are behind, dirty, missing, or diverged
+
+## Core rules
+
+1. Prefer RepoKeeper over ad hoc filesystem crawling when the task spans more than one repository.
+2. Treat `scan`, `status`, `describe`, and the TUI as read-only with respect to repo contents.
+3. Treat `index --write` as the only RepoKeeper command that writes a repo-local metadata file.
+4. Treat `label` and `edit` as machine-local registry changes, not source-controlled repo changes.
+5. Always inspect status before attempting sync or update workflows.
+6. Prefer preview-first flows: use `--dry-run` where available before executing mutating operations.
+
+## Initialization workflow
+
+When a workspace is not yet managed by RepoKeeper:
+
+```bash
+repokeeper init
+```
+
+Expected outcome:
+
+- creates `.repokeeper.yaml` in the current directory by default
+- sets that directory as the default workspace root
+- performs an initial scan
+
+After initialization, use:
+
+```bash
+repokeeper status
+```
+
+to confirm the registry is populated and the repos are visible.
+
+## Discovery workflow
+
+Use scan whenever repositories may have been added, moved, or removed:
+
+```bash
+repokeeper scan
+```
+
+For explicit roots:
+
+```bash
+repokeeper scan --roots /path/one,/path/two
+```
+
+If you only need a current view of tracked repositories and health, use:
+
+```bash
+repokeeper status
+```
+
+Use JSON when another agent step needs structured output:
+
+```bash
+repokeeper status -o json
+```
+
+## Labeling workflow
+
+Use labels for machine-local classification that helps routing and filtering:
+
+```bash
+repokeeper label <repo-id-or-path> --set team=platform --set role=service
+```
+
+Remove labels with:
+
+```bash
+repokeeper label <repo-id-or-path> --remove role
+```
+
+Filter by label with:
+
+```bash
+repokeeper get -l team=platform
+```
+
+Important distinction:
+
+- `label` edits the local registry only
+- `index --write` creates or updates a repo-root metadata file meant to live in the repository
+
+## Safe navigation workflow
+
+When you need to choose the right repository before opening files:
+
+1. Run `repokeeper status -o json` or `repokeeper get -o json`.
+2. Look at:
+   - `repo_id`
+   - `path`
+   - `labels`
+   - `repo_metadata`
+   - `repo_metadata.entrypoints`
+   - `repo_metadata.paths.authoritative`
+   - `repo_metadata.paths.low_value`
+3. Prefer files under `repo_metadata.paths.authoritative` when present.
+4. Avoid `low_value` paths unless the task explicitly needs generated or archival content.
+5. Use `repokeeper describe <repo-id-or-path>` before editing when you need a single-repo deep view.
+
+For interactive browsing, use:
+
+```bash
+repokeeper tui
+```
+
+The TUI detail view surfaces labels, annotations, and repo-local metadata when available.
+
+## Safe update workflow
+
+When asked whether repos are up to date, start with status, not sync.
+
+### Check health first
+
+```bash
+repokeeper status -o json
+```
+
+Read each repo's tracking state from the JSON output:
+
+- `tracking.status == "behind"` means local branch is behind upstream
+- `tracking.status == "ahead"` means local commits exist
+- `tracking.status == "diverged"` means local and upstream both moved
+- `worktree.dirty == true` means local edits are present
+
+### Preview updates safely
+
+To preview fetch plus local update behavior:
+
+```bash
+repokeeper sync --update-local --dry-run
+```
+
+This is the preferred planning step before making changes.
+
+### Execute safe updates
+
+If the user wants updates applied after reviewing the plan:
+
+```bash
+repokeeper sync --update-local
+```
+
+Behavior to understand:
+
+- clean repos behind upstream can be rebased safely
+- dirty repos are skipped unless `--rebase-dirty` is explicitly requested
+- ahead repos are skipped unless `--push-local` is explicitly requested
+- diverged repos are skipped unless `--force` is explicitly requested
+
+### Good agent response pattern
+
+If asked:
+
+> Are my repos up to date?
+
+Use RepoKeeper status first and summarize the result in plain language.
+
+If asked:
+
+> Update them for me.
+
+Use this sequence:
+
+1. `repokeeper sync --update-local --dry-run`
+2. summarize what will be updated and what will be skipped
+3. run `repokeeper sync --update-local` if the user still wants execution
+4. report the outcome clearly, for example:
+   - safely updated these repositories
+   - skipped these repositories because they were dirty
+   - skipped these repositories because they were diverged or ahead
+
+Do not claim a repo was safely updated if RepoKeeper reported it as skipped or failed.
+
+## Repo-local metadata workflow
+
+Use repo-local metadata when source-controlled repository hints are helpful.
+
+Preview a metadata file:
+
+```bash
+repokeeper index <repo-id-or-path>
+```
+
+Write it only when explicitly intended:
+
+```bash
+repokeeper index <repo-id-or-path> --write
+```
+
+Use `--force` only when you intentionally want to replace or reconcile an existing repo metadata file.
+
+## Avoid these mistakes
+
+- do not use RepoKeeper labels as if they are committed to the repository
+- do not assume `status` updates repositories; it only reports health
+- do not skip the preview step before mutating sync flows
+- do not treat dirty repos as safe to update unless the user explicitly accepts `--rebase-dirty`
+- do not assume `tracking.status=behind` is currently selectable with `--field-selector`; inspect JSON output instead

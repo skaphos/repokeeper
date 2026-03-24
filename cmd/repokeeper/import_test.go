@@ -46,8 +46,8 @@ func TestImportTargetRelativePath(t *testing.T) {
 		t.Fatalf("expected windows separators normalized, got %q", got)
 	}
 
-	entry = registry.Entry{RepoID: "github.com/org/repo-x", Path: "/mnt/cache/sdp/team/repo-x"}
-	if got := importTargetRelativePath(entry, "/home/user/sdp"); got != "team/repo-x" {
+	entry = registry.Entry{RepoID: "github.com/org/repo-x", Path: "/mnt/cache/workspace/team/repo-x"}
+	if got := importTargetRelativePath(entry, "/home/user/workspace"); got != "team/repo-x" {
 		t.Fatalf("expected root-basename fallback preserving project-relative suffix, got %q", got)
 	}
 }

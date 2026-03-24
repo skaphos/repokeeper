@@ -286,6 +286,11 @@ Feedback captured and prioritized:
 - [x] P1: support label-based filtering in repository list/get flows (for example `get repos -l team=platform`, `-l env in (prod,stage)` phase-in), with deterministic behavior in table/wide/json outputs.
 - [x] P1: include labels/annotations in portability export/import and conflict handling so classification metadata survives migration across machines.
 - [x] P1: document label selector semantics and constraints in `README.md` and `DESIGN.md`, including explicit note that label filtering is a prerequisite for TUI filter parity.
+- [x] P1: read optional repo-local metadata from `.repokeeper-repo.yaml` / `repokeeper.yaml` and expose it in `scan`, `status`, `describe`, and JSON/custom-column output without persisting it into the machine registry.
+- [x] P1: add `repokeeper index <repo-id-or-path>` to interactively preview repo-local metadata and write it only when `--write` is explicitly passed.
+- [x] P1: surface repo-local metadata in the TUI detail view and filter matching so navigation benefits from the same runtime metadata overlay as the CLI.
+- [x] P2: ship an installable user-scope agent skill for RepoKeeper covering init, discovery, labeling, safe navigation, and safe update workflows.
+- [x] P2: add `repokeeper skill install|uninstall` so developers can install or refresh the bundled skill across supported user-scope runtime directories.
 
 **Acceptance:**
 
@@ -295,6 +300,8 @@ Feedback captured and prioritized:
 - [x] Repositories can be classified with labels/annotations and persisted in registry schema.
 - [x] `get repos` supports label selectors for operational slicing before TUI adoption.
 - [x] Portability flows preserve classification metadata (labels/annotations).
+- [x] Repo-local metadata is read-only in runtime commands and only written through an explicit indexing workflow.
+- [x] TUI surfaces repo-local metadata where it improves navigation without adding separate business logic.
 
 ### Milestone 9 — TUI (phase 2)
 

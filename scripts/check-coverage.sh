@@ -13,7 +13,6 @@ fi
 skip_pkg() {
   local pkg="$1"
   case "$pkg" in
-    # Excluded from coverage thresholds: development-only tooling scripts.
     github.com/skaphos/repokeeper/scripts/perf) return 0 ;;
     *) return 1 ;;
   esac
@@ -32,7 +31,7 @@ mapfile -t coverage_rows < <(
       file=$1; stmts=$4; cnt=$5;
       if (stmts == 0) next;
       pkg=file;
-      sub(/\/[^/]+$/, "", pkg);
+      sub(/\/[^\/]+$/, "", pkg);
       total[pkg]+=stmts;
       if (cnt > 0) covered[pkg]+=stmts;
     }

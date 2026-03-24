@@ -15,7 +15,7 @@ awk -F'[: ,]+' '
     file=$1; stmts=$4; cnt=$5;
     if (stmts == 0) next;
     pkg=file;
-    sub(/\/[^/]+$/, "", pkg);
+    sub(/\/[^\/]+$/, "", pkg);
     total[pkg]+=stmts;
     if (cnt > 0) covered[pkg]+=stmts;
   }

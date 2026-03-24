@@ -8,6 +8,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 )
 
 type viewMode int
@@ -131,6 +132,7 @@ func registryEntryToPartialStatus(entry registry.Entry) model.RepoStatus {
 		s.Error = "path missing"
 		s.ErrorClass = "missing"
 	}
+	repometa.Apply(&s)
 	return s
 }
 

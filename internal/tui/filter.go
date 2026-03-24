@@ -49,5 +49,43 @@ func matchesFilter(r model.RepoStatus, q string) bool {
 			return true
 		}
 	}
+	if r.RepoMetadata != nil {
+		if strings.Contains(strings.ToLower(r.RepoMetadata.Name), q) || strings.Contains(strings.ToLower(r.RepoMetadata.RepoID), q) {
+			return true
+		}
+		for _, v := range r.RepoMetadata.Labels {
+			if strings.Contains(strings.ToLower(v), q) {
+				return true
+			}
+		}
+		for _, v := range r.RepoMetadata.Entrypoints {
+			if strings.Contains(strings.ToLower(v), q) {
+				return true
+			}
+		}
+		for _, v := range r.RepoMetadata.Paths.Authoritative {
+			if strings.Contains(strings.ToLower(v), q) {
+				return true
+			}
+		}
+		for _, v := range r.RepoMetadata.Paths.LowValue {
+			if strings.Contains(strings.ToLower(v), q) {
+				return true
+			}
+		}
+		for _, v := range r.RepoMetadata.Provides {
+			if strings.Contains(strings.ToLower(v), q) {
+				return true
+			}
+		}
+		for _, related := range r.RepoMetadata.RelatedRepos {
+			if strings.Contains(strings.ToLower(related.RepoID), q) || strings.Contains(strings.ToLower(related.Relationship), q) {
+				return true
+			}
+		}
+	}
+	if strings.Contains(strings.ToLower(r.RepoMetadataError), q) {
+		return true
+	}
 	return false
 }
