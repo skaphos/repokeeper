@@ -1,14 +1,13 @@
 version: "3"
 
 vars:
-  TOOLS_MOD: tools/go.mod
-  TASK_RUNNER: go run -modfile={{.TOOLS_MOD}} github.com/go-task/task/v3/cmd/task
-  GINKGO_RUNNER: go run -modfile={{.TOOLS_MOD}} github.com/onsi/ginkgo/v2/ginkgo
-  GOLANGCI_RUNNER: go run -modfile={{.TOOLS_MOD}} github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-  GOIMPORTS_RUNNER: go run -modfile={{.TOOLS_MOD}} golang.org/x/tools/cmd/goimports
-  STATICCHECK_RUNNER: go run -modfile={{.TOOLS_MOD}} honnef.co/go/tools/cmd/staticcheck
-  GOVULNCHECK_RUNNER: go run -modfile={{.TOOLS_MOD}} golang.org/x/vuln/cmd/govulncheck
-  SVU_RUNNER: go run -modfile={{.TOOLS_MOD}} github.com/caarlos0/svu/v3
+  TASK_RUNNER: go -C tools tool task
+  GINKGO_RUNNER: go run github.com/onsi/ginkgo/v2/ginkgo@v2.28.1
+  GOLANGCI_RUNNER: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+  GOIMPORTS_RUNNER: go run golang.org/x/tools/cmd/goimports@v0.42.0
+  STATICCHECK_RUNNER: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0
+  GOVULNCHECK_RUNNER: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4
+  SVU_RUNNER: go run github.com/caarlos0/svu/v3@v3.4.0
 
 tasks:
   default:
