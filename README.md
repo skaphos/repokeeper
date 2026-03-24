@@ -10,6 +10,7 @@ RepoKeeper inventories your repositories, reports drift and broken tracking, and
 - **Report** per-repo health: dirty/clean, branch, tracking status, ahead/behind, stale upstreams
 - **Sync** safely with `git fetch --all --prune` (never checkout/reset; optional `--update-local` uses `pull --rebase`)
 - **Registry** is stored in `.repokeeper.yaml` with staleness detection
+- **Repo-local metadata** can be read from `.repokeeper-repo.yaml` or `repokeeper.yaml` and surfaced in JSON, describe output, and the TUI detail view
 - **CLI-first** with tabular (`table`/`wide`) and JSON output formats
 - **Cross-platform** — macOS, Windows, Linux (incl. WSL)
 
@@ -64,6 +65,12 @@ repokeeper status --vcs git,hg
 # Check the health of all repos
 repokeeper status
 
+# Preview repo-local metadata for one tracked repo
+repokeeper index github.com/org/repo
+
+# Write repo-local metadata after preview
+repokeeper index github.com/org/repo --write
+
 # Fetch/prune all repos safely
 repokeeper sync
 ```
@@ -82,6 +89,7 @@ repokeeper sync
 Detailed command breakdown moved to docs:
 
 - [docs/commands.md](docs/commands.md) - full command reference, flags, and behavior notes
+- [docs/skills/README.md](docs/skills/README.md) - installable agent skill for OpenCode/compatible runtimes
 - [docs/man/README.md](docs/man/README.md) - manpage generation and release integration plan
 
 Quick highlights:
@@ -89,8 +97,45 @@ Quick highlights:
 - `repokeeper get` and `repokeeper reconcile` are direct command forms (`... repos` aliases still supported).
 - `repokeeper edit <repo-id-or-path>` opens a single repo entry YAML in your editor (`$VISUAL`/`$EDITOR`), validates, then saves.
 - `repokeeper label <repo-id-or-path>` manages labels via `--set key=value` and `--remove key`.
+- `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
+- `repokeeper skill install [target]` installs or updates the bundled RepoKeeper skill for supported runtimes.
 - `status`/`get` support label filtering with `-l/--selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
+
+The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper skill install` works from packaged builds such as Homebrew installs.
+
+### Repo-local metadata
+
+RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.yaml` or `repokeeper.yaml`.
+
+- Reads are automatic and read-only in `scan`, `status`, `describe`, and the TUI.
+- Writes are opt-in and happen only through `repokeeper index --write`.
+- `--yes` skips the final write confirmation, but does not change the requirement to pass `--write`.
+
+Example:
+
+```yaml
+apiVersion: repokeeper/v1
+kind: RepoMetadata
+repo_id: ops-runbooks
+name: Ops Runbooks
+labels:
+  role: runbooks
+  domain: ops
+entrypoints:
+  readme: README.md
+paths:
+  authoritative:
+    - runbooks/
+    - templates/
+  low_value:
+    - generated/
+provides:
+  - runbook-templates
+related_repos:
+  - repo_id: internal-docs
+    relationship: references
+```
 
 ### Global flags
 
@@ -153,6 +198,8 @@ RepoKeeper is designed to be safe to run on repos with dirty working trees:
 - **Never** updates or recurses into submodules
 - Fetch uses `--no-recurse-submodules` and `-c fetch.recurseSubmodules=false` as belt-and-suspenders
 - All mutating commands support `--dry-run`
+- `scan`, `status`, `describe`, and the TUI never create or rewrite repo-local metadata files
+- Repo-local metadata is written only by `repokeeper index --write`
 
 Optional local checkout update:
 
@@ -171,6 +218,7 @@ Optional local checkout update:
 ## Documentation
 
 - [docs/commands.md](docs/commands.md) - command reference
+- [docs/skills/README.md](docs/skills/README.md) - user-scope agent skill installation and usage
 - [docs/man/README.md](docs/man/README.md) - manpage generation plan
 - [DESIGN.md](DESIGN.md) — full design specification and architecture
 - [TASKS.md](TASKS.md) — implementation milestones and task tracking

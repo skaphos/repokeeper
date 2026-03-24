@@ -13,6 +13,9 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 | `repokeeper get repos` | Backward-compatible alias for list view |
 | `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
 | `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form |
+| `repokeeper index <repo-id-or-path>` | Interactively preview or write repo-local metadata |
+| `repokeeper skill install [target]` | Install or update the bundled RepoKeeper skill for supported runtimes |
+| `repokeeper skill uninstall [target]` | Remove the bundled RepoKeeper skill from supported runtimes |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository |
 | `repokeeper delete <repo-id-or-path>` | Delete repo files and remove from registry |
 | `repokeeper edit <repo-id-or-path>` | Open one repo entry in `$VISUAL`/`$EDITOR`, validate, save |
@@ -33,6 +36,29 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 - Supports `--only`, `--field-selector`, and label selector `-l, --selector`.
 - Label selector supports `key` and `key=value`, comma-separated AND.
 - Use `-o wide` for additional `PRIMARY_REMOTE`, `UPSTREAM`, `AHEAD`, `BEHIND`, and `ERROR_CLASS`.
+- JSON output includes repo-local metadata when `.repokeeper-repo.yaml` or `repokeeper.yaml` is present.
+
+### `repokeeper describe`
+
+- Table and JSON output include repo-local metadata details when present.
+- Invalid repo-local metadata is reported per repo instead of aborting the whole command.
+
+### `repokeeper index`
+
+- Interactive by default; proposes metadata from the tracked repo and prints a YAML preview.
+- Writes only when `--write` is passed.
+- `--force` replaces an existing repo-local metadata file.
+- `--yes` skips the final write confirmation, but still requires `--write`.
+- The command writes `.repokeeper-repo.yaml` by default and updates `repokeeper.yaml` when that legacy filename already exists.
+
+### `repokeeper skill install` / `repokeeper skill uninstall`
+
+- Installs or removes the bundled `repokeeper` skill in user-scope skill directories.
+- No-argument `install` updates every existing supported directory it detects.
+- Explicit targets supported: `claude`, `opencode`, `openai`, `codex`, `all`.
+- `openai` and `codex` both target `~/.agents/skills/`.
+- `install` writes the skill from content embedded in the compiled RepoKeeper binary.
+- `uninstall` prompts before removing installed skill directories unless `--yes` is passed.
 
 ### `repokeeper sync` / `repokeeper reconcile`
 

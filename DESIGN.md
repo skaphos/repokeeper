@@ -81,9 +81,13 @@ Implementation requirements:
 
     * `checkout`, `pull`, `reset`, `rebase`, `merge` in v1.
 
-### 4.3 Dry-run
+### 4.3 Mutating command safety
 
-All commands that can change repo metadata must support `--dry-run` (prints intended operations).
+RepoKeeper distinguishes machine-local state from repo-local files:
+
+* `scan`, `status`, `describe`, and the TUI may read repo-local metadata, but they do not create or modify repo files.
+* Repo-local metadata writes happen only through `repokeeper index --write`.
+* `--yes` can skip the final confirmation prompt for a mutating command, but it never substitutes for an explicit write-capable command or flag.
 
 ## 5. User Experience
 
@@ -168,6 +172,34 @@ Flags:
 
 * `--registry <path>` (optional)
 * `-o, --format table|json` (default table)
+
+#### `repokeeper index <repo-id-or-path>`
+
+Interactively proposes repo-local metadata for one tracked repository and previews the YAML that would be written.
+
+Behavior:
+
+* Reads existing repo-local metadata from `.repokeeper-repo.yaml` or `repokeeper.yaml` when present.
+* Asks the user for generic metadata such as `name`, `repo_id`, `labels`, `entrypoints`, `paths`, `provides`, and `related_repos`.
+* Prints a preview to stdout on every run.
+* Writes only when `--write` is passed.
+* Prompts before writing unless `--yes` is passed.
+
+Flags:
+
+* `--write` (required to write a repo-local metadata file)
+* `--force` (overwrite or replace an existing repo-local metadata file)
+
+#### `repokeeper skill install [target]` / `repokeeper skill uninstall [target]`
+
+Installs or removes the bundled `repokeeper` skill for supported agent runtimes.
+
+Behavior:
+
+* `install` with no target installs into every existing supported user-scope directory.
+* Explicit targets are `claude`, `opencode`, `openai`, `codex`, and `all`.
+* `openai` and `codex` both map to the agent-compatible `~/.agents/skills/` path.
+* `uninstall` removes installed skill directories and prompts unless `--yes` is passed.
 
 #### `repokeeper add <path> <git-repo-url>`
 
@@ -270,6 +302,7 @@ Core interaction model:
 
 * Primary, filterable repo list as the default view.
 * `/` enters filter mode; filter by repo id, path, branch, tracking state, and error class.
+* TUI filtering also considers repo-local metadata values that are present in the loaded status model.
 * Arrow keys / `j` / `k` navigate rows; `enter` opens a repo detail/action view.
 * `space` toggles selection, `a` selects all visible rows.
 * Action keys trigger repo operations from the list or detail view (sync, edit metadata, repair upstream, open path).
@@ -282,6 +315,23 @@ Non-goals for TUI:
 * No complex plugin system in milestone 5.
 
 > Note: TUI is a frontend; it must call the same core engine APIs as CLI. All business logic lives in `internal/engine/`.
+
+### 6.2.4 Repo-local metadata overlay
+
+RepoKeeper supports an optional repo-root metadata file with this lookup order:
+
+1. `.repokeeper-repo.yaml`
+2. `repokeeper.yaml`
+
+The file is read at runtime and merged into `RepoStatus` as a nested `repo_metadata` block plus `repo_metadata_file` and `repo_metadata_error` fields.
+
+Validation rules:
+
+* `apiVersion` and `kind` are optional, but when present must match the supported schema.
+* `labels` keys follow the same key constraints as registry labels.
+* `entrypoints` and `paths` must be repository-relative and cannot escape the repo root.
+* Missing file means no metadata.
+* Invalid file becomes an in-band per-repo error; it does not abort `scan`, `status`, `describe`, or the TUI.
 
 ### 5.3 Kubectl-Style CLI Alignment (Milestone 6+)
 
@@ -422,9 +472,9 @@ Per-machine mapping of repo-id to local path.
 ```yaml
 updated_at: "2026-02-10T16:00:00-06:00"
 repos:
-  - repo_id: "github.com/alaskaairlines/sdp-foo"
-    path: "/Users/shawn/code/sdp-foo"
-    remote_url: "git@github.com:alaskaairlines/sdp-foo.git"
+- repo_id: "github.com/example/tools-foo"
+  path: "/Users/shawn/code/tools-foo"
+  remote_url: "git@github.com:example/tools-foo.git"
     type: "checkout"    # checkout | mirror
     branch: "main"      # optional preferred branch for checkout clones
     last_seen: "2026-02-10T16:00:00-06:00"
