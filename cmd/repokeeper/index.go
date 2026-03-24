@@ -285,7 +285,7 @@ func detectAuthoritativePaths(repoRoot string) []string {
 	out := make([]string, 0, len(preferred))
 	for _, name := range preferred {
 		if available[name] {
-			out = append(out, name+string(filepath.Separator))
+			out = append(out, name+"/")
 		}
 	}
 	return out
@@ -304,7 +304,7 @@ func detectLowValuePaths(repoRoot string) []string {
 	out := make([]string, 0, len(preferred))
 	for _, name := range preferred {
 		if available[name] {
-			out = append(out, name+string(filepath.Separator))
+			out = append(out, name+"/")
 		}
 	}
 	return out

@@ -231,9 +231,9 @@ func normalize(metadata model.RepoMetadata) model.RepoMetadata {
 	metadata.APIVersion = strings.TrimSpace(metadata.APIVersion)
 	metadata.Kind = strings.TrimSpace(metadata.Kind)
 	metadata.Labels = normalizeMap(metadata.Labels)
-	metadata.Entrypoints = normalizeMap(metadata.Entrypoints)
-	metadata.Paths.Authoritative = normalizeSlice(metadata.Paths.Authoritative)
-	metadata.Paths.LowValue = normalizeSlice(metadata.Paths.LowValue)
+	metadata.Entrypoints = normalizeRelativePathMap(metadata.Entrypoints)
+	metadata.Paths.Authoritative = normalizeRelativePathSlice(metadata.Paths.Authoritative)
+	metadata.Paths.LowValue = normalizeRelativePathSlice(metadata.Paths.LowValue)
 	metadata.Provides = normalizeSlice(metadata.Provides)
 	if len(metadata.RelatedRepos) > 0 {
 		related := make([]model.RepoMetadataRelatedRepo, 0, len(metadata.RelatedRepos))
@@ -288,6 +288,44 @@ func normalizeSlice(in []string) []string {
 			continue
 		}
 		out = append(out, trimmed)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	sort.Strings(out)
+	return out
+}
+
+func normalizeRelativePathMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		trimmedKey := strings.TrimSpace(key)
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedKey == "" || trimmedValue == "" {
+			continue
+		}
+		out[trimmedKey] = filepath.ToSlash(trimmedValue)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeRelativePathSlice(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(in))
+	for _, value := range in {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, filepath.ToSlash(trimmed))
 	}
 	if len(out) == 0 {
 		return nil
