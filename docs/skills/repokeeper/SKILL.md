@@ -12,6 +12,19 @@ metadata:
 
 Use RepoKeeper as the first stop for multi-repository work. It tells you what repositories exist, where they live, how healthy they are, and which ones can be updated safely.
 
+## Scope and context
+
+RepoKeeper operates within the current RepoKeeper context, typically defined by the active workspace configuration. Do not assume repositories outside the current RepoKeeper context are visible or relevant unless the user explicitly asks to change scope.
+
+## When not to use
+
+Do not use this skill when:
+
+- the task only concerns a single already-known repository and ordinary git commands are sufficient
+- the task only requires reading files in the current repository without repository discovery
+- the user explicitly wants raw git behavior rather than RepoKeeper-managed workflows
+- the user has not explicitly asked to create or update repo-local metadata files via `index --write`
+
 ## When to use
 
 Use this skill when you need to:
@@ -27,7 +40,7 @@ Use this skill when you need to:
 
 1. Prefer RepoKeeper over ad hoc filesystem crawling when the task spans more than one repository.
 2. Treat `scan`, `status`, `describe`, and the TUI as read-only with respect to repo contents.
-3. Treat `index --write` as the only RepoKeeper command that writes a repo-local metadata file.
+3. Treat `index --write` as the only RepoKeeper command that writes a repo-local metadata file, and do not run it unless the user explicitly wants repo-local metadata created or updated.
 4. Treat `label` and `edit` as machine-local registry changes, not source-controlled repo changes.
 5. Always inspect status before attempting sync or update workflows.
 6. Prefer preview-first flows: use `--dry-run` where available before executing mutating operations.
@@ -211,6 +224,8 @@ Write it only when explicitly intended:
 ```bash
 repokeeper index <repo-id-or-path> --write
 ```
+
+Do not run `index --write` unless the user explicitly wants repo-local metadata created or updated.
 
 Use `--force` only when you intentionally want to replace or reconcile an existing repo metadata file.
 
