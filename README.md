@@ -181,41 +181,41 @@ Optional local checkout update:
 ## Development
 
 ```bash
+# List all task targets without installing task globally
+go -C tools tool task --list
+
 # Run tests
-go tool ginkgo ./...
+go run github.com/onsi/ginkgo/v2/ginkgo@v2.28.1 ./...
 
 # Run with coverage
 go test -coverprofile=coverage.out ./...
 
 # Run with coverage and enforce per-package thresholds
-go tool task test-cover-check
+go -C tools tool task test-cover-check
 
 # Run coverage and print lowest-covered packages/functions
-go tool task coverage-report
+go -C tools tool task coverage-report
 
 # Run performance benchmarks and append historical record
-go tool task perf-bench
+go -C tools tool task perf-bench
 
 # Lint
-go tool golangci-lint run ./...
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...
 
 # Build locally
 go build -o repokeeper .
 
 # Build locally (task runner)
-go tool task build
+go -C tools tool task build
 
 # CI-style full platform build (task runner)
-go tool task build-ci
+go -C tools tool task build-ci
 
 # Run standard CI pipeline locally (lint/test/staticcheck/vuln/build-ci)
-go tool task ci
+go -C tools tool task ci
 
 # Format imports + code
-go tool task fmt
-
-# List all task targets
-go tool task --list
+go -C tools tool task fmt
 ```
 
 ## License

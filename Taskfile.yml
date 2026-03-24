@@ -1,15 +1,24 @@
 version: "3"
 
+vars:
+  TASK_RUNNER: go -C tools tool task -d ..
+  GINKGO_RUNNER: go run github.com/onsi/ginkgo/v2/ginkgo@v2.28.1
+  GOLANGCI_RUNNER: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
+  GOIMPORTS_RUNNER: go run golang.org/x/tools/cmd/goimports@v0.42.0
+  STATICCHECK_RUNNER: go run honnef.co/go/tools/cmd/staticcheck@v0.7.0
+  GOVULNCHECK_RUNNER: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4
+  SVU_RUNNER: go run github.com/caarlos0/svu/v3@v3.4.0
+
 tasks:
   default:
     desc: List available tasks
     cmds:
-      - go tool task --list
+      - '{{.TASK_RUNNER}} --list'
 
   list:
     desc: List available tasks
     cmds:
-      - go tool task --list
+      - '{{.TASK_RUNNER}} --list'
 
   all:
     desc: Build the local binary
@@ -39,7 +48,7 @@ tasks:
   test:
     desc: Run test suite
     cmds:
-      - go tool ginkgo ./...
+      - '{{.GINKGO_RUNNER}} ./...'
 
   test-cover:
     desc: Run tests with coverage output (excludes scripts/perf)
@@ -66,23 +75,23 @@ tasks:
   lint:
     desc: Run linters
     cmds:
-      - go tool golangci-lint run ./...
+      - '{{.GOLANGCI_RUNNER}} run ./...'
 
   fmt:
     desc: Format code
     cmds:
-      - go tool goimports -w .
+      - '{{.GOIMPORTS_RUNNER}} -w .'
       - go fmt ./...
 
   staticcheck:
     desc: Run staticcheck directly
     cmds:
-      - go tool staticcheck ./...
+      - '{{.STATICCHECK_RUNNER}} ./...'
 
   vuln:
     desc: Run vulnerability scan
     cmds:
-      - go tool govulncheck ./...
+      - '{{.GOVULNCHECK_RUNNER}} ./...'
 
   perf-bench-quick:
     desc: Run a single lightweight benchmark pass for PR baseline checks (fast, count=1)
@@ -97,7 +106,7 @@ tasks:
   version-next:
     desc: Show next semantic version from git history (svu)
     cmds:
-      - go tool svu next
+      - '{{.SVU_RUNNER}} next'
 
   clean:
     desc: Remove build artifacts and clear Go build outputs

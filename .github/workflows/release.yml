@@ -29,7 +29,7 @@ jobs:
           repositories: homebrew-tools
           skip-token-revoke: false
       - name: Run full performance benchmarks
-        run: go tool task perf-bench
+        run: go -C tools tool task -d .. perf-bench
       - name: Upload performance artifacts
         uses: actions/upload-artifact@v4
         with:

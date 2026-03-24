@@ -8,3 +8,7 @@ updates:
     # This excludes the tool dependency graph from alerts/PRs.
     allow:
       - dependency-type: direct
+  - package-ecosystem: gomod
+    directory: /tools
+    schedule:
+      interval: weekly

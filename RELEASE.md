@@ -15,11 +15,11 @@ This repository releases via Git tags and GitHub Actions.
 
 Use the same checks CI runs:
 
-- `go tool task ci`
+- `go -C tools tool task ci`
 
 Optional version preview:
 
-- `go tool task version-next`
+- `go -C tools tool task version-next`
 
 ## 2. Choose and Create the Version Tag
 
