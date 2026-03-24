@@ -117,3 +117,138 @@ func TestSkillUninstallRemovesInstalledSkill(t *testing.T) {
 		}
 	}
 }
+
+func TestRequestedSkillRootsTargets(t *testing.T) {
+	home, configHome := withSkillEnv(t)
+	all, err := requestedSkillRoots("all")
+	if err != nil {
+		t.Fatalf("requested all roots: %v", err)
+	}
+	wantAll := []string{
+		filepath.Join(home, ".agents", "skills"),
+		filepath.Join(home, ".claude", "skills"),
+		filepath.Join(configHome, "opencode", "skills"),
+	}
+	if strings.Join(all, ",") != strings.Join(wantAll, ",") {
+		t.Fatalf("expected all roots %v, got %v", wantAll, all)
+	}
+
+	openai, err := requestedSkillRoots("openai")
+	if err != nil {
+		t.Fatalf("requested openai roots: %v", err)
+	}
+	if len(openai) != 1 || openai[0] != filepath.Join(home, ".agents", "skills") {
+		t.Fatalf("unexpected openai roots: %v", openai)
+	}
+
+	if _, err := requestedSkillRoots("unknown"); err == nil {
+		t.Fatal("expected unsupported target to fail")
+	}
+}
+
+func TestResolveSkillUninstallRootsFiltersMissingTargets(t *testing.T) {
+	home, _ := withSkillEnv(t)
+	claudeSkillDir := filepath.Join(home, ".claude", "skills", "repokeeper")
+	if err := os.MkdirAll(claudeSkillDir, 0o755); err != nil {
+		t.Fatalf("mkdir claude skill dir: %v", err)
+	}
+
+	roots, err := resolveSkillUninstallRoots([]string{"all"})
+	if err != nil {
+		t.Fatalf("resolve uninstall roots: %v", err)
+	}
+	want := []string{filepath.Join(home, ".claude", "skills")}
+	if strings.Join(roots, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected installed roots %v, got %v", want, roots)
+	}
+}
+
+func TestResolveSkillInstallRootsWithoutExistingDirectoriesFails(t *testing.T) {
+	withSkillEnv(t)
+
+	if _, err := resolveSkillInstallRoots(nil); err == nil {
+		t.Fatal("expected install root discovery to fail when no supported directories exist")
+	}
+}
+
+func TestResolveSkillUninstallRootsWithoutArgsReturnsInstalledRoots(t *testing.T) {
+	home, _ := withSkillEnv(t)
+	agentsSkillDir := filepath.Join(home, ".agents", "skills", "repokeeper")
+	if err := os.MkdirAll(agentsSkillDir, 0o755); err != nil {
+		t.Fatalf("mkdir agents skill dir: %v", err)
+	}
+
+	roots, err := resolveSkillUninstallRoots(nil)
+	if err != nil {
+		t.Fatalf("resolve uninstall roots without args: %v", err)
+	}
+	want := []string{filepath.Join(home, ".agents", "skills")}
+	if strings.Join(roots, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected uninstall roots %v, got %v", want, roots)
+	}
+}
+
+func TestUserConfigDirPrefersXDGConfigHome(t *testing.T) {
+	_, configHome := withSkillEnv(t)
+	got, err := userConfigDir()
+	if err != nil {
+		t.Fatalf("user config dir: %v", err)
+	}
+	if got != configHome {
+		t.Fatalf("expected XDG config home %q, got %q", configHome, got)
+	}
+}
+
+func TestDedupeSortedStringsAndDirExists(t *testing.T) {
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, "dir"), 0o755); err != nil {
+		t.Fatalf("mkdir dir: %v", err)
+	}
+
+	got := dedupeSortedStrings([]string{"b", "a", "b"})
+	if strings.Join(got, ",") != "a,b" {
+		t.Fatalf("expected deduped sorted strings, got %v", got)
+	}
+	if dedupeSortedStrings(nil) != nil {
+		t.Fatal("expected nil input to stay nil")
+	}
+
+	exists, err := dirExists(filepath.Join(tmp, "dir"))
+	if err != nil {
+		t.Fatalf("dir exists for directory: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected existing directory")
+	}
+	exists, err = dirExists(filepath.Join(tmp, "missing"))
+	if err != nil {
+		t.Fatalf("dir exists for missing path: %v", err)
+	}
+	if exists {
+		t.Fatal("expected missing directory to report false")
+	}
+}
+
+func TestSkillInstalledAt(t *testing.T) {
+	tmp := t.TempDir()
+	root := filepath.Join(tmp, "skills")
+	if err := os.MkdirAll(filepath.Join(root, "repokeeper"), 0o755); err != nil {
+		t.Fatalf("mkdir installed skill: %v", err)
+	}
+
+	exists, err := skillInstalledAt(root)
+	if err != nil {
+		t.Fatalf("skill installed at existing root: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected installed skill to be detected")
+	}
+
+	exists, err = skillInstalledAt(filepath.Join(tmp, "missing-skills"))
+	if err != nil {
+		t.Fatalf("skill installed at missing root: %v", err)
+	}
+	if exists {
+		t.Fatal("expected missing install root to report false")
+	}
+}

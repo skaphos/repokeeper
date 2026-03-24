@@ -13,7 +13,6 @@ fi
 skip_pkg() {
   local pkg="$1"
   case "$pkg" in
-    github.com/skaphos/repokeeper/cmd/repokeeper) return 0 ;;
     github.com/skaphos/repokeeper/scripts/perf) return 0 ;;
     *) return 1 ;;
   esac
