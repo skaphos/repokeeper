@@ -132,7 +132,7 @@ func renderDetailView(m tuiModel) string {
 		b.WriteByte('\n')
 	}
 
-	b.WriteString(statusBarStyle.Render("esc/q: back  e: edit metadata  r: repair upstream"))
+	b.WriteString(statusBarStyle.Render("esc/q: back  l: edit labels  i: repo metadata"))
 	return b.String()
 }
 

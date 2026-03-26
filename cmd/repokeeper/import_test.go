@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
@@ -366,6 +367,111 @@ func TestCloneImportedReposRejectsDuplicateTargets(t *testing.T) {
 	}
 }
 
+func TestWriteImportClonePlanListsAllEntriesWithStatus(t *testing.T) {
+	cwd := t.TempDir()
+	clonePath := filepath.Join(cwd, "team", "repo-a")
+	skipPath := filepath.Join(cwd, "team", "repo-b")
+
+	plan := engine.ImportClonePlan{
+		Clones: []engine.ImportCloneTarget{
+			{Path: clonePath, Entry: registry.Entry{RepoID: "github.com/org/repo-a"}},
+		},
+		Skipped: []engine.ImportCloneSkip{
+			{Path: skipPath, Entry: registry.Entry{RepoID: "github.com/org/repo-b"}, Reason: "no remote URL configured"},
+		},
+	}
+
+	cmd := &cobra.Command{}
+	errOut := &bytes.Buffer{}
+	cmd.SetErr(errOut)
+
+	if err := writeImportClonePlan(cmd, plan, nil, cwd); err != nil {
+		t.Fatalf("write import clone plan: %v", err)
+	}
+
+	got := errOut.String()
+	for _, want := range []string{
+		"Planned import clone operations:",
+		"team/repo-a",
+		"clone",
+		"ready",
+		"github.com/org/repo-a",
+		"team/repo-b",
+		"skip",
+		"no remote URL configured",
+		"github.com/org/repo-b",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected %q in output, got: %q", want, got)
+		}
+	}
+}
+
+func TestWriteImportClonePlanNoopForEmptyPlan(t *testing.T) {
+	cmd := &cobra.Command{}
+	errOut := &bytes.Buffer{}
+	cmd.SetErr(errOut)
+
+	if err := writeImportClonePlan(cmd, engine.ImportClonePlan{}, nil, t.TempDir()); err != nil {
+		t.Fatalf("write import clone plan for empty plan: %v", err)
+	}
+	if got := errOut.String(); got != "" {
+		t.Fatalf("expected empty output for empty plan, got: %q", got)
+	}
+}
+
+func TestWriteImportClonePlanIncludesExtraSkipRows(t *testing.T) {
+	cwd := t.TempDir()
+	cmd := &cobra.Command{}
+	errOut := &bytes.Buffer{}
+	cmd.SetErr(errOut)
+
+	plan := engine.ImportClonePlan{}
+	extra := []importClonePlanRow{{
+		Path:   filepath.Join(cwd, "team", "repo-c"),
+		Status: "skip",
+		Detail: "conflict policy keeps local entry",
+		RepoID: "github.com/org/repo-c",
+	}}
+
+	if err := writeImportClonePlan(cmd, plan, extra, cwd); err != nil {
+		t.Fatalf("write import clone plan with extras: %v", err)
+	}
+	got := errOut.String()
+	for _, want := range []string{"team/repo-c", "skip", "conflict policy keeps local entry", "github.com/org/repo-c"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected %q in output, got: %q", want, got)
+		}
+	}
+}
+
+func TestMergePolicyPreflightSkipsIncludesUnchangedAndConflictRows(t *testing.T) {
+	cwd := t.TempDir()
+	local := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "github.com/org/repo-a", Path: "/source/root/team/repo-a", RemoteURL: "git@github.com:org/repo-a.git", Branch: "main", Status: registry.StatusPresent},
+		{RepoID: "github.com/org/repo-b", Path: "/local/repo-b", RemoteURL: "git@github.com:org/repo-b.git", Branch: "main", Status: registry.StatusPresent},
+	}}
+	bundled := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "github.com/org/repo-a", Path: "/source/root/team/repo-a", RemoteURL: "git@github.com:org/repo-a.git", Branch: "main", Status: registry.StatusPresent},
+		{RepoID: "github.com/org/repo-b", Path: "/source/root/team/repo-b", RemoteURL: "git@github.com:org/repo-b.git", Branch: "feature/a", Status: registry.StatusPresent},
+	}}
+
+	rows := mergePolicyPreflightSkips(local, bundled, importConflictPolicyLocal, cwd, "/source/root")
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 preflight skip rows, got %+v", rows)
+	}
+	details := map[string]string{}
+	for _, row := range rows {
+		details[row.RepoID] = row.Detail
+	}
+	if details["github.com/org/repo-a"] != "unchanged local entry" {
+		t.Fatalf("expected unchanged row for repo-a, got %+v", rows)
+	}
+	if details["github.com/org/repo-b"] != "conflict policy keeps local entry" {
+		t.Fatalf("expected conflict skip row for repo-b, got %+v", rows)
+	}
+}
+
 func TestCloneImportedReposNoopWithoutRegistry(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetContext(context.Background())
@@ -507,6 +613,69 @@ func TestImportCommandRunEMergeDoesNotRequireForceWhenConfigExists(t *testing.T)
 
 	if err := importCmd.RunE(importCmd, []string{"-"}); err != nil {
 		t.Fatalf("expected merge import without force to succeed, got: %v", err)
+	}
+}
+
+func TestImportCommandRunEMergePreflightTreatsNewBundleRepoAsCloneCandidate(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	bundle := exportBundle{
+		Version: 1,
+		Root:    "/source/root",
+		Config:  config.DefaultConfig(),
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo-a", Path: "/source/root/team/repo-a", Status: registry.StatusPresent},
+			},
+		},
+	}
+	bundlePath := filepath.Join(t.TempDir(), "bundle.yaml")
+	data, err := yaml.Marshal(&bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	if err := os.WriteFile(bundlePath, data, 0o644); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+
+	errOut := &bytes.Buffer{}
+	importCmd.SetErr(errOut)
+	defer importCmd.SetErr(os.Stderr)
+	importCmd.SetIn(strings.NewReader("n\n"))
+	importCmd.SetContext(context.Background())
+
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "false")
+	defer func() { _ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes)) }()
+
+	_ = importCmd.Flags().Set("mode", "merge")
+	_ = importCmd.Flags().Set("on-conflict", "bundle")
+	_ = importCmd.Flags().Set("file-only", "false")
+	_ = importCmd.Flags().Set("include-registry", "true")
+
+	if err := importCmd.RunE(importCmd, []string{bundlePath}); err != nil {
+		t.Fatalf("import run failed: %v", err)
+	}
+
+	output := errOut.String()
+	if !strings.Contains(output, "Planned import clone operations:") {
+		t.Fatalf("expected preflight output, got: %q", output)
+	}
+	if !strings.Contains(output, "no remote URL configured") {
+		t.Fatalf("expected new repo clone candidate skip reason, got: %q", output)
+	}
+	if strings.Contains(output, "unchanged local entry") {
+		t.Fatalf("did not expect unchanged-local preflight row for new bundled repo, got: %q", output)
+	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if len(cfg.Registry.Entries) != 0 {
+		t.Fatalf("expected cancelled import to avoid saving merged registry, got %+v", cfg.Registry.Entries)
 	}
 }
 

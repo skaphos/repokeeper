@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -99,6 +100,7 @@ var importCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		localRegistryBeforeMerge := cloneRegistry(existingCfg.Registry)
 		if mode == importModeReplace && hasExistingCfg && !force {
 			return fmt.Errorf("config already exists at %q (use --force to overwrite)", cfgPath)
 		}
@@ -109,6 +111,24 @@ var importCmd = &cobra.Command{
 		if !preserveRegistryPath && mode == importModeReplace {
 			cfg.RegistryPath = ""
 		}
+
+		var entriesToClone []registry.Entry
+		var importPlan engine.ImportClonePlan
+		var importPlanRows []importClonePlanRow
+		if cloneRepos {
+			if mode == importModeMerge && hasExistingCfg {
+				entriesToClone = selectMergeCloneEntries(localRegistryBeforeMerge, bundle.Registry, onConflict)
+				importPlanRows = mergePolicyPreflightSkips(localRegistryBeforeMerge, bundle.Registry, onConflict, cwd, bundle.Root)
+			}
+			importPlan, err = planImportedEntries(&cfg, bundle, cwd, dangerouslyDeleteExisting, entriesToClone)
+			if err != nil {
+				return err
+			}
+			if err := writeImportClonePlan(cmd, importPlan, importPlanRows, cwd); err != nil {
+				return err
+			}
+		}
+
 		if !assumeYes(cmd) {
 			confirmed, err := confirmWithPrompt(cmd, "Proceed with import changes? [y/N]: ")
 			if err != nil {
@@ -121,20 +141,9 @@ var importCmd = &cobra.Command{
 		}
 		if cloneRepos {
 			progress := newSyncProgressWriter(cmd, cwd, nil)
-			var failures []engine.SyncResult
-			if mode == importModeMerge && hasExistingCfg {
-				entriesToClone := selectMergeCloneEntries(existingCfg.Registry, bundle.Registry, onConflict)
-				var err error
-				failures, err = cloneImportedEntriesWithProgress(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting, entriesToClone, progress)
-				if err != nil {
-					return err
-				}
-			} else {
-				var err error
-				failures, err = cloneImportedReposWithProgress(cmd, &cfg, bundle, cwd, dangerouslyDeleteExisting, progress)
-				if err != nil {
-					return err
-				}
+			failures, err := executeImportClonePlanWithProgress(cmd, &cfg, importPlan, progress)
+			if err != nil {
+				return err
 			}
 			if len(failures) > 0 {
 				raiseExitCode(cmd, 2)
@@ -294,8 +303,22 @@ func cloneImportedEntriesWithProgress(
 	entries []registry.Entry,
 	progress *syncProgressWriter,
 ) ([]engine.SyncResult, error) {
+	plan, err := planImportedEntries(cfg, bundle, cwd, dangerouslyDeleteExisting, entries)
+	if err != nil {
+		return nil, err
+	}
+	return executeImportClonePlanWithProgress(cmd, cfg, plan, progress)
+}
+
+func planImportedEntries(
+	cfg *config.Config,
+	bundle exportBundle,
+	cwd string,
+	dangerouslyDeleteExisting bool,
+	entries []registry.Entry,
+) (engine.ImportClonePlan, error) {
 	if cfg == nil || cfg.Registry == nil {
-		return nil, nil
+		return engine.ImportClonePlan{}, nil
 	}
 
 	eng := engine.New(cfg, cfg.Registry, vcs.NewGitAdapter(nil), vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), nil)
@@ -306,8 +329,21 @@ func cloneImportedEntriesWithProgress(
 		ResolveTargetRelativePath: importTargetRelativePath,
 	})
 	if err != nil {
-		return nil, err
+		return engine.ImportClonePlan{}, err
 	}
+	return plan, nil
+}
+
+func executeImportClonePlanWithProgress(
+	cmd *cobra.Command,
+	cfg *config.Config,
+	plan engine.ImportClonePlan,
+	progress *syncProgressWriter,
+) ([]engine.SyncResult, error) {
+	if cfg == nil || cfg.Registry == nil {
+		return nil, nil
+	}
+	eng := engine.New(cfg, cfg.Registry, vcs.NewGitAdapter(nil), vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), nil)
 
 	failures, err := eng.ExecuteImportClones(cmd.Context(), plan, engine.ImportCloneCallbacks{
 		OnStart: func(result engine.SyncResult) {
@@ -332,6 +368,84 @@ func cloneImportedEntriesWithProgress(
 		infof(cmd, "skipping import clone for %s: %s", skipped.Entry.RepoID, skipped.Reason)
 	}
 	return failures, nil
+}
+
+type importClonePlanRow struct {
+	Path   string
+	Status string
+	Detail string
+	RepoID string
+}
+
+func mergePolicyPreflightSkips(local, bundled *registry.Registry, policy importConflictPolicy, cwd, bundleRoot string) []importClonePlanRow {
+	if local == nil || bundled == nil || len(bundled.Entries) == 0 {
+		return nil
+	}
+	rows := make([]importClonePlanRow, 0)
+	for _, incoming := range bundled.Entries {
+		existing := local.FindByRepoID(incoming.RepoID)
+		if existing == nil {
+			continue
+		}
+		targetPath := filepath.Clean(filepath.Join(cwd, importTargetRelativePath(incoming, bundleRoot)))
+		detail := ""
+		if !registryEntriesConflict(*existing, incoming) {
+			detail = "unchanged local entry"
+		} else if policy != importConflictPolicyBundle {
+			detail = "conflict policy keeps local entry"
+		}
+		if detail == "" {
+			continue
+		}
+		rows = append(rows, importClonePlanRow{
+			Path:   targetPath,
+			Status: "skip",
+			Detail: detail,
+			RepoID: incoming.RepoID,
+		})
+	}
+	return rows
+}
+
+func writeImportClonePlan(cmd *cobra.Command, plan engine.ImportClonePlan, extras []importClonePlanRow, cwd string) error {
+	planRows := make([]importClonePlanRow, 0, len(plan.Clones)+len(plan.Skipped)+len(extras))
+	for _, clone := range plan.Clones {
+		planRows = append(planRows, importClonePlanRow{Path: clone.Path, Status: "clone", Detail: "ready", RepoID: clone.Entry.RepoID})
+	}
+	for _, skipped := range plan.Skipped {
+		detail := strings.TrimSpace(skipped.Reason)
+		if detail == "" {
+			detail = "skipped"
+		}
+		planRows = append(planRows, importClonePlanRow{Path: skipped.Path, Status: "skip", Detail: detail, RepoID: skipped.Entry.RepoID})
+	}
+	planRows = append(planRows, extras...)
+	sort.Slice(planRows, func(i, j int) bool {
+		if planRows[i].Path != planRows[j].Path {
+			return planRows[i].Path < planRows[j].Path
+		}
+		if planRows[i].Status != planRows[j].Status {
+			return planRows[i].Status < planRows[j].Status
+		}
+		return planRows[i].RepoID < planRows[j].RepoID
+	})
+
+	if len(planRows) == 0 {
+		return nil
+	}
+	rows := make([][]string, 0, len(planRows))
+	for _, row := range planRows {
+		rows = append(rows, []string{
+			displayRepoPath(row.Path, cwd, nil),
+			row.Status,
+			row.Detail,
+			row.RepoID,
+		})
+	}
+	if _, err := fmt.Fprintln(cmd.ErrOrStderr(), "Planned import clone operations:"); err != nil {
+		return err
+	}
+	return cliio.WriteTable(cmd.ErrOrStderr(), false, false, []string{"PATH", "STATUS", "DETAIL", "REPO"}, rows)
 }
 
 func writeImportCloneFailureSummary(cmd *cobra.Command, failures []engine.SyncResult, cwd string) error {

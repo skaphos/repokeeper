@@ -22,6 +22,8 @@ const (
 	viewResetConfirm
 	viewDeleteConfirm
 	viewAdd
+	viewEditLabels
+	viewEditRepoMetadata
 )
 
 type statusReportMsg struct {
@@ -70,6 +72,23 @@ type tuiModel struct {
 	addPath   string
 	addMirror bool
 	addField  int
+
+	labelRepoID   string
+	labelRepoPath string
+	labelInput    string
+
+	metadataRepoID           string
+	metadataRepoPath         string
+	metadataField            int
+	metadataName             string
+	metadataRepoIDAssertion  string
+	metadataLabelsInput      string
+	metadataEntrypointsInput string
+	metadataAuthoritative    string
+	metadataLowValue         string
+	metadataProvides         string
+	metadataRelated          string
+	metadataExists           bool
 
 	modalCursor int
 

@@ -29,6 +29,20 @@ func TestPrepareRegistryForExportStripsTimestampsAndRelativizesPaths(t *testing.
 				LastSeen:  now,
 				Status:    registry.StatusPresent,
 			},
+			{
+				RepoID:    "github.com/org/repo-missing",
+				Path:      "/source/root/team/repo-missing",
+				RemoteURL: "git@github.com:org/repo-missing.git",
+				LastSeen:  now,
+				Status:    registry.StatusMissing,
+			},
+			{
+				RepoID:    "github.com/org/repo-moved",
+				Path:      "/source/root/team/repo-moved",
+				RemoteURL: "git@github.com:org/repo-moved.git",
+				LastSeen:  now,
+				Status:    registry.StatusMoved,
+			},
 		},
 	}
 
@@ -44,6 +58,45 @@ func TestPrepareRegistryForExportStripsTimestampsAndRelativizesPaths(t *testing.
 	}
 	if got.Entries[0].Path != "team/repo-a" {
 		t.Fatalf("expected relative export path, got %q", got.Entries[0].Path)
+	}
+}
+
+func TestPrepareRegistryForExportDropsNonPresentEntries(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r-present", Path: "/repos/present", Status: registry.StatusPresent},
+			{RepoID: "r-missing", Path: "/repos/missing", Status: registry.StatusMissing},
+			{RepoID: "r-moved", Path: "/repos/moved", Status: registry.StatusMoved},
+		},
+	}
+
+	got := prepareRegistryForExport(reg, "/repos")
+	if got == nil {
+		t.Fatal("expected non-nil exported registry")
+	}
+	if len(got.Entries) != 1 {
+		t.Fatalf("expected only present entries to export, got %+v", got.Entries)
+	}
+	if got.Entries[0].RepoID != "r-present" {
+		t.Fatalf("expected present repo exported, got %+v", got.Entries[0])
+	}
+}
+
+func TestInferRegistrySharedRootIgnoresNonPresentEntries(t *testing.T) {
+	presentRoot := filepath.Join(string(filepath.Separator), "workspace", "repos", "team", "repo-a")
+	missingPath := filepath.Join(string(filepath.Separator), "elsewhere", "legacy", "repo-gone")
+
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "r-present", Path: presentRoot, Status: registry.StatusPresent},
+			{RepoID: "r-missing", Path: missingPath, Status: registry.StatusMissing},
+		},
+	}
+
+	got := inferRegistrySharedRoot(reg)
+	want := filepath.Dir(presentRoot)
+	if got != want {
+		t.Fatalf("expected inferred root %q, got %q", want, got)
 	}
 }
 

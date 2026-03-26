@@ -52,6 +52,12 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case addDoneMsg:
 		return m.handleAddDone(msg)
+
+	case labelEditDoneMsg:
+		return m.handleLabelEditDone(msg)
+
+	case repoMetadataEditDoneMsg:
+		return m.handleRepoMetadataEditDone(msg)
 	}
 	return m, nil
 }
@@ -75,6 +81,10 @@ func (m tuiModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleDeleteConfirmKey(msg)
 	case viewAdd:
 		return m.handleAddKey(msg)
+	case viewEditLabels:
+		return m.handleLabelEditKey(msg)
+	case viewEditRepoMetadata:
+		return m.handleRepoMetadataEditKey(msg)
 	default:
 		if m.filterMode {
 			return m.handleFilterKey(msg)
@@ -88,6 +98,10 @@ func (m tuiModel) handleDetailKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "q", "esc", "backspace":
 		m.mode = viewList
 		return m, nil
+	case "l":
+		return startLabelEdit(m)
+	case "i":
+		return startRepoMetadataEdit(m)
 	}
 	return m, nil
 }
@@ -672,6 +686,174 @@ func (m tuiModel) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
 		return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
 	}
 	return m, loadStatusCmd(m.context(), m.engine)
+}
+
+func (m tuiModel) handleLabelEditKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.mode = viewDetail
+		m.labelRepoID = ""
+		m.labelRepoPath = ""
+		m.labelInput = ""
+		m.statusMsg = ""
+		m.statusIsError = false
+		return m, nil
+	case "enter":
+		return m, saveLabelEditCmd(m)
+	case "backspace":
+		if len(m.labelInput) > 0 {
+			runes := []rune(m.labelInput)
+			m.labelInput = string(runes[:len(runes)-1])
+		}
+		return m, nil
+	default:
+		if t := msg.Text; t != "" {
+			m.labelInput += t
+		}
+	}
+	return m, nil
+}
+
+func (m tuiModel) handleRepoMetadataEditKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m = resetRepoMetadataEditState(m)
+		m.mode = viewDetail
+		m.statusMsg = ""
+		m.statusIsError = false
+		return m, nil
+	case "up":
+		if m.metadataField > 0 {
+			m.metadataField--
+		}
+		return m, nil
+	case "down":
+		if m.metadataField < metadataFieldCount-1 {
+			m.metadataField++
+		}
+		return m, nil
+	case "enter":
+		if m.metadataField == metadataFieldCount-1 {
+			return m, saveRepoMetadataEditCmd(m)
+		}
+		m.metadataField++
+		return m, nil
+	case "backspace":
+		m = trimRepoMetadataField(m)
+		return m, nil
+	default:
+		if t := msg.Text; t != "" {
+			m = appendRepoMetadataField(m, t)
+		}
+	}
+	return m, nil
+}
+
+func appendRepoMetadataField(m tuiModel, text string) tuiModel {
+	switch m.metadataField {
+	case metadataFieldName:
+		m.metadataName += text
+	case metadataFieldRepoIDAssertion:
+		m.metadataRepoIDAssertion += text
+	case metadataFieldLabels:
+		m.metadataLabelsInput += text
+	case metadataFieldEntrypoints:
+		m.metadataEntrypointsInput += text
+	case metadataFieldAuthoritative:
+		m.metadataAuthoritative += text
+	case metadataFieldLowValue:
+		m.metadataLowValue += text
+	case metadataFieldProvides:
+		m.metadataProvides += text
+	case metadataFieldRelated:
+		m.metadataRelated += text
+	}
+	return m
+}
+
+func trimRepoMetadataField(m tuiModel) tuiModel {
+	trim := func(value string) string {
+		if len(value) == 0 {
+			return value
+		}
+		runes := []rune(value)
+		return string(runes[:len(runes)-1])
+	}
+	switch m.metadataField {
+	case metadataFieldName:
+		m.metadataName = trim(m.metadataName)
+	case metadataFieldRepoIDAssertion:
+		m.metadataRepoIDAssertion = trim(m.metadataRepoIDAssertion)
+	case metadataFieldLabels:
+		m.metadataLabelsInput = trim(m.metadataLabelsInput)
+	case metadataFieldEntrypoints:
+		m.metadataEntrypointsInput = trim(m.metadataEntrypointsInput)
+	case metadataFieldAuthoritative:
+		m.metadataAuthoritative = trim(m.metadataAuthoritative)
+	case metadataFieldLowValue:
+		m.metadataLowValue = trim(m.metadataLowValue)
+	case metadataFieldProvides:
+		m.metadataProvides = trim(m.metadataProvides)
+	case metadataFieldRelated:
+		m.metadataRelated = trim(m.metadataRelated)
+	}
+	return m
+}
+
+func resetRepoMetadataEditState(m tuiModel) tuiModel {
+	m.metadataRepoID = ""
+	m.metadataRepoPath = ""
+	m.metadataField = metadataFieldName
+	m.metadataName = ""
+	m.metadataRepoIDAssertion = ""
+	m.metadataLabelsInput = ""
+	m.metadataEntrypointsInput = ""
+	m.metadataAuthoritative = ""
+	m.metadataLowValue = ""
+	m.metadataProvides = ""
+	m.metadataRelated = ""
+	m.metadataExists = false
+	return m
+}
+
+func (m tuiModel) handleLabelEditDone(msg labelEditDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.statusMsg = "label error: " + msg.err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	m.mode = viewDetail
+	m.labelRepoID = ""
+	m.labelRepoPath = ""
+	m.labelInput = ""
+	if !msg.saved {
+		m.statusMsg = "no label changes"
+		m.statusIsError = false
+		return m, nil
+	}
+	m.statusMsg = "updated labels for " + msg.repoID
+	m.statusIsError = false
+	m.loading = true
+	return m, refreshStatusCmd(m.context(), m.engine)
+}
+
+func (m tuiModel) handleRepoMetadataEditDone(msg repoMetadataEditDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		m.statusMsg = "repo metadata error: " + msg.err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	m = resetRepoMetadataEditState(m)
+	m.mode = viewDetail
+	if !msg.saved {
+		m.statusMsg = "no repo metadata changes"
+		m.statusIsError = false
+		return m, nil
+	}
+	m.statusMsg = "updated repo metadata for " + msg.repoID
+	m.statusIsError = false
+	m.loading = true
+	return m, refreshStatusCmd(m.context(), m.engine)
 }
 
 func (m tuiModel) startRepair() (tea.Model, tea.Cmd) {

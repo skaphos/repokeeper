@@ -98,6 +98,7 @@ Quick highlights:
 - `repokeeper edit <repo-id-or-path>` opens a single repo entry YAML in your editor (`$VISUAL`/`$EDITOR`), validates, then saves.
 - `repokeeper label <repo-id-or-path>` manages labels via `--set key=value` and `--remove key`.
 - `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
+- Running `repokeeper` with no subcommand launches the interactive TUI (`l` edits repo labels, `i` edits or initializes repo-local metadata from detail view).
 - `repokeeper skill install [target]` installs or updates the bundled RepoKeeper skill for supported runtimes.
 - `status`/`get` support label filtering with `-l/--selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
@@ -108,8 +109,8 @@ The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper 
 
 RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.yaml` or `repokeeper.yaml`.
 
-- Reads are automatic and read-only in `scan`, `status`, `describe`, and the TUI.
-- Writes are opt-in and happen only through `repokeeper index --write`.
+- Reads are automatic and read-only in `scan`, `status`, `describe`, and the TUI list/detail views.
+- Writes are opt-in and happen through `repokeeper index --write` or the TUI metadata editor (`i` from detail view).
 - `--yes` skips the final write confirmation, but does not change the requirement to pass `--write`.
 
 Example:
@@ -198,8 +199,8 @@ RepoKeeper is designed to be safe to run on repos with dirty working trees:
 - **Never** updates or recurses into submodules
 - Fetch uses `--no-recurse-submodules` and `-c fetch.recurseSubmodules=false` as belt-and-suspenders
 - All mutating commands support `--dry-run`
-- `scan`, `status`, `describe`, and the TUI never create or rewrite repo-local metadata files
-- Repo-local metadata is written only by `repokeeper index --write`
+- `scan`, `status`, and `describe` never create or rewrite repo-local metadata files
+- Repo-local metadata writes are explicit: `repokeeper index --write` or the TUI metadata editor (`i` from detail view)
 
 Optional local checkout update:
 

@@ -109,12 +109,17 @@ func prepareRegistryForExport(reg *registry.Registry, root string) *registry.Reg
 	}
 	out := cloneRegistry(reg)
 	out.UpdatedAt = time.Time{}
+	filtered := make([]registry.Entry, 0, len(out.Entries))
 	for i := range out.Entries {
 		entry := out.Entries[i]
+		if entry.Status != registry.StatusPresent {
+			continue
+		}
 		entry.LastSeen = time.Time{}
 		entry.Path = exportEntryPath(entry.Path, root)
-		out.Entries[i] = entry
+		filtered = append(filtered, entry)
 	}
+	out.Entries = filtered
 	return out
 }
 
@@ -136,6 +141,9 @@ func inferRegistrySharedRoot(reg *registry.Registry) string {
 	firstAbsPath := ""
 	var root string
 	for _, entry := range reg.Entries {
+		if entry.Status != registry.StatusPresent {
+			continue
+		}
 		path := filepath.Clean(strings.TrimSpace(entry.Path))
 		if path == "" || !filepath.IsAbs(path) {
 			continue

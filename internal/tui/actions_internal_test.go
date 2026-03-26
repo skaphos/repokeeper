@@ -4,6 +4,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 )
 
 func TestHandleDetailKey(t *testing.T) {
@@ -36,6 +38,242 @@ func TestHandleDetailKey(t *testing.T) {
 	next, _ := m.handleDetailKey(tea.KeyPressMsg{Code: 'x'})
 	if next.(tuiModel).mode != viewDetail {
 		t.Fatal("expected unhandled key to keep detail mode")
+	}
+}
+
+func TestHandleDetailKeyOpensLabelAndMetadataEditors(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(filepath.Join(repoPath, "docs"), 0o755); err != nil {
+		t.Fatalf("mkdir docs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+		t.Fatalf("write readme: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "acme/a", Path: repoPath, Labels: map[string]string{"team": "platform"}, Status: registry.StatusPresent,
+	}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	repos := []model.RepoStatus{{RepoID: "acme/a", Path: repoPath, Labels: map[string]string{"team": "platform"}}}
+	m := tuiModel{mode: viewDetail, repos: repos, cursor: 0, engine: eng, cfgPath: cfgPath}
+
+	next, _ := m.handleDetailKey(tea.KeyPressMsg{Code: 'l'})
+	nm := next.(tuiModel)
+	if nm.mode != viewEditLabels || nm.labelRepoID != "acme/a" || nm.labelInput != "team=platform" {
+		t.Fatalf("expected label editor state, got %+v", nm)
+	}
+
+	next, _ = m.handleDetailKey(tea.KeyPressMsg{Code: 'i'})
+	nm = next.(tuiModel)
+	if nm.mode != viewEditRepoMetadata || nm.metadataRepoID != "acme/a" {
+		t.Fatalf("expected metadata editor state, got %+v", nm)
+	}
+	if nm.metadataRepoIDAssertion != "acme/a" || nm.metadataName == "" {
+		t.Fatalf("expected metadata defaults to be populated, got %+v", nm)
+	}
+	if !strings.Contains(nm.metadataEntrypointsInput, "readme=README.md") {
+		t.Fatalf("expected readme entrypoint default, got %+v", nm)
+	}
+}
+
+func TestHandleLabelEditSavePersistsConfig(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: repoPath, Labels: map[string]string{"team": "platform"}, Status: registry.StatusPresent}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	m := tuiModel{mode: viewEditLabels, labelRepoID: "acme/a", labelInput: "team=platform,owner=sre", engine: eng, cfgPath: cfgPath}
+
+	next, cmd := m.handleLabelEditKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected save labels command")
+	}
+	msg, ok := cmd().(labelEditDoneMsg)
+	if !ok {
+		t.Fatalf("expected labelEditDoneMsg, got %T", cmd())
+	}
+	next, refresh := next.(tuiModel).handleLabelEditDone(msg)
+	nm := next.(tuiModel)
+	if nm.mode != viewDetail || nm.statusMsg != "updated labels for acme/a" || refresh == nil {
+		t.Fatalf("unexpected post-save state: %+v", nm)
+	}
+	loaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if got := loaded.Registry.FindByRepoID("acme/a").Labels["owner"]; got != "sre" {
+		t.Fatalf("expected saved owner label, got %+v", loaded.Registry.FindByRepoID("acme/a").Labels)
+	}
+}
+
+func TestHandleRepoMetadataEditSaveWritesRepoMetadata(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(filepath.Join(repoPath, "docs"), 0o755); err != nil {
+		t.Fatalf("mkdir docs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+		t.Fatalf("write readme: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: repoPath, Status: registry.StatusPresent}}}
+	eng := &mockEngine{reg: reg, cfg: &config.Config{Registry: reg}}
+	m := tuiModel{
+		mode:                     viewEditRepoMetadata,
+		metadataRepoID:           "acme/a",
+		metadataField:            metadataFieldRelated,
+		metadataName:             "Repo A",
+		metadataRepoIDAssertion:  "acme/a",
+		metadataLabelsInput:      "team=platform",
+		metadataEntrypointsInput: "readme=README.md",
+		metadataAuthoritative:    "docs/",
+		metadataLowValue:         "",
+		metadataProvides:         "cli",
+		metadataRelated:          "acme/b:depends-on",
+		engine:                   eng,
+	}
+
+	next, cmd := m.handleRepoMetadataEditKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected save repo metadata command")
+	}
+	msg, ok := cmd().(repoMetadataEditDoneMsg)
+	if !ok {
+		t.Fatalf("expected repoMetadataEditDoneMsg, got %T", cmd())
+	}
+	next, refresh := next.(tuiModel).handleRepoMetadataEditDone(msg)
+	nm := next.(tuiModel)
+	if nm.mode != viewDetail || nm.statusMsg != "updated repo metadata for acme/a" || refresh == nil {
+		t.Fatalf("unexpected post-save state: %+v", nm)
+	}
+	_, metadata, err := repometa.Load(repoPath)
+	if err != nil {
+		t.Fatalf("load repo metadata: %v", err)
+	}
+	if metadata.Name != "Repo A" || metadata.Labels["team"] != "platform" || metadata.RelatedRepos[0].RepoID != "acme/b" {
+		t.Fatalf("unexpected repo metadata: %+v", metadata)
+	}
+}
+
+func TestHandleLabelEditSaveUsesPathLookupForLocalOnlyRepoID(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "github.com/org/repo-a", Path: repoPath, Status: registry.StatusPresent,
+	}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	m := tuiModel{
+		mode:          viewEditLabels,
+		labelRepoID:   "local:/tmp/repokeeper/repo-a",
+		labelRepoPath: repoPath,
+		labelInput:    "team=platform",
+		engine:        eng,
+		cfgPath:       cfgPath,
+	}
+
+	next, cmd := m.handleLabelEditKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected save labels command")
+	}
+	msg, ok := cmd().(labelEditDoneMsg)
+	if !ok {
+		t.Fatalf("expected labelEditDoneMsg, got %T", cmd())
+	}
+	next, _ = next.(tuiModel).handleLabelEditDone(msg)
+	nm := next.(tuiModel)
+	if nm.statusIsError {
+		t.Fatalf("expected successful save, got status %q", nm.statusMsg)
+	}
+	loaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := loaded.Registry.FindByRepoID("github.com/org/repo-a")
+	if entry == nil || entry.Labels["team"] != "platform" {
+		t.Fatalf("expected path-based label save, got %+v", entry)
+	}
+}
+
+func TestHandleRepoMetadataEditSaveUsesPathLookupForLocalOnlyRepoID(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+		t.Fatalf("write readme: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "github.com/org/repo-a", Path: repoPath, Status: registry.StatusPresent,
+	}}}
+	eng := &mockEngine{reg: reg, cfg: &config.Config{Registry: reg}}
+	m := tuiModel{
+		mode:                     viewEditRepoMetadata,
+		metadataRepoID:           "local:/tmp/repokeeper/repo-a",
+		metadataRepoPath:         repoPath,
+		metadataField:            metadataFieldRelated,
+		metadataName:             "Repo A",
+		metadataRepoIDAssertion:  "github.com/org/repo-a",
+		metadataLabelsInput:      "team=platform",
+		metadataEntrypointsInput: "readme=README.md",
+		metadataAuthoritative:    "",
+		metadataLowValue:         "",
+		metadataProvides:         "",
+		metadataRelated:          "",
+		engine:                   eng,
+	}
+
+	next, cmd := m.handleRepoMetadataEditKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected save repo metadata command")
+	}
+	msg, ok := cmd().(repoMetadataEditDoneMsg)
+	if !ok {
+		t.Fatalf("expected repoMetadataEditDoneMsg, got %T", cmd())
+	}
+	next, _ = next.(tuiModel).handleRepoMetadataEditDone(msg)
+	nm := next.(tuiModel)
+	if nm.statusIsError {
+		t.Fatalf("expected successful metadata save, got status %q", nm.statusMsg)
+	}
+	_, metadata, err := repometa.Load(repoPath)
+	if err != nil {
+		t.Fatalf("load repo metadata: %v", err)
+	}
+	if metadata.RepoID != "github.com/org/repo-a" {
+		t.Fatalf("expected metadata save via path lookup, got %+v", metadata)
 	}
 }
 

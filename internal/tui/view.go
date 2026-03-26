@@ -22,6 +22,10 @@ func (m tuiModel) renderCurrentView() string {
 		return renderDeleteConfirmView(m)
 	case viewAdd:
 		return renderAddView(m)
+	case viewEditLabels:
+		return renderLabelEditView(m)
+	case viewEditRepoMetadata:
+		return renderRepoMetadataEditView(m)
 	case viewSyncPlan:
 		return renderSyncPlanView(m)
 	case viewProgress:
