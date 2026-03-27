@@ -17,6 +17,8 @@ type exportBundle struct {
 	Registry   *registry.Registry `yaml:"registry,omitempty"`
 }
 
+const currentExportBundleVersion = 2
+
 func cloneRegistry(reg *registry.Registry) *registry.Registry {
 	if reg == nil {
 		return nil

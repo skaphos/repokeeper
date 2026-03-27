@@ -37,18 +37,14 @@ func (e *Engine) RepairUpstream(ctx context.Context, repoID, cfgPath string) (Re
 		return RepairUpstreamResult{}, fmt.Errorf("registry not available")
 	}
 
-	var entry registry.Entry
-	found := false
-	for _, en := range reg.Entries {
-		if en.RepoID == repoID {
-			entry = en
-			found = true
-			break
-		}
-	}
-	if !found {
+	entries := reg.FindEntriesByRepoID(repoID)
+	if len(entries) == 0 {
 		return RepairUpstreamResult{}, fmt.Errorf("repo %q not found in registry", repoID)
 	}
+	if len(entries) > 1 {
+		return RepairUpstreamResult{}, fmt.Errorf("repo %q is ambiguous: found %d local checkouts; re-run with an exact checkout selector", repoID, len(entries))
+	}
+	entry := entries[0]
 
 	res := RepairUpstreamResult{
 		RepoID: entry.RepoID,

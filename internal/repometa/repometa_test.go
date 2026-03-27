@@ -271,7 +271,216 @@ func TestApplyPopulatesStatusMetadata(t *testing.T) {
 	}
 }
 
-func writeRepoMetadataFile(t *testing.T, path string, metadata model.RepoMetadata) {
+func TestApplyUsesSnapshotWhenFingerprintMatches(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	path := filepath.Join(repo, PreferredFilename)
+	writeRepoMetadataFile(t, path, model.RepoMetadata{
+		RepoID:   "github.com/example/repo",
+		Name:     "Cached Repo",
+		Provides: []string{"guides"},
+	})
+
+	cached := &model.RepoMetadata{
+		APIVersion: APIVersion,
+		Kind:       Kind,
+		RepoID:     "github.com/example/repo",
+		Name:       "Cached Repo",
+		Provides:   []string{"guides"},
+	}
+	status := &model.RepoStatus{
+		Path:                    repo,
+		RepoID:                  "github.com/example/repo",
+		RepoMetadataFile:        path,
+		RepoMetadataFingerprint: mustMetadataFingerprint(t, repo),
+		RepoMetadata:            cached,
+	}
+
+	rewriteFilePreservingFingerprint(t, path, []byte("not: [valid yaml"))
+
+	Apply(status)
+
+	if status.RepoMetadataFile != path {
+		t.Fatalf("expected cached metadata file %q to be reused, got %q", path, status.RepoMetadataFile)
+	}
+	if !reflect.DeepEqual(status.RepoMetadata, cached) {
+		t.Fatalf("expected cached snapshot to be reused, got %#v", status.RepoMetadata)
+	}
+	if status.RepoMetadataError != "" {
+		t.Fatalf("expected no metadata error when cached fingerprint matches, got %q", status.RepoMetadataError)
+	}
+}
+
+func TestApplyRefreshesWhenFingerprintChanges(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	path := filepath.Join(repo, PreferredFilename)
+	writeRepoMetadataFile(t, path, model.RepoMetadata{
+		RepoID:   "github.com/example/repo",
+		Name:     "Old Snapshot",
+		Provides: []string{"guides"},
+	})
+
+	status := &model.RepoStatus{
+		Path:                    repo,
+		RepoID:                  "github.com/example/repo",
+		RepoMetadataFile:        path,
+		RepoMetadataFingerprint: mustMetadataFingerprint(t, repo),
+		RepoMetadata: &model.RepoMetadata{
+			APIVersion: APIVersion,
+			Kind:       Kind,
+			RepoID:     "github.com/example/repo",
+			Name:       "Old Snapshot",
+			Provides:   []string{"guides"},
+		},
+		RepoMetadataError: "cached metadata error should be replaced on refresh",
+	}
+
+	writeRepoMetadataFile(t, path, model.RepoMetadata{
+		RepoID:      "github.com/example/repo",
+		Name:        "Fresh Snapshot",
+		Labels:      map[string]string{"role": "docs"},
+		Entrypoints: map[string]string{"readme": "README.md"},
+		Provides:    []string{"guides", "api"},
+	})
+
+	Apply(status)
+
+	if status.RepoMetadataFile != path {
+		t.Fatalf("expected refreshed metadata file path %q, got %q", path, status.RepoMetadataFile)
+	}
+	if status.RepoMetadata == nil {
+		t.Fatalf("expected refreshed metadata snapshot, got nil")
+	}
+	if status.RepoMetadata.Name != "Fresh Snapshot" {
+		t.Fatalf("expected refreshed metadata name, got %#v", status.RepoMetadata)
+	}
+	if status.RepoMetadata.Labels["role"] != "docs" {
+		t.Fatalf("expected refreshed labels, got %#v", status.RepoMetadata.Labels)
+	}
+	if status.RepoMetadata.Entrypoints["readme"] != "README.md" {
+		t.Fatalf("expected refreshed entrypoints, got %#v", status.RepoMetadata.Entrypoints)
+	}
+	if status.RepoMetadataError != "" {
+		t.Fatalf("expected changed fingerprint to clear cached error, got %q", status.RepoMetadataError)
+	}
+}
+
+func TestApplyHandlesMetadataDeletion(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	path := filepath.Join(repo, PreferredFilename)
+	writeRepoMetadataFile(t, path, model.RepoMetadata{
+		RepoID:   "github.com/example/repo",
+		Name:     "Cached Repo",
+		Provides: []string{"guides"},
+	})
+
+	status := &model.RepoStatus{
+		Path:                    repo,
+		RepoID:                  "github.com/example/repo",
+		RepoMetadataFile:        path,
+		RepoMetadataFingerprint: mustMetadataFingerprint(t, repo),
+		RepoMetadata: &model.RepoMetadata{
+			APIVersion: APIVersion,
+			Kind:       Kind,
+			RepoID:     "github.com/example/repo",
+			Name:       "Cached Repo",
+			Provides:   []string{"guides"},
+		},
+		RepoMetadataError: "stale cached error",
+	}
+
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("remove metadata file: %v", err)
+	}
+
+	Apply(status)
+
+	if status.RepoMetadataFile != "" {
+		t.Fatalf("expected metadata file to clear after deletion, got %q", status.RepoMetadataFile)
+	}
+	if status.RepoMetadata != nil {
+		t.Fatalf("expected metadata snapshot to clear after deletion, got %#v", status.RepoMetadata)
+	}
+	if status.RepoMetadataError != "" {
+		t.Fatalf("expected deletion to surface missing-file semantics without stale error, got %q", status.RepoMetadataError)
+	}
+}
+
+func TestApplyCachesDualFileConflict(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	hidden := filepath.Join(repo, PreferredFilename)
+	legacy := filepath.Join(repo, LegacyFilename)
+	writeRepoMetadataFile(t, hidden, model.RepoMetadata{
+		RepoID: "github.com/example/repo",
+		Name:   "Cached Repo",
+	})
+
+	status := &model.RepoStatus{
+		Path:                    repo,
+		RepoID:                  "github.com/example/repo",
+		RepoMetadataFile:        hidden,
+		RepoMetadataFingerprint: mustMetadataFingerprint(t, repo),
+		RepoMetadata: &model.RepoMetadata{
+			APIVersion: APIVersion,
+			Kind:       Kind,
+			RepoID:     "github.com/example/repo",
+			Name:       "Cached Repo",
+		},
+	}
+
+	writeRepoMetadataFile(t, legacy, model.RepoMetadata{
+		RepoID: "github.com/example/repo",
+		Name:   "Legacy Repo",
+	})
+
+	Apply(status)
+
+	if status.RepoMetadataFile != "" {
+		t.Fatalf("expected dual-file conflict to clear stale selected metadata file, got %q", status.RepoMetadataFile)
+	}
+	if status.RepoMetadata != nil {
+		t.Fatalf("expected dual-file conflict to discard cached metadata snapshot, got %#v", status.RepoMetadata)
+	}
+	if !strings.Contains(status.RepoMetadataError, "multiple repo metadata files") {
+		t.Fatalf("expected dual-file conflict error, got %q", status.RepoMetadataError)
+	}
+}
+
+func TestApplyCachesInvalidMetadataError(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	path := filepath.Join(repo, PreferredFilename)
+	if err := os.WriteFile(path, []byte("apiVersion: repokeeper/v1\nkind: RepoMetadata\nentrypoints:\n  readme: ../README.md\n# cached-invalid-padding\n"), 0o644); err != nil {
+		t.Fatalf("write invalid metadata: %v", err)
+	}
+
+	status := &model.RepoStatus{
+		Path:                    repo,
+		RepoID:                  "github.com/example/repo",
+		RepoMetadataFile:        path,
+		RepoMetadataFingerprint: mustMetadataFingerprint(t, repo),
+		RepoMetadataError:       "entrypoint \"../README.md\" must stay within the repository root",
+	}
+
+	rewriteFilePreservingFingerprint(t, path, []byte("apiVersion: repokeeper/v1\nkind: RepoMetadata\nname: Now Valid\n"))
+
+	Apply(status)
+
+	if status.RepoMetadataFile != path {
+		t.Fatalf("expected cached invalid metadata path %q to be preserved, got %q", path, status.RepoMetadataFile)
+	}
+	if status.RepoMetadata != nil {
+		t.Fatalf("expected cached invalid snapshot to remain empty, got %#v", status.RepoMetadata)
+	}
+	if !strings.Contains(status.RepoMetadataError, "must stay within the repository root") {
+		t.Fatalf("expected cached invalid metadata error to be reused, got %q", status.RepoMetadataError)
+	}
+}
+
+func mustMarshalRepoMetadata(t *testing.T, metadata model.RepoMetadata) []byte {
 	t.Helper()
 	if metadata.APIVersion == "" {
 		metadata.APIVersion = APIVersion
@@ -283,7 +492,46 @@ func writeRepoMetadataFile(t *testing.T, path string, metadata model.RepoMetadat
 	if err != nil {
 		t.Fatalf("marshal metadata: %v", err)
 	}
+	return data
+}
+
+func rewriteFilePreservingFingerprint(t *testing.T, path string, replacement []byte) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat metadata file: %v", err)
+	}
+	if len(replacement) > int(info.Size()) {
+		t.Fatalf("replacement content length %d exceeds preserved fingerprint size %d", len(replacement), info.Size())
+	}
+	padded := append([]byte(nil), replacement...)
+	if len(padded) < int(info.Size()) {
+		padded = append(padded, []byte(strings.Repeat(" ", int(info.Size())-len(padded)))...)
+	}
+	if err := os.WriteFile(path, padded, 0o644); err != nil {
+		t.Fatalf("rewrite metadata file: %v", err)
+	}
+	if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatalf("restore metadata file times: %v", err)
+	}
+}
+
+func writeRepoMetadataFile(t *testing.T, path string, metadata model.RepoMetadata) {
+	t.Helper()
+	data := mustMarshalRepoMetadata(t, metadata)
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatalf("write metadata: %v", err)
 	}
+}
+
+func mustMetadataFingerprint(t *testing.T, repo string) string {
+	t.Helper()
+	state := discoverMetadataState(repo)
+	if state.err != nil {
+		t.Fatalf("discover metadata state: %v", state.err)
+	}
+	if state.fingerprint == "" {
+		t.Fatalf("expected metadata fingerprint for %q", repo)
+	}
+	return state.fingerprint
 }

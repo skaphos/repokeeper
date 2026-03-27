@@ -96,11 +96,12 @@ Quick highlights:
 
 - `repokeeper get` and `repokeeper reconcile` are direct command forms (`... repos` aliases still supported).
 - `repokeeper edit <repo-id-or-path>` opens a single repo entry YAML in your editor (`$VISUAL`/`$EDITOR`), validates, then saves.
-- `repokeeper label <repo-id-or-path>` manages labels via `--set key=value` and `--remove key`.
+- `repokeeper describe <repo-id-or-path>` accepts plain `repo_id`, `repo_id@checkout_id`, or path selectors; plain `repo_id` now fails when multiple local checkouts exist.
+- `repokeeper label <repo-id-or-path>` manages machine-local labels via `--set key=value` and `--remove key`.
 - `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
 - Running `repokeeper` with no subcommand launches the interactive TUI (`l` edits repo labels, `i` edits or initializes repo-local metadata from detail view).
 - `repokeeper skill install [target]` installs or updates the bundled RepoKeeper skill for supported runtimes.
-- `status`/`get` support label filtering with `-l/--selector` (`key` and `key=value`, comma-separated AND).
+- `status`/`get` support shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
 
 The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper skill install` works from packaged builds such as Homebrew installs.
@@ -111,7 +112,13 @@ RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.ya
 
 - Reads are automatic and read-only in `scan`, `status`, `describe`, and the TUI list/detail views.
 - Writes are opt-in and happen through `repokeeper index --write` or the TUI metadata editor (`i` from detail view).
+- Read commands cache repo-metadata snapshots in the machine-local registry and refresh them when the on-disk metadata state changes.
 - `--yes` skips the final write confirmation, but does not change the requirement to pass `--write`.
+
+RepoKeeper keeps two identity layers:
+
+- `repo_id`: stable upstream identity, used as the cross-machine join key.
+- `checkout_id`: machine-local checkout identity, used to distinguish multiple local clones of the same `repo_id`.
 
 Example:
 
@@ -170,7 +177,8 @@ Selector precedence:
 1. `--field-selector` when set
 2. `--only` when `--field-selector` is not set
 3. Providing both in one command is rejected
-4. `-l/--selector` is applied as an additional label filter on the resulting repo set
+4. `-l/--selector` is applied as an additional shared-label filter on the resulting repo set
+5. `--local-selector` is applied as an additional machine-local label filter on the resulting repo set
 
 Example config:
 

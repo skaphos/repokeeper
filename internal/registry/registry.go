@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/skaphos/repokeeper/internal/model"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -23,15 +24,20 @@ const (
 
 // Entry is a single repo entry in the registry.
 type Entry struct {
-	RepoID      string            `yaml:"repo_id"`
-	Path        string            `yaml:"path"`
-	RemoteURL   string            `yaml:"remote_url"`
-	Type        string            `yaml:"type,omitempty"` // checkout | mirror
-	Branch      string            `yaml:"branch,omitempty"`
-	Labels      map[string]string `yaml:"labels,omitempty"`
-	Annotations map[string]string `yaml:"annotations,omitempty"`
-	LastSeen    time.Time         `yaml:"last_seen,omitempty"`
-	Status      EntryStatus       `yaml:"status"`
+	RepoID                  string              `yaml:"repo_id"`
+	CheckoutID              string              `yaml:"checkout_id,omitempty"`
+	Path                    string              `yaml:"path"`
+	RemoteURL               string              `yaml:"remote_url"`
+	Type                    string              `yaml:"type,omitempty"` // checkout | mirror
+	Branch                  string              `yaml:"branch,omitempty"`
+	Labels                  map[string]string   `yaml:"labels,omitempty"`
+	Annotations             map[string]string   `yaml:"annotations,omitempty"`
+	RepoMetadataFile        string              `yaml:"repo_metadata_file,omitempty"`
+	RepoMetadataError       string              `yaml:"repo_metadata_error,omitempty"`
+	RepoMetadataFingerprint string              `yaml:"repo_metadata_fingerprint,omitempty"`
+	RepoMetadata            *model.RepoMetadata `yaml:"repo_metadata,omitempty"`
+	LastSeen                time.Time           `yaml:"last_seen,omitempty"`
+	Status                  EntryStatus         `yaml:"status"`
 }
 
 // Registry is the per-machine mapping of repo identities to local paths.
@@ -69,12 +75,15 @@ func Save(reg *Registry, path string) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// Upsert adds or updates an entry in the registry by repo_id.
-// If the repo_id already exists, it updates path, last_seen, and status.
+// Upsert adds or updates an entry in the registry by repo_id + checkout_id.
+// If the repo_id + checkout_id already exists, it updates path, last_seen, and status.
 // If new, it appends the entry.
 func (r *Registry) Upsert(entry Entry) {
+	entry.CheckoutID = checkoutIDFromEntry(entry)
+
 	for i := range r.Entries {
-		if r.Entries[i].RepoID == entry.RepoID {
+		r.backfillCheckoutID(i)
+		if r.Entries[i].RepoID == entry.RepoID && r.Entries[i].CheckoutID == entry.CheckoutID {
 			if r.Entries[i].Path != entry.Path {
 				entry.Status = StatusMoved
 			} else if entry.Status == "" {
@@ -109,6 +118,31 @@ func (r *Registry) Upsert(entry Entry) {
 	r.Entries = append(r.Entries, entry)
 }
 
+func (r *Registry) backfillCheckoutID(index int) {
+	if r == nil || index < 0 || index >= len(r.Entries) {
+		return
+	}
+	r.Entries[index].CheckoutID = checkoutIDFromEntry(r.Entries[index])
+}
+
+func checkoutIDFromEntry(entry Entry) string {
+	if entry.CheckoutID != "" {
+		return entry.CheckoutID
+	}
+	return defaultCheckoutIDFromPath(entry.Path)
+}
+
+func defaultCheckoutIDFromPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	base := filepath.Base(filepath.Clean(path))
+	if base == "." || base == string(filepath.Separator) {
+		return ""
+	}
+	return base
+}
+
 func cloneStringMap(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
@@ -117,6 +151,54 @@ func cloneStringMap(in map[string]string) map[string]string {
 	for k, v := range in {
 		out[k] = v
 	}
+	return out
+}
+
+func SeedRepoMetadataStatus(entry Entry, status *model.RepoStatus) {
+	if status == nil {
+		return
+	}
+	status.RepoMetadataFile = entry.RepoMetadataFile
+	status.RepoMetadataError = entry.RepoMetadataError
+	status.RepoMetadataFingerprint = entry.RepoMetadataFingerprint
+	status.RepoMetadata = cloneRepoMetadata(entry.RepoMetadata)
+}
+
+func StoreRepoMetadataStatus(entry *Entry, status model.RepoStatus) {
+	if entry == nil {
+		return
+	}
+	entry.RepoMetadataFile = status.RepoMetadataFile
+	entry.RepoMetadataError = status.RepoMetadataError
+	entry.RepoMetadataFingerprint = status.RepoMetadataFingerprint
+	entry.RepoMetadata = cloneRepoMetadata(status.RepoMetadata)
+}
+
+func cloneRepoMetadata(in *model.RepoMetadata) *model.RepoMetadata {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Labels = cloneStringMap(in.Labels)
+	out.Entrypoints = cloneStringMap(in.Entrypoints)
+	out.Paths.Authoritative = cloneStringSlice(in.Paths.Authoritative)
+	out.Paths.LowValue = cloneStringSlice(in.Paths.LowValue)
+	out.Provides = cloneStringSlice(in.Provides)
+	if len(in.RelatedRepos) > 0 {
+		out.RelatedRepos = make([]model.RepoMetadataRelatedRepo, len(in.RelatedRepos))
+		copy(out.RelatedRepos, in.RelatedRepos)
+	} else {
+		out.RelatedRepos = nil
+	}
+	return &out
+}
+
+func cloneStringSlice(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, len(in))
+	copy(out, in)
 	return out
 }
 
@@ -160,7 +242,38 @@ func (r *Registry) PruneStale(olderThan time.Duration) int {
 // FindByRepoID returns the entry matching the given repo_id, or nil.
 func (r *Registry) FindByRepoID(repoID string) *Entry {
 	for i := range r.Entries {
+		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == repoID {
+			return &r.Entries[i]
+		}
+	}
+	return nil
+}
+
+// FindEntriesByRepoID returns all entries matching the given repo_id.
+func (r *Registry) FindEntriesByRepoID(repoID string) []Entry {
+	if r == nil {
+		return nil
+	}
+	entries := make([]Entry, 0)
+	for i := range r.Entries {
+		r.backfillCheckoutID(i)
+		if r.Entries[i].RepoID == repoID {
+			entries = append(entries, r.Entries[i])
+		}
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	return entries
+}
+
+// FindByRepoIDAndCheckoutID returns the entry matching repoID and checkoutID,
+// or nil if not found.
+func (r *Registry) FindByRepoIDAndCheckoutID(repoID, checkoutID string) *Entry {
+	for i := range r.Entries {
+		r.backfillCheckoutID(i)
+		if r.Entries[i].RepoID == repoID && r.Entries[i].CheckoutID == checkoutID {
 			return &r.Entries[i]
 		}
 	}
@@ -181,11 +294,13 @@ func (r *Registry) FindEntry(repoID, path string) *Entry {
 // (exact match first, then repoID-only fallback), or -1 if not found.
 func (r *Registry) FindEntryIndex(repoID, path string) int {
 	for i := range r.Entries {
+		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == repoID && r.Entries[i].Path == path {
 			return i
 		}
 	}
 	for i := range r.Entries {
+		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == repoID {
 			return i
 		}

@@ -18,6 +18,7 @@ var _ = Describe("Model JSON", func() {
 		behind := 1
 		status := model.RepoStatus{
 			RepoID:        "github.com/org/repo",
+			CheckoutID:    "checkout-main",
 			Path:          "/tmp/repo",
 			Labels:        map[string]string{"team": "platform"},
 			Annotations:   map[string]string{"owner": "sre"},
@@ -37,6 +38,7 @@ var _ = Describe("Model JSON", func() {
 		var decoded model.RepoStatus
 		Expect(json.Unmarshal(data, &decoded)).To(Succeed())
 		Expect(decoded.RepoID).To(Equal(status.RepoID))
+		Expect(decoded.CheckoutID).To(Equal(status.CheckoutID))
 		Expect(decoded.Tracking.Status).To(Equal(model.TrackingAhead))
 		Expect(decoded.Worktree).NotTo(BeNil())
 		Expect(decoded.Labels).To(HaveKeyWithValue("team", "platform"))

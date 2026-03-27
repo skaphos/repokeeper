@@ -87,6 +87,10 @@ var importCmd = &cobra.Command{
 		if err := yaml.Unmarshal(data, &bundle); err != nil {
 			return err
 		}
+		bundle, err = normalizeImportedBundle(bundle)
+		if err != nil {
+			return err
+		}
 
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -235,6 +239,7 @@ func mergeImportedRegistry(
 		}
 		return
 	}
+	bundled = sanitizeImportedRegistry(bundled)
 	if mode == importModeReplace {
 		cfg.Registry = cloneRegistry(bundled)
 		return
@@ -246,22 +251,110 @@ func mergeImportedRegistry(
 		return
 	}
 	for _, incoming := range bundled.Entries {
-		existing := cfg.Registry.FindByRepoID(incoming.RepoID)
-		if existing == nil {
+		matchIndex, _ := mergeRegistryMatchIndex(cfg.Registry, incoming)
+		if matchIndex < 0 {
 			cfg.Registry.Entries = append(cfg.Registry.Entries, incoming)
 			continue
 		}
-		if !registryEntriesConflict(*existing, incoming) {
-			*existing = incoming
+		existing := cfg.Registry.Entries[matchIndex]
+		if !registryEntriesConflict(existing, incoming) {
+			cfg.Registry.Entries[matchIndex] = incoming
 			continue
 		}
 		switch policy {
 		case importConflictPolicyBundle:
-			*existing = incoming
+			cfg.Registry.Entries[matchIndex] = incoming
 		case importConflictPolicySkip, importConflictPolicyLocal:
 		}
 	}
 	cfg.Registry.UpdatedAt = time.Now()
+}
+
+func normalizeImportedBundle(bundle exportBundle) (exportBundle, error) {
+	version := bundle.Version
+	if version == 0 {
+		version = 1
+	}
+	switch version {
+	case 1, currentExportBundleVersion:
+		bundle.Version = currentExportBundleVersion
+		bundle.Registry = sanitizeImportedRegistry(bundle.Registry)
+		return bundle, nil
+	default:
+		return exportBundle{}, fmt.Errorf("unsupported bundle version %d", bundle.Version)
+	}
+}
+
+func sanitizeImportedRegistry(reg *registry.Registry) *registry.Registry {
+	if reg == nil {
+		return nil
+	}
+	out := cloneRegistry(reg)
+	for i := range out.Entries {
+		entry := &out.Entries[i]
+		entry.RepoMetadataFile = ""
+		entry.RepoMetadataError = ""
+		entry.RepoMetadataFingerprint = ""
+		entry.RepoMetadata = nil
+		if strings.TrimSpace(entry.CheckoutID) == "" {
+			entry.CheckoutID = inferredCheckoutIDFromPath(entry.Path)
+		}
+	}
+	return out
+}
+
+func inferredCheckoutIDFromPath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	base := filepath.Base(filepath.Clean(trimmed))
+	if base == "." || base == string(filepath.Separator) {
+		return ""
+	}
+	return base
+}
+
+func mergeRegistryMatchIndex(reg *registry.Registry, incoming registry.Entry) (int, bool) {
+	if reg == nil {
+		return -1, false
+	}
+	repoID := strings.TrimSpace(incoming.RepoID)
+	if repoID == "" {
+		return -1, false
+	}
+	if checkoutID := strings.TrimSpace(incoming.CheckoutID); checkoutID != "" {
+		if match := reg.FindByRepoIDAndCheckoutID(repoID, checkoutID); match != nil {
+			for i := range reg.Entries {
+				if reg.Entries[i].RepoID == match.RepoID && reg.Entries[i].CheckoutID == match.CheckoutID {
+					return i, true
+				}
+			}
+		}
+	}
+	if path := strings.TrimSpace(incoming.Path); path != "" {
+		if match := reg.FindEntry(repoID, path); match != nil && strings.TrimSpace(match.Path) == path {
+			for i := range reg.Entries {
+				if reg.Entries[i].RepoID == repoID && strings.TrimSpace(reg.Entries[i].Path) == path {
+					return i, true
+				}
+			}
+		}
+	}
+
+	matches := reg.FindEntriesByRepoID(repoID)
+	if len(matches) == 0 {
+		return -1, false
+	}
+	if len(matches) > 1 {
+		return -1, true
+	}
+	for i := range reg.Entries {
+		if reg.Entries[i].RepoID == repoID {
+			return i, true
+		}
+	}
+	return -1, true
 }
 
 func registryEntriesConflict(local, incoming registry.Entry) bool {
@@ -383,13 +476,14 @@ func mergePolicyPreflightSkips(local, bundled *registry.Registry, policy importC
 	}
 	rows := make([]importClonePlanRow, 0)
 	for _, incoming := range bundled.Entries {
-		existing := local.FindByRepoID(incoming.RepoID)
-		if existing == nil {
+		matchIndex, _ := mergeRegistryMatchIndex(local, incoming)
+		if matchIndex < 0 {
 			continue
 		}
+		existing := local.Entries[matchIndex]
 		targetPath := filepath.Clean(filepath.Join(cwd, importTargetRelativePath(incoming, bundleRoot)))
 		detail := ""
-		if !registryEntriesConflict(*existing, incoming) {
+		if !registryEntriesConflict(existing, incoming) {
 			detail = "unchanged local entry"
 		} else if policy != importConflictPolicyBundle {
 			detail = "conflict policy keeps local entry"
@@ -477,12 +571,13 @@ func selectMergeCloneEntries(local, bundled *registry.Registry, policy importCon
 			selected = append(selected, incoming)
 			continue
 		}
-		existing := local.FindByRepoID(incoming.RepoID)
-		if existing == nil {
+		matchIndex, _ := mergeRegistryMatchIndex(local, incoming)
+		if matchIndex < 0 {
 			selected = append(selected, incoming)
 			continue
 		}
-		if policy == importConflictPolicyBundle && registryEntriesConflict(*existing, incoming) {
+		existing := local.Entries[matchIndex]
+		if policy == importConflictPolicyBundle && registryEntriesConflict(existing, incoming) {
 			selected = append(selected, incoming)
 		}
 	}
@@ -493,11 +588,10 @@ func setRegistryEntryByRepoID(reg *registry.Registry, entry registry.Entry) {
 	if reg == nil {
 		return
 	}
-	for i := range reg.Entries {
-		if reg.Entries[i].RepoID == entry.RepoID {
-			reg.Entries[i] = entry
-			return
-		}
+	matchIndex, _ := mergeRegistryMatchIndex(reg, entry)
+	if matchIndex >= 0 {
+		reg.Entries[matchIndex] = entry
+		return
 	}
 	reg.Entries = append(reg.Entries, entry)
 }

@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 )
 
 func writeTestConfigAndRegistry(t *testing.T) (cfgPath string, regPath string) {
@@ -85,6 +87,7 @@ func TestStatusRunEUnsupportedFormat(t *testing.T) {
 	errOut := &bytes.Buffer{}
 	statusCmd.SetOut(out)
 	statusCmd.SetErr(errOut)
+	statusCmd.SetContext(context.Background())
 	defer statusCmd.SetOut(os.Stdout)
 	defer statusCmd.SetErr(os.Stderr)
 
@@ -108,6 +111,7 @@ func TestStatusRunECustomColumns(t *testing.T) {
 	errOut := &bytes.Buffer{}
 	statusCmd.SetOut(out)
 	statusCmd.SetErr(errOut)
+	statusCmd.SetContext(context.Background())
 	defer statusCmd.SetOut(os.Stdout)
 	defer statusCmd.SetErr(os.Stderr)
 
@@ -115,6 +119,7 @@ func TestStatusRunECustomColumns(t *testing.T) {
 	_ = statusCmd.Flags().Set("only", "missing")
 	_ = statusCmd.Flags().Set("field-selector", "")
 	_ = statusCmd.Flags().Set("selector", "")
+	_ = statusCmd.Flags().Set("local-selector", "")
 	_ = statusCmd.Flags().Set("registry", "")
 	if err := statusCmd.RunE(statusCmd, nil); err != nil {
 		t.Fatalf("status custom-columns failed: %v", err)
@@ -127,7 +132,7 @@ func TestStatusRunECustomColumns(t *testing.T) {
 	}
 }
 
-func TestStatusRunELabelSelectorFilter(t *testing.T) {
+func TestStatusRunELocalLabelSelectorFilter(t *testing.T) {
 	tmp := t.TempDir()
 	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
 	cfg := config.DefaultConfig()
@@ -159,16 +164,18 @@ func TestStatusRunELabelSelectorFilter(t *testing.T) {
 	errOut := &bytes.Buffer{}
 	statusCmd.SetOut(out)
 	statusCmd.SetErr(errOut)
+	statusCmd.SetContext(context.Background())
 	defer statusCmd.SetOut(os.Stdout)
 	defer statusCmd.SetErr(os.Stderr)
 
 	_ = statusCmd.Flags().Set("format", "json")
 	_ = statusCmd.Flags().Set("only", "missing")
 	_ = statusCmd.Flags().Set("field-selector", "")
-	_ = statusCmd.Flags().Set("selector", "env=prod")
+	_ = statusCmd.Flags().Set("selector", "")
+	_ = statusCmd.Flags().Set("local-selector", "env=prod")
 	_ = statusCmd.Flags().Set("registry", "")
 	if err := statusCmd.RunE(statusCmd, nil); err != nil {
-		t.Fatalf("status with label selector failed: %v", err)
+		t.Fatalf("status with local label selector failed: %v", err)
 	}
 	got := out.String()
 	if !strings.Contains(got, "repo-prod") {
@@ -176,6 +183,175 @@ func TestStatusRunELabelSelectorFilter(t *testing.T) {
 	}
 	if strings.Contains(got, "repo-dev") {
 		t.Fatalf("did not expect dev repo in output, got: %q", got)
+	}
+}
+
+func TestStatusRunESelectorUsesSharedRepoLabels(t *testing.T) {
+	tmp := t.TempDir()
+	repoMetadataMatchPath := filepath.Join(tmp, "repo-metadata-match")
+	if err := os.MkdirAll(repoMetadataMatchPath, 0o755); err != nil {
+		t.Fatalf("mkdir metadata-match repo: %v", err)
+	}
+	if out, err := exec.Command("git", "init", repoMetadataMatchPath).CombinedOutput(); err != nil {
+		t.Fatalf("git init metadata-match repo failed: %v %s", err, string(out))
+	}
+	if err := os.WriteFile(filepath.Join(repoMetadataMatchPath, ".repokeeper-repo.yaml"), []byte("apiVersion: repokeeper/v1\nkind: RepoMetadata\nlabels:\n  team: platform\n  type: internal-docs\n"), 0o644); err != nil {
+		t.Fatalf("write metadata-match repo metadata: %v", err)
+	}
+
+	repoRegistryMatchPath := filepath.Join(tmp, "repo-registry-match")
+	if err := os.MkdirAll(repoRegistryMatchPath, 0o755); err != nil {
+		t.Fatalf("mkdir registry-match repo: %v", err)
+	}
+	if out, err := exec.Command("git", "init", repoRegistryMatchPath).CombinedOutput(); err != nil {
+		t.Fatalf("git init registry-match repo failed: %v %s", err, string(out))
+	}
+	if err := os.WriteFile(filepath.Join(repoRegistryMatchPath, ".repokeeper-repo.yaml"), []byte("apiVersion: repokeeper/v1\nkind: RepoMetadata\nlabels:\n  team: docs\n  type: handbook\n"), 0o644); err != nil {
+		t.Fatalf("write registry-match repo metadata: %v", err)
+	}
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{
+		{
+			RepoID:   "github.com/org/repo-metadata-match",
+			Path:     repoMetadataMatchPath,
+			Status:   registry.StatusPresent,
+			LastSeen: time.Now(),
+			Labels: map[string]string{
+				"team": "ops",
+				"type": "runbook",
+			},
+		},
+		{
+			RepoID:   "github.com/org/repo-registry-match",
+			Path:     repoRegistryMatchPath,
+			Status:   registry.StatusPresent,
+			LastSeen: time.Now(),
+			Labels: map[string]string{
+				"team": "platform",
+				"type": "internal-docs",
+			},
+		},
+	}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	statusCmd.SetOut(out)
+	statusCmd.SetErr(errOut)
+	statusCmd.SetContext(context.Background())
+	defer statusCmd.SetOut(os.Stdout)
+	defer statusCmd.SetErr(os.Stderr)
+
+	_ = statusCmd.Flags().Set("registry", "")
+	_ = statusCmd.Flags().Set("format", "json")
+	_ = statusCmd.Flags().Set("only", "all")
+	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("selector", "team=platform,type=internal-docs")
+	_ = statusCmd.Flags().Set("local-selector", "")
+	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
+	_ = statusCmd.Flags().Set("dry-run", "true")
+	_ = statusCmd.Flags().Set("no-headers", "false")
+
+	if err := statusCmd.RunE(statusCmd, nil); err != nil {
+		t.Fatalf("status with shared repo-label selector failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "repo-metadata-match") {
+		t.Fatalf("expected --selector to match shared repo metadata labels, got: %q", got)
+	}
+	if strings.Contains(got, "repo-registry-match") {
+		t.Fatalf("expected --selector to ignore machine-local registry labels, got: %q", got)
+	}
+}
+
+func TestStatusRunELocalSelectorUsesMachineLocalLabels(t *testing.T) {
+	tmp := t.TempDir()
+	repoMetadataOnlyPath := filepath.Join(tmp, "repo-metadata-only")
+	if err := os.MkdirAll(repoMetadataOnlyPath, 0o755); err != nil {
+		t.Fatalf("mkdir metadata-only repo: %v", err)
+	}
+	if out, err := exec.Command("git", "init", repoMetadataOnlyPath).CombinedOutput(); err != nil {
+		t.Fatalf("git init metadata-only repo failed: %v %s", err, string(out))
+	}
+	if err := os.WriteFile(filepath.Join(repoMetadataOnlyPath, ".repokeeper-repo.yaml"), []byte("apiVersion: repokeeper/v1\nkind: RepoMetadata\nlabels:\n  team: platform\n"), 0o644); err != nil {
+		t.Fatalf("write metadata-only repo metadata: %v", err)
+	}
+
+	repoLocalOnlyPath := filepath.Join(tmp, "repo-local-only")
+	if err := os.MkdirAll(repoLocalOnlyPath, 0o755); err != nil {
+		t.Fatalf("mkdir local-only repo: %v", err)
+	}
+	if out, err := exec.Command("git", "init", repoLocalOnlyPath).CombinedOutput(); err != nil {
+		t.Fatalf("git init local-only repo failed: %v %s", err, string(out))
+	}
+	if err := os.WriteFile(filepath.Join(repoLocalOnlyPath, ".repokeeper-repo.yaml"), []byte("apiVersion: repokeeper/v1\nkind: RepoMetadata\nlabels:\n  team: docs\n"), 0o644); err != nil {
+		t.Fatalf("write local-only repo metadata: %v", err)
+	}
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{
+		{
+			RepoID:   "github.com/org/repo-metadata-only",
+			Path:     repoMetadataOnlyPath,
+			Status:   registry.StatusPresent,
+			LastSeen: time.Now(),
+			Labels: map[string]string{
+				"team": "docs",
+			},
+		},
+		{
+			RepoID:   "github.com/org/repo-local-only",
+			Path:     repoLocalOnlyPath,
+			Status:   registry.StatusPresent,
+			LastSeen: time.Now(),
+			Labels: map[string]string{
+				"team": "platform",
+			},
+		},
+	}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	statusCmd.SetOut(out)
+	statusCmd.SetErr(errOut)
+	prevLocalSelector, _ := statusCmd.Flags().GetString("local-selector")
+	defer func() { _ = statusCmd.Flags().Set("local-selector", prevLocalSelector) }()
+	defer statusCmd.SetOut(os.Stdout)
+	defer statusCmd.SetErr(os.Stderr)
+
+	_ = statusCmd.Flags().Set("registry", "")
+	_ = statusCmd.Flags().Set("format", "json")
+	_ = statusCmd.Flags().Set("only", "all")
+	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("selector", "")
+	if err := statusCmd.Flags().Set("local-selector", "team=platform"); err != nil {
+		t.Fatalf("expected explicit --local-selector flag for machine-local labels: %v", err)
+	}
+	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
+	_ = statusCmd.Flags().Set("dry-run", "true")
+	_ = statusCmd.Flags().Set("no-headers", "false")
+
+	if err := statusCmd.RunE(statusCmd, nil); err != nil {
+		t.Fatalf("status with local label selector failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "repo-local-only") {
+		t.Fatalf("expected --local-selector to match machine-local registry labels, got: %q", got)
+	}
+	if strings.Contains(got, "repo-metadata-only") {
+		t.Fatalf("expected --local-selector to ignore shared repo metadata labels, got: %q", got)
 	}
 }
 
@@ -207,6 +383,7 @@ func TestStatusRunEInvalidVCSSelection(t *testing.T) {
 	_ = statusCmd.Flags().Set("only", "all")
 	_ = statusCmd.Flags().Set("field-selector", "")
 	_ = statusCmd.Flags().Set("selector", "")
+	_ = statusCmd.Flags().Set("local-selector", "")
 	_ = statusCmd.Flags().Set("vcs", "git,svn")
 	err := statusCmd.RunE(statusCmd, nil)
 	if err == nil || !strings.Contains(err.Error(), "unsupported vcs") {
@@ -425,6 +602,7 @@ func TestStatusUsesNearestConfigFromNestedCWD(t *testing.T) {
 	_ = statusCmd.Flags().Set("only", "missing")
 	_ = statusCmd.Flags().Set("field-selector", "")
 	_ = statusCmd.Flags().Set("selector", "")
+	_ = statusCmd.Flags().Set("local-selector", "")
 	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
 	_ = statusCmd.Flags().Set("dry-run", "true")
 	_ = statusCmd.Flags().Set("no-headers", "false")
@@ -478,6 +656,7 @@ func TestStatusRunEIncludesRepoMetadata(t *testing.T) {
 	_ = statusCmd.Flags().Set("only", "all")
 	_ = statusCmd.Flags().Set("field-selector", "")
 	_ = statusCmd.Flags().Set("selector", "")
+	_ = statusCmd.Flags().Set("local-selector", "")
 	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
 	_ = statusCmd.Flags().Set("dry-run", "true")
 	_ = statusCmd.Flags().Set("no-headers", "false")
@@ -490,6 +669,23 @@ func TestStatusRunEIncludesRepoMetadata(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected status output to contain %q, got: %q", want, got)
 		}
+	}
+	loaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config after status: %v", err)
+	}
+	entry := loaded.Registry.FindByRepoID("github.com/org/repo-with-meta")
+	if entry == nil {
+		t.Fatal("expected cached registry entry after status")
+	}
+	if entry.RepoMetadataFile != metadataPath {
+		t.Fatalf("expected persisted metadata file path %q, got %q", metadataPath, entry.RepoMetadataFile)
+	}
+	if entry.RepoMetadataFingerprint == "" {
+		t.Fatal("expected persisted metadata fingerprint after status")
+	}
+	if entry.RepoMetadata == nil || entry.RepoMetadata.Name != "Repo With Meta" {
+		t.Fatalf("expected persisted metadata payload after status, got %+v", entry.RepoMetadata)
 	}
 	after, err := os.ReadFile(metadataPath)
 	if err != nil {
@@ -706,6 +902,78 @@ func TestIndexRunEWritesWithYes(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "wrote repo metadata") {
 		t.Fatalf("expected success output, got %q", out.String())
+	}
+}
+
+func TestIndexRunEWriteRefreshesRepoMetadataSnapshotInConfig(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-index")
+	if err := os.MkdirAll(filepath.Join(repoPath, "docs"), 0o755); err != nil {
+		t.Fatalf("mkdir repo docs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+		t.Fatalf("write readme: %v", err)
+	}
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{
+		RepoID:                  "github.com/org/repo-index",
+		Path:                    repoPath,
+		Status:                  registry.StatusPresent,
+		LastSeen:                time.Now(),
+		RepoMetadataFile:        filepath.Join(repoPath, "stale.yaml"),
+		RepoMetadataFingerprint: "stale:fingerprint",
+		RepoMetadataError:       "stale metadata error",
+		RepoMetadata:            &model.RepoMetadata{Name: "Stale"},
+	}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+	yesCleanup := withAssumeYes(t, true)
+	defer yesCleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	indexCmd.SetOut(out)
+	indexCmd.SetErr(errOut)
+	defer indexCmd.SetOut(os.Stdout)
+	defer indexCmd.SetErr(os.Stderr)
+	indexCmd.SetIn(strings.NewReader(""))
+	defer indexCmd.SetIn(os.Stdin)
+	_ = indexCmd.Flags().Set("write", "true")
+	_ = indexCmd.Flags().Set("force", "false")
+
+	if err := indexCmd.RunE(indexCmd, []string{"github.com/org/repo-index"}); err != nil {
+		t.Fatalf("index write failed: %v", err)
+	}
+
+	loaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := loaded.Registry.FindByRepoID("github.com/org/repo-index")
+	if entry == nil {
+		t.Fatal("expected saved registry entry")
+	}
+	if entry.RepoMetadataFile != filepath.Join(repoPath, repometa.PreferredFilename) {
+		t.Fatalf("expected refreshed metadata file path, got %q", entry.RepoMetadataFile)
+	}
+	if entry.RepoMetadataFingerprint == "" || entry.RepoMetadataFingerprint == "stale:fingerprint" {
+		t.Fatalf("expected refreshed metadata fingerprint, got %q", entry.RepoMetadataFingerprint)
+	}
+	if entry.RepoMetadataError != "" {
+		t.Fatalf("expected refreshed metadata error cleared, got %q", entry.RepoMetadataError)
+	}
+	if entry.RepoMetadata == nil {
+		t.Fatal("expected refreshed metadata payload")
+	}
+	if entry.RepoMetadata.RepoID != "github.com/org/repo-index" {
+		t.Fatalf("expected refreshed repo metadata repo_id, got %+v", entry.RepoMetadata)
+	}
+	if entry.RepoMetadata.Entrypoints["readme"] != "README.md" {
+		t.Fatalf("expected refreshed repo metadata entrypoints, got %+v", entry.RepoMetadata)
 	}
 }
 

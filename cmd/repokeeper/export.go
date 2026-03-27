@@ -45,7 +45,7 @@ var exportCmd = &cobra.Command{
 		}
 
 		bundle := exportBundle{
-			Version:    1,
+			Version:    currentExportBundleVersion,
 			ExportedAt: time.Now().Format(time.RFC3339),
 			Root:       config.ConfigRoot(cfgPath),
 		}
@@ -116,6 +116,10 @@ func prepareRegistryForExport(reg *registry.Registry, root string) *registry.Reg
 			continue
 		}
 		entry.LastSeen = time.Time{}
+		entry.RepoMetadataFile = ""
+		entry.RepoMetadataError = ""
+		entry.RepoMetadataFingerprint = ""
+		entry.RepoMetadata = nil
 		entry.Path = exportEntryPath(entry.Path, root)
 		filtered = append(filtered, entry)
 	}

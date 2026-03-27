@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -64,6 +65,62 @@ func TestSelectRegistryEntryForDescribe(t *testing.T) {
 	}
 	if byRoot.RepoID != "github.com/org/repo-b" {
 		t.Fatalf("unexpected root match: %#v", byRoot)
+	}
+}
+
+func TestSelectRegistryEntryForDescribePathStillResolves(t *testing.T) {
+	entries := []registry.Entry{
+		{RepoID: "github.com/org/repo-a", Path: "/tmp/work/repo-a"},
+		{RepoID: "github.com/org/repo-b", Path: "/tmp/root/repo-b"},
+	}
+
+	byCWD, err := selectRegistryEntryForDescribe(entries, "repo-a", "/tmp/work", []string{"/tmp/root"})
+	if err != nil {
+		t.Fatalf("expected cwd-relative selector to match, got error: %v", err)
+	}
+	if byCWD.RepoID != "github.com/org/repo-a" {
+		t.Fatalf("unexpected cwd match: %#v", byCWD)
+	}
+
+	byRoot, err := selectRegistryEntryForDescribe(entries, "repo-b", "/tmp/work", []string{"/tmp/root"})
+	if err != nil {
+		t.Fatalf("expected root-relative selector to match, got error: %v", err)
+	}
+	if byRoot.RepoID != "github.com/org/repo-b" {
+		t.Fatalf("unexpected root match: %#v", byRoot)
+	}
+}
+
+func TestSelectRegistryEntryForDescribeAmbiguousRepoID(t *testing.T) {
+	entries := []registry.Entry{
+		{RepoID: "github.com/org/repo", Path: "/tmp/worktrees/primary"},
+		{RepoID: "github.com/org/repo", Path: "/tmp/worktrees/secondary"},
+	}
+
+	_, err := selectRegistryEntryForDescribe(entries, "github.com/org/repo", "/tmp/worktrees", nil)
+	if err == nil {
+		t.Fatal("expected plain repo_id selector to become ambiguous once multiple checkouts exist")
+	}
+	if !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("expected ambiguous selector error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "github.com/org/repo") {
+		t.Fatalf("expected selector to be named in the error, got: %v", err)
+	}
+}
+
+func TestSelectRegistryEntryForDescribeRepoIDAtCheckoutID(t *testing.T) {
+	entries := []registry.Entry{
+		{RepoID: "github.com/org/repo", Path: "/tmp/worktrees/primary"},
+		{RepoID: "github.com/org/repo", Path: "/tmp/worktrees/secondary"},
+	}
+
+	entry, err := selectRegistryEntryForDescribe(entries, "github.com/org/repo@secondary", "/tmp/worktrees", nil)
+	if err != nil {
+		t.Fatalf("future explicit selector github.com/org/repo@secondary should resolve a unique checkout, got error: %v", err)
+	}
+	if entry.Path != "/tmp/worktrees/secondary" {
+		t.Fatalf("expected repo_id@checkout_id selector to resolve secondary checkout, got %#v", entry)
 	}
 }
 
@@ -394,5 +451,68 @@ func TestRunDescribeRepoInspectErrorPopulatesOutput(t *testing.T) {
 	got := out.String()
 	if !strings.Contains(got, "\"error_class\":") || !strings.Contains(got, "\"error\":") {
 		t.Fatalf("expected error fields in output, got: %q", got)
+	}
+}
+
+func TestRunDescribeRepoPersistsRefreshedRepoMetadataSnapshot(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo")
+	if out, err := exec.Command("git", "init", repoPath).CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v %s", err, string(out))
+	}
+	metadataPath := filepath.Join(repoPath, ".repokeeper-repo.yaml")
+	metadata := "apiVersion: repokeeper/v1\nkind: RepoMetadata\nname: Describe Repo\n"
+	if err := os.WriteFile(metadataPath, []byte(metadata), 0o644); err != nil {
+		t.Fatalf("write metadata: %v", err)
+	}
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "github.com/org/repo", Path: repoPath, Status: registry.StatusPresent,
+	}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.Flags().String("registry", "", "")
+	cmd.Flags().String("format", "table", "")
+	_ = cmd.Flags().Set("format", "json")
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	if err := runDescribeRepo(cmd, []string{"github.com/org/repo"}); err != nil {
+		t.Fatalf("runDescribeRepo: %v", err)
+	}
+
+	loaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := loaded.Registry.FindEntry("github.com/org/repo", repoPath)
+	if entry == nil {
+		t.Fatalf("expected registry entry to exist after describe")
+	}
+	if entry.RepoMetadataFile != metadataPath {
+		t.Fatalf("expected metadata file %q, got %q", metadataPath, entry.RepoMetadataFile)
+	}
+	if entry.RepoMetadataFingerprint == "" {
+		t.Fatal("expected metadata fingerprint to be persisted")
+	}
+	if entry.RepoMetadata == nil || entry.RepoMetadata.Name != "Describe Repo" {
+		t.Fatalf("expected metadata payload persisted, got %+v", entry.RepoMetadata)
 	}
 }

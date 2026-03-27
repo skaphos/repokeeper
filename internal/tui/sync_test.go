@@ -3,6 +3,7 @@ package tui
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -174,6 +175,31 @@ func TestHandleSyncDone(t *testing.T) {
 	}
 	if next.syncProgress["a"].Outcome != engine.SyncOutcomeFetched {
 		t.Fatalf("expected fetched outcome in progress map")
+	}
+}
+
+func TestSyncProgressKeysByCheckoutIdentity(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{syncPlan: []engine.SyncResult{
+		{RepoID: "acme/backend", Path: "/work/primary"},
+		{RepoID: "acme/backend", Path: "/work/secondary"},
+	}}
+
+	next, _ := m.handleSyncProgress(syncProgressMsg{result: engine.SyncResult{RepoID: "acme/backend", Path: "/work/primary"}, started: true})
+	next, _ = next.(tuiModel).handleSyncProgress(syncProgressMsg{result: engine.SyncResult{RepoID: "acme/backend", Path: "/work/secondary", OK: true, Outcome: engine.SyncOutcomeFetched}, started: false})
+	nm := next.(tuiModel)
+
+	if len(nm.syncProgress) != 2 {
+		t.Fatalf("expected sync progress to track both checkouts separately, got %d entries", len(nm.syncProgress))
+	}
+
+	progress := renderSyncProgressView(nm)
+	if !strings.Contains(progress, "running") {
+		t.Fatalf("expected progress view to keep one checkout running, got %q", progress)
+	}
+	if !strings.Contains(progress, "fetched") {
+		t.Fatalf("expected progress view to show one checkout fetched, got %q", progress)
 	}
 }
 

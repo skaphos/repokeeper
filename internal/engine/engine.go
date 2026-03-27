@@ -140,22 +140,37 @@ func (e *Engine) Scan(ctx context.Context, opts ScanOptions) ([]model.RepoStatus
 		if repoID == "" {
 			repoID = "local:" + filepath.ToSlash(res.Path)
 		}
-		e.upsertRegistryEntry(registry.Entry{
-			RepoID:    repoID,
-			Path:      res.Path,
-			RemoteURL: res.RemoteURL,
-			LastSeen:  now,
-			Status:    registry.StatusPresent,
-		})
+		seedEntry := registry.Entry{}
+		if existing := e.registry.FindEntry(repoID, res.Path); existing != nil {
+			seedEntry = *existing
+		}
 
-		statuses = append(statuses, model.RepoStatus{
+		status := model.RepoStatus{
 			RepoID:        repoID,
 			Path:          res.Path,
 			Bare:          res.Bare,
 			Remotes:       res.Remotes,
 			PrimaryRemote: res.PrimaryRemote,
-		})
-		repometa.Apply(&statuses[len(statuses)-1])
+		}
+		registry.SeedRepoMetadataStatus(seedEntry, &status)
+		repometa.Apply(&status)
+
+		entry := registry.Entry{
+			RepoID:    repoID,
+			Path:      res.Path,
+			RemoteURL: res.RemoteURL,
+			LastSeen:  now,
+			Status:    registry.StatusPresent,
+		}
+		registry.StoreRepoMetadataStatus(&entry, status)
+		e.upsertRegistryEntry(entry)
+		checkoutID := ""
+		if entry := e.registry.FindEntry(repoID, res.Path); entry != nil {
+			checkoutID = entry.CheckoutID
+		}
+
+		status.CheckoutID = checkoutID
+		statuses = append(statuses, status)
 	}
 	for i := range e.registry.Entries {
 		entryPath := filepath.Clean(e.registry.Entries[i].Path)
@@ -241,7 +256,8 @@ func (e *Engine) Status(ctx context.Context, opts StatusOptions) (*model.StatusR
 	}
 
 	entries := e.loadStatusEntries()
-	results := e.collectStatusResults(ctx, entries, concurrency, timeoutSeconds, opts.Filter)
+	allResults, results := e.collectStatusResults(ctx, entries, concurrency, timeoutSeconds, opts.Filter)
+	e.writeRepoMetadataSnapshots(allResults)
 	return e.buildStatusReport(results), nil
 }
 
@@ -254,11 +270,12 @@ func (e *Engine) loadStatusEntries() []registry.Entry {
 // collectStatusResults runs all repo inspections concurrently using the semaphore+channel
 // pattern, drains results, and applies the filter. The concurrency model is preserved
 // exactly: semaphore controls parallelism, out channel buffers worker output.
-func (e *Engine) collectStatusResults(ctx context.Context, entries []registry.Entry, concurrency, timeoutSeconds int, filter FilterKind) []model.RepoStatus {
+func (e *Engine) collectStatusResults(ctx context.Context, entries []registry.Entry, concurrency, timeoutSeconds int, filter FilterKind) ([]model.RepoStatus, []model.RepoStatus) {
 	type result struct {
 		status model.RepoStatus
 	}
 
+	allResults := make([]model.RepoStatus, 0, len(entries))
 	results := make([]model.RepoStatus, 0, len(entries))
 	sem := make(chan struct{}, concurrency)
 	out := make(chan result, workerChannelBufferSize(len(entries), concurrency))
@@ -276,23 +293,27 @@ func (e *Engine) collectStatusResults(ctx context.Context, entries []registry.En
 
 	for i := 0; i < spawned; i++ {
 		res := <-out
+		allResults = append(allResults, res.status)
 		if filterStatus(filter, res.status, e.registry) {
 			results = append(results, res.status)
 		}
 	}
-	return results
+	return allResults, results
 }
 
 func (e *Engine) statusWorker(ctx context.Context, entry registry.Entry, timeoutSeconds int) model.RepoStatus {
 	if entry.Status == registry.StatusMissing {
-		return model.RepoStatus{
+		missing := model.RepoStatus{
 			RepoID:     entry.RepoID,
+			CheckoutID: entry.CheckoutID,
 			Path:       entry.Path,
 			Type:       entry.Type,
 			Tracking:   model.Tracking{Status: model.TrackingNone},
 			Error:      "path missing",
 			ErrorClass: "missing",
 		}
+		registry.SeedRepoMetadataStatus(entry, &missing)
+		return missing
 	}
 	repoCtx := ctx
 	if timeoutSeconds > 0 {
@@ -306,22 +327,47 @@ func (e *Engine) statusWorker(ctx context.Context, entry registry.Entry, timeout
 		// instead of aborting the full status run.
 		partial := model.RepoStatus{
 			RepoID:     entry.RepoID,
+			CheckoutID: entry.CheckoutID,
 			Path:       entry.Path,
 			Type:       entry.Type,
 			Tracking:   model.Tracking{Status: model.TrackingNone},
 			Error:      err.Error(),
 			ErrorClass: e.classifier.ClassifyError(err),
 		}
+		registry.SeedRepoMetadataStatus(entry, &partial)
 		repometa.Apply(&partial)
 		return partial
 	}
 	if status.RepoID == "" {
 		status.RepoID = entry.RepoID
 	}
+	if status.CheckoutID == "" {
+		status.CheckoutID = entry.CheckoutID
+	}
 	if entry.Type != "" {
 		status.Type = entry.Type
 	}
 	return *status
+}
+
+func (e *Engine) writeRepoMetadataSnapshots(statuses []model.RepoStatus) {
+	if len(statuses) == 0 {
+		return
+	}
+	e.registryMu.Lock()
+	defer e.registryMu.Unlock()
+	if e.registry == nil {
+		return
+	}
+	for _, status := range statuses {
+		idx := e.registry.FindEntryIndex(status.RepoID, status.Path)
+		if idx < 0 {
+			continue
+		}
+		entry := e.registry.Entries[idx]
+		registry.StoreRepoMetadataStatus(&entry, status)
+		e.registry.Entries[idx] = entry
+	}
 }
 
 func (e *Engine) buildStatusReport(results []model.RepoStatus) *model.StatusReport {
@@ -1211,6 +1257,20 @@ func outcomeForRebase(stashed bool) OutcomeKind {
 
 // InspectRepo gathers the full status for a single repository path.
 func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatus, error) {
+	status, err := e.inspectRepoCore(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if e.registry != nil {
+		if entry := e.registry.FindEntry(status.RepoID, status.Path); entry != nil {
+			registry.SeedRepoMetadataStatus(*entry, status)
+		}
+	}
+	repometa.Apply(status)
+	return status, nil
+}
+
+func (e *Engine) inspectRepoCore(ctx context.Context, path string) (*model.RepoStatus, error) {
 	bare, _ := e.adapter.IsBare(ctx, path)
 
 	remotes, err := e.adapter.Remotes(ctx, path)
@@ -1268,7 +1328,6 @@ func (e *Engine) InspectRepo(ctx context.Context, path string) (*model.RepoStatu
 		Tracking:      tracking,
 		Submodules:    model.Submodules{HasSubmodules: hasSubmodules},
 	}
-	repometa.Apply(status)
 	return status, nil
 }
 
@@ -1307,7 +1366,7 @@ func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Regist
 		if reg == nil {
 			return false
 		}
-		entry := reg.FindByRepoID(status.RepoID)
+		entry := findRegistryEntryForStatus(reg, status)
 		return entry != nil && entry.Status == registry.StatusMissing
 	case FilterDirty:
 		return status.Worktree != nil && status.Worktree.Dirty

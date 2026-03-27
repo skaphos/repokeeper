@@ -46,7 +46,7 @@ func renderDetailView(m tuiModel) string {
 	}
 
 	if len(r.Labels) > 0 {
-		b.WriteString(headerStyle.Render("Labels"))
+		b.WriteString(headerStyle.Render("Local Labels"))
 		b.WriteByte('\n')
 		for _, k := range sortedKeys(r.Labels) {
 			v := r.Labels[k]
@@ -79,7 +79,7 @@ func renderDetailView(m tuiModel) string {
 				fmt.Fprintf(&b, "  Repo ID: %s\n", r.RepoMetadata.RepoID)
 			}
 			if len(r.RepoMetadata.Labels) > 0 {
-				b.WriteString("  Labels:\n")
+				b.WriteString("  Shared Labels:\n")
 				for _, k := range sortedKeys(r.RepoMetadata.Labels) {
 					v := r.RepoMetadata.Labels[k]
 					fmt.Fprintf(&b, "    %s=%s\n", k, v)

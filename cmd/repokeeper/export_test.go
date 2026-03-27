@@ -82,6 +82,33 @@ func TestPrepareRegistryForExportDropsNonPresentEntries(t *testing.T) {
 	}
 }
 
+func TestPrepareRegistryForExportOmitsMetadataSnapshotCache(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{{
+			RepoID:                  "r-present",
+			CheckoutID:              "checkout-a",
+			Path:                    "/repos/present",
+			Status:                  registry.StatusPresent,
+			RepoMetadataFile:        "/repos/present/.repokeeper-repo.yaml",
+			RepoMetadataError:       "stale error",
+			RepoMetadataFingerprint: "file:/repos/present/.repokeeper-repo.yaml:1:1",
+			RepoMetadata:            &model.RepoMetadata{Name: "Repo"},
+		}},
+	}
+
+	got := prepareRegistryForExport(reg, "/repos")
+	if got == nil || len(got.Entries) != 1 {
+		t.Fatalf("expected one exported entry, got %+v", got)
+	}
+	entry := got.Entries[0]
+	if entry.CheckoutID != "checkout-a" {
+		t.Fatalf("expected checkout_id preserved, got %q", entry.CheckoutID)
+	}
+	if entry.RepoMetadataFile != "" || entry.RepoMetadataError != "" || entry.RepoMetadataFingerprint != "" || entry.RepoMetadata != nil {
+		t.Fatalf("expected metadata snapshot cache omitted from export, got %+v", entry)
+	}
+}
+
 func TestInferRegistrySharedRootIgnoresNonPresentEntries(t *testing.T) {
 	presentRoot := filepath.Join(string(filepath.Separator), "workspace", "repos", "team", "repo-a")
 	missingPath := filepath.Join(string(filepath.Separator), "elsewhere", "legacy", "repo-gone")
@@ -254,7 +281,7 @@ func TestExportCommandRunEToStdoutWithoutRegistry(t *testing.T) {
 		t.Fatalf("export run failed: %v", err)
 	}
 	got := out.String()
-	if !strings.Contains(got, "version: 1") || !strings.Contains(got, "config:") {
+	if !strings.Contains(got, "version: 2") || !strings.Contains(got, "config:") {
 		t.Fatalf("expected exported yaml output, got: %q", got)
 	}
 }

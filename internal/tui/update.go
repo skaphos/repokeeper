@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/registry"
 )
 
 func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -397,7 +398,7 @@ func (m tuiModel) handleSyncProgress(msg syncProgressMsg) (tea.Model, tea.Cmd) {
 	}
 	r := msg.result
 	r.Planned = msg.started
-	m.syncProgress[r.RepoID] = r
+	m.syncProgress[syncResultIdentityKey(r)] = r
 	return m, nil
 }
 
@@ -409,22 +410,19 @@ func (m tuiModel) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 		m.syncProgress = make(map[string]engine.SyncResult)
 	}
 	for _, r := range msg.results {
-		m.syncProgress[r.RepoID] = r
+		m.syncProgress[syncResultIdentityKey(r)] = r
 	}
 	return m, nil
 }
 
 func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
-	updated := false
-	for i, r := range m.repos {
-		if r.RepoID == msg.status.RepoID || r.Path == msg.status.Path {
-			m.repos[i] = msg.status
-			updated = true
-			break
-		}
-	}
-	if !updated {
+	if index := findRepoStatusIndex(m.repos, msg.status); index >= 0 {
+		m.repos[index] = msg.status
+	} else {
 		m.repos = append(m.repos, msg.status)
+	}
+	if m.engine != nil {
+		writeRepoMetadataSnapshot(m.engine.Registry(), msg.status)
 	}
 	if m.filterText != "" {
 		m.filteredRepos = filterRows(m.repos, m.filterText)
@@ -434,6 +432,19 @@ func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
 		m.loading = false
 	}
 	return m, nil
+}
+
+func writeRepoMetadataSnapshot(reg *registry.Registry, status model.RepoStatus) {
+	if reg == nil {
+		return
+	}
+	idx := reg.FindEntryIndex(status.RepoID, status.Path)
+	if idx < 0 {
+		return
+	}
+	entry := reg.Entries[idx]
+	registry.StoreRepoMetadataStatus(&entry, status)
+	reg.Entries[idx] = entry
 }
 
 func (m tuiModel) startReset() (tea.Model, tea.Cmd) {

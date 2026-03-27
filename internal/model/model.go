@@ -114,6 +114,8 @@ type RepoMetadata struct {
 type RepoStatus struct {
 	// RepoID is the normalized identity for the repository (usually derived from remote URL).
 	RepoID string `json:"repo_id" yaml:"repo_id"`
+	// CheckoutID is an optional stable identifier for a specific local checkout of the repository.
+	CheckoutID string `json:"checkout_id,omitempty" yaml:"checkout_id,omitempty"`
 	// Path is the absolute local filesystem path to the repository.
 	Path string `json:"path" yaml:"path"`
 	// Type is the checkout type ("checkout" or "mirror").
@@ -126,6 +128,8 @@ type RepoStatus struct {
 	RepoMetadataFile string `json:"repo_metadata_file,omitempty" yaml:"repo_metadata_file,omitempty"`
 	// RepoMetadataError captures non-fatal repo-local metadata discovery or validation errors.
 	RepoMetadataError string `json:"repo_metadata_error,omitempty" yaml:"repo_metadata_error,omitempty"`
+	// RepoMetadataFingerprint is the last observed on-disk fingerprint for repo-local metadata state.
+	RepoMetadataFingerprint string `json:"repo_metadata_fingerprint,omitempty" yaml:"repo_metadata_fingerprint,omitempty"`
 	// RepoMetadata carries source-controlled repo-local metadata when available.
 	RepoMetadata *RepoMetadata `json:"repo_metadata,omitempty" yaml:"repo_metadata,omitempty"`
 	// Bare indicates whether the repository has no working tree.

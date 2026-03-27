@@ -15,6 +15,10 @@ type labelRequirement struct {
 }
 
 func parseLabelSelector(raw string) ([]labelRequirement, error) {
+	return parseLabelSelectorForFlag(raw, "--selector")
+}
+
+func parseLabelSelectorForFlag(raw, flagName string) ([]labelRequirement, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, nil
@@ -31,7 +35,7 @@ func parseLabelSelector(raw string) ([]labelRequirement, error) {
 		}
 		tokens := strings.SplitN(expr, "=", 2)
 		key := strings.TrimSpace(tokens[0])
-		if err := validateMetadataKey(key, "--selector"); err != nil {
+		if err := validateMetadataKey(key, flagName); err != nil {
 			return nil, err
 		}
 		req := labelRequirement{key: key}
@@ -42,7 +46,7 @@ func parseLabelSelector(raw string) ([]labelRequirement, error) {
 		reqs = append(reqs, req)
 	}
 	if len(reqs) == 0 {
-		return nil, fmt.Errorf("empty --selector expression")
+		return nil, fmt.Errorf("empty %s expression", flagName)
 	}
 	return reqs, nil
 }

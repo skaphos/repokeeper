@@ -145,14 +145,23 @@ func saveRepoMetadataEditCmd(m tuiModel) tea.Cmd {
 	relatedInput := m.metadataRelated
 	force := m.metadataExists
 	reg := m.engine.Registry()
+	cfg := m.engine.Config()
+	cfgPath := m.cfgPath
 	return func() tea.Msg {
 		if reg == nil {
 			return repoMetadataEditDoneMsg{repoID: repoID, err: fmt.Errorf("registry not available")}
 		}
-		entry, err := registryEntryByIdentity(reg, repoID, repoPath)
-		if err != nil {
-			return repoMetadataEditDoneMsg{repoID: repoID, err: err}
+		if cfg == nil {
+			return repoMetadataEditDoneMsg{repoID: repoID, err: fmt.Errorf("config not available")}
 		}
+		if strings.TrimSpace(cfgPath) == "" {
+			return repoMetadataEditDoneMsg{repoID: repoID, err: fmt.Errorf("config path not available")}
+		}
+		index := registryEntryIndexByIdentity(reg, repoID, repoPath)
+		if index < 0 {
+			return repoMetadataEditDoneMsg{repoID: repoID, err: fmt.Errorf("registry entry not found for %s", repoID)}
+		}
+		entry := reg.Entries[index]
 		labels, err := parseStringMapCSV(labelsInput, "label")
 		if err != nil {
 			return repoMetadataEditDoneMsg{repoID: repoID, err: err}
@@ -181,6 +190,15 @@ func saveRepoMetadataEditCmd(m tuiModel) tea.Cmd {
 			return repoMetadataEditDoneMsg{repoID: repoID, err: fmt.Errorf("repo metadata repo_id %q must match tracked repo_id %q", proposal.RepoID, entry.RepoID)}
 		}
 		if _, err := repometa.Save(entry.Path, proposal, force); err != nil {
+			return repoMetadataEditDoneMsg{repoID: repoID, err: err}
+		}
+		refreshed := model.RepoStatus{RepoID: entry.RepoID, Path: entry.Path}
+		registry.SeedRepoMetadataStatus(entry, &refreshed)
+		repometa.Apply(&refreshed)
+		registry.StoreRepoMetadataStatus(&entry, refreshed)
+		reg.Entries[index] = entry
+		cfg.Registry = reg
+		if err := config.Save(cfg, cfgPath); err != nil {
 			return repoMetadataEditDoneMsg{repoID: repoID, err: err}
 		}
 		return repoMetadataEditDoneMsg{repoID: repoID, saved: true}
@@ -296,14 +314,6 @@ func currentRegistryEntry(m tuiModel) (registry.Entry, int, error) {
 		return reg.Entries[index], index, nil
 	}
 	return registry.Entry{}, -1, fmt.Errorf("registry entry not found for %s", repo.RepoID)
-}
-
-func registryEntryByIdentity(reg *registry.Registry, repoID, path string) (registry.Entry, error) {
-	index := registryEntryIndexByIdentity(reg, repoID, path)
-	if index < 0 {
-		return registry.Entry{}, fmt.Errorf("registry entry not found for %s", repoID)
-	}
-	return reg.Entries[index], nil
 }
 
 func registryEntryIndexByIdentity(reg *registry.Registry, repoID, path string) int {

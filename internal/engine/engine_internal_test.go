@@ -4,6 +4,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -50,8 +51,66 @@ func TestScanUpdatesRegistry(t *testing.T) {
 	if len(statuses) != 1 {
 		t.Fatalf("expected 1 status, got %d", len(statuses))
 	}
+	if statuses[0].CheckoutID != "repo" {
+		t.Fatalf("expected scan status checkout id %q, got %q", "repo", statuses[0].CheckoutID)
+	}
 	if len(reg.Entries) != 1 {
 		t.Fatalf("unexpected registry state: %+v", reg)
+	}
+	if reg.Entries[0].CheckoutID != "repo" {
+		t.Fatalf("expected registry checkout id %q, got %q", "repo", reg.Entries[0].CheckoutID)
+	}
+}
+
+func TestStatusWorkerPropagatesCheckoutID(t *testing.T) {
+	runner := &testRunner{responses: map[string]testResponse{
+		"/repo-ok:rev-parse --is-bare-repository":    {out: "false"},
+		"/repo-ok:remote":                            {out: "origin"},
+		"/repo-ok:remote get-url origin":             {out: "git@github.com:org/repo-ok.git"},
+		"/repo-ok:symbolic-ref --quiet --short HEAD": {out: "main"},
+		"/repo-ok:status --porcelain=v1":             {out: ""},
+		"/repo-ok:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+			out: "main|origin/main||=",
+		},
+		"/repo-ok:rev-list --left-right --count main...origin/main": {out: "0\t0"},
+		"/repo-ok:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
+
+		"/repo-error:rev-parse --is-bare-repository": {out: "false"},
+		"/repo-error:remote":                         {err: errors.New("permission denied")},
+	}}
+	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil, nil)
+
+	missingStatus := eng.statusWorker(context.Background(), registry.Entry{
+		RepoID:     "repo-missing",
+		CheckoutID: "checkout-missing",
+		Path:       "/repo-missing",
+		Status:     registry.StatusMissing,
+	}, 0)
+	if missingStatus.CheckoutID != "checkout-missing" {
+		t.Fatalf("expected missing status checkout id propagated, got %q", missingStatus.CheckoutID)
+	}
+
+	errorStatus := eng.statusWorker(context.Background(), registry.Entry{
+		RepoID:     "repo-error",
+		CheckoutID: "checkout-error",
+		Path:       "/repo-error",
+		Status:     registry.StatusPresent,
+	}, 0)
+	if errorStatus.CheckoutID != "checkout-error" {
+		t.Fatalf("expected error status checkout id propagated, got %q", errorStatus.CheckoutID)
+	}
+	if errorStatus.ErrorClass != "auth" {
+		t.Fatalf("expected auth error class for inspect failure, got %q", errorStatus.ErrorClass)
+	}
+
+	okStatus := eng.statusWorker(context.Background(), registry.Entry{
+		RepoID:     "repo-ok",
+		CheckoutID: "checkout-ok",
+		Path:       "/repo-ok",
+		Status:     registry.StatusPresent,
+	}, 0)
+	if okStatus.CheckoutID != "checkout-ok" {
+		t.Fatalf("expected successful status checkout id propagated, got %q", okStatus.CheckoutID)
 	}
 }
 
@@ -75,6 +134,74 @@ func TestScanSkipsIgnoredPaths(t *testing.T) {
 	}
 	if len(reg.Entries) != 0 {
 		t.Fatalf("expected ignored repo omitted from registry, got %+v", reg.Entries)
+	}
+}
+
+func TestScanPersistsRepoMetadataSnapshotInRegistry(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	if out, err := exec.Command("git", "init", repo).CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v %s", err, string(out))
+	}
+	metadataPath := filepath.Join(repo, ".repokeeper-repo.yaml")
+	metadata := "apiVersion: repokeeper/v1\nkind: RepoMetadata\nname: Scan Repo\nlabels:\n  role: tooling\n"
+	if err := os.WriteFile(metadataPath, []byte(metadata), 0o644); err != nil {
+		t.Fatalf("write repo metadata: %v", err)
+	}
+
+	cfg := &config.Config{Exclude: []string{}}
+	reg := &registry.Registry{}
+	eng := New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil, nil)
+	statuses, err := eng.Scan(context.Background(), ScanOptions{Roots: []string{root}})
+	if err != nil {
+		t.Fatalf("scan failed: %v", err)
+	}
+	if len(statuses) != 1 {
+		t.Fatalf("expected 1 status, got %d", len(statuses))
+	}
+	if statuses[0].RepoMetadata == nil || statuses[0].RepoMetadata.Name != "Scan Repo" {
+		t.Fatalf("expected repo metadata in scan status, got %+v", statuses[0].RepoMetadata)
+	}
+	if len(reg.Entries) != 1 {
+		t.Fatalf("expected 1 registry entry, got %d", len(reg.Entries))
+	}
+	entry := reg.Entries[0]
+	if entry.RepoMetadataFile != metadataPath {
+		t.Fatalf("expected cached metadata file %q, got %q", metadataPath, entry.RepoMetadataFile)
+	}
+	if entry.RepoMetadataFingerprint == "" {
+		t.Fatal("expected cached metadata fingerprint")
+	}
+	if entry.RepoMetadata == nil || entry.RepoMetadata.Name != "Scan Repo" {
+		t.Fatalf("expected cached metadata payload, got %+v", entry.RepoMetadata)
+	}
+}
+
+func TestStatusWritesBackRefreshedRepoMetadataSnapshotSerially(t *testing.T) {
+	runner := &testRunner{responses: map[string]testResponse{
+		"/repo-error:rev-parse --is-bare-repository": {out: "false"},
+		"/repo-error:remote":                         {err: errors.New("permission denied")},
+	}}
+	reg := &registry.Registry{Entries: []registry.Entry{{
+		RepoID:                  "repo-error",
+		Path:                    "/repo-error",
+		CheckoutID:              "checkout-error",
+		Status:                  registry.StatusPresent,
+		RepoMetadataFile:        "/repo-error/.repokeeper-repo.yaml",
+		RepoMetadataFingerprint: "file:/repo-error/.repokeeper-repo.yaml:1:1",
+		RepoMetadata:            &model.RepoMetadata{Name: "Cached"},
+	}}}
+	eng := New(&config.Config{}, reg, vcs.NewGitAdapter(runner), nil, nil, nil)
+
+	report, err := eng.Status(context.Background(), StatusOptions{Filter: FilterAll})
+	if err != nil {
+		t.Fatalf("status failed: %v", err)
+	}
+	if len(report.Repos) != 1 {
+		t.Fatalf("expected one status row, got %d", len(report.Repos))
+	}
+	if reg.Entries[0].RepoMetadataFile != "" || reg.Entries[0].RepoMetadataFingerprint != "" || reg.Entries[0].RepoMetadata != nil {
+		t.Fatalf("expected refreshed write-back to clear stale metadata snapshot, got %+v", reg.Entries[0])
 	}
 }
 

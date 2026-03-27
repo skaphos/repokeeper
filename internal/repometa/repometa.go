@@ -89,24 +89,135 @@ func Apply(status *model.RepoStatus) {
 	if status == nil || strings.TrimSpace(status.Path) == "" {
 		return
 	}
+	state := discoverMetadataState(status.Path)
+	if state.err != nil {
+		if errors.Is(state.err, ErrNotFound) {
+			status.RepoMetadataFile = ""
+			status.RepoMetadata = nil
+			status.RepoMetadataError = ""
+			status.RepoMetadataFingerprint = ""
+			return
+		}
+		status.RepoMetadataFile = ""
+		status.RepoMetadata = nil
+		status.RepoMetadataError = state.err.Error()
+		status.RepoMetadataFingerprint = state.fingerprint
+		return
+	}
+
+	fingerprintMatches := status.RepoMetadataFingerprint != "" && status.RepoMetadataFingerprint == state.fingerprint
+	if fingerprintMatches && status.RepoMetadataFile == state.path {
+		if status.RepoMetadata != nil {
+			status.RepoMetadataError = ""
+			if strings.TrimSpace(status.RepoMetadata.RepoID) != "" && strings.TrimSpace(status.RepoID) != "" && status.RepoMetadata.RepoID != status.RepoID {
+				status.RepoMetadataError = fmt.Sprintf("repo metadata repo_id %q does not match discovered repo_id %q", status.RepoMetadata.RepoID, status.RepoID)
+			}
+			return
+		}
+		if strings.TrimSpace(status.RepoMetadataError) != "" {
+			return
+		}
+	}
+
 	path, metadata, err := Load(status.Path)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			status.RepoMetadataFile = ""
+			status.RepoMetadata = nil
+			status.RepoMetadataError = ""
+			status.RepoMetadataFingerprint = ""
 			return
 		}
-		if path != "" {
-			status.RepoMetadataFile = path
+		if path == "" {
+			path = state.path
 		}
+		status.RepoMetadataFile = path
 		status.RepoMetadataError = err.Error()
 		status.RepoMetadata = nil
+		status.RepoMetadataFingerprint = state.fingerprint
 		return
 	}
 	status.RepoMetadataFile = path
+	status.RepoMetadataFingerprint = state.fingerprint
 	status.RepoMetadataError = ""
 	status.RepoMetadata = metadata
 	if metadata != nil && strings.TrimSpace(metadata.RepoID) != "" && strings.TrimSpace(status.RepoID) != "" && metadata.RepoID != status.RepoID {
 		status.RepoMetadataError = fmt.Sprintf("repo metadata repo_id %q does not match discovered repo_id %q", metadata.RepoID, status.RepoID)
 	}
+}
+
+type metadataState struct {
+	path        string
+	fingerprint string
+	err         error
+}
+
+func discoverMetadataState(repoRoot string) metadataState {
+	root := strings.TrimSpace(repoRoot)
+	if root == "" {
+		return metadataState{err: ErrNotFound}
+	}
+
+	preferred := filepath.Join(root, PreferredFilename)
+	legacy := filepath.Join(root, LegacyFilename)
+	preferredExists, err := fileExists(preferred)
+	if err != nil {
+		return metadataState{err: err}
+	}
+	legacyExists, err := fileExists(legacy)
+	if err != nil {
+		return metadataState{err: err}
+	}
+
+	if preferredExists && legacyExists {
+		fingerprint, statErr := metadataConflictFingerprint(preferred, legacy)
+		if statErr != nil {
+			return metadataState{err: statErr}
+		}
+		return metadataState{
+			fingerprint: fingerprint,
+			err:         fmt.Errorf("multiple repo metadata files found: %q and %q", preferred, legacy),
+		}
+	}
+
+	selectedPath := ""
+	if preferredExists {
+		selectedPath = preferred
+	} else if legacyExists {
+		selectedPath = legacy
+	} else {
+		return metadataState{err: ErrNotFound}
+	}
+
+	fingerprint, err := metadataFileFingerprint(selectedPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return metadataState{err: ErrNotFound}
+		}
+		return metadataState{err: err}
+	}
+
+	return metadataState{path: selectedPath, fingerprint: fingerprint}
+}
+
+func metadataFileFingerprint(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("file:%s:%d:%d", path, info.Size(), info.ModTime().UnixNano()), nil
+}
+
+func metadataConflictFingerprint(preferredPath string, legacyPath string) (string, error) {
+	preferredFingerprint, err := metadataFileFingerprint(preferredPath)
+	if err != nil {
+		return "", err
+	}
+	legacyFingerprint, err := metadataFileFingerprint(legacyPath)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("conflict:%s|%s", preferredFingerprint, legacyFingerprint), nil
 }
 
 func discoverPath(repoRoot string) (string, error) {

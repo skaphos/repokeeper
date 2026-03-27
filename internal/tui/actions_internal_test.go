@@ -136,10 +136,17 @@ func TestHandleRepoMetadataEditSaveWritesRepoMetadata(t *testing.T) {
 		t.Fatalf("write readme: %v", err)
 	}
 	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: repoPath, Status: registry.StatusPresent}}}
-	eng := &mockEngine{reg: reg, cfg: &config.Config{Registry: reg}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	eng := &mockEngine{reg: reg, cfg: &cfg}
 	m := tuiModel{
 		mode:                     viewEditRepoMetadata,
 		metadataRepoID:           "acme/a",
+		metadataRepoPath:         repoPath,
 		metadataField:            metadataFieldRelated,
 		metadataName:             "Repo A",
 		metadataRepoIDAssertion:  "acme/a",
@@ -150,6 +157,7 @@ func TestHandleRepoMetadataEditSaveWritesRepoMetadata(t *testing.T) {
 		metadataProvides:         "cli",
 		metadataRelated:          "acme/b:depends-on",
 		engine:                   eng,
+		cfgPath:                  cfgPath,
 	}
 
 	next, cmd := m.handleRepoMetadataEditKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -171,6 +179,26 @@ func TestHandleRepoMetadataEditSaveWritesRepoMetadata(t *testing.T) {
 	}
 	if metadata.Name != "Repo A" || metadata.Labels["team"] != "platform" || metadata.RelatedRepos[0].RepoID != "acme/b" {
 		t.Fatalf("unexpected repo metadata: %+v", metadata)
+	}
+	loaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := loaded.Registry.FindByRepoID("acme/a")
+	if entry == nil {
+		t.Fatal("expected saved registry entry")
+	}
+	if entry.RepoMetadataFile != filepath.Join(repoPath, repometa.PreferredFilename) {
+		t.Fatalf("expected refreshed metadata file path, got %q", entry.RepoMetadataFile)
+	}
+	if entry.RepoMetadataFingerprint == "" {
+		t.Fatal("expected refreshed metadata fingerprint")
+	}
+	if entry.RepoMetadataError != "" {
+		t.Fatalf("expected refreshed metadata error cleared, got %q", entry.RepoMetadataError)
+	}
+	if entry.RepoMetadata == nil || entry.RepoMetadata.Name != "Repo A" {
+		t.Fatalf("expected refreshed metadata payload, got %+v", entry.RepoMetadata)
 	}
 }
 
@@ -238,7 +266,13 @@ func TestHandleRepoMetadataEditSaveUsesPathLookupForLocalOnlyRepoID(t *testing.T
 	reg := &registry.Registry{Entries: []registry.Entry{{
 		RepoID: "github.com/org/repo-a", Path: repoPath, Status: registry.StatusPresent,
 	}}}
-	eng := &mockEngine{reg: reg, cfg: &config.Config{Registry: reg}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	eng := &mockEngine{reg: reg, cfg: &cfg}
 	m := tuiModel{
 		mode:                     viewEditRepoMetadata,
 		metadataRepoID:           "local:/tmp/repokeeper/repo-a",
@@ -253,6 +287,7 @@ func TestHandleRepoMetadataEditSaveUsesPathLookupForLocalOnlyRepoID(t *testing.T
 		metadataProvides:         "",
 		metadataRelated:          "",
 		engine:                   eng,
+		cfgPath:                  cfgPath,
 	}
 
 	next, cmd := m.handleRepoMetadataEditKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -274,6 +309,14 @@ func TestHandleRepoMetadataEditSaveUsesPathLookupForLocalOnlyRepoID(t *testing.T
 	}
 	if metadata.RepoID != "github.com/org/repo-a" {
 		t.Fatalf("expected metadata save via path lookup, got %+v", metadata)
+	}
+	loaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := loaded.Registry.FindByRepoID("github.com/org/repo-a")
+	if entry == nil || entry.RepoMetadata == nil || entry.RepoMetadata.RepoID != "github.com/org/repo-a" {
+		t.Fatalf("expected refreshed snapshot persisted via path lookup, got %+v", entry)
 	}
 }
 
@@ -1054,6 +1097,32 @@ func TestRenderDetailViewDeterministicMapOrder(t *testing.T) {
 	assertOrdered("  docs=README.md", "  owner=devx")
 	assertOrdered("    domain=platform", "    role=service")
 	assertOrdered("    readme=README.md", "    service=cmd/backend")
+}
+
+func TestTUIUsesSharedAndLocalLabelsDistinctly(t *testing.T) {
+	t.Parallel()
+
+	detail := renderDetailView(tuiModel{width: 100, repos: []model.RepoStatus{{
+		RepoID: "acme/backend",
+		Path:   "/work/backend",
+		Labels: map[string]string{"owner": "devx"},
+		RepoMetadata: &model.RepoMetadata{
+			Labels: map[string]string{"role": "service"},
+		},
+	}}, cursor: 0})
+
+	if !strings.Contains(detail, "Local Labels") {
+		t.Fatalf("expected detail view to name machine-local labels explicitly, got %q", detail)
+	}
+	if !strings.Contains(detail, "Shared Labels") {
+		t.Fatalf("expected detail view to name shared repo labels explicitly, got %q", detail)
+	}
+	if !strings.Contains(detail, "  owner=devx") {
+		t.Fatalf("expected local label in detail view, got %q", detail)
+	}
+	if !strings.Contains(detail, "    role=service") {
+		t.Fatalf("expected shared label in repo metadata section, got %q", detail)
+	}
 }
 
 func TestViewDispatchAndOtherHelpers(t *testing.T) {

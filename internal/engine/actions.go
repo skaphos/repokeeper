@@ -22,18 +22,14 @@ func (e *Engine) ResetRepo(ctx context.Context, repoID, cfgPath string) error {
 	if reg == nil {
 		return fmt.Errorf("registry not available")
 	}
-	var entry registry.Entry
-	found := false
-	for _, en := range reg.Entries {
-		if en.RepoID == repoID {
-			entry = en
-			found = true
-			break
-		}
-	}
-	if !found {
+	entries := reg.FindEntriesByRepoID(repoID)
+	if len(entries) == 0 {
 		return fmt.Errorf("repo %q not found in registry", repoID)
 	}
+	if len(entries) > 1 {
+		return fmt.Errorf("repo %q is ambiguous: found %d local checkouts; re-run with an exact checkout selector", repoID, len(entries))
+	}
+	entry := entries[0]
 	if entry.Status == registry.StatusMissing {
 		return fmt.Errorf("repo %q path is missing on disk", repoID)
 	}
@@ -56,17 +52,21 @@ func (e *Engine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteF
 	if reg == nil {
 		return fmt.Errorf("registry not available")
 	}
-	var entryPath string
+	entries := reg.FindEntriesByRepoID(repoID)
+	if len(entries) == 0 {
+		return fmt.Errorf("repo %q not found in registry", repoID)
+	}
+	if len(entries) > 1 {
+		return fmt.Errorf("repo %q is ambiguous: found %d local checkouts; re-run with an exact checkout selector", repoID, len(entries))
+	}
+	entryPath := entries[0].Path
+
 	newEntries := make([]registry.Entry, 0, len(reg.Entries))
 	for _, en := range reg.Entries {
-		if en.RepoID == repoID {
-			entryPath = en.Path
+		if en.RepoID == repoID && en.Path == entryPath {
 			continue
 		}
 		newEntries = append(newEntries, en)
-	}
-	if entryPath == "" {
-		return fmt.Errorf("repo %q not found in registry", repoID)
 	}
 
 	e.registryMu.Lock()

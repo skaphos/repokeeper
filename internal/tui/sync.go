@@ -81,6 +81,7 @@ func renderSyncPlanView(m tuiModel) string {
 
 func renderSyncProgressView(m tuiModel) string {
 	var b strings.Builder
+	repoCounts := duplicateSyncRepoCounts(m.syncPlan)
 
 	done := 0
 	total := len(m.syncPlan)
@@ -100,7 +101,7 @@ func renderSyncProgressView(m tuiModel) string {
 	b.WriteByte('\n')
 
 	for _, item := range m.syncPlan {
-		prog, ok := m.syncProgress[item.RepoID]
+		prog, ok := m.syncProgress[syncResultIdentityKey(item)]
 		var statusText string
 		if !ok {
 			statusText = loadingStyle.Render("waiting…")
@@ -111,7 +112,7 @@ func renderSyncProgressView(m tuiModel) string {
 		} else {
 			statusText = errorTextStyle.Render("✗ " + prog.Error)
 		}
-		line := fmt.Sprintf("  %-30s  %s", truncPad(item.RepoID, 30), statusText)
+		line := fmt.Sprintf("  %-30s  %s", truncPad(syncResultDisplayName(item, repoCounts), 30), statusText)
 		b.WriteString(line)
 		b.WriteByte('\n')
 	}

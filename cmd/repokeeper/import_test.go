@@ -13,6 +13,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
@@ -755,6 +756,114 @@ func TestMergeImportedRegistryPolicyTable(t *testing.T) {
 	mergeImportedRegistry(cfg, importModeMerge, true, incoming, importConflictPolicySkip)
 	if got := cfg.Registry.FindByRepoID("github.com/org/repo").Path; got != "/local/repo" {
 		t.Fatalf("expected skip policy to keep local path, got %q", got)
+	}
+}
+
+func TestMergeImportedRegistryWithDuplicateLocalRepoIDEntries(t *testing.T) {
+	t.Run("uses checkout identity match when duplicates exist", func(t *testing.T) {
+		cfg := &config.Config{Registry: &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo", CheckoutID: "co-a", Path: "/local/a", RemoteURL: "git@github.com:org/repo.git", Branch: "main", Type: "checkout", Status: registry.StatusPresent},
+			{RepoID: "github.com/org/repo", CheckoutID: "co-b", Path: "/local/b", RemoteURL: "git@github.com:org/repo.git", Branch: "main", Type: "checkout", Status: registry.StatusPresent},
+		}}}
+
+		incoming := &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo", CheckoutID: "co-b", Path: "/bundle/b", RemoteURL: "git@github.com:org/repo.git", Branch: "feature/b", Type: "checkout", Status: registry.StatusPresent},
+		}}
+
+		mergeImportedRegistry(cfg, importModeMerge, true, incoming, importConflictPolicyBundle)
+		if got := cfg.Registry.FindByRepoIDAndCheckoutID("github.com/org/repo", "co-a"); got == nil || got.Path != "/local/a" {
+			t.Fatalf("expected checkout co-a unchanged, got %+v", got)
+		}
+		if got := cfg.Registry.FindByRepoIDAndCheckoutID("github.com/org/repo", "co-b"); got == nil || got.Path != "/bundle/b" || got.Branch != "feature/b" {
+			t.Fatalf("expected checkout co-b updated from bundle, got %+v", got)
+		}
+	})
+
+	t.Run("preserves distinct entries when no exact duplicate checkout can be inferred", func(t *testing.T) {
+		cfg := &config.Config{Registry: &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo", CheckoutID: "co-a", Path: "/local/a", RemoteURL: "git@github.com:org/repo.git", Branch: "main", Type: "checkout", Status: registry.StatusPresent},
+			{RepoID: "github.com/org/repo", CheckoutID: "co-b", Path: "/local/b", RemoteURL: "git@github.com:org/repo.git", Branch: "main", Type: "checkout", Status: registry.StatusPresent},
+		}}}
+
+		incoming := &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "github.com/org/repo", Path: "/bundle/unknown", RemoteURL: "git@github.com:org/repo.git", Branch: "feature/new", Type: "checkout", Status: registry.StatusPresent},
+		}}
+
+		mergeImportedRegistry(cfg, importModeMerge, true, incoming, importConflictPolicyBundle)
+		if len(cfg.Registry.Entries) != 3 {
+			t.Fatalf("expected incoming entry appended to preserve distinct local checkouts, got %+v", cfg.Registry.Entries)
+		}
+		matched := 0
+		for _, entry := range cfg.Registry.Entries {
+			if entry.Path == "/bundle/unknown" && entry.RepoID == "github.com/org/repo" {
+				matched++
+			}
+		}
+		if matched != 1 {
+			t.Fatalf("expected exactly one appended bundle entry, got %+v", cfg.Registry.Entries)
+		}
+	})
+}
+
+func TestMergeImportedRegistrySanitizesSnapshotCacheAndBackfillsCheckoutID(t *testing.T) {
+	cfg := &config.Config{Registry: &registry.Registry{}}
+	incoming := &registry.Registry{Entries: []registry.Entry{{
+		RepoID:                  "github.com/org/repo",
+		Path:                    "/bundle/repo",
+		RemoteURL:               "git@github.com:org/repo.git",
+		Branch:                  "main",
+		Type:                    "checkout",
+		Status:                  registry.StatusPresent,
+		RepoMetadataFile:        "/bundle/repo/.repokeeper-repo.yaml",
+		RepoMetadataError:       "stale metadata error",
+		RepoMetadataFingerprint: "file:/bundle/repo/.repokeeper-repo.yaml:1:1",
+		RepoMetadata:            &model.RepoMetadata{Name: "Repo"},
+	}}}
+
+	mergeImportedRegistry(cfg, importModeMerge, true, incoming, importConflictPolicyBundle)
+	if len(cfg.Registry.Entries) != 1 {
+		t.Fatalf("expected one imported entry, got %+v", cfg.Registry.Entries)
+	}
+	entry := cfg.Registry.Entries[0]
+	if entry.CheckoutID != "repo" {
+		t.Fatalf("expected checkout_id backfilled from path basename, got %q", entry.CheckoutID)
+	}
+	if entry.RepoMetadataFile != "" || entry.RepoMetadataError != "" || entry.RepoMetadataFingerprint != "" || entry.RepoMetadata != nil {
+		t.Fatalf("expected metadata snapshot cache stripped from imported entry, got %+v", entry)
+	}
+}
+
+func TestNormalizeImportedBundleVersionMigration(t *testing.T) {
+	bundle, err := normalizeImportedBundle(exportBundle{
+		Version: 1,
+		Registry: &registry.Registry{Entries: []registry.Entry{{
+			RepoID:                  "github.com/org/repo",
+			Path:                    "/bundle/repo",
+			RepoMetadataFile:        "/bundle/repo/.repokeeper-repo.yaml",
+			RepoMetadataFingerprint: "file:/bundle/repo/.repokeeper-repo.yaml:1:1",
+			RepoMetadataError:       "stale",
+			RepoMetadata:            &model.RepoMetadata{Name: "Repo"},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("normalizeImportedBundle: %v", err)
+	}
+	if bundle.Version != currentExportBundleVersion {
+		t.Fatalf("expected migrated version %d, got %d", currentExportBundleVersion, bundle.Version)
+	}
+	entry := bundle.Registry.Entries[0]
+	if entry.CheckoutID != "repo" {
+		t.Fatalf("expected checkout_id backfilled from path basename, got %q", entry.CheckoutID)
+	}
+	if entry.RepoMetadataFile != "" || entry.RepoMetadataFingerprint != "" || entry.RepoMetadataError != "" || entry.RepoMetadata != nil {
+		t.Fatalf("expected metadata snapshot cache stripped during bundle normalization, got %+v", entry)
+	}
+}
+
+func TestNormalizeImportedBundleRejectsUnsupportedVersion(t *testing.T) {
+	_, err := normalizeImportedBundle(exportBundle{Version: currentExportBundleVersion + 1})
+	if err == nil || !strings.Contains(err.Error(), "unsupported bundle version") {
+		t.Fatalf("expected unsupported version error, got %v", err)
 	}
 }
 

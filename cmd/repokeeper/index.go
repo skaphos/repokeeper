@@ -94,6 +94,19 @@ var indexCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		entryIndex := cfg.Registry.FindEntryIndex(entry.RepoID, entry.Path)
+		if entryIndex < 0 {
+			return fmt.Errorf("registry entry not found for %s", entry.RepoID)
+		}
+		refreshed := model.RepoStatus{RepoID: entry.RepoID, Path: entry.Path}
+		registry.SeedRepoMetadataStatus(cfg.Registry.Entries[entryIndex], &refreshed)
+		repometa.Apply(&refreshed)
+		updatedEntry := cfg.Registry.Entries[entryIndex]
+		registry.StoreRepoMetadataStatus(&updatedEntry, refreshed)
+		cfg.Registry.Entries[entryIndex] = updatedEntry
+		if err := config.Save(cfg, cfgPath); err != nil {
+			return err
+		}
 		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "wrote repo metadata for %s to %s\n", entry.RepoID, writtenPath); err != nil {
 			return err
 		}

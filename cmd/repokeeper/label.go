@@ -99,13 +99,13 @@ var labelCmd = &cobra.Command{
 		switch strings.ToLower(strings.TrimSpace(format)) {
 		case "json":
 			payload := struct {
-				RepoID string            `json:"repo_id"`
-				Path   string            `json:"path"`
-				Labels map[string]string `json:"labels,omitempty"`
+				RepoID      string            `json:"repo_id"`
+				Path        string            `json:"path"`
+				LocalLabels map[string]string `json:"local_labels,omitempty"`
 			}{
-				RepoID: entry.RepoID,
-				Path:   entry.Path,
-				Labels: entry.Labels,
+				RepoID:      entry.RepoID,
+				Path:        entry.Path,
+				LocalLabels: entry.Labels,
 			}
 			data, err := json.MarshalIndent(payload, "", "  ")
 			if err != nil {
@@ -123,7 +123,7 @@ var labelCmd = &cobra.Command{
 				return err
 			}
 			if len(entry.Labels) == 0 {
-				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "LABELS: -"); err != nil {
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "LOCAL_LABELS: -"); err != nil {
 					return err
 				}
 				return nil
@@ -133,7 +133,7 @@ var labelCmd = &cobra.Command{
 				keys = append(keys, key)
 			}
 			sort.Strings(keys)
-			if _, err := fmt.Fprintln(cmd.OutOrStdout(), "LABELS:"); err != nil {
+			if _, err := fmt.Fprintln(cmd.OutOrStdout(), "LOCAL_LABELS:"); err != nil {
 				return err
 			}
 			for _, key := range keys {

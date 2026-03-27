@@ -55,6 +55,41 @@ func TestHandleRepoStatusUpdatesFilteredResults(t *testing.T) {
 	}
 }
 
+func TestHandleRepoStatusDoesNotCollapseDuplicateRepoID(t *testing.T) {
+	t.Parallel()
+
+	m := tuiModel{repos: []model.RepoStatus{
+		{RepoID: "acme/backend", Path: "/work/primary"},
+		{RepoID: "acme/backend", Path: "/work/secondary"},
+	}}
+
+	nm, cmd := m.handleRepoStatus(repoStatusMsg{status: model.RepoStatus{
+		RepoID: "acme/backend",
+		Path:   "/work/secondary",
+		Head:   model.Head{Branch: "feature/secondary"},
+	}})
+	if cmd != nil {
+		t.Fatal("expected nil cmd")
+	}
+
+	next := nm.(tuiModel)
+	if len(next.repos) != 2 {
+		t.Fatalf("expected duplicate checkouts to stay distinct, got %d rows", len(next.repos))
+	}
+	if next.repos[0].Path != "/work/primary" {
+		t.Fatalf("expected first checkout path to stay /work/primary, got %q", next.repos[0].Path)
+	}
+	if next.repos[1].Path != "/work/secondary" {
+		t.Fatalf("expected second checkout path to stay /work/secondary, got %q", next.repos[1].Path)
+	}
+	if next.repos[0].Head.Branch != "" {
+		t.Fatalf("expected first checkout to remain untouched, got branch %q", next.repos[0].Head.Branch)
+	}
+	if next.repos[1].Head.Branch != "feature/secondary" {
+		t.Fatalf("expected second checkout branch to update, got %q", next.repos[1].Head.Branch)
+	}
+}
+
 func TestLastRepoStatusClearsLoading(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +153,39 @@ func TestWindowResizeUpdatesViewport(t *testing.T) {
 	next := nm.(tuiModel)
 	if next.width != 160 || next.height != 50 {
 		t.Fatalf("expected 160x50, got %dx%d", next.width, next.height)
+	}
+}
+
+func TestHandleRepoStatusWritesRepoMetadataSnapshotBackToRegistry(t *testing.T) {
+	t.Parallel()
+
+	reg := &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "acme/repo", Path: "/work/repo", Status: registry.StatusPresent,
+	}}}
+	m := tuiModel{engine: &mockEngine{reg: reg}}
+	status := model.RepoStatus{
+		RepoID:                  "acme/repo",
+		Path:                    "/work/repo",
+		RepoMetadataFile:        "/work/repo/.repokeeper-repo.yaml",
+		RepoMetadataFingerprint: "file:/work/repo/.repokeeper-repo.yaml:1:1",
+		RepoMetadata:            &model.RepoMetadata{Name: "Repo"},
+	}
+
+	nm, _ := m.handleRepoStatus(repoStatusMsg{status: status})
+	_ = nm
+
+	entry := reg.FindEntry("acme/repo", "/work/repo")
+	if entry == nil {
+		t.Fatal("expected registry entry")
+	}
+	if entry.RepoMetadataFile != status.RepoMetadataFile {
+		t.Fatalf("expected metadata file %q, got %q", status.RepoMetadataFile, entry.RepoMetadataFile)
+	}
+	if entry.RepoMetadataFingerprint == "" {
+		t.Fatal("expected metadata fingerprint to be cached")
+	}
+	if entry.RepoMetadata == nil || entry.RepoMetadata.Name != "Repo" {
+		t.Fatalf("expected metadata payload cached, got %+v", entry.RepoMetadata)
 	}
 }
 

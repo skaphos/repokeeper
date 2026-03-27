@@ -70,12 +70,14 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 
 	repo := model.RepoStatus{
 		RepoID:      entry.RepoID,
+		CheckoutID:  entry.CheckoutID,
 		Path:        entry.Path,
 		Type:        entry.Type,
 		Labels:      cloneMetadataMap(entry.Labels),
 		Annotations: cloneMetadataMap(entry.Annotations),
 		Tracking:    model.Tracking{Status: model.TrackingNone},
 	}
+	registry.SeedRepoMetadataStatus(entry, &repo)
 	if entry.Status == registry.StatusMissing {
 		repo.Error = "path missing"
 		repo.ErrorClass = "missing"
@@ -92,12 +94,19 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 			if repo.RepoID == "" {
 				repo.RepoID = entry.RepoID
 			}
+			if repo.CheckoutID == "" {
+				repo.CheckoutID = entry.CheckoutID
+			}
 			if repo.Type == "" {
 				repo.Type = entry.Type
 			}
 			repo.Labels = cloneMetadataMap(entry.Labels)
 			repo.Annotations = cloneMetadataMap(entry.Annotations)
 		}
+	}
+
+	if err := persistDescribeMetadataSnapshot(cfg, cfgPath, registryOverride, reg, entry, repo); err != nil {
+		return err
 	}
 
 	format, _ := cmd.Flags().GetString("format")
@@ -128,6 +137,34 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func persistDescribeMetadataSnapshot(
+	cfg *config.Config,
+	cfgPath string,
+	registryOverride string,
+	reg *registry.Registry,
+	selected registry.Entry,
+	repo model.RepoStatus,
+) error {
+	if reg == nil {
+		return nil
+	}
+	idx := reg.FindEntryIndex(selected.RepoID, selected.Path)
+	if idx < 0 {
+		return nil
+	}
+	updated := reg.Entries[idx]
+	registry.StoreRepoMetadataStatus(&updated, repo)
+	reg.Entries[idx] = updated
+	if registryOverride != "" {
+		return registry.Save(reg, registryOverride)
+	}
+	if cfg == nil {
+		return nil
+	}
+	cfg.Registry = reg
+	return config.Save(cfg, cfgPath)
+}
+
 func init() {
 	describeCmd.Flags().String("registry", "", "override registry file path")
 	addFormatFlag(describeCmd, "output format: table or json")
@@ -145,10 +182,30 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 		return registry.Entry{}, fmt.Errorf("empty selector")
 	}
 
+	repoID, checkoutID, hasCheckoutID := splitRepoAndCheckoutSelector(sel)
+	if hasCheckoutID {
+		for _, entry := range entries {
+			if entry.RepoID != repoID {
+				continue
+			}
+			if describeCheckoutID(entry) == checkoutID {
+				return entry, nil
+			}
+		}
+		return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
+	}
+
+	var repoMatches []registry.Entry
 	for _, entry := range entries {
 		if entry.RepoID == sel {
-			return entry, nil
+			repoMatches = append(repoMatches, entry)
 		}
+	}
+	if len(repoMatches) == 1 {
+		return repoMatches[0], nil
+	}
+	if len(repoMatches) > 1 {
+		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(repoMatches))
 	}
 
 	candidates := make([]string, 0, 1+len(roots))
@@ -197,6 +254,35 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(matches))
 	}
 	return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
+}
+
+func splitRepoAndCheckoutSelector(selector string) (string, string, bool) {
+	parts := strings.SplitN(selector, "@", 2)
+	if len(parts) != 2 {
+		return selector, "", false
+	}
+	repoID := strings.TrimSpace(parts[0])
+	checkoutID := strings.TrimSpace(parts[1])
+	if repoID == "" || checkoutID == "" {
+		return selector, "", false
+	}
+	return repoID, checkoutID, true
+}
+
+func describeCheckoutID(entry registry.Entry) string {
+	checkoutID := strings.TrimSpace(entry.CheckoutID)
+	if checkoutID != "" {
+		return checkoutID
+	}
+	trimmed := strings.TrimSpace(entry.Path)
+	if trimmed == "" {
+		return ""
+	}
+	base := filepath.Base(filepath.Clean(trimmed))
+	if base == "." || base == string(filepath.Separator) {
+		return ""
+	}
+	return base
 }
 
 func canonicalPathForMatch(path string) (string, bool) {

@@ -83,6 +83,7 @@ var statusCmd = &cobra.Command{
 		only, _ := cmd.Flags().GetString("only")
 		fieldSelector, _ := cmd.Flags().GetString("field-selector")
 		labelSelectorRaw, _ := cmd.Flags().GetString("selector")
+		localLabelSelectorRaw, _ := cmd.Flags().GetString("local-selector")
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 		reconcileModeRaw, _ := cmd.Flags().GetString("reconcile-remote-mismatch")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
@@ -91,6 +92,10 @@ var statusCmd = &cobra.Command{
 			return err
 		}
 		labelSelector, err := parseLabelSelector(labelSelectorRaw)
+		if err != nil {
+			return err
+		}
+		localLabelSelector, err := parseLabelSelectorForFlag(localLabelSelectorRaw, "--local-selector")
 		if err != nil {
 			return err
 		}
@@ -133,8 +138,12 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if err := persistStatusRegistrySnapshots(cfg, cfgPath, registryOverride, reg); err != nil {
+			return err
+		}
 		enrichReportWithRegistryMetadata(report, reg)
 		report = filterStatusReportByLabels(report, labelSelector)
+		report = filterStatusReportByLocalLabels(report, localLabelSelector)
 		plans := eng.BuildRemoteMismatchPlans(report.Repos, reconcileMode)
 		if len(plans) > 0 {
 			logOutputWriteFailure(cmd, "status remote mismatch plan", writeRemoteMismatchPlan(cmd, plans, cwd, []string{cfgRoot}, dryRun || reconcileMode == remoteMismatchReconcileNone))
@@ -173,8 +182,12 @@ var statusCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			if err := persistStatusRegistrySnapshots(cfg, cfgPath, registryOverride, reg); err != nil {
+				return err
+			}
 			enrichReportWithRegistryMetadata(report, reg)
 			report = filterStatusReportByLabels(report, labelSelector)
+			report = filterStatusReportByLocalLabels(report, localLabelSelector)
 		}
 
 		output := any(report)
@@ -231,12 +244,27 @@ func init() {
 	addFormatFlag(statusCmd, "output format: table, wide, or json")
 	addRepoFilterFlags(statusCmd)
 	addLabelSelectorFlag(statusCmd)
+	statusCmd.Flags().String("local-selector", "", "filter repos by machine-local labels (key or key=value, comma-separated)")
 	statusCmd.Flags().String("reconcile-remote-mismatch", "none", "optional reconcile mode for remote mismatch: none, registry, git")
 	statusCmd.Flags().Bool("dry-run", true, "preview reconcile actions without modifying registry or git remotes")
 	addNoHeadersFlag(statusCmd)
 	statusCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 	addVCSFlag(statusCmd)
 
+}
+
+func persistStatusRegistrySnapshots(cfg *config.Config, cfgPath, registryOverride string, reg *registry.Registry) error {
+	if reg == nil {
+		return nil
+	}
+	if registryOverride != "" {
+		return registry.Save(reg, registryOverride)
+	}
+	if cfg == nil {
+		return nil
+	}
+	cfg.Registry = reg
+	return config.Save(cfg, cfgPath)
 }
 
 func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) error {
@@ -691,27 +719,16 @@ func enrichReportWithRegistryMetadata(report *model.StatusReport, reg *registry.
 	if report == nil || reg == nil {
 		return
 	}
-	byRepoID := make(map[string]registry.Entry, len(reg.Entries))
 	byPath := make(map[string]registry.Entry, len(reg.Entries))
 	for _, entry := range reg.Entries {
-		if strings.TrimSpace(entry.RepoID) != "" {
-			byRepoID[entry.RepoID] = entry
-		}
 		if strings.TrimSpace(entry.Path) != "" {
 			byPath[entry.Path] = entry
 		}
 	}
 	for i := range report.Repos {
 		repo := &report.Repos[i]
-		var entry registry.Entry
-		var ok bool
-		if strings.TrimSpace(repo.RepoID) != "" {
-			entry, ok = byRepoID[repo.RepoID]
-		}
-		if !ok && strings.TrimSpace(repo.Path) != "" {
-			entry, ok = byPath[repo.Path]
-		}
-		if !ok {
+		entry := findRegistryMetadataEntry(reg, byPath, *repo)
+		if entry == nil {
 			continue
 		}
 		repo.Labels = cloneMetadataMap(entry.Labels)
@@ -719,7 +736,45 @@ func enrichReportWithRegistryMetadata(report *model.StatusReport, reg *registry.
 	}
 }
 
+func findRegistryMetadataEntry(reg *registry.Registry, byPath map[string]registry.Entry, repo model.RepoStatus) *registry.Entry {
+	if reg == nil {
+		return nil
+	}
+	if strings.TrimSpace(repo.RepoID) != "" && strings.TrimSpace(repo.CheckoutID) != "" {
+		if entry := reg.FindByRepoIDAndCheckoutID(repo.RepoID, repo.CheckoutID); entry != nil {
+			return entry
+		}
+	}
+	if strings.TrimSpace(repo.Path) != "" {
+		if entry, ok := byPath[repo.Path]; ok {
+			return &entry
+		}
+	}
+	if strings.TrimSpace(repo.RepoID) != "" {
+		return reg.FindByRepoID(repo.RepoID)
+	}
+	return nil
+}
+
 func filterStatusReportByLabels(report *model.StatusReport, reqs []labelRequirement) *model.StatusReport {
+	if report == nil || len(reqs) == 0 {
+		return report
+	}
+	filtered := make([]model.RepoStatus, 0, len(report.Repos))
+	for _, repo := range report.Repos {
+		sharedLabels := map[string]string(nil)
+		if repo.RepoMetadata != nil {
+			sharedLabels = repo.RepoMetadata.Labels
+		}
+		if labelsMatchSelector(sharedLabels, reqs) {
+			filtered = append(filtered, repo)
+		}
+	}
+	report.Repos = filtered
+	return report
+}
+
+func filterStatusReportByLocalLabels(report *model.StatusReport, reqs []labelRequirement) *model.StatusReport {
 	if report == nil || len(reqs) == 0 {
 		return report
 	}

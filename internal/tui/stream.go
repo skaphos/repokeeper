@@ -29,22 +29,38 @@ func inspectEntryCmd(ctx context.Context, eng EngineAPI, entry registry.Entry) t
 		if err != nil {
 			partial := model.RepoStatus{
 				RepoID:     entry.RepoID,
+				CheckoutID: entry.CheckoutID,
 				Path:       entry.Path,
 				Type:       entry.Type,
 				Error:      err.Error(),
 				ErrorClass: "inspect",
 			}
+			registry.SeedRepoMetadataStatus(entry, &partial)
 			repometa.Apply(&partial)
 			return repoStatusMsg{status: partial}
 		}
 		if status.RepoID == "" {
 			status.RepoID = entry.RepoID
 		}
+		if status.CheckoutID == "" {
+			status.CheckoutID = entry.CheckoutID
+		}
 		if entry.Type != "" {
 			status.Type = entry.Type
 		}
-		status.Labels = entry.Labels
-		status.Annotations = entry.Annotations
+		status.Labels = cloneRegistryMetadataMap(entry.Labels)
+		status.Annotations = cloneRegistryMetadataMap(entry.Annotations)
 		return repoStatusMsg{status: *status}
 	}
+}
+
+func cloneRegistryMetadataMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(values))
+	for k, v := range values {
+		out[k] = v
+	}
+	return out
 }

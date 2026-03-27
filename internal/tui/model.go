@@ -151,6 +151,7 @@ func registryEntryToPartialStatus(entry registry.Entry) model.RepoStatus {
 		s.Error = "path missing"
 		s.ErrorClass = "missing"
 	}
+	registry.SeedRepoMetadataStatus(entry, &s)
 	repometa.Apply(&s)
 	return s
 }

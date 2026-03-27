@@ -166,7 +166,8 @@ When filtered to `diverged`, table/wide output includes `REASON` and `RECOMMENDE
 
 Alias form: `repokeeper describe repo <repo-id-or-path>`
 
-Shows detailed status for a single repo selected by repo ID, cwd-relative path, or config-root-relative path.
+Shows detailed status for a single repo selected by repo ID, `repo_id@checkout_id`, cwd-relative path, or config-root-relative path.
+When a plain `repo_id` resolves to multiple local checkouts, the command fails with an ambiguity error instead of guessing.
 
 Flags:
 
@@ -323,7 +324,8 @@ RepoKeeper supports an optional repo-root metadata file with this lookup order:
 1. `.repokeeper-repo.yaml`
 2. `repokeeper.yaml`
 
-The file is read at runtime and merged into `RepoStatus` as a nested `repo_metadata` block plus `repo_metadata_file` and `repo_metadata_error` fields.
+The file is read at runtime and merged into `RepoStatus` as a nested `repo_metadata` block plus `repo_metadata_file`, `repo_metadata_fingerprint`, and `repo_metadata_error` fields.
+RepoKeeper also stores a derived snapshot of those fields in the machine-local registry so later `scan`, `status`, `describe`, and TUI reads can reuse validated metadata when the on-disk fingerprint is unchanged.
 
 Validation rules:
 
@@ -392,7 +394,8 @@ Recommended semantic colors:
 Current `--only` filters remain supported.
 Current selectors include:
 * `--field-selector` for operational state filtering (for example, `tracking.status=diverged`)
-* `-l, --selector` for label filtering (`key` and `key=value`, comma-separated AND)
+* `-l, --selector` for shared repo-metadata label filtering (`key` and `key=value`, comma-separated AND)
+* `--local-selector` for machine-local registry label filtering (`key` and `key=value`, comma-separated AND)
 
 `--only` remains supported as shorthand aliases.
 
@@ -418,6 +421,9 @@ Normalization rules (examples):
 * Lowercase host; preserve path case (GitHub is case-insensitive, but be conservative).
 * Strip trailing `.git`.
 * Strip trailing slashes.
+
+RepoKeeper also carries an additive machine-local `checkout_id` for distinguishing multiple local checkouts that share the same `repo_id`.
+By default, `checkout_id` is derived from the checkout path basename unless explicitly set in registry data.
 
 ### 6.2 Config files
 
@@ -467,16 +473,20 @@ The effective default root is the directory containing the active config file.
 
 #### 6.2.2 Registry (embedded in machine config by default)
 
-Per-machine mapping of repo-id to local path.
+Per-machine mapping of stable repo identity to one or more local checkout entries.
 
 ```yaml
 updated_at: "2026-02-10T16:00:00-06:00"
 repos:
   - repo_id: "github.com/example/tools-foo"
+    checkout_id: "tools-foo"
     path: "/Users/shawn/code/tools-foo"
     remote_url: "git@github.com:example/tools-foo.git"
     type: "checkout"    # checkout | mirror
     branch: "main"      # optional preferred branch for checkout clones
+    repo_metadata_file: "/Users/shawn/code/tools-foo/.repokeeper-repo.yaml"
+    repo_metadata_fingerprint: "file:/Users/shawn/code/tools-foo/.repokeeper-repo.yaml:123:1774500000000000000"
+    repo_metadata: {}
     last_seen: "2026-02-10T16:00:00-06:00"
     status: "present"   # present | missing | moved
 ```
@@ -487,7 +497,8 @@ During `scan`, RepoKeeper validates every existing registry entry:
 
 * If the path still exists and contains a valid git repo → update `last_seen`, mark `present`.
 * If the path no longer exists on disk → mark `missing`. The entry is **retained** (not deleted) so users can see what disappeared.
-* If the same `repo_id` is found at a different path → mark the old entry `moved` and update the path.
+* If the same `repo_id` is found with a different `checkout_id` → retain both checkout entries.
+* If the same `repo_id` and `checkout_id` are found at a different path → mark that checkout entry `moved` and update the path.
 
 `repokeeper status` surfaces missing/moved repos so the user can act:
 
@@ -684,9 +695,11 @@ A key future capability is **pushing your repo structure to other machines** so 
 
 The v1 data model should be designed so the registry is **portable and mergeable**:
 
-* **`repo_id` is the join key** — the normalized remote URL is machine-independent by design. This is already the case.
+* **`repo_id` is the cross-machine join key** — the normalized remote URL is machine-independent by design.
+* **`checkout_id` is the machine-local checkout key** — it distinguishes multiple local clones of the same upstream without redefining `repo_id`.
 * **Registry is serializable** — YAML/JSON, no machine-specific binary state. Already the case.
 * **Timestamps on entries** — `last_seen` per repo enables conflict resolution (last-writer-wins or newest-wins). Added in §6.2.2.
+* **Metadata snapshots are derived cache** — export/import should strip repo-metadata snapshot cache fields by default and rebuild them locally.
 
 ### 9.2 Planned sync mechanisms (future, not v1)
 

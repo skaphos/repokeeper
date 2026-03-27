@@ -171,10 +171,11 @@ func (e *Engine) ExecuteImportClones(ctx context.Context, plan ImportClonePlan, 
 			result.OK = false
 			result.ErrorClass = e.classifier.ClassifyError(err)
 			result.Error = importCloneFailureMessage(result.ErrorClass)
+			identity := entry
 			entry.Path = target.Path
 			entry.Status = registry.StatusMissing
 			entry.LastSeen = time.Now()
-			e.setImportRegistryEntryByRepoID(entry)
+			e.setImportRegistryEntry(identity, entry)
 			failures = append(failures, result)
 			if callbacks.OnComplete != nil {
 				callbacks.OnComplete(result)
@@ -182,10 +183,11 @@ func (e *Engine) ExecuteImportClones(ctx context.Context, plan ImportClonePlan, 
 			continue
 		}
 
+		identity := entry
 		entry.Path = target.Path
 		entry.Status = registry.StatusPresent
 		entry.LastSeen = time.Now()
-		e.setImportRegistryEntryByRepoID(entry)
+		e.setImportRegistryEntry(identity, entry)
 		result.OK = true
 		if callbacks.OnComplete != nil {
 			callbacks.OnComplete(result)
@@ -195,15 +197,16 @@ func (e *Engine) ExecuteImportClones(ctx context.Context, plan ImportClonePlan, 
 	for _, skip := range plan.Skipped {
 		entry := skip.Entry
 		if skip.Reason == "path is ignored by local config" {
-			e.removeImportRegistryEntryByRepoID(entry.RepoID)
+			e.removeImportRegistryEntry(entry)
 			continue
 		}
+		identity := entry
 		entry.Path = skip.Path
 		if entry.Status == "" || skip.Reason == "no remote URL configured" || skip.Reason == "no upstream branch configured" {
 			entry.Status = registry.StatusMissing
 		}
 		entry.LastSeen = time.Now()
-		e.setImportRegistryEntryByRepoID(entry)
+		e.setImportRegistryEntry(identity, entry)
 	}
 
 	return failures, nil
@@ -259,30 +262,80 @@ func importCloneFailureMessage(errorClass string) string {
 	}
 }
 
-func (e *Engine) setImportRegistryEntryByRepoID(entry registry.Entry) {
+func (e *Engine) setImportRegistryEntry(identity registry.Entry, entry registry.Entry) {
 	e.registryMu.Lock()
 	defer e.registryMu.Unlock()
 	if e.registry == nil {
 		e.registry = &registry.Registry{}
 	}
-	for i := range e.registry.Entries {
-		if e.registry.Entries[i].RepoID == entry.RepoID {
-			e.registry.Entries[i] = entry
+
+	if match := e.registry.FindByRepoIDAndCheckoutID(identity.RepoID, strings.TrimSpace(identity.CheckoutID)); strings.TrimSpace(identity.CheckoutID) != "" && match != nil {
+		*match = entry
+		return
+	}
+	if path := strings.TrimSpace(identity.Path); path != "" {
+		if match := e.registry.FindEntry(identity.RepoID, path); match != nil && strings.TrimSpace(match.Path) == path {
+			*match = entry
 			return
+		}
+	}
+	repoMatches := e.registry.FindEntriesByRepoID(identity.RepoID)
+	if len(repoMatches) == 1 {
+		for i := range e.registry.Entries {
+			if e.registry.Entries[i].RepoID == identity.RepoID {
+				e.registry.Entries[i] = entry
+				return
+			}
 		}
 	}
 	e.registry.Entries = append(e.registry.Entries, entry)
 }
 
-func (e *Engine) removeImportRegistryEntryByRepoID(repoID string) {
+func (e *Engine) removeImportRegistryEntry(identity registry.Entry) {
 	e.registryMu.Lock()
 	defer e.registryMu.Unlock()
 	if e.registry == nil {
 		return
 	}
+
+	removeIndex := -1
+	if checkoutID := strings.TrimSpace(identity.CheckoutID); checkoutID != "" {
+		for i := range e.registry.Entries {
+			if e.registry.Entries[i].RepoID == identity.RepoID && e.registry.Entries[i].CheckoutID == checkoutID {
+				removeIndex = i
+				break
+			}
+		}
+	}
+	if removeIndex < 0 {
+		path := strings.TrimSpace(identity.Path)
+		if path != "" {
+			for i := range e.registry.Entries {
+				if e.registry.Entries[i].RepoID == identity.RepoID && strings.TrimSpace(e.registry.Entries[i].Path) == path {
+					removeIndex = i
+					break
+				}
+			}
+		}
+	}
+	if removeIndex < 0 {
+		repoMatches := e.registry.FindEntriesByRepoID(identity.RepoID)
+		if len(repoMatches) == 1 {
+			for i := range e.registry.Entries {
+				if e.registry.Entries[i].RepoID == identity.RepoID {
+					removeIndex = i
+					break
+				}
+			}
+		}
+	}
+	if removeIndex < 0 {
+		return
+	}
+
 	out := e.registry.Entries[:0]
-	for _, entry := range e.registry.Entries {
-		if entry.RepoID == repoID {
+	for i, entry := range e.registry.Entries {
+		if i == removeIndex {
 			continue
 		}
 		out = append(out, entry)

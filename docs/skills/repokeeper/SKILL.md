@@ -95,7 +95,7 @@ repokeeper status -o json
 
 ## Labeling workflow
 
-Use labels for machine-local classification that helps routing and filtering:
+Use `label` for machine-local classification that helps routing and filtering on the current machine:
 
 ```bash
 repokeeper label <repo-id-or-path> --set team=platform --set role=service
@@ -107,10 +107,10 @@ Remove labels with:
 repokeeper label <repo-id-or-path> --remove role
 ```
 
-Filter by label with:
+Filter by machine-local label with:
 
 ```bash
-repokeeper get -l team=platform
+repokeeper get --local-selector team=platform
 ```
 
 Important distinction:
@@ -125,8 +125,10 @@ When you need to choose the right repository before opening files:
 1. Run `repokeeper status -o json` or `repokeeper get -o json`.
 2. Look at:
    - `repo_id`
+   - `checkout_id`
    - `path`
-   - `labels`
+   - `labels` (machine-local labels)
+   - `repo_metadata.labels` (shared repo labels)
    - `repo_metadata`
    - `repo_metadata.entrypoints`
    - `repo_metadata.paths.authoritative`
@@ -141,7 +143,7 @@ For interactive browsing, use:
 repokeeper tui
 ```
 
-The TUI detail view surfaces labels, annotations, and repo-local metadata when available.
+The TUI detail view surfaces local labels, shared labels, annotations, and repo-local metadata when available.
 
 ## Safe update workflow
 

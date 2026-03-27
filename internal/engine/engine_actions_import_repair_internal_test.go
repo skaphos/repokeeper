@@ -270,6 +270,53 @@ func TestExecuteImportClonesSuccessFailureAndSkips(t *testing.T) {
 			t.Fatalf("expected incomplete repo marked missing at new path, got %+v", entry)
 		}
 	})
+
+	t.Run("duplicate repo id clone updates and remove target exact checkout", func(t *testing.T) {
+		cwd := t.TempDir()
+		cloneTarget := filepath.Join(cwd, "repos", "repo")
+		adapter := &planAdapter{cloneErrByDir: map[string]error{}}
+		reg := &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "repo", Path: "/old/repo-a", CheckoutID: "co-a", Status: registry.StatusPresent},
+			{RepoID: "repo", Path: "/old/repo-b", CheckoutID: "co-b", Status: registry.StatusPresent},
+		}}
+		eng := &Engine{registry: reg, adapter: adapter, classifier: vcs.NewGitErrorClassifier()}
+
+		plan := ImportClonePlan{
+			Clones: []ImportCloneTarget{{
+				Path: cloneTarget,
+				Entry: registry.Entry{
+					RepoID:     "repo",
+					CheckoutID: "co-a",
+					Path:       "/bundle/repo-a",
+					RemoteURL:  "git@github.com:org/repo.git",
+					Branch:     "main",
+				},
+			}},
+			Skipped: []ImportCloneSkip{{
+				Path: "/ignored/repo-b",
+				Entry: registry.Entry{
+					RepoID:     "repo",
+					CheckoutID: "co-b",
+					Path:       "/bundle/repo-b",
+				},
+				Reason: "path is ignored by local config",
+			}},
+		}
+
+		failures, err := eng.ExecuteImportClones(context.Background(), plan, ImportCloneCallbacks{})
+		if err != nil {
+			t.Fatalf("execute import clones: %v", err)
+		}
+		if len(failures) != 0 {
+			t.Fatalf("expected no failures, got %+v", failures)
+		}
+		if got := reg.FindByRepoIDAndCheckoutID("repo", "co-a"); got == nil || got.Path != cloneTarget || got.Status != registry.StatusPresent {
+			t.Fatalf("expected checkout co-a updated to clone target, got %+v", got)
+		}
+		if got := reg.FindByRepoIDAndCheckoutID("repo", "co-b"); got != nil {
+			t.Fatalf("expected checkout co-b removed by ignored path rule, got %+v", got)
+		}
+	})
 }
 
 func TestImportCloneHelperFunctions(t *testing.T) {
@@ -325,23 +372,29 @@ func TestImportCloneHelperFunctions(t *testing.T) {
 	})
 
 	t.Run("set and remove import registry entries by repo id", func(t *testing.T) {
-		eng := &Engine{registry: &registry.Registry{Entries: []registry.Entry{{RepoID: "a", Path: "/old"}}}}
-		eng.setImportRegistryEntryByRepoID(registry.Entry{RepoID: "a", Path: "/new", Status: registry.StatusPresent})
-		if got := eng.registry.FindByRepoID("a"); got == nil || got.Path != "/new" {
+		eng := &Engine{registry: &registry.Registry{Entries: []registry.Entry{{RepoID: "a", Path: "/old", CheckoutID: "co-a"}}}}
+		eng.setImportRegistryEntry(
+			registry.Entry{RepoID: "a", Path: "/old", CheckoutID: "co-a"},
+			registry.Entry{RepoID: "a", Path: "/new", CheckoutID: "co-a", Status: registry.StatusPresent},
+		)
+		if got := eng.registry.FindByRepoIDAndCheckoutID("a", "co-a"); got == nil || got.Path != "/new" {
 			t.Fatalf("expected existing repo updated, got %+v", got)
 		}
-		eng.setImportRegistryEntryByRepoID(registry.Entry{RepoID: "b", Path: "/b", Status: registry.StatusPresent})
+		eng.setImportRegistryEntry(
+			registry.Entry{RepoID: "b", Path: "/b"},
+			registry.Entry{RepoID: "b", Path: "/b", Status: registry.StatusPresent},
+		)
 		if got := eng.registry.FindByRepoID("b"); got == nil {
 			t.Fatalf("expected new repo inserted, entries=%+v", eng.registry.Entries)
 		}
 
-		eng.removeImportRegistryEntryByRepoID("a")
+		eng.removeImportRegistryEntry(registry.Entry{RepoID: "a", Path: "/new", CheckoutID: "co-a"})
 		if eng.registry.FindByRepoID("a") != nil {
 			t.Fatalf("expected repo a removed, entries=%+v", eng.registry.Entries)
 		}
 
 		var nilRegEngine Engine
-		nilRegEngine.removeImportRegistryEntryByRepoID("missing")
+		nilRegEngine.removeImportRegistryEntry(registry.Entry{RepoID: "missing"})
 	})
 }
 
@@ -359,6 +412,21 @@ func TestRepairUpstreamScenarios(t *testing.T) {
 		_, err := eng.RepairUpstream(context.Background(), "repo", filepath.Join(t.TempDir(), "config.yaml"))
 		if err == nil || !strings.Contains(err.Error(), "not found in registry") {
 			t.Fatalf("expected repo not found error, got %v", err)
+		}
+	})
+
+	t.Run("duplicate repo id is ambiguous", func(t *testing.T) {
+		eng := &Engine{
+			cfg: &config.Config{},
+			registry: &registry.Registry{Entries: []registry.Entry{
+				{RepoID: "repo", Path: "/repo-a", CheckoutID: "co-a", Status: registry.StatusPresent},
+				{RepoID: "repo", Path: "/repo-b", CheckoutID: "co-b", Status: registry.StatusPresent},
+			}},
+			adapter: vcs.NewGitAdapter(&testRunner{}),
+		}
+		_, err := eng.RepairUpstream(context.Background(), "repo", filepath.Join(t.TempDir(), "config.yaml"))
+		if err == nil || !strings.Contains(err.Error(), "ambiguous") {
+			t.Fatalf("expected ambiguous repo error, got %v", err)
 		}
 	})
 
@@ -540,6 +608,14 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 			t.Fatalf("expected missing path error, got %v", err)
 		}
 
+		eng.registry = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "repo", Path: "/repo-a", CheckoutID: "co-a", Status: registry.StatusPresent},
+			{RepoID: "repo", Path: "/repo-b", CheckoutID: "co-b", Status: registry.StatusPresent},
+		}}
+		if err := eng.ResetRepo(context.Background(), "repo", ""); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+			t.Fatalf("expected ambiguous repo error, got %v", err)
+		}
+
 		runner := &testRunner{responses: map[string]testResponse{
 			"/repo:reset --hard HEAD": {out: ""},
 			"/repo:clean -f -d":       {out: ""},
@@ -564,6 +640,14 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 		eng.registry = &registry.Registry{}
 		if err := eng.DeleteRepo(context.Background(), "repo", cfgPath, false); err == nil || !strings.Contains(err.Error(), "not found") {
 			t.Fatalf("expected repo not found error, got %v", err)
+		}
+
+		eng.registry = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "repo", Path: "/repo-a", CheckoutID: "co-a", Status: registry.StatusPresent},
+			{RepoID: "repo", Path: "/repo-b", CheckoutID: "co-b", Status: registry.StatusPresent},
+		}}
+		if err := eng.DeleteRepo(context.Background(), "repo", cfgPath, false); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+			t.Fatalf("expected ambiguous repo error, got %v", err)
 		}
 
 		keepPath := filepath.Join(t.TempDir(), "keep")

@@ -4,11 +4,13 @@ package registry_test
 import (
 	"os"
 	"path/filepath"
+	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 )
 
@@ -28,12 +30,36 @@ var _ = Describe("Registry", func() {
 		Expect(loaded.Entries).To(HaveLen(1))
 	})
 
-	It("upserts entries by repo ID", func() {
+	It("saves and loads repo metadata snapshot cache fields", func() {
+		dir := GinkgoT().TempDir()
+		path := filepath.Join(dir, "registry.yaml")
+		reg := &registry.Registry{Entries: []registry.Entry{{
+			RepoID:                  "repo1",
+			Path:                    filepath.Join(dir, "repo1"),
+			Status:                  registry.StatusPresent,
+			RepoMetadataFile:        filepath.Join(dir, "repo1", ".repokeeper-repo.yaml"),
+			RepoMetadataFingerprint: "file:/repo:1:2",
+			RepoMetadataError:       "",
+			RepoMetadata:            &model.RepoMetadata{Name: "Repo One", Labels: map[string]string{"team": "platform"}},
+		}}}
+		Expect(registry.Save(reg, path)).To(Succeed())
+		loaded, err := registry.Load(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(loaded.Entries).To(HaveLen(1))
+		Expect(loaded.Entries[0].RepoMetadataFile).To(Equal(reg.Entries[0].RepoMetadataFile))
+		Expect(loaded.Entries[0].RepoMetadataFingerprint).To(Equal("file:/repo:1:2"))
+		Expect(loaded.Entries[0].RepoMetadata).NotTo(BeNil())
+		Expect(loaded.Entries[0].RepoMetadata.Name).To(Equal("Repo One"))
+		Expect(loaded.Entries[0].RepoMetadata.Labels).To(HaveKeyWithValue("team", "platform"))
+	})
+
+	It("upserts entries for the same checkout identity", func() {
 		reg := &registry.Registry{}
-		reg.Upsert(registry.Entry{RepoID: "repo1", Path: "/a", Status: registry.StatusPresent})
-		reg.Upsert(registry.Entry{RepoID: "repo1", Path: "/b", Status: registry.StatusPresent})
+		reg.Upsert(registry.Entry{RepoID: "repo1", Path: "/worktrees/primary", Status: registry.StatusPresent})
+		reg.Upsert(registry.Entry{RepoID: "repo1", Path: "/alternate/primary", Status: registry.StatusPresent})
 		Expect(reg.Entries).To(HaveLen(1))
-		Expect(reg.Entries[0].Path).To(Equal("/b"))
+		Expect(reg.Entries[0].CheckoutID).To(Equal("primary"))
+		Expect(reg.Entries[0].Path).To(Equal("/alternate/primary"))
 	})
 
 	It("preserves type and branch when not provided on upsert", func() {
@@ -212,3 +238,100 @@ var _ = Describe("Registry", func() {
 		Expect(reg.Entries).To(HaveLen(1))
 	})
 })
+
+func TestFindEntriesByRepoID(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{}
+
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/worktrees/primary", Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/another-root/primary", Status: registry.StatusPresent})
+
+	g.Expect(reg.Entries).To(HaveLen(1), "same checkout identity should update the existing entry")
+	g.Expect(reg.Entries[0].CheckoutID).To(Equal("primary"), "default checkout identity should be derived from path basename")
+	g.Expect(reg.Entries[0].Path).To(Equal("/another-root/primary"), "same checkout updates keep the latest path")
+	g.Expect(reg.FindByRepoID("github.com/acme/repo")).NotTo(BeNil())
+	g.Expect(reg.FindByRepoID("github.com/acme/repo").Path).To(Equal("/another-root/primary"), "repo_id lookup should still return the updated entry")
+	g.Expect(reg.FindEntry("github.com/acme/repo", "/worktrees/primary")).NotTo(BeNil())
+	g.Expect(reg.FindEntry("github.com/acme/repo", "/worktrees/primary").Path).To(Equal("/another-root/primary"), "path miss should continue to fall back to repo_id when only one checkout exists")
+}
+
+func TestUpsertAllowsDuplicateRepoIDWithDistinctCheckoutID(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{}
+
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/worktrees/primary", Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/worktrees/secondary", Status: registry.StatusPresent})
+
+	g.Expect(reg.Entries).To(HaveLen(2), "future checkout-aware upsert should keep both entries when checkout_id differs even if repo_id matches")
+	g.Expect(reg.Entries).To(ContainElements(
+		SatisfyAll(
+			HaveField("Path", "/worktrees/primary"),
+			HaveField("CheckoutID", "primary"),
+		),
+		SatisfyAll(
+			HaveField("Path", "/worktrees/secondary"),
+			HaveField("CheckoutID", "secondary"),
+		),
+	), "distinct checkout_id values should prevent repo_id-only collapse")
+}
+
+func TestLegacyEntryBackfillsCheckoutID(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/acme/repo", Path: "/worktrees/legacy-one", Status: registry.StatusPresent},
+			{RepoID: "github.com/acme/repo", Path: "/worktrees/legacy-two", Status: registry.StatusPresent},
+		},
+	}
+
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/worktrees/legacy-two", Status: registry.StatusPresent})
+
+	g.Expect(reg.Entries).To(HaveLen(2), "legacy entries without checkout_id should be backfilled during migration so existing duplicate checkouts remain distinct")
+	g.Expect(reg.FindEntry("github.com/acme/repo", "/worktrees/legacy-one")).NotTo(BeNil())
+	g.Expect(reg.FindEntry("github.com/acme/repo", "/worktrees/legacy-one").Path).To(Equal("/worktrees/legacy-one"), "after checkout_id backfill, path-specific lookup should not fall back across legacy entries")
+}
+
+func TestFindEntriesByRepoIDReturnsAllCheckoutMatches(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{}
+
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/worktrees/primary", Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/worktrees/secondary", Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/other", Path: "/worktrees/other", Status: registry.StatusPresent})
+
+	entries := reg.FindEntriesByRepoID("github.com/acme/repo")
+	g.Expect(entries).To(HaveLen(2))
+	g.Expect(entries).To(ContainElements(
+		SatisfyAll(
+			HaveField("Path", "/worktrees/primary"),
+			HaveField("CheckoutID", "primary"),
+		),
+		SatisfyAll(
+			HaveField("Path", "/worktrees/secondary"),
+			HaveField("CheckoutID", "secondary"),
+		),
+	))
+	g.Expect(reg.FindEntriesByRepoID("github.com/acme/missing")).To(BeNil())
+}
+
+func TestFindByRepoIDAndCheckoutIDBackfillsLegacyEntries(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/acme/repo", Path: "/worktrees/primary", Status: registry.StatusPresent},
+			{RepoID: "github.com/acme/repo", Path: "/worktrees/secondary", Status: registry.StatusPresent},
+		},
+	}
+
+	primary := reg.FindByRepoIDAndCheckoutID("github.com/acme/repo", "primary")
+	g.Expect(primary).NotTo(BeNil())
+	g.Expect(primary.Path).To(Equal("/worktrees/primary"))
+	g.Expect(primary.CheckoutID).To(Equal("primary"))
+
+	secondary := reg.FindByRepoIDAndCheckoutID("github.com/acme/repo", "secondary")
+	g.Expect(secondary).NotTo(BeNil())
+	g.Expect(secondary.Path).To(Equal("/worktrees/secondary"))
+	g.Expect(secondary.CheckoutID).To(Equal("secondary"))
+
+	g.Expect(reg.FindByRepoIDAndCheckoutID("github.com/acme/repo", "missing")).To(BeNil())
+}
