@@ -85,7 +85,7 @@ Implementation requirements:
 
 RepoKeeper distinguishes machine-local state from repo-local files:
 
-* `scan`, `status`, `describe`, and the TUI may read repo-local metadata, but they do not create or modify repo files.
+* `scan`, `get`, `describe`, and the TUI may read repo-local metadata, but they do not create or modify repo files.
 * Repo-local metadata writes happen only through `repokeeper index --write`.
 * `--yes` can skip the final confirmation prompt for a mutating command, but it never substitutes for an explicit write-capable command or flag.
 
@@ -110,7 +110,7 @@ RepoKeeper distinguishes machine-local state from repo-local files:
 | 2 | Errors — one or more operations failed (network, auth, corrupt repo, etc.) |
 | 3 | Fatal — RepoKeeper itself could not run (bad config, missing git binary, etc.) |
 
-Commands that produce status output (`status`, `scan`) use exit code 1 when any repo has a warning-level condition, making them useful in CI/scripts (`repokeeper status && echo "all clean"`).
+Commands that produce status output (`get`, `scan`) use exit code 1 when any repo has a warning-level condition, making them useful in CI/scripts (`repokeeper get && echo "all clean"`).
 
 #### `repokeeper version`
 
@@ -146,7 +146,7 @@ Flags:
 * `--vcs git,hg` (default `git`; `hg` experimental)
 * `-o, --format table|json` (default table)
 
-#### `repokeeper status`
+#### `repokeeper get`
 
 Reads registry (and optionally scans roots) and prints repo health.
 
@@ -230,7 +230,7 @@ Flags:
 
 * `--registry <path>` (optional)
 
-#### `repokeeper sync`
+#### `repokeeper reconcile`
 
 Runs safe fetch/prune on repos (all or selected).
 Shows a preflight plan and prompts for confirmation before executing unless `--yes` is passed.
@@ -253,9 +253,7 @@ Flags:
 * `--checkout-missing` (optional; clone repos marked missing from registry metadata)
 * `-o, --format table|wide|json`
 
-#### `repokeeper repair-upstream`
-
-Alias form: `repokeeper repair upstream`
+#### `repokeeper repair upstream`
 
 Inspects registered repositories for missing or mismatched upstream tracking and optionally repairs them.
 When running with `--dry-run=false`, the command prompts before applying repairs unless `--yes` is passed.
@@ -325,7 +323,7 @@ RepoKeeper supports an optional repo-root metadata file with this lookup order:
 2. `repokeeper.yaml`
 
 The file is read at runtime and merged into `RepoStatus` as a nested `repo_metadata` block plus `repo_metadata_file`, `repo_metadata_fingerprint`, and `repo_metadata_error` fields.
-RepoKeeper also stores a derived snapshot of those fields in the machine-local registry so later `scan`, `status`, `describe`, and TUI reads can reuse validated metadata when the on-disk fingerprint is unchanged.
+RepoKeeper also stores a derived snapshot of those fields in the machine-local registry so later `scan`, `get`, `describe`, and TUI reads can reuse validated metadata when the on-disk fingerprint is unchanged.
 
 Validation rules:
 
@@ -333,7 +331,7 @@ Validation rules:
 * `labels` keys follow the same key constraints as registry labels.
 * `entrypoints` and `paths` must be repository-relative and cannot escape the repo root.
 * Missing file means no metadata.
-* Invalid file becomes an in-band per-repo error; it does not abort `scan`, `status`, `describe`, or the TUI.
+* Invalid file becomes an in-band per-repo error; it does not abort `scan`, `get`, `describe`, or the TUI.
 
 ### 5.3 Kubectl-Style CLI Alignment (Milestone 6+)
 
@@ -352,7 +350,7 @@ Target command grammar (additive, backwards-compatible aliases during migration)
 * `repokeeper reconcile repos` (legacy-compatible alias)
 * `repokeeper repair upstream` (tracking repair workflows)
 
-Existing commands (`status`, `sync`, `repair-upstream`, etc.) remain supported during migration and should map to the new internal actions.
+Legacy command forms (`status`, `sync`, `repair-upstream`) have been removed; the kubectl-style commands above are the canonical forms.
 
 #### 5.3.2 Output contracts
 
@@ -429,7 +427,7 @@ By default, `checkout_id` is derived from the checkout path basename unless expl
 
 #### 6.2.1 Machine config
 
-Config path is resolved in this order for runtime commands (`scan`, `status`, `sync`):
+Config path is resolved in this order for runtime commands (`scan`, `get`, `reconcile`):
 
 1. `--config` flag (if provided).
 2. `REPOKEEPER_CONFIG` environment variable (if set).
@@ -500,7 +498,7 @@ During `scan`, RepoKeeper validates every existing registry entry:
 * If the same `repo_id` is found with a different `checkout_id` → retain both checkout entries.
 * If the same `repo_id` and `checkout_id` are found at a different path → mark that checkout entry `moved` and update the path.
 
-`repokeeper status` surfaces missing/moved repos so the user can act:
+`repokeeper get` surfaces missing/moved repos so the user can act:
 
 * `--only missing` — show only repos whose paths no longer exist.
 * Missing repos older than a configurable threshold (default: 30 days, `registry_stale_days` in config) can be auto-pruned with `repokeeper scan --prune-stale`.
@@ -673,7 +671,7 @@ Config loading: YAML (either viper or lightweight YAML parsing).
 
 ### 8.3 Concurrency model
 
-* A worker pool processes repos for `status` and `sync`.
+* A worker pool processes repos for `get` and `reconcile`.
 * Concurrency is bounded by `--concurrency`.
 * Each repo action has a context timeout.
 
