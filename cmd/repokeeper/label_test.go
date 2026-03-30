@@ -183,3 +183,53 @@ func TestLabelCommandUpdatesLocalLabelsOnly(t *testing.T) {
 		t.Fatalf("expected label command to leave repo metadata unchanged, got %q", string(metadataAfter))
 	}
 }
+
+func TestLabelCommandAcceptsAbsolutePathSelector(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{
+		RepoID:   "github.com/org/repo-a",
+		Path:     repoPath,
+		Status:   registry.StatusPresent,
+		LastSeen: time.Now(),
+	}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	labelCmd.SetOut(out)
+	labelCmd.SetContext(context.Background())
+	defer labelCmd.SetOut(os.Stdout)
+
+	_ = labelCmd.Flags().Set("registry", "")
+	_ = labelCmd.Flags().Set("format", "json")
+	_ = labelCmd.Flags().Set("set", "team=platform")
+	_ = labelCmd.Flags().Set("remove", "")
+	if err := labelCmd.RunE(labelCmd, []string{repoPath}); err != nil {
+		t.Fatalf("label command with absolute path failed: %v", err)
+	}
+	if !strings.Contains(out.String(), "\"local_labels\"") {
+		t.Fatalf("expected json label output, got: %q", out.String())
+	}
+
+	reloadedCfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := reloadedCfg.Registry.FindByRepoID("github.com/org/repo-a")
+	if entry == nil {
+		t.Fatal("expected registry entry")
+	}
+	if got := entry.Labels["team"]; got != "platform" {
+		t.Fatalf("expected team label after absolute path lookup, got %q", got)
+	}
+}
