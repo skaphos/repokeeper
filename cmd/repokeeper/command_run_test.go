@@ -1063,6 +1063,14 @@ func TestIndexRunECanPromoteLocalLabels(t *testing.T) {
 	defer cleanup()
 	yesCleanup := withAssumeYes(t, true)
 	defer yesCleanup()
+	prevWrite, _ := indexCmd.Flags().GetBool("write")
+	prevForce, _ := indexCmd.Flags().GetBool("force")
+	prevPromote, _ := indexCmd.Flags().GetBool("promote-local-labels")
+	defer func() {
+		_ = indexCmd.Flags().Set("write", boolToFlag(prevWrite))
+		_ = indexCmd.Flags().Set("force", boolToFlag(prevForce))
+		_ = indexCmd.Flags().Set("promote-local-labels", boolToFlag(prevPromote))
+	}()
 
 	indexCmd.SetIn(strings.NewReader(""))
 	defer indexCmd.SetIn(os.Stdin)
@@ -1092,6 +1100,14 @@ func TestIndexReposRunERequiresPromoteFlag(t *testing.T) {
 	}
 	cleanup := withTestConfig(t, cfgPath)
 	defer cleanup()
+	prevSelector, _ := indexReposCmd.Flags().GetString("selector")
+	prevLocalSelector, _ := indexReposCmd.Flags().GetString("local-selector")
+	prevPromote, _ := indexReposCmd.Flags().GetBool("promote-local-labels")
+	defer func() {
+		_ = indexReposCmd.Flags().Set("selector", prevSelector)
+		_ = indexReposCmd.Flags().Set("local-selector", prevLocalSelector)
+		_ = indexReposCmd.Flags().Set("promote-local-labels", boolToFlag(prevPromote))
+	}()
 
 	_ = indexReposCmd.Flags().Set("selector", "team=platform")
 	_ = indexReposCmd.Flags().Set("local-selector", "")
@@ -1130,10 +1146,25 @@ func TestIndexReposRunEPreviewsAndWritesSelectedRepos(t *testing.T) {
 	defer cleanup()
 	yesCleanup := withAssumeYes(t, true)
 	defer yesCleanup()
+	prevWrite, _ := indexReposCmd.Flags().GetBool("write")
+	prevForce, _ := indexReposCmd.Flags().GetBool("force")
+	prevPromote, _ := indexReposCmd.Flags().GetBool("promote-local-labels")
+	prevSelector, _ := indexReposCmd.Flags().GetString("selector")
+	prevLocalSelector, _ := indexReposCmd.Flags().GetString("local-selector")
+	prevCtx := indexReposCmd.Context()
+	defer func() {
+		_ = indexReposCmd.Flags().Set("write", boolToFlag(prevWrite))
+		_ = indexReposCmd.Flags().Set("force", boolToFlag(prevForce))
+		_ = indexReposCmd.Flags().Set("promote-local-labels", boolToFlag(prevPromote))
+		_ = indexReposCmd.Flags().Set("selector", prevSelector)
+		_ = indexReposCmd.Flags().Set("local-selector", prevLocalSelector)
+		indexReposCmd.SetContext(prevCtx)
+	}()
 
 	out := &bytes.Buffer{}
 	indexReposCmd.SetOut(out)
 	defer indexReposCmd.SetOut(os.Stdout)
+	indexReposCmd.SetContext(context.Background())
 	_ = indexReposCmd.Flags().Set("write", "false")
 	_ = indexReposCmd.Flags().Set("force", "false")
 	_ = indexReposCmd.Flags().Set("promote-local-labels", "true")
