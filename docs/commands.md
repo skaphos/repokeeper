@@ -8,9 +8,8 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 |---|---|
 | `repokeeper init` | Bootstrap a new config file |
 | `repokeeper scan` | Discover repos and update the registry |
-| `repokeeper status` | Report repo health summary (path, branch, dirty, tracking) |
-| `repokeeper get` | Kubectl-style alias for status/list view |
-| `repokeeper get repos` | Backward-compatible alias for list view |
+| `repokeeper get` | Report repo health summary (path, branch, dirty, tracking) |
+| `repokeeper get repos` | Explicit resource form for repo health |
 | `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
 | `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form |
 | `repokeeper index <repo-id-or-path>` | Interactively preview or write repo-local metadata |
@@ -20,18 +19,16 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 | `repokeeper delete <repo-id-or-path>` | Delete repo files and remove from registry |
 | `repokeeper edit <repo-id-or-path>` | Open one repo entry in `$VISUAL`/`$EDITOR`, validate, save |
 | `repokeeper label <repo-id-or-path>` | Show or mutate labels for one repository |
-| `repokeeper repair-upstream` | Repair missing/mismatched upstream tracking |
-| `repokeeper repair upstream` | Kubectl-style alias for upstream repair |
-| `repokeeper sync` | Fetch and prune all repos safely |
-| `repokeeper reconcile` | Kubectl-style alias for sync/reconciliation |
-| `repokeeper reconcile repos` | Backward-compatible alias for sync/reconciliation |
+| `repokeeper repair upstream` | Repair missing/mismatched upstream tracking |
+| `repokeeper reconcile` | Fetch and prune all repos safely |
+| `repokeeper reconcile repos` | Explicit resource form for sync/reconciliation |
 | `repokeeper export` | Export config and optional registry for migration |
 | `repokeeper import` | Import a previously exported bundle |
 | `repokeeper version` | Print version and build info |
 
 ## Command Notes
 
-### `repokeeper status` / `repokeeper get`
+### `repokeeper get`
 
 - Supports `--only`, `--field-selector`, and label selector `-l, --selector`.
 - Label selector supports `key` and `key=value`, comma-separated AND.
@@ -60,7 +57,7 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 - `install` writes the skill from content embedded in the compiled RepoKeeper binary.
 - `uninstall` prompts before removing installed skill directories unless `--yes` is passed.
 
-### `repokeeper sync` / `repokeeper reconcile`
+### `repokeeper reconcile`
 
 - Shows a preflight plan before execution.
 - Prompts only when mutating actions are planned (rebase/stash/checkout-missing clone), unless `--yes`.

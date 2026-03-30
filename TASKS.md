@@ -5,7 +5,7 @@
 ### Milestone 0 — Repo skeleton
 
 - [x] Initialize Go module (`github.com/skaphos/repokeeper`)
-- [x] Add Cobra scaffolding (`repokeeper`, `init`, `scan`, `status`, `sync`, `version`)
+- [x] Add Cobra scaffolding (`repokeeper`, `init`, `scan`, `get`, `reconcile`, `version`)
 - [x] Add config + registry paths and basic I/O
 - [x] Bootstrap Ginkgo test suites for each package (`ginkgo bootstrap`)
 - [x] Add `.golangci.yml` with linter configuration
@@ -19,7 +19,7 @@
 - [x] `repokeeper init` creates a config file
 - [x] `repokeeper init` defaults to `.repokeeper.yaml` in the current directory
 - [x] runtime commands resolve nearest `.repokeeper.yaml` by walking parent directories
-- [x] `repokeeper status --help`
+- [x] `repokeeper get --help`
 - [x] `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...` passes
 - [x] `go run github.com/onsi/ginkgo/v2/ginkgo@v2.28.1 ./...` runs (even if no tests yet)
 
@@ -52,7 +52,7 @@
 
 **Acceptance:**
 
-- [x] `repokeeper status --format json` returns accurate info across many repos
+- [x] `repokeeper get --format json` returns accurate info across many repos
 - [x] All gitx/model Ginkgo specs pass
 - [x] Coverage >= 80% for `internal/gitx/` (`internal/model` has no executable statements)
 
@@ -66,8 +66,8 @@
 
 **Acceptance:**
 
-- [x] `repokeeper sync` updates remote refs and prunes stale remote-tracking branches without touching worktrees/submodules
-- [x] `repokeeper sync --dry-run` shows intended operations without executing
+- [x] `repokeeper reconcile` updates remote refs and prunes stale remote-tracking branches without touching worktrees/submodules
+- [x] `repokeeper reconcile --dry-run` shows intended operations without executing
 - [x] All engine Ginkgo specs pass
 - [x] Integration test suite passes
 
@@ -103,7 +103,7 @@
 - [x] Selector evolution:
 - [x] keep `--only` as shorthand
 - [x] add field-selector style filtering (phase rollout)
-- [x] `repair-upstream` command:
+- [x] `repair upstream` command:
 - [x] detect missing/wrong upstream tracking refs
 - [x] repair to configured/default upstream (`origin/<branch>`) with dry-run support
 - [x] diverged-focused reporting:
@@ -112,7 +112,7 @@
 - [x] remote mismatch detection:
 - [x] report registry `remote_url` vs live git remote mismatch
 - [x] optional reconcile mode to update registry or git remote (explicit flag)
-- [x] `sync --continue-on-error`:
+- [x] `reconcile --continue-on-error`:
 - [x] continue processing all repos while accumulating failures
 - [x] summarize failed repos/actions at end with deterministic ordering
 - [x] richer exit code model for automation:
@@ -146,7 +146,7 @@
   - [x] replace package-level flag variables (`flagVerbose`, `flagQuiet`, `exitCode`, etc.) with a command context struct
   - [x] enable isolated unit testing of commands without state leakage
 - [x] Duplicate sync execution:
-- [x] refactor `sync` command to reuse dry-run plan instead of calling `eng.Sync()` twice
+- [x] refactor `reconcile` command to reuse dry-run plan instead of calling `eng.Sync()` twice
 - [x] add `Execute(plan)` method to engine that accepts a pre-computed plan
 - [x] Typed error classification:
   - [x] replace string-based error classification in `gitx/error_class.go` with sentinel errors or error types
@@ -178,7 +178,7 @@
 **Acceptance:**
 
 - [x] No package-level mutable state in `cmd/repokeeper/` (flags read via context/struct)
-- [x] `sync` command performs repo analysis only once per invocation
+- [x] `reconcile` command performs repo analysis only once per invocation
 - [x] Error classification uses Go error types with `errors.Is`/`errors.As`
 - [x] Function size guideline: target ~100 lines where practical to keep density/complexity low (not a strict hard limit)
 - [x] Shared utilities live in dedicated packages with their own tests
@@ -286,7 +286,7 @@ Feedback captured and prioritized:
 - [x] P1: support label-based filtering in repository list/get flows (for example `get repos -l team=platform`, `-l env in (prod,stage)` phase-in), with deterministic behavior in table/wide/json outputs.
 - [x] P1: include labels/annotations in portability export/import and conflict handling so classification metadata survives migration across machines.
 - [x] P1: document label selector semantics and constraints in `README.md` and `DESIGN.md`, including explicit note that label filtering is a prerequisite for TUI filter parity.
-- [x] P1: read optional repo-local metadata from `.repokeeper-repo.yaml` / `repokeeper.yaml` and expose it in `scan`, `status`, `describe`, and JSON/custom-column output without persisting it into the machine registry.
+- [x] P1: read optional repo-local metadata from `.repokeeper-repo.yaml` / `repokeeper.yaml` and expose it in `scan`, `get`, `describe`, and JSON/custom-column output without persisting it into the machine registry.
 - [x] P1: add `repokeeper index <repo-id-or-path>` to interactively preview repo-local metadata and write it only when `--write` is explicitly passed.
 - [x] P1: surface repo-local metadata in the TUI detail view and filter matching so navigation benefits from the same runtime metadata overlay as the CLI.
 - [x] P2: ship an installable user-scope agent skill for RepoKeeper covering init, discovery, labeling, safe navigation, and safe update workflows.

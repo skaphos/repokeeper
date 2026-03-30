@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
@@ -39,6 +40,21 @@ const (
 )
 
 type remoteMismatchPlan = engine.RemoteMismatchPlan
+
+type statusJSONRepo struct {
+	model.RepoStatus
+	LocalLabels map[string]string `json:"local_labels,omitempty"`
+}
+
+type statusJSONReport struct {
+	GeneratedAt time.Time        `json:"generated_at"`
+	Repos       []statusJSONRepo `json:"repos"`
+}
+
+type divergedJSONOutput struct {
+	statusJSONReport
+	Diverged []divergedAdvice `json:"diverged"`
+}
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -203,7 +219,7 @@ var statusCmd = &cobra.Command{
 		switch mode.kind {
 		case outputKindJSON:
 			setColorOutputMode(cmd, string(mode.kind))
-			data, err := json.MarshalIndent(output, "", "  ")
+			data, err := json.MarshalIndent(buildStatusJSONOutput(report, filter == engine.FilterDiverged), "", "  ")
 			if err != nil {
 				return err
 			}
@@ -236,6 +252,27 @@ var statusCmd = &cobra.Command{
 		infof(cmd, "status completed: %d repos", len(report.Repos))
 		return nil
 	},
+}
+
+func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any {
+	jsonReport := statusJSONReport{}
+	if report != nil {
+		jsonReport.GeneratedAt = report.GeneratedAt
+		jsonReport.Repos = make([]statusJSONRepo, 0, len(report.Repos))
+		for _, repo := range report.Repos {
+			jsonReport.Repos = append(jsonReport.Repos, statusJSONRepo{
+				RepoStatus:  repo,
+				LocalLabels: cloneMetadataMap(repo.Labels),
+			})
+		}
+	}
+	if !includeDiverged {
+		return jsonReport
+	}
+	return divergedJSONOutput{
+		statusJSONReport: jsonReport,
+		Diverged:         buildDivergedAdvice(report.Repos),
+	}
 }
 
 func init() {

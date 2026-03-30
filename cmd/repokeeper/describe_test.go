@@ -91,6 +91,21 @@ func TestSelectRegistryEntryForDescribePathStillResolves(t *testing.T) {
 	}
 }
 
+func TestSelectRegistryEntryForDescribeAbsolutePath(t *testing.T) {
+	entries := []registry.Entry{
+		{RepoID: "github.com/org/repo-a", Path: "/tmp/work/repo-a"},
+		{RepoID: "github.com/org/repo-b", Path: "/tmp/root/repo-b"},
+	}
+
+	entry, err := selectRegistryEntryForDescribe(entries, "/tmp/root/repo-b", "/tmp/work", []string{"/tmp/root"})
+	if err != nil {
+		t.Fatalf("expected absolute path selector to match, got error: %v", err)
+	}
+	if entry.RepoID != "github.com/org/repo-b" {
+		t.Fatalf("unexpected absolute-path match: %#v", entry)
+	}
+}
+
 func TestSelectRegistryEntryForDescribeAmbiguousRepoID(t *testing.T) {
 	entries := []registry.Entry{
 		{RepoID: "github.com/org/repo", Path: "/tmp/worktrees/primary"},

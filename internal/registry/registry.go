@@ -7,6 +7,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/model"
@@ -84,31 +86,21 @@ func (r *Registry) Upsert(entry Entry) {
 	for i := range r.Entries {
 		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == entry.RepoID && r.Entries[i].CheckoutID == entry.CheckoutID {
-			if r.Entries[i].Path != entry.Path {
-				entry.Status = StatusMoved
-			} else if entry.Status == "" {
-				entry.Status = StatusPresent
+			merged := mergeRegistryEntry(r.Entries[i], entry)
+			if !sameRegistryPath(r.Entries[i].Path, entry.Path) {
+				merged.Status = StatusMoved
 			}
-			if entry.Type == "" {
-				entry.Type = r.Entries[i].Type
-			}
-			if entry.Branch == "" {
-				entry.Branch = r.Entries[i].Branch
-			}
-			if entry.Labels == nil && len(r.Entries[i].Labels) > 0 {
-				entry.Labels = cloneStringMap(r.Entries[i].Labels)
-			}
-			if entry.Annotations == nil && len(r.Entries[i].Annotations) > 0 {
-				entry.Annotations = cloneStringMap(r.Entries[i].Annotations)
-			}
-			r.Entries[i].Path = entry.Path
-			r.Entries[i].RemoteURL = entry.RemoteURL
-			r.Entries[i].Type = entry.Type
-			r.Entries[i].Branch = entry.Branch
-			r.Entries[i].Labels = entry.Labels
-			r.Entries[i].Annotations = entry.Annotations
-			r.Entries[i].LastSeen = entry.LastSeen
-			r.Entries[i].Status = entry.Status
+			r.Entries[i] = merged
+			r.collapseDuplicatePaths(i)
+			return
+		}
+	}
+
+	for i := range r.Entries {
+		r.backfillCheckoutID(i)
+		if sameRegistryPath(r.Entries[i].Path, entry.Path) {
+			r.Entries[i] = mergeRegistryEntry(r.Entries[i], entry)
+			r.collapseDuplicatePaths(i)
 			return
 		}
 	}
@@ -152,6 +144,82 @@ func cloneStringMap(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func mergeRegistryEntry(existing, incoming Entry) Entry {
+	merged := incoming
+	merged.CheckoutID = checkoutIDFromEntry(merged)
+	if merged.Status == "" {
+		merged.Status = StatusPresent
+	}
+	if merged.Type == "" {
+		merged.Type = existing.Type
+	}
+	if merged.Branch == "" {
+		merged.Branch = existing.Branch
+	}
+	if merged.Labels == nil && len(existing.Labels) > 0 {
+		merged.Labels = cloneStringMap(existing.Labels)
+	}
+	if merged.Annotations == nil && len(existing.Annotations) > 0 {
+		merged.Annotations = cloneStringMap(existing.Annotations)
+	}
+	if merged.RepoMetadataFile == "" {
+		merged.RepoMetadataFile = existing.RepoMetadataFile
+	}
+	if merged.RepoMetadataError == "" {
+		merged.RepoMetadataError = existing.RepoMetadataError
+	}
+	if merged.RepoMetadataFingerprint == "" {
+		merged.RepoMetadataFingerprint = existing.RepoMetadataFingerprint
+	}
+	if merged.RepoMetadata == nil && existing.RepoMetadata != nil {
+		merged.RepoMetadata = cloneRepoMetadata(existing.RepoMetadata)
+	}
+	return merged
+}
+
+func sameRegistryPath(a, b string) bool {
+	left, ok := canonicalRegistryPath(a)
+	if !ok {
+		return false
+	}
+	right, ok := canonicalRegistryPath(b)
+	if !ok {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
+}
+
+func canonicalRegistryPath(path string) (string, bool) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", false
+	}
+	return filepath.Clean(trimmed), true
+}
+
+func (r *Registry) collapseDuplicatePaths(keepIndex int) {
+	if r == nil || keepIndex < 0 || keepIndex >= len(r.Entries) {
+		return
+	}
+	keep := r.Entries[keepIndex]
+	collapsed := make([]Entry, 0, len(r.Entries))
+	for i := range r.Entries {
+		if i == keepIndex {
+			continue
+		}
+		if sameRegistryPath(r.Entries[i].Path, keep.Path) {
+			keep = mergeRegistryEntry(r.Entries[i], keep)
+			continue
+		}
+		collapsed = append(collapsed, r.Entries[i])
+	}
+	collapsed = append(collapsed, keep)
+	r.Entries = collapsed
 }
 
 func SeedRepoMetadataStatus(entry Entry, status *model.RepoStatus) {

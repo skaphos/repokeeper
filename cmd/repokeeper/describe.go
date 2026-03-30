@@ -208,6 +208,34 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(repoMatches))
 	}
 
+	if filepath.IsAbs(sel) {
+		candidatePath, ok := canonicalPathForMatch(sel)
+		if !ok {
+			return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
+		}
+		var matches []registry.Entry
+		seen := map[string]struct{}{}
+		for _, entry := range entries {
+			entryPath, ok := canonicalPathForMatch(entry.Path)
+			if !ok || !samePathForMatch(entryPath, candidatePath) {
+				continue
+			}
+			key := entry.RepoID + "|" + entry.Path
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			matches = append(matches, entry)
+		}
+		if len(matches) == 1 {
+			return matches[0], nil
+		}
+		if len(matches) > 1 {
+			return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(matches))
+		}
+		return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
+	}
+
 	candidates := make([]string, 0, 1+len(roots))
 	if abs, err := filepath.Abs(filepath.Join(cwd, sel)); err == nil {
 		if candidate, ok := canonicalPathForMatch(abs); ok && pathWithinBase(candidate, cwd) {

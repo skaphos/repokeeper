@@ -39,10 +39,10 @@ Use this skill when you need to:
 ## Core rules
 
 1. Prefer RepoKeeper over ad hoc filesystem crawling when the task spans more than one repository.
-2. Treat `scan`, `status`, `describe`, and the TUI as read-only with respect to repo contents.
+2. Treat `scan`, `get`, `describe`, and the TUI as read-only with respect to repo contents.
 3. Treat `index --write` as the only RepoKeeper command that writes a repo-local metadata file, and do not run it unless the user explicitly wants repo-local metadata created or updated.
 4. Treat `label` and `edit` as machine-local registry changes, not source-controlled repo changes.
-5. Always inspect status before attempting sync or update workflows.
+5. Always inspect health with `get` before attempting reconcile or update workflows.
 6. Prefer preview-first flows: use `--dry-run` where available before executing mutating operations.
 
 ## Initialization workflow
@@ -62,7 +62,7 @@ Expected outcome:
 After initialization, use:
 
 ```bash
-repokeeper status
+repokeeper get
 ```
 
 to confirm the registry is populated and the repos are visible.
@@ -84,13 +84,13 @@ repokeeper scan --roots /path/one,/path/two
 If you only need a current view of tracked repositories and health, use:
 
 ```bash
-repokeeper status
+repokeeper get
 ```
 
 Use JSON when another agent step needs structured output:
 
 ```bash
-repokeeper status -o json
+repokeeper get -o json
 ```
 
 ## Labeling workflow
@@ -122,7 +122,7 @@ Important distinction:
 
 When you need to choose the right repository before opening files:
 
-1. Run `repokeeper status -o json` or `repokeeper get -o json`.
+1. Run `repokeeper get -o json`.
 2. Look at:
    - `repo_id`
    - `checkout_id`
@@ -147,12 +147,12 @@ The TUI detail view surfaces local labels, shared labels, annotations, and repo-
 
 ## Safe update workflow
 
-When asked whether repos are up to date, start with status, not sync.
+When asked whether repos are up to date, start with get, not reconcile.
 
 ### Check health first
 
 ```bash
-repokeeper status -o json
+repokeeper get -o json
 ```
 
 Read each repo's tracking state from the JSON output:
@@ -167,7 +167,7 @@ Read each repo's tracking state from the JSON output:
 To preview fetch plus local update behavior:
 
 ```bash
-repokeeper sync --update-local --dry-run
+repokeeper reconcile --update-local --dry-run
 ```
 
 This is the preferred planning step before making changes.
@@ -177,7 +177,7 @@ This is the preferred planning step before making changes.
 If the user wants updates applied after reviewing the plan:
 
 ```bash
-repokeeper sync --update-local
+repokeeper reconcile --update-local
 ```
 
 Behavior to understand:
@@ -193,7 +193,7 @@ If asked:
 
 > Are my repos up to date?
 
-Use RepoKeeper status first and summarize the result in plain language.
+Use RepoKeeper `get` first and summarize the result in plain language.
 
 If asked:
 
@@ -201,9 +201,9 @@ If asked:
 
 Use this sequence:
 
-1. `repokeeper sync --update-local --dry-run`
+1. `repokeeper reconcile --update-local --dry-run`
 2. summarize what will be updated and what will be skipped
-3. run `repokeeper sync --update-local` if the user still wants execution
+3. run `repokeeper reconcile --update-local` if the user still wants execution
 4. report the outcome clearly, for example:
    - safely updated these repositories
    - skipped these repositories because they were dirty
@@ -234,7 +234,7 @@ Use `--force` only when you intentionally want to replace or reconcile an existi
 ## Avoid these mistakes
 
 - do not use RepoKeeper labels as if they are committed to the repository
-- do not assume `status` updates repositories; it only reports health
-- do not skip the preview step before mutating sync flows
+- do not assume `get` updates repositories; it only reports health
+- do not skip the preview step before mutating reconcile flows
 - do not treat dirty repos as safe to update unless the user explicitly accepts `--rebase-dirty`
-- do not assume `tracking.status=behind` is currently selectable with `--field-selector`; inspect JSON output instead
+- do not assume `tracking.status=behind` is currently selectable with `--field-selector`; inspect JSON output from `get` instead

@@ -355,6 +355,66 @@ func TestStatusRunELocalSelectorUsesMachineLocalLabels(t *testing.T) {
 	}
 }
 
+func TestStatusRunEJSONIncludesLocalLabelsAlias(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-local-labels")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	if out, err := exec.Command("git", "init", repoPath).CombinedOutput(); err != nil {
+		t.Fatalf("git init repo failed: %v %s", err, string(out))
+	}
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{
+		RepoID:   "github.com/org/repo-local-labels",
+		Path:     repoPath,
+		Status:   registry.StatusPresent,
+		LastSeen: time.Now(),
+		Labels: map[string]string{
+			"team": "platform",
+		},
+	}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	statusCmd.SetOut(out)
+	statusCmd.SetErr(errOut)
+	statusCmd.SetContext(context.Background())
+	defer statusCmd.SetOut(os.Stdout)
+	defer statusCmd.SetErr(os.Stderr)
+
+	_ = statusCmd.Flags().Set("registry", "")
+	_ = statusCmd.Flags().Set("format", "json")
+	_ = statusCmd.Flags().Set("only", "all")
+	_ = statusCmd.Flags().Set("field-selector", "")
+	_ = statusCmd.Flags().Set("selector", "")
+	_ = statusCmd.Flags().Set("local-selector", "")
+	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
+	_ = statusCmd.Flags().Set("dry-run", "true")
+	_ = statusCmd.Flags().Set("no-headers", "false")
+
+	if err := statusCmd.RunE(statusCmd, nil); err != nil {
+		t.Fatalf("status json run failed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "\"labels\"") {
+		t.Fatalf("expected existing labels field in status json, got: %q", got)
+	}
+	if !strings.Contains(got, "\"local_labels\"") {
+		t.Fatalf("expected local_labels alias in status json, got: %q", got)
+	}
+	if !strings.Contains(got, "\"team\": \"platform\"") {
+		t.Fatalf("expected machine-local label value in status json, got: %q", got)
+	}
+}
+
 func TestStatusRunEInvalidVCSSelection(t *testing.T) {
 	cfgPath, _ := writeTestConfigAndRegistry(t)
 	cleanup := withTestConfig(t, cfgPath)

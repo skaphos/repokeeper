@@ -25,7 +25,7 @@ RepoKeeper is Git-first. The Mercurial (`hg`) adapter is available as an **exper
 Current experimental limits:
 
 - `hg`: discovery/status and safe `pull`-based fetch are supported
-- `hg`: `sync --update-local` (rebase/push/stash flows) is intentionally unsupported and is skipped with a reason
+- `hg`: `reconcile --update-local` (rebase/push/stash flows) is intentionally unsupported and is skipped with a reason
 - Repair and remote mismatch reconciliation flows remain Git-oriented
 
 ## Install
@@ -58,12 +58,12 @@ repokeeper init
 # Scan your roots for git repos
 repokeeper scan
 
-# Scan/status across mixed git + hg roots
+# Scan/get across mixed git + hg roots
 repokeeper scan --vcs git,hg
-repokeeper status --vcs git,hg
+repokeeper get --vcs git,hg
 
 # Check the health of all repos
-repokeeper status
+repokeeper get
 
 # Preview repo-local metadata for one tracked repo
 repokeeper index github.com/org/repo
@@ -72,15 +72,15 @@ repokeeper index github.com/org/repo
 repokeeper index github.com/org/repo --write
 
 # Fetch/prune all repos safely
-repokeeper sync
+repokeeper reconcile
 ```
 
 ## Expected User Flow
 
 1. From the directory you want to manage, run `repokeeper init`.
 2. `init` creates `.repokeeper.yaml`, sets that directory as the default root, and performs an initial scan.
-3. Run `repokeeper status` to review repo health and identify issues (dirty worktrees, gone upstreams, missing repos).
-4. Run `repokeeper sync` to safely fetch/prune across registered repos.
+3. Run `repokeeper get` to review repo health and identify issues (dirty worktrees, gone upstreams, missing repos).
+4. Run `repokeeper reconcile` to safely fetch/prune across registered repos.
 5. Re-run `repokeeper scan` whenever clones are added, moved, or removed so the embedded registry stays current.
 6. If needed, widen scope for a specific run with `repokeeper scan --roots <dir1,dir2,...>`.
 
@@ -101,7 +101,7 @@ Quick highlights:
 - `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
 - Running `repokeeper` with no subcommand launches the interactive TUI (`l` edits repo labels, `i` edits or initializes repo-local metadata from detail view).
 - `repokeeper skill install [target]` installs or updates the bundled RepoKeeper skill for supported runtimes.
-- `status`/`get` support shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
+- `get` supports shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
 
 The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper skill install` works from packaged builds such as Homebrew installs.
@@ -110,7 +110,7 @@ The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper 
 
 RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.yaml` or `repokeeper.yaml`.
 
-- Reads are automatic and read-only in `scan`, `status`, `describe`, and the TUI list/detail views.
+- Reads are automatic and read-only in `scan`, `get`, `describe`, and the TUI list/detail views.
 - Writes are opt-in and happen through `repokeeper index --write` or the TUI metadata editor (`i` from detail view).
 - Read commands cache repo-metadata snapshots in the machine-local registry and refresh them when the on-disk metadata state changes.
 - `--yes` skips the final write confirmation, but does not change the requirement to pass `--write`.
@@ -157,7 +157,7 @@ related_repos:
 
 By default, `repokeeper init` writes `.repokeeper.yaml` in your current directory.
 
-Runtime commands (`scan`, `status`, `sync`) resolve config in this order:
+Runtime commands (`scan`, `get`, `reconcile`) resolve config in this order:
 
 1. `--config <path>`
 2. `REPOKEEPER_CONFIG` environment variable
@@ -207,12 +207,12 @@ RepoKeeper is designed to be safe to run on repos with dirty working trees:
 - **Never** updates or recurses into submodules
 - Fetch uses `--no-recurse-submodules` and `-c fetch.recurseSubmodules=false` as belt-and-suspenders
 - All mutating commands support `--dry-run`
-- `scan`, `status`, and `describe` never create or rewrite repo-local metadata files
+- `scan`, `get`, and `describe` never create or rewrite repo-local metadata files
 - Repo-local metadata writes are explicit: `repokeeper index --write` or the TUI metadata editor (`i` from detail view)
 
 Optional local checkout update:
 
-- `repokeeper sync --update-local` adds `pull --rebase` after fetch, but only when all of these are true:
+- `repokeeper reconcile --update-local` adds `pull --rebase` after fetch, but only when all of these are true:
 - working tree is clean (or `--rebase-dirty` is set)
 - branch is not detached
 - branch tracks an upstream

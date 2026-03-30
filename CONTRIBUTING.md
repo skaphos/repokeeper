@@ -22,8 +22,8 @@ Thanks for contributing to RepoKeeper.
 
 Examples:
 
-- `feat(sync): add checkout-missing support`
-- `fix(status): align colored table output`
+- `feat(reconcile): add checkout-missing support`
+- `fix(get): align colored table output`
 
 ## Coding Standards
 
