@@ -275,6 +275,53 @@ func TestUpsertAllowsDuplicateRepoIDWithDistinctCheckoutID(t *testing.T) {
 	), "distinct checkout_id values should prevent repo_id-only collapse")
 }
 
+func TestUpsertCollapsesDuplicatePathAcrossRepoIDs(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{}
+
+	reg.Upsert(registry.Entry{
+		RepoID:      "github.com/acme/old-repo",
+		Path:        "/worktrees/shared",
+		Status:      registry.StatusPresent,
+		Labels:      map[string]string{"team": "platform"},
+		Annotations: map[string]string{"owner": "sre"},
+		RepoMetadata: &model.RepoMetadata{
+			Name:   "Shared Repo",
+			Labels: map[string]string{"scope": "shared"},
+		},
+	})
+	reg.Upsert(registry.Entry{
+		RepoID:    "github.com/acme/new-repo",
+		Path:      "/worktrees/shared",
+		RemoteURL: "git@github.com:acme/new-repo.git",
+		Status:    registry.StatusPresent,
+	})
+
+	g.Expect(reg.Entries).To(HaveLen(1))
+	g.Expect(reg.Entries[0].RepoID).To(Equal("github.com/acme/new-repo"))
+	g.Expect(reg.Entries[0].Path).To(Equal("/worktrees/shared"))
+	g.Expect(reg.Entries[0].Labels).To(HaveKeyWithValue("team", "platform"))
+	g.Expect(reg.Entries[0].Annotations).To(HaveKeyWithValue("owner", "sre"))
+	g.Expect(reg.Entries[0].RepoMetadata).NotTo(BeNil())
+	g.Expect(reg.Entries[0].RepoMetadata.Name).To(Equal("Shared Repo"))
+}
+
+func TestUpsertRemovesLegacyDuplicatePathEntries(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/acme/one", Path: "/worktrees/shared", Status: registry.StatusPresent},
+			{RepoID: "github.com/acme/two", Path: "/worktrees/shared", Status: registry.StatusPresent, Labels: map[string]string{"team": "platform"}},
+		},
+	}
+
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/canonical", Path: "/worktrees/shared", Status: registry.StatusPresent})
+
+	g.Expect(reg.Entries).To(HaveLen(1))
+	g.Expect(reg.Entries[0].RepoID).To(Equal("github.com/acme/canonical"))
+	g.Expect(reg.Entries[0].Labels).To(HaveKeyWithValue("team", "platform"))
+}
+
 func TestLegacyEntryBackfillsCheckoutID(t *testing.T) {
 	g := NewWithT(t)
 	reg := &registry.Registry{
