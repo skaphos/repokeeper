@@ -85,8 +85,11 @@ Implementation requirements:
 
 RepoKeeper distinguishes machine-local state from repo-local files:
 
-* `scan`, `get`, `describe`, and the TUI may read repo-local metadata, but they do not create or modify repo files.
-* Repo-local metadata writes happen only through `repokeeper index --write`.
+* `scan`, `get`, `describe`, `add`, and `import` may read repo-local metadata but do not create or modify repo files.
+* `label` and `edit` remain machine-local registry changes only.
+* `index --write` and the TUI metadata editor are explicit repo-local metadata write flows.
+* Promotion merges machine-local labels into `repo_metadata.labels` without overwriting existing shared keys.
+* Selector-driven bulk promotion is explicit through `repokeeper index repos --selector ... --local-selector ... --promote-local-labels --write`.
 * `--yes` can skip the final confirmation prompt for a mutating command, but it never substitutes for an explicit write-capable command or flag.
 
 ## 5. User Experience
@@ -185,11 +188,33 @@ Behavior:
 * Prints a preview to stdout on every run.
 * Writes only when `--write` is passed.
 * Prompts before writing unless `--yes` is passed.
+* `--promote-local-labels` seeds shared `repo_metadata.labels` from machine-local registry labels without overwriting existing shared keys.
 
 Flags:
 
 * `--write` (required to write a repo-local metadata file)
 * `--force` (overwrite or replace an existing repo-local metadata file)
+* `--promote-local-labels` (merge machine-local labels into shared repo metadata labels)
+
+#### `repokeeper index repos`
+
+Explicit bulk metadata promotion for selected repositories.
+
+Behavior:
+
+* Filters tracked repos with `--selector` (shared labels) and `--local-selector` (machine-local labels).
+* Requires `--promote-local-labels`.
+* Prints a preview for every selected repo.
+* Writes only when `--write` is passed.
+* Prompts once before writing unless `--yes` is passed.
+
+Flags:
+
+* `--selector` (shared repo metadata labels)
+* `--local-selector` (machine-local labels)
+* `--promote-local-labels` (required for bulk promotion)
+* `--write`
+* `--force`
 
 #### `repokeeper skill install [target]` / `repokeeper skill uninstall [target]`
 

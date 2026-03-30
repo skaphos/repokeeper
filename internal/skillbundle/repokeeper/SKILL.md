@@ -39,9 +39,9 @@ Use this skill when you need to:
 ## Core rules
 
 1. Prefer RepoKeeper over ad hoc filesystem crawling when the task spans more than one repository.
-2. Treat `scan`, `get`, `describe`, and the TUI as read-only with respect to repo contents.
-3. Treat `index --write` as the only RepoKeeper command that writes a repo-local metadata file, and do not run it unless the user explicitly wants repo-local metadata created or updated.
-4. Treat `label` and `edit` as machine-local registry changes, not source-controlled repo changes.
+2. Treat `scan`, `get`, `describe`, `add`, `import`, and the TUI as read-only with respect to repo contents unless the user explicitly requests repo-local metadata writes.
+3. Treat `label` and `edit` as machine-local registry changes, not source-controlled repo changes.
+4. Treat `index --write` and the TUI metadata editor as explicit repo-local metadata write flows.
 5. Always inspect health with `get` before attempting reconcile or update workflows.
 6. Prefer preview-first flows: use `--dry-run` where available before executing mutating operations.
 
@@ -225,7 +225,19 @@ Write it only when explicitly intended:
 repokeeper index <repo-id-or-path> --write
 ```
 
-Do not run `index --write` unless the user explicitly wants repo-local metadata created or updated.
+To bridge machine-local labels into shared metadata intentionally:
+
+```bash
+repokeeper index <repo-id-or-path> --promote-local-labels --write
+```
+
+For explicit bulk promotion by selectors:
+
+```bash
+repokeeper index repos --local-selector team=platform --promote-local-labels --write
+```
+
+Existing shared metadata labels win on key conflicts; promoted local labels only fill missing keys.
 
 Use `--force` only when you intentionally want to replace or reconcile an existing repo metadata file.
 

@@ -99,6 +99,7 @@ Quick highlights:
 - `repokeeper describe <repo-id-or-path>` accepts plain `repo_id`, `repo_id@checkout_id`, or path selectors; plain `repo_id` now fails when multiple local checkouts exist.
 - `repokeeper label <repo-id-or-path>` manages machine-local labels via `--set key=value` and `--remove key`.
 - `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
+- `repokeeper index repos --local-selector ... --promote-local-labels --write` explicitly bulk-promotes machine-local labels into repo-local metadata for selected repos.
 - Running `repokeeper` with no subcommand launches the interactive TUI (`l` edits repo labels, `i` edits or initializes repo-local metadata from detail view).
 - `repokeeper skill install [target]` installs or updates the bundled RepoKeeper skill for supported runtimes.
 - `get` supports shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
@@ -111,9 +112,12 @@ The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper 
 RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.yaml` or `repokeeper.yaml`.
 
 - Reads are automatic and read-only in `scan`, `get`, `describe`, and the TUI list/detail views.
-- Writes are opt-in and happen through `repokeeper index --write` or the TUI metadata editor (`i` from detail view).
+- `label` remains machine-local only.
+- `index --promote-local-labels --write` explicitly promotes machine-local labels into shared repo metadata.
+- `index repos --selector ...` / `--local-selector ...` previews or writes that promotion across multiple selected repos.
 - Read commands cache repo-metadata snapshots in the machine-local registry and refresh them when the on-disk metadata state changes.
 - `--yes` skips the final write confirmation, but does not change the requirement to pass `--write`.
+- Existing `repo_metadata.labels` win on key conflicts; promoted local labels only fill missing keys.
 
 RepoKeeper keeps two identity layers:
 
@@ -207,8 +211,9 @@ RepoKeeper is designed to be safe to run on repos with dirty working trees:
 - **Never** updates or recurses into submodules
 - Fetch uses `--no-recurse-submodules` and `-c fetch.recurseSubmodules=false` as belt-and-suspenders
 - All mutating commands support `--dry-run`
-- `scan`, `get`, and `describe` never create or rewrite repo-local metadata files
-- Repo-local metadata writes are explicit: `repokeeper index --write` or the TUI metadata editor (`i` from detail view)
+- `scan`, `get`, `describe`, `add`, and `import` do not create or rewrite repo-local metadata files
+- `label` and `edit` do not write repo-local metadata files
+- `index --write` and the TUI metadata editor (`i` from detail view) are explicit repo-local metadata write paths
 
 Optional local checkout update:
 

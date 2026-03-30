@@ -4,6 +4,7 @@ package repokeeper
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1034,6 +1035,135 @@ func TestIndexRunEWriteRefreshesRepoMetadataSnapshotInConfig(t *testing.T) {
 	}
 	if entry.RepoMetadata.Entrypoints["readme"] != "README.md" {
 		t.Fatalf("expected refreshed repo metadata entrypoints, got %+v", entry.RepoMetadata)
+	}
+}
+
+func TestIndexRunECanPromoteLocalLabels(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-index")
+	if err := os.MkdirAll(filepath.Join(repoPath, "docs"), 0o755); err != nil {
+		t.Fatalf("mkdir repo docs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+		t.Fatalf("write readme: %v", err)
+	}
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{
+		RepoID:   "github.com/org/repo-index",
+		Path:     repoPath,
+		Status:   registry.StatusPresent,
+		LastSeen: time.Now(),
+		Labels:   map[string]string{"team": "platform"},
+	}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+	yesCleanup := withAssumeYes(t, true)
+	defer yesCleanup()
+
+	indexCmd.SetIn(strings.NewReader(""))
+	defer indexCmd.SetIn(os.Stdin)
+	_ = indexCmd.Flags().Set("write", "true")
+	_ = indexCmd.Flags().Set("force", "false")
+	_ = indexCmd.Flags().Set("promote-local-labels", "true")
+
+	if err := indexCmd.RunE(indexCmd, []string{"github.com/org/repo-index"}); err != nil {
+		t.Fatalf("index write with promoted labels failed: %v", err)
+	}
+	_, metadata, err := repometa.Load(repoPath)
+	if err != nil {
+		t.Fatalf("load written metadata: %v", err)
+	}
+	if metadata.Labels["team"] != "platform" {
+		t.Fatalf("expected promoted local label in repo metadata, got %+v", metadata.Labels)
+	}
+}
+
+func TestIndexReposRunERequiresPromoteFlag(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	_ = indexReposCmd.Flags().Set("selector", "team=platform")
+	_ = indexReposCmd.Flags().Set("local-selector", "")
+	_ = indexReposCmd.Flags().Set("promote-local-labels", "false")
+	err := indexReposCmd.RunE(indexReposCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "requires --promote-local-labels") {
+		t.Fatalf("expected promote flag requirement, got %v", err)
+	}
+}
+
+func TestIndexReposRunEPreviewsAndWritesSelectedRepos(t *testing.T) {
+	tmp := t.TempDir()
+	repoA := filepath.Join(tmp, "repo-a")
+	repoB := filepath.Join(tmp, "repo-b")
+	for _, repoPath := range []string{repoA, repoB} {
+		if err := os.MkdirAll(repoPath, 0o755); err != nil {
+			t.Fatalf("mkdir repo: %v", err)
+		}
+		if out, err := exec.Command("git", "init", repoPath).CombinedOutput(); err != nil {
+			t.Fatalf("git init repo failed: %v %s", err, string(out))
+		}
+		if err := os.WriteFile(filepath.Join(repoPath, "README.md"), []byte("# repo\n"), 0o644); err != nil {
+			t.Fatalf("write readme: %v", err)
+		}
+	}
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "github.com/org/repo-a", Path: repoA, Status: registry.StatusPresent, LastSeen: time.Now(), Labels: map[string]string{"team": "platform"}},
+		{RepoID: "github.com/org/repo-b", Path: repoB, Status: registry.StatusPresent, LastSeen: time.Now(), Labels: map[string]string{"team": "docs"}},
+	}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+	yesCleanup := withAssumeYes(t, true)
+	defer yesCleanup()
+
+	out := &bytes.Buffer{}
+	indexReposCmd.SetOut(out)
+	defer indexReposCmd.SetOut(os.Stdout)
+	_ = indexReposCmd.Flags().Set("write", "false")
+	_ = indexReposCmd.Flags().Set("force", "false")
+	_ = indexReposCmd.Flags().Set("promote-local-labels", "true")
+	_ = indexReposCmd.Flags().Set("selector", "")
+	_ = indexReposCmd.Flags().Set("local-selector", "team=platform")
+	if err := indexReposCmd.RunE(indexReposCmd, nil); err != nil {
+		t.Fatalf("bulk index preview failed: %v", err)
+	}
+	preview := out.String()
+	if !strings.Contains(preview, "# Repo: github.com/org/repo-a") || strings.Contains(preview, "# Repo: github.com/org/repo-b") {
+		t.Fatalf("expected preview for only locally selected repo, got: %q", preview)
+	}
+
+	out.Reset()
+	_ = indexReposCmd.Flags().Set("write", "true")
+	if err := indexReposCmd.RunE(indexReposCmd, nil); err != nil {
+		t.Fatalf("bulk index write failed: %v", err)
+	}
+	_, metadataA, err := repometa.Load(repoA)
+	if err != nil {
+		t.Fatalf("load repo-a metadata: %v", err)
+	}
+	if metadataA.Labels["team"] != "platform" {
+		t.Fatalf("expected promoted label in repo-a metadata, got %+v", metadataA.Labels)
+	}
+	if _, _, err := repometa.Load(repoB); !errors.Is(err, repometa.ErrNotFound) {
+		t.Fatalf("expected repo-b metadata to remain untouched, got %v", err)
+	}
+	if !strings.Contains(out.String(), "wrote repo metadata for 1 repositories") {
+		t.Fatalf("expected bulk write summary, got %q", out.String())
 	}
 }
 

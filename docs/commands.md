@@ -13,6 +13,7 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 | `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
 | `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form |
 | `repokeeper index <repo-id-or-path>` | Interactively preview or write repo-local metadata |
+| `repokeeper index repos` | Preview or write repo-local metadata for selected repositories |
 | `repokeeper skill install [target]` | Install or update the bundled RepoKeeper skill for supported runtimes |
 | `repokeeper skill uninstall [target]` | Remove the bundled RepoKeeper skill from supported runtimes |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository |
@@ -45,8 +46,16 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 - Interactive by default; proposes metadata from the tracked repo and prints a YAML preview.
 - Writes only when `--write` is passed.
 - `--force` replaces an existing repo-local metadata file.
+- `--promote-local-labels` merges machine-local labels into shared repo metadata labels before preview/write.
 - `--yes` skips the final write confirmation, but still requires `--write`.
 - The command writes `.repokeeper-repo.yaml` by default and updates `repokeeper.yaml` when that legacy filename already exists.
+
+### `repokeeper index repos`
+
+- Explicit bulk metadata workflow; does not run unless you ask for it.
+- Requires `--promote-local-labels` and at least one of `--selector` or `--local-selector`.
+- Uses `--selector` for shared repo metadata labels and `--local-selector` for machine-local labels.
+- Prints a preview for every selected repo and writes only with `--write`.
 
 ### `repokeeper skill install` / `repokeeper skill uninstall`
 
