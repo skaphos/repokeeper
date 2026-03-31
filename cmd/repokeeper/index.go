@@ -217,15 +217,22 @@ var indexReposCmd = &cobra.Command{
 			}
 		}
 		for _, proposal := range proposals {
-			status, err := repometa.Save(proposal.entry.Path, proposal.proposal, force)
+			_, err := repometa.Save(proposal.entry.Path, proposal.proposal, force)
 			if err != nil {
 				return fmt.Errorf("write repo metadata for %s: %w", proposal.entry.RepoID, err)
 			}
-			if err := registry.StoreRepoMetadataStatus(&cfg.Registry, proposal.entry, status); err != nil {
-				return fmt.Errorf("update registry for %s: %w", proposal.entry.RepoID, err)
+			entryIndex := cfg.Registry.FindEntryIndex(proposal.entry.RepoID, proposal.entry.Path)
+			if entryIndex < 0 {
+				return fmt.Errorf("registry entry not found for %s", proposal.entry.RepoID)
 			}
+			refreshed := model.RepoStatus{RepoID: proposal.entry.RepoID, Path: proposal.entry.Path}
+			registry.SeedRepoMetadataStatus(cfg.Registry.Entries[entryIndex], &refreshed)
+			repometa.Apply(&refreshed)
+			updatedEntry := cfg.Registry.Entries[entryIndex]
+			registry.StoreRepoMetadataStatus(&updatedEntry, refreshed)
+			cfg.Registry.Entries[entryIndex] = updatedEntry
 		}
-		if err := config.Save(cfg); err != nil {
+		if err := config.Save(cfg, cfgPath); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "wrote repo metadata for %d repositories\n", len(proposals)); err != nil {
