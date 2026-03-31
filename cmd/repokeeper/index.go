@@ -47,6 +47,7 @@ var indexCmd = &cobra.Command{
 		}
 		writeFile, _ := cmd.Flags().GetBool("write")
 		force, _ := cmd.Flags().GetBool("force")
+		promoteLocalLabels, _ := cmd.Flags().GetBool("promote-local-labels")
 		yes := assumeYes(cmd)
 
 		existingPath, existing, existingErr := repometa.Load(entry.Path)
@@ -63,7 +64,7 @@ var indexCmd = &cobra.Command{
 			return fmt.Errorf("repo metadata already exists at %s (use --force to overwrite)", existingPath)
 		}
 
-		proposal, err := buildIndexProposal(entry, existing, yes, cmd.InOrStdin(), cmd.ErrOrStderr())
+		proposal, err := buildIndexProposal(entry, existing, yes, promoteLocalLabels, cmd.InOrStdin(), cmd.ErrOrStderr())
 		if err != nil {
 			return err
 		}
@@ -114,14 +115,184 @@ var indexCmd = &cobra.Command{
 	},
 }
 
+var indexReposCmd = &cobra.Command{
+	Use:   "repos",
+	Short: "Preview or write repo-local metadata for selected repositories",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		cfgPath, err := config.ResolveConfigPath(configOverride(cmd), cwd)
+		if err != nil {
+			return err
+		}
+		cfg, err := config.Load(cfgPath)
+		if err != nil {
+			return err
+		}
+		if cfg.Registry == nil {
+			return fmt.Errorf("registry not found in %q (run repokeeper scan first)", cfgPath)
+		}
+
+		promoteLocalLabels, _ := cmd.Flags().GetBool("promote-local-labels")
+		if !promoteLocalLabels {
+			return fmt.Errorf("bulk index requires --promote-local-labels")
+		}
+		writeFile, _ := cmd.Flags().GetBool("write")
+		force, _ := cmd.Flags().GetBool("force")
+		yes := assumeYes(cmd)
+		labelSelectorRaw, _ := cmd.Flags().GetString("selector")
+		localLabelSelectorRaw, _ := cmd.Flags().GetString("local-selector")
+		labelSelector, err := parseLabelSelector(labelSelectorRaw)
+		if err != nil {
+			return err
+		}
+		localLabelSelector, err := parseLabelSelectorForFlag(localLabelSelectorRaw, "--local-selector")
+		if err != nil {
+			return err
+		}
+		if len(labelSelector) == 0 && len(localLabelSelector) == 0 {
+			return fmt.Errorf("bulk index requires --selector and/or --local-selector")
+		}
+
+		selected, err := selectIndexBulkEntries(cmd, cfg)
+		if err != nil {
+			return err
+		}
+		selected = filterBulkIndexEntriesByLabels(selected, labelSelector, localLabelSelector)
+		if len(selected) == 0 {
+			return fmt.Errorf("no repositories matched the supplied selectors")
+		}
+
+		type bulkProposal struct {
+			entry    registry.Entry
+			target   string
+			proposal *model.RepoMetadata
+		}
+		proposals := make([]bulkProposal, 0, len(selected))
+		for _, entry := range selected {
+			existingPath, existing, existingErr := repometa.Load(entry.Path)
+			switch {
+			case existingErr == nil:
+			case errors.Is(existingErr, repometa.ErrNotFound):
+				existingPath = filepath.Join(entry.Path, repometa.PreferredFilename)
+			case force:
+				existingPath = fallbackMetadataPath(entry.Path, existingPath)
+			default:
+				return fmt.Errorf("load existing repo metadata for %s: %w (use --force to replace)", entry.RepoID, existingErr)
+			}
+			if writeFile && existingErr == nil && !force {
+				return fmt.Errorf("repo metadata already exists at %s for %s (use --force to overwrite)", existingPath, entry.RepoID)
+			}
+			proposal := guessRepoMetadataDefaults(entry, existing)
+			proposal.Labels = mergePromotedLabels(proposal.Labels, entry.Labels)
+			proposal.APIVersion = repometa.APIVersion
+			proposal.Kind = repometa.Kind
+			proposals = append(proposals, bulkProposal{entry: entry, target: existingPath, proposal: proposal})
+		}
+
+		for _, proposal := range proposals {
+			preview, err := yaml.Marshal(proposal.proposal)
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "# Repo metadata preview\n# Repo: %s\n# Target: %s\n%s", proposal.entry.RepoID, proposal.target, string(preview)); err != nil {
+				return err
+			}
+		}
+		if !writeFile {
+			infof(cmd, "preview only; rerun with --write to save repo metadata")
+			return nil
+		}
+		if !yes {
+			confirmed, err := confirmWithPrompt(cmd, fmt.Sprintf("Write repo metadata for %d repositories? [y/N]: ", len(proposals)))
+			if err != nil {
+				return err
+			}
+			if !confirmed {
+				infof(cmd, "bulk index cancelled")
+				return nil
+			}
+		}
+		for _, proposal := range proposals {
+			_, err := repometa.Save(proposal.entry.Path, proposal.proposal, force)
+			if err != nil {
+				return fmt.Errorf("write repo metadata for %s: %w", proposal.entry.RepoID, err)
+			}
+			entryIndex := cfg.Registry.FindEntryIndex(proposal.entry.RepoID, proposal.entry.Path)
+			if entryIndex < 0 {
+				return fmt.Errorf("registry entry not found for %s", proposal.entry.RepoID)
+			}
+			refreshed := model.RepoStatus{RepoID: proposal.entry.RepoID, Path: proposal.entry.Path}
+			registry.SeedRepoMetadataStatus(cfg.Registry.Entries[entryIndex], &refreshed)
+			repometa.Apply(&refreshed)
+			updatedEntry := cfg.Registry.Entries[entryIndex]
+			registry.StoreRepoMetadataStatus(&updatedEntry, refreshed)
+			cfg.Registry.Entries[entryIndex] = updatedEntry
+		}
+		if err := config.Save(cfg, cfgPath); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "wrote repo metadata for %d repositories\n", len(proposals)); err != nil {
+			return err
+		}
+		return nil
+	},
+}
+
 func init() {
 	indexCmd.Flags().Bool("write", false, "write repo metadata to the repository root after preview")
 	indexCmd.Flags().Bool("force", false, "overwrite or replace an existing repo metadata file")
+	indexCmd.Flags().Bool("promote-local-labels", false, "seed shared repo metadata labels from machine-local labels")
+	indexReposCmd.Flags().Bool("write", false, "write repo metadata to each selected repository after preview")
+	indexReposCmd.Flags().Bool("force", false, "overwrite or replace existing repo metadata files")
+	indexReposCmd.Flags().Bool("promote-local-labels", false, "seed shared repo metadata labels from machine-local labels")
+	indexReposCmd.Flags().String("selector", "", "filter repos by shared repo metadata labels (key or key=value, comma-separated)")
+	indexReposCmd.Flags().String("local-selector", "", "filter repos by machine-local labels (key or key=value, comma-separated)")
+	indexCmd.AddCommand(indexReposCmd)
 	rootCmd.AddCommand(indexCmd)
 }
 
-func buildIndexProposal(entry registry.Entry, existing *model.RepoMetadata, yes bool, in io.Reader, out io.Writer) (*model.RepoMetadata, error) {
+func selectIndexBulkEntries(cmd *cobra.Command, cfg *config.Config) ([]registry.Entry, error) {
+	reg := cfg.Registry
+	entries := make([]registry.Entry, 0, len(reg.Entries))
+	for _, entry := range reg.Entries {
+		if entry.Status != registry.StatusPresent {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+func filterBulkIndexEntriesByLabels(entries []registry.Entry, sharedReqs, localReqs []labelRequirement) []registry.Entry {
+	if len(sharedReqs) == 0 && len(localReqs) == 0 {
+		return entries
+	}
+	filtered := make([]registry.Entry, 0, len(entries))
+	for _, entry := range entries {
+		sharedLabels := map[string]string(nil)
+		if entry.RepoMetadata != nil {
+			sharedLabels = entry.RepoMetadata.Labels
+		}
+		if !labelsMatchSelector(sharedLabels, sharedReqs) {
+			continue
+		}
+		if !labelsMatchSelector(entry.Labels, localReqs) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
+}
+
+func buildIndexProposal(entry registry.Entry, existing *model.RepoMetadata, yes bool, promoteLocalLabels bool, in io.Reader, out io.Writer) (*model.RepoMetadata, error) {
 	defaults := guessRepoMetadataDefaults(entry, existing)
+	if promoteLocalLabels {
+		defaults.Labels = mergePromotedLabels(defaults.Labels, entry.Labels)
+	}
 	if yes {
 		return defaults, nil
 	}

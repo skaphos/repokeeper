@@ -409,6 +409,8 @@ func TestNewSyncProgressWriter(t *testing.T) {
 
 	t.Run("terminal file output enables in place", func(t *testing.T) {
 		t.Parallel()
+		commandTestStateMu.Lock()
+		defer commandTestStateMu.Unlock()
 
 		prevIsTerminalFD := isTerminalFD
 		defer func() { isTerminalFD = prevIsTerminalFD }()
@@ -438,6 +440,8 @@ func TestNewSyncProgressWriter(t *testing.T) {
 
 func TestLogOutputWriteFailureLogsError(t *testing.T) {
 	t.Parallel()
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
 
 	prevQuiet, _ := rootCmd.PersistentFlags().GetBool("quiet")
 	defer func() { _ = rootCmd.PersistentFlags().Set("quiet", boolToFlag(prevQuiet)) }()
@@ -468,6 +472,8 @@ func TestRootRunEHelpFallbackForNonTerminalOutput(t *testing.T) {
 
 func TestFlagGettersBranchCoverage(t *testing.T) {
 	t.Parallel()
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
 
 	child := &cobra.Command{Use: "child"}
 	child.Flags().Bool("quiet", true, "")
@@ -505,6 +511,9 @@ func TestFlagGettersBranchCoverage(t *testing.T) {
 }
 
 func TestRootRunEInteractiveMissingRegistry(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
 	prevIsTerminalFD := isTerminalFD
 	prevConfig, _ := rootCmd.PersistentFlags().GetString("config")
 	defer func() {
