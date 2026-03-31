@@ -217,9 +217,16 @@ var indexReposCmd = &cobra.Command{
 			}
 		}
 		for _, proposal := range proposals {
-			if _, err := repometa.Save(proposal.entry.Path, proposal.proposal, force); err != nil {
+			status, err := repometa.Save(proposal.entry.Path, proposal.proposal, force)
+			if err != nil {
 				return fmt.Errorf("write repo metadata for %s: %w", proposal.entry.RepoID, err)
 			}
+			if err := registry.StoreRepoMetadataStatus(&cfg.Registry, proposal.entry, status); err != nil {
+				return fmt.Errorf("update registry for %s: %w", proposal.entry.RepoID, err)
+			}
+		}
+		if err := config.Save(cfg); err != nil {
+			return err
 		}
 		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "wrote repo metadata for %d repositories\n", len(proposals)); err != nil {
 			return err
