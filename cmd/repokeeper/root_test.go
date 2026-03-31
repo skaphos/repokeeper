@@ -11,6 +11,9 @@ import (
 )
 
 func TestNOColorEnvSetsFlag(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
 	prev, _ := rootCmd.PersistentFlags().GetBool("no-color")
 	_ = rootCmd.PersistentFlags().Set("no-color", "false")
 	defer func() { _ = rootCmd.PersistentFlags().Set("no-color", boolToFlag(prev)) }()
@@ -44,6 +47,9 @@ func TestRaiseExitCodeMonotonic(t *testing.T) {
 }
 
 func TestShouldUseColorOutput(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
 	prevNoColor, _ := rootCmd.PersistentFlags().GetBool("no-color")
 	prevTTY := isTerminalFD
 	defer func() {
@@ -83,6 +89,9 @@ func TestShouldUseColorOutput(t *testing.T) {
 }
 
 func TestSetColorOutputMode(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
 	prevNoColor, _ := rootCmd.PersistentFlags().GetBool("no-color")
 	prevTTY := isTerminalFD
 	cmd := &cobra.Command{}
@@ -119,6 +128,9 @@ func TestSetColorOutputMode(t *testing.T) {
 }
 
 func TestExecuteWithExitCode(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
 	defer rootCmd.SetArgs(nil)
 
 	rootCmd.SetArgs([]string{"version"})
@@ -133,6 +145,9 @@ func TestExecuteWithExitCode(t *testing.T) {
 }
 
 func TestExecuteUsesExitFunc(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
 	prevExit := exitFunc
 	defer func() { exitFunc = prevExit }()
 	defer rootCmd.SetArgs(nil)
@@ -148,6 +163,9 @@ func TestExecuteUsesExitFunc(t *testing.T) {
 }
 
 func TestLogHelpersRespectQuietAndVerbose(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
 	prevQuiet, _ := rootCmd.PersistentFlags().GetBool("quiet")
 	prevVerbose, _ := rootCmd.PersistentFlags().GetCount("verbose")
 	defer func() {
