@@ -208,7 +208,7 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(repoMatches))
 	}
 
-	if filepath.IsAbs(sel) {
+	if isAbsoluteLikePath(sel, filepath.Clean(normalizePathLikeInput(sel))) {
 		candidatePath, ok := canonicalPathForMatch(sel)
 		if !ok {
 			return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)

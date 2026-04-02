@@ -43,7 +43,7 @@ tasks:
   build-ci:
     desc: Build all configured platform binaries (CI-style snapshot build)
     cmds:
-      - goreleaser build --snapshot --clean
+      - '{{if eq OS "windows"}}powershell -NoProfile -Command "if (-not (Get-Command goreleaser -ErrorAction SilentlyContinue)) { Write-Error ''goreleaser not found in PATH; install the version declared in .tool-versions''; exit 1 }; goreleaser build --snapshot --clean"{{else}}command -v goreleaser >/dev/null 2>&1 || { echo "goreleaser not found in PATH; install the version declared in .tool-versions" >&2; exit 1; }; goreleaser build --snapshot --clean{{end}}'
 
   test:
     desc: Run test suite
@@ -53,19 +53,19 @@ tasks:
   test-cover:
     desc: Run tests with coverage output (excludes scripts/perf)
     cmds:
-      - go test -coverprofile=coverage.out $(go list ./... | grep -v scripts/perf)
+      - '{{if eq OS "windows"}}powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test-cover.ps1 coverage.out{{else}}go test -coverprofile=coverage.out $(go list ./... | grep -v scripts/perf){{end}}'
 
   test-cover-check:
     desc: Run tests with coverage and enforce per-package thresholds
     cmds:
       - go test -coverprofile=coverage.out ./...
-      - ./scripts/check-coverage.sh coverage.out
+      - '{{if eq OS "windows"}}powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check-coverage.ps1 coverage.out{{else}}./scripts/check-coverage.sh coverage.out{{end}}'
 
   coverage-report:
     desc: Run coverage and print low-coverage packages/functions
     cmds:
       - go test -coverprofile=coverage.out ./...
-      - ./scripts/coverage-report.sh coverage.out
+      - '{{if eq OS "windows"}}powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/coverage-report.ps1 coverage.out{{else}}./scripts/coverage-report.sh coverage.out{{end}}'
 
   test-integration:
     desc: Run integration-tagged tests
