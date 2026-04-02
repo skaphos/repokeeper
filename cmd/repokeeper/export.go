@@ -149,7 +149,7 @@ func inferRegistrySharedRoot(reg *registry.Registry) string {
 			continue
 		}
 		path := filepath.Clean(strings.TrimSpace(entry.Path))
-		if path == "" || !filepath.IsAbs(path) {
+		if path == "" || !isAbsoluteLikePath(entry.Path, path) {
 			continue
 		}
 		absCount++
