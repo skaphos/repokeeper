@@ -333,6 +333,93 @@ Feedback captured and prioritized:
 - [ ] No `1.0.0` tag is created until readiness gate is complete
 - [ ] Post-reset release process is documented and repeatable
 
+### Milestone 11 — MCP Server for Agent-Native Querying
+
+See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision record.
+
+#### Phase 1: Foundation + Core Read Tools
+
+- [ ] Add `github.com/mark3labs/mcp-go` dependency
+- [ ] Create `internal/mcpserver/` package:
+  - [ ] `engine.go`: EngineAPI interface (extends TUI pattern with `Scan`, `Adapter`)
+  - [ ] `server.go`: MCPServer struct, constructor, tool/resource registration
+  - [ ] `resolve.go`: shared repo resolution (repo_id or path → registry entry)
+- [ ] Extract selector logic to `internal/selector/`:
+  - [ ] `label.go`: label selector parsing and matching (from `cmd/repokeeper/label_selector.go`)
+  - [ ] `field.go`: field selector parsing (from `cmd/repokeeper/selectors.go`)
+  - [ ] Update `cmd/repokeeper/` to import from `internal/selector/`
+- [ ] Implement read tools:
+  - [ ] `list_repositories` (registry-only, fast)
+  - [ ] `get_repository_context` (deep single-repo inspect)
+  - [ ] `get_workspace_config` (config read)
+- [ ] Create `cmd/repokeeper/mcp.go`: Cobra subcommand with stdio transport, `--log-file` flag
+- [ ] Unit tests with mock engine for all Phase 1 tools and resolver
+
+**Acceptance:**
+
+- [ ] `go build ./...` compiles with new package
+- [ ] `repokeeper mcp` starts and accepts stdio JSON-RPC
+- [ ] All Phase 1 Ginkgo specs pass
+- [ ] Coverage >= 80% for `internal/mcpserver/` and `internal/selector/`
+
+#### Phase 2: Full Read Surface
+
+- [ ] Implement remaining read tools:
+  - [ ] `build_workspace_inventory` (live health check, all repos)
+  - [ ] `select_repositories` (combined label/field/name query)
+  - [ ] `get_repo_metadata` (source-controlled metadata only)
+  - [ ] `get_authoritative_paths` (path hints and entrypoints)
+  - [ ] `get_related_repositories` (relationship graph)
+- [ ] Implement MCP resources:
+  - [ ] `repokeeper://config`
+  - [ ] `repokeeper://registry`
+  - [ ] `repokeeper://repo/{repo-id}`
+  - [ ] `repokeeper://repo/{repo-id}/metadata`
+- [ ] Unit tests for all Phase 2 tools and resources
+
+**Acceptance:**
+
+- [ ] All 8 read tools return structured JSON matching documented schemas
+- [ ] Resources are browsable via MCP client
+- [ ] All Ginkgo specs pass, coverage >= 80%
+
+#### Phase 3: Mutation Tools
+
+- [ ] Implement mutation tools:
+  - [ ] `scan_workspace` (discover + registry update)
+  - [ ] `plan_sync` (always dry-run)
+  - [ ] `execute_sync` (requires `confirm: true` safety gate)
+  - [ ] `set_labels` (registry label mutation)
+  - [ ] `add_repository` (clone + register)
+  - [ ] `remove_repository` (tracking-only default)
+- [ ] Config/registry persistence after mutations (matching CLI save patterns)
+- [ ] Unit tests for all mutation tools including safety gate validation
+
+**Acceptance:**
+
+- [ ] `plan_sync` never mutates state
+- [ ] `execute_sync` rejects calls without `confirm: true`
+- [ ] `remove_repository` defaults to tracking-only (no file deletion)
+- [ ] All Ginkgo specs pass, coverage >= 80%
+
+#### Phase 4: Polish + Skill Update
+
+- [ ] Update `internal/skillbundle/repokeeper/SKILL.md` with MCP tool mapping section
+- [ ] Integration tests (in-process MCP client → tool call → JSON response)
+- [ ] Manual end-to-end test with Claude Code MCP configuration
+- [ ] Update `README.md` with MCP setup instructions
+- [ ] Update `docs/commands.md` with MCP tool reference
+
+**Acceptance:**
+
+- [ ] Claude Code discovers and lists all 14 MCP tools when configured
+- [ ] Agent can call `list_repositories` → structured JSON response
+- [ ] Agent can call `get_repository_context` → full repo context
+- [ ] Agent can call `plan_sync` → dry-run plan → `execute_sync` → sync executes
+- [ ] Skill fallback path still works for runtimes without MCP support
+- [ ] `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...` passes
+- [ ] Overall test coverage remains >= 80%
+
 ---
 
 ## Test Plan
