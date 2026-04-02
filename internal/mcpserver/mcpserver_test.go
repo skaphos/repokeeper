@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,6 +30,16 @@ type mockEngine struct {
 	inspectErr    error
 	statusResult  *model.StatusReport
 	statusErr     error
+
+	// Mutation tracking
+	syncResult       []engine.SyncResult
+	syncErr          error
+	scanResult       []model.RepoStatus
+	scanErr          error
+	deleteRepoCalled bool
+	deleteRepoErr    error
+	cloneCalled      bool
+	cloneErr         error
 }
 
 func (e *mockEngine) Status(_ context.Context, opts engine.StatusOptions) (*model.StatusReport, error) {
@@ -49,11 +61,28 @@ func (e *mockEngine) Status(_ context.Context, opts engine.StatusOptions) (*mode
 	}
 	return &model.StatusReport{GeneratedAt: time.Now()}, nil
 }
-func (e *mockEngine) Sync(_ context.Context, _ engine.SyncOptions) ([]engine.SyncResult, error) {
-	return nil, nil
+func (e *mockEngine) Sync(_ context.Context, opts engine.SyncOptions) ([]engine.SyncResult, error) {
+	if e.syncErr != nil {
+		return nil, e.syncErr
+	}
+	if e.syncResult != nil {
+		return e.syncResult, nil
+	}
+	return []engine.SyncResult{}, nil
 }
-func (e *mockEngine) ExecuteSyncPlanWithCallbacks(_ context.Context, _ []engine.SyncResult, _ engine.SyncOptions, _ engine.SyncStartCallback, _ engine.SyncResultCallback) ([]engine.SyncResult, error) {
-	return nil, nil
+func (e *mockEngine) ExecuteSyncPlanWithCallbacks(_ context.Context, plan []engine.SyncResult, _ engine.SyncOptions, _ engine.SyncStartCallback, _ engine.SyncResultCallback) ([]engine.SyncResult, error) {
+	if e.syncErr != nil {
+		return nil, e.syncErr
+	}
+	// Simulate execution: mark planned items as executed.
+	results := make([]engine.SyncResult, len(plan))
+	for i, p := range plan {
+		results[i] = p
+		results[i].Planned = false
+		results[i].OK = true
+		results[i].Outcome = engine.SyncOutcomeFetched
+	}
+	return results, nil
 }
 func (e *mockEngine) InspectRepo(_ context.Context, path string) (*model.RepoStatus, error) {
 	if e.inspectErr != nil {
@@ -75,11 +104,23 @@ func (e *mockEngine) InspectRepo(_ context.Context, path string) (*model.RepoSta
 func (e *mockEngine) RepairUpstream(_ context.Context, _, _ string) (engine.RepairUpstreamResult, error) {
 	return engine.RepairUpstreamResult{}, nil
 }
-func (e *mockEngine) ResetRepo(_ context.Context, _, _ string) error                   { return nil }
-func (e *mockEngine) DeleteRepo(_ context.Context, _, _ string, _ bool) error          { return nil }
-func (e *mockEngine) CloneAndRegister(_ context.Context, _, _, _ string, _ bool) error { return nil }
+func (e *mockEngine) ResetRepo(_ context.Context, _, _ string) error { return nil }
+func (e *mockEngine) DeleteRepo(_ context.Context, _, _ string, _ bool) error {
+	e.deleteRepoCalled = true
+	return e.deleteRepoErr
+}
+func (e *mockEngine) CloneAndRegister(_ context.Context, _, _, _ string, _ bool) error {
+	e.cloneCalled = true
+	return e.cloneErr
+}
 func (e *mockEngine) Scan(_ context.Context, _ engine.ScanOptions) ([]model.RepoStatus, error) {
-	return nil, nil
+	if e.scanErr != nil {
+		return nil, e.scanErr
+	}
+	if e.scanResult != nil {
+		return e.scanResult, nil
+	}
+	return []model.RepoStatus{}, nil
 }
 func (e *mockEngine) Registry() *registry.Registry { return e.reg }
 func (e *mockEngine) Config() *config.Config       { return e.cfg }
@@ -209,12 +250,24 @@ var _ = Describe("MCPServer", func() {
 		srv *mcpserver.MCPServer
 	)
 
+	var tmpDir string
+
 	BeforeEach(func() {
+		var err error
+		tmpDir, err = os.MkdirTemp("", "mcpserver-test-*")
+		Expect(err).NotTo(HaveOccurred())
 		eng = &mockEngine{
 			cfg: newTestConfig(),
 			reg: newTestRegistry(),
 		}
-		srv = mcpserver.New(eng, "/home/user/.repokeeper.yaml", "0.1.0-test", nil)
+		cfgPath := filepath.Join(tmpDir, ".repokeeper.yaml")
+		srv = mcpserver.New(eng, cfgPath, "0.1.0-test", nil)
+	})
+
+	AfterEach(func() {
+		if tmpDir != "" {
+			_ = os.RemoveAll(tmpDir)
+		}
 	})
 
 	It("creates a server with all registered tools", func() {
@@ -230,6 +283,13 @@ var _ = Describe("MCPServer", func() {
 		Expect(tools).To(HaveKey("get_repo_metadata"))
 		Expect(tools).To(HaveKey("get_authoritative_paths"))
 		Expect(tools).To(HaveKey("get_related_repositories"))
+		// Phase 3 tools
+		Expect(tools).To(HaveKey("scan_workspace"))
+		Expect(tools).To(HaveKey("plan_sync"))
+		Expect(tools).To(HaveKey("execute_sync"))
+		Expect(tools).To(HaveKey("set_labels"))
+		Expect(tools).To(HaveKey("add_repository"))
+		Expect(tools).To(HaveKey("remove_repository"))
 	})
 
 	// --- Phase 1 tools ---
@@ -344,7 +404,7 @@ var _ = Describe("MCPServer", func() {
 
 			var resp map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
-			Expect(resp["config_path"]).To(Equal("/home/user/.repokeeper.yaml"))
+			Expect(resp["config_path"]).To(HaveSuffix(".repokeeper.yaml"))
 			Expect(resp["repo_count"]).To(BeNumerically("==", 3))
 
 			defaults := resp["defaults"].(map[string]any)
@@ -796,6 +856,232 @@ var _ = Describe("MCPServer", func() {
 				resourceReadMessage("repokeeper://registry"),
 			)
 			expectResourceError(response)
+		})
+	})
+
+	// --- Phase 3: Mutation tools ---
+
+	Describe("scan_workspace", func() {
+		It("returns scan results", func() {
+			eng.scanResult = []model.RepoStatus{
+				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha"},
+				{RepoID: "github.com/example/beta", Path: "/home/user/repos/beta"},
+			}
+
+			result, err := callTool(srv, "scan_workspace", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			Expect(resp["discovered"]).To(BeNumerically("==", 2))
+			repos := resp["repos"].([]any)
+			Expect(repos).To(HaveLen(2))
+		})
+
+		It("returns error when scan fails", func() {
+			eng.scanErr = fmt.Errorf("scan failure")
+			result, err := callTool(srv, "scan_workspace", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+	})
+
+	Describe("plan_sync", func() {
+		BeforeEach(func() {
+			eng.syncResult = []engine.SyncResult{
+				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
+			}
+		})
+
+		It("returns dry-run plan", func() {
+			result, err := callTool(srv, "plan_sync", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var entries []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &entries)).To(Succeed())
+			Expect(entries).To(HaveLen(1))
+			Expect(entries[0]["planned"]).To(BeTrue())
+			Expect(entries[0]["repo_id"]).To(Equal("github.com/example/alpha"))
+		})
+
+		It("returns error when sync fails", func() {
+			eng.syncErr = fmt.Errorf("sync failure")
+			result, err := callTool(srv, "plan_sync", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+	})
+
+	Describe("execute_sync", func() {
+		BeforeEach(func() {
+			eng.syncResult = []engine.SyncResult{
+				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
+			}
+		})
+
+		It("rejects without confirm=true", func() {
+			result, err := callTool(srv, "execute_sync", map[string]any{
+				"confirm": false,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+
+			text := string(resultJSON(result))
+			Expect(text).To(ContainSubstring("safety gate"))
+		})
+
+		It("rejects when confirm is missing", func() {
+			result, err := callTool(srv, "execute_sync", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("executes sync with confirm=true", func() {
+			result, err := callTool(srv, "execute_sync", map[string]any{
+				"confirm": true,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var entries []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &entries)).To(Succeed())
+			Expect(entries).To(HaveLen(1))
+			Expect(entries[0]["ok"]).To(BeTrue())
+			Expect(entries[0]["outcome"]).To(Equal("fetched"))
+		})
+
+		It("returns error when sync fails", func() {
+			eng.syncErr = fmt.Errorf("sync failure")
+			result, err := callTool(srv, "execute_sync", map[string]any{
+				"confirm": true,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+	})
+
+	Describe("set_labels", func() {
+		It("sets labels on a repo", func() {
+			result, err := callTool(srv, "set_labels", map[string]any{
+				"repo": "github.com/example/alpha",
+				"set":  map[string]any{"tier": "critical"},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			Expect(resp["repo_id"]).To(Equal("github.com/example/alpha"))
+			labels := resp["labels"].(map[string]any)
+			Expect(labels["tier"]).To(Equal("critical"))
+			// Original labels should still be present
+			Expect(labels["team"]).To(Equal("platform"))
+		})
+
+		It("removes labels from a repo", func() {
+			result, err := callTool(srv, "set_labels", map[string]any{
+				"repo":   "github.com/example/alpha",
+				"remove": []any{"env"},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			labels := resp["labels"].(map[string]any)
+			Expect(labels).NotTo(HaveKey("env"))
+			Expect(labels["team"]).To(Equal("platform"))
+		})
+
+		It("returns error for unknown repo", func() {
+			result, err := callTool(srv, "set_labels", map[string]any{
+				"repo": "nonexistent/repo",
+				"set":  map[string]any{"x": "y"},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("returns error when repo parameter is missing", func() {
+			result, err := callTool(srv, "set_labels", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+	})
+
+	Describe("add_repository", func() {
+		It("clones and registers a repository", func() {
+			result, err := callTool(srv, "add_repository", map[string]any{
+				"url":  "git@github.com:example/new.git",
+				"path": "/home/user/repos/new",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+			Expect(eng.cloneCalled).To(BeTrue())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			Expect(resp["path"]).To(Equal("/home/user/repos/new"))
+			Expect(resp["status"]).To(Equal("cloned"))
+		})
+
+		It("returns error when clone fails", func() {
+			eng.cloneErr = fmt.Errorf("clone failed")
+			result, err := callTool(srv, "add_repository", map[string]any{
+				"url":  "git@github.com:example/fail.git",
+				"path": "/home/user/repos/fail",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("returns error when url is missing", func() {
+			result, err := callTool(srv, "add_repository", map[string]any{
+				"path": "/home/user/repos/new",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("returns error when path is missing", func() {
+			result, err := callTool(srv, "add_repository", map[string]any{
+				"url": "git@github.com:example/new.git",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+	})
+
+	Describe("remove_repository", func() {
+		It("removes a repo from registry (tracking-only)", func() {
+			result, err := callTool(srv, "remove_repository", map[string]any{
+				"repo": "github.com/example/alpha",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+			Expect(eng.deleteRepoCalled).To(BeTrue())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			Expect(resp["repo_id"]).To(Equal("github.com/example/alpha"))
+			Expect(resp["removed"]).To(BeTrue())
+		})
+
+		It("returns error when delete fails", func() {
+			eng.deleteRepoErr = fmt.Errorf("delete failed")
+			result, err := callTool(srv, "remove_repository", map[string]any{
+				"repo": "github.com/example/alpha",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("returns error when repo parameter is missing", func() {
+			result, err := callTool(srv, "remove_repository", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
 		})
 	})
 })

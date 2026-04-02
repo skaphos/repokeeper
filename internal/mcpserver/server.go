@@ -55,6 +55,13 @@ func (s *MCPServer) registerTools() {
 		server.ServerTool{Tool: getRepoMetadataTool(), Handler: s.handleGetRepoMetadata},
 		server.ServerTool{Tool: getAuthoritativePathsTool(), Handler: s.handleGetAuthoritativePaths},
 		server.ServerTool{Tool: getRelatedRepositoriesTool(), Handler: s.handleGetRelatedRepositories},
+		// Phase 3: mutation tools
+		server.ServerTool{Tool: scanWorkspaceTool(), Handler: s.handleScanWorkspace},
+		server.ServerTool{Tool: planSyncTool(), Handler: s.handlePlanSync},
+		server.ServerTool{Tool: executeSyncTool(), Handler: s.handleExecuteSync},
+		server.ServerTool{Tool: setLabelsTool(), Handler: s.handleSetLabels},
+		server.ServerTool{Tool: addRepositoryTool(), Handler: s.handleAddRepository},
+		server.ServerTool{Tool: removeRepositoryTool(), Handler: s.handleRemoveRepository},
 	)
 }
 
@@ -174,6 +181,129 @@ func getRelatedRepositoriesTool() mcp.Tool {
 		mcp.WithString("repo",
 			mcp.Description("Repository identifier (repo_id or absolute path)"),
 			mcp.Required(),
+		),
+	)
+}
+
+// --- Phase 3: Mutation tool definitions ---
+
+func scanWorkspaceTool() mcp.Tool {
+	return mcp.NewTool("scan_workspace",
+		mcp.WithDescription("Discover repos under configured or specified roots and update the registry."),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(false),
+		}),
+		mcp.WithArray("roots",
+			mcp.Description("Override scan roots (default: config roots)"),
+		),
+		mcp.WithBoolean("prune_stale",
+			mcp.Description("Remove entries marked missing beyond staleness threshold"),
+		),
+	)
+}
+
+func planSyncTool() mcp.Tool {
+	return mcp.NewTool("plan_sync",
+		mcp.WithDescription("Preview what a sync would do without executing. Always dry-run — never mutates."),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(true),
+		}),
+		mcp.WithString("filter",
+			mcp.Description("Health filter: all, errors, dirty, clean, gone, diverged, missing"),
+		),
+		mcp.WithString("label_selector",
+			mcp.Description("Label filter"),
+		),
+		mcp.WithBoolean("update_local",
+			mcp.Description("Include local rebase in plan"),
+		),
+		mcp.WithBoolean("push_local",
+			mcp.Description("Include push in plan"),
+		),
+	)
+}
+
+func executeSyncTool() mcp.Tool {
+	return mcp.NewTool("execute_sync",
+		mcp.WithDescription("Execute a sync operation. Requires explicit confirm=true as a safety gate."),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint:    boolPtr(false),
+			DestructiveHint: boolPtr(true),
+		}),
+		mcp.WithString("filter",
+			mcp.Description("Health filter: all, errors, dirty, clean, gone, diverged, missing"),
+		),
+		mcp.WithString("label_selector",
+			mcp.Description("Label filter"),
+		),
+		mcp.WithBoolean("update_local",
+			mcp.Description("Enable local rebase"),
+		),
+		mcp.WithBoolean("push_local",
+			mcp.Description("Enable push"),
+		),
+		mcp.WithBoolean("force",
+			mcp.Description("Force operations on diverged repos"),
+		),
+		mcp.WithBoolean("confirm",
+			mcp.Description("Must be true to execute. Safety gate."),
+			mcp.Required(),
+		),
+	)
+}
+
+func setLabelsTool() mcp.Tool {
+	return mcp.NewTool("set_labels",
+		mcp.WithDescription("Set or remove machine-local labels on a repository."),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(false),
+		}),
+		mcp.WithString("repo",
+			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Required(),
+		),
+		mcp.WithObject("set",
+			mcp.Description("Labels to set (key-value map)"),
+		),
+		mcp.WithArray("remove",
+			mcp.Description("Label keys to remove"),
+		),
+	)
+}
+
+func addRepositoryTool() mcp.Tool {
+	return mcp.NewTool("add_repository",
+		mcp.WithDescription("Clone a repository and register it in the workspace."),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(false),
+		}),
+		mcp.WithString("url",
+			mcp.Description("Remote URL to clone"),
+			mcp.Required(),
+		),
+		mcp.WithString("path",
+			mcp.Description("Local target path"),
+			mcp.Required(),
+		),
+		mcp.WithBoolean("mirror",
+			mcp.Description("Clone as bare mirror"),
+		),
+	)
+}
+
+func removeRepositoryTool() mcp.Tool {
+	return mcp.NewTool("remove_repository",
+		mcp.WithDescription("Remove a repository from the registry. Default is tracking-only removal (does not delete files)."),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint:    boolPtr(false),
+			DestructiveHint: boolPtr(true),
+		}),
+		mcp.WithString("repo",
+			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Required(),
+		),
+		mcp.WithBoolean("delete_files",
+			mcp.Description("Also delete files on disk (default: false)"),
 		),
 	)
 }

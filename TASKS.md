@@ -385,22 +385,22 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 
 #### Phase 3: Mutation Tools
 
-- [ ] Implement mutation tools:
-  - [ ] `scan_workspace` (discover + registry update)
-  - [ ] `plan_sync` (always dry-run)
-  - [ ] `execute_sync` (requires `confirm: true` safety gate)
-  - [ ] `set_labels` (registry label mutation)
-  - [ ] `add_repository` (clone + register)
-  - [ ] `remove_repository` (tracking-only default)
-- [ ] Config/registry persistence after mutations (matching CLI save patterns)
-- [ ] Unit tests for all mutation tools including safety gate validation
+- [x] Implement mutation tools:
+  - [x] `scan_workspace` (discover + registry update)
+  - [x] `plan_sync` (always dry-run)
+  - [x] `execute_sync` (requires `confirm: true` safety gate)
+  - [x] `set_labels` (registry label mutation)
+  - [x] `add_repository` (clone + register)
+  - [x] `remove_repository` (tracking-only default)
+- [x] Config/registry persistence after mutations (matching CLI save patterns)
+- [x] Unit tests for all mutation tools including safety gate validation
 
 **Acceptance:**
 
-- [ ] `plan_sync` never mutates state
-- [ ] `execute_sync` rejects calls without `confirm: true`
-- [ ] `remove_repository` defaults to tracking-only (no file deletion)
-- [ ] All Ginkgo specs pass, coverage >= 80%
+- [x] `plan_sync` never mutates state
+- [x] `execute_sync` rejects calls without `confirm: true`
+- [x] `remove_repository` defaults to tracking-only (no file deletion)
+- [x] All Ginkgo specs pass, coverage >= 80%
 
 #### Phase 4: Polish + Skill Update
 
