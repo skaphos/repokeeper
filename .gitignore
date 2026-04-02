@@ -24,7 +24,15 @@ dist/
 .vscode/
 *.swp
 *.swo
+.codex
 .claude
+.cursor/
+.windsurf/
+.continue/
+.cody/
+.roo/
+.roo-code/
+.aider*
 CLAUDE.md
 
 # OS

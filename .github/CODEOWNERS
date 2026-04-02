@@ -1,0 +1,9 @@
+# Default owner for repository changes.
+* @mfacenet
+
+# Keep release automation explicitly code-owner gated.
+/.github/workflows/release.yml @mfacenet
+/.github/workflows/release-please.yml @mfacenet
+/.release-please-manifest.json @mfacenet
+/release-please-config.json @mfacenet
+/RELEASE.md @mfacenet
