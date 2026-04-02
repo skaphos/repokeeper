@@ -15,6 +15,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/selector"
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
@@ -103,15 +104,15 @@ var statusCmd = &cobra.Command{
 		noHeaders, _ := cmd.Flags().GetBool("no-headers")
 		reconcileModeRaw, _ := cmd.Flags().GetString("reconcile-remote-mismatch")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
-		filter, err := resolveRepoFilter(only, fieldSelector)
+		filter, err := selector.ResolveRepoFilter(only, fieldSelector)
 		if err != nil {
 			return err
 		}
-		labelSelector, err := parseLabelSelector(labelSelectorRaw)
+		labelSelector, err := selector.ParseLabelSelector(labelSelectorRaw)
 		if err != nil {
 			return err
 		}
-		localLabelSelector, err := parseLabelSelectorForFlag(localLabelSelectorRaw, "--local-selector")
+		localLabelSelector, err := selector.ParseLabelSelectorForFlag(localLabelSelectorRaw, "--local-selector")
 		if err != nil {
 			return err
 		}
@@ -793,7 +794,7 @@ func findRegistryMetadataEntry(reg *registry.Registry, byPath map[string]registr
 	return nil
 }
 
-func filterStatusReportByLabels(report *model.StatusReport, reqs []labelRequirement) *model.StatusReport {
+func filterStatusReportByLabels(report *model.StatusReport, reqs []selector.LabelRequirement) *model.StatusReport {
 	if report == nil || len(reqs) == 0 {
 		return report
 	}
@@ -803,7 +804,7 @@ func filterStatusReportByLabels(report *model.StatusReport, reqs []labelRequirem
 		if repo.RepoMetadata != nil {
 			sharedLabels = repo.RepoMetadata.Labels
 		}
-		if labelsMatchSelector(sharedLabels, reqs) {
+		if selector.LabelsMatchSelector(sharedLabels, reqs) {
 			filtered = append(filtered, repo)
 		}
 	}
@@ -811,13 +812,13 @@ func filterStatusReportByLabels(report *model.StatusReport, reqs []labelRequirem
 	return report
 }
 
-func filterStatusReportByLocalLabels(report *model.StatusReport, reqs []labelRequirement) *model.StatusReport {
+func filterStatusReportByLocalLabels(report *model.StatusReport, reqs []selector.LabelRequirement) *model.StatusReport {
 	if report == nil || len(reqs) == 0 {
 		return report
 	}
 	filtered := make([]model.RepoStatus, 0, len(report.Repos))
 	for _, repo := range report.Repos {
-		if labelsMatchSelector(repo.Labels, reqs) {
+		if selector.LabelsMatchSelector(repo.Labels, reqs) {
 			filtered = append(filtered, repo)
 		}
 	}

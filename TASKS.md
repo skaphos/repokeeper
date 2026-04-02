@@ -333,6 +333,93 @@ Feedback captured and prioritized:
 - [ ] No `1.0.0` tag is created until readiness gate is complete
 - [ ] Post-reset release process is documented and repeatable
 
+### Milestone 11 — MCP Server for Agent-Native Querying
+
+See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision record.
+
+#### Phase 1: Foundation + Core Read Tools
+
+- [x] Add `github.com/mark3labs/mcp-go` dependency
+- [x] Create `internal/mcpserver/` package:
+  - [x] `engine.go`: EngineAPI interface (extends TUI pattern with `Scan`, `Adapter`)
+  - [x] `server.go`: MCPServer struct, constructor, tool/resource registration
+  - [x] `resolve.go`: shared repo resolution (repo_id or path → registry entry)
+- [x] Extract selector logic to `internal/selector/`:
+  - [x] `label.go`: label selector parsing and matching (from `cmd/repokeeper/label_selector.go`)
+  - [x] `field.go`: field selector parsing (from `cmd/repokeeper/selectors.go`)
+  - [x] Update `cmd/repokeeper/` to import from `internal/selector/`
+- [x] Implement read tools:
+  - [x] `list_repositories` (registry-only, fast)
+  - [x] `get_repository_context` (deep single-repo inspect)
+  - [x] `get_workspace_config` (config read)
+- [x] Create `cmd/repokeeper/mcp.go`: Cobra subcommand with stdio transport, `--log-file` flag
+- [x] Unit tests with mock engine for all Phase 1 tools and resolver
+
+**Acceptance:**
+
+- [x] `go build ./...` compiles with new package
+- [x] `repokeeper mcp` starts and accepts stdio JSON-RPC
+- [x] All Phase 1 Ginkgo specs pass
+- [x] Coverage >= 80% for `internal/mcpserver/` and `internal/selector/`
+
+#### Phase 2: Full Read Surface
+
+- [x] Implement remaining read tools:
+  - [x] `build_workspace_inventory` (live health check, all repos)
+  - [x] `select_repositories` (combined label/field/name query)
+  - [x] `get_repo_metadata` (source-controlled metadata only)
+  - [x] `get_authoritative_paths` (path hints and entrypoints)
+  - [x] `get_related_repositories` (relationship graph)
+- [x] Implement MCP resources:
+  - [x] `repokeeper://config`
+  - [x] `repokeeper://registry`
+  - [x] `repokeeper://repo/{repo-id}`
+  - [x] `repokeeper://repo/{repo-id}/metadata`
+- [x] Unit tests for all Phase 2 tools and resources
+
+**Acceptance:**
+
+- [x] All 8 read tools return structured JSON matching documented schemas
+- [x] Resources are browsable via MCP client
+- [x] All Ginkgo specs pass, coverage >= 80%
+
+#### Phase 3: Mutation Tools
+
+- [x] Implement mutation tools:
+  - [x] `scan_workspace` (discover + registry update)
+  - [x] `plan_sync` (always dry-run)
+  - [x] `execute_sync` (requires `confirm: true` safety gate)
+  - [x] `set_labels` (registry label mutation)
+  - [x] `add_repository` (clone + register)
+  - [x] `remove_repository` (tracking-only default)
+- [x] Config/registry persistence after mutations (matching CLI save patterns)
+- [x] Unit tests for all mutation tools including safety gate validation
+
+**Acceptance:**
+
+- [x] `plan_sync` never mutates state
+- [x] `execute_sync` rejects calls without `confirm: true`
+- [x] `remove_repository` defaults to tracking-only (no file deletion)
+- [x] All Ginkgo specs pass, coverage >= 80%
+
+#### Phase 4: Polish + Skill Update
+
+- [x] Update `internal/skillbundle/repokeeper/SKILL.md` with MCP recommendation and tool mapping section
+- [ ] Integration tests (in-process MCP client → tool call → JSON response)
+- [ ] Manual end-to-end test with Claude Code MCP configuration
+- [x] Update `README.md` with MCP setup instructions
+- [x] Create `docs/mcp-setup.md` with per-runtime setup and full tool reference
+
+**Acceptance:**
+
+- [ ] Claude Code discovers and lists all 14 MCP tools when configured
+- [ ] Agent can call `list_repositories` → structured JSON response
+- [ ] Agent can call `get_repository_context` → full repo context
+- [ ] Agent can call `plan_sync` → dry-run plan → `execute_sync` → sync executes
+- [x] Skill fallback path still works for runtimes without MCP support
+- [x] `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...` passes
+- [x] Overall test coverage remains >= 80%
+
 ---
 
 ## Test Plan

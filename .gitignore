@@ -10,7 +10,7 @@
 coverage.out
 coverage
 coverage_all
-coverage*.out
+cover*.out
 *.coverprofile
 /discovery
 /discovery.out
