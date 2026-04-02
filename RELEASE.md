@@ -5,9 +5,11 @@ This repository releases via Release Please, Git tags, and GitHub Actions.
 ## Prerequisites
 
 - You have push access to `main`.
-- `RELEASE_PLEASE_TOKEN` is configured in GitHub Actions secrets with permission to open PRs and create tags/releases on this repository. This must be a non-default token so the downstream tag-triggered release workflow runs.
+- `RELEASE_PLEASE_TOKEN` should be configured in GitHub Actions secrets with permission to open PRs and create tags/releases on this repository. This should be a non-default token so the downstream tag-triggered release workflow runs.
 - Optional for Homebrew publishing: `HOMEBREW_APP_ID` is configured as a repository or organization variable and `HOMEBREW_APP_PRIVATE_KEY` is configured as a GitHub Actions secret so the release workflow can mint a token for `skaphos/homebrew-tools`.
 - CI is green on `main`.
+
+If `RELEASE_PLEASE_TOKEN` is not configured, the Release Please workflow falls back to the default `github.token` so the workflow still runs. That fallback is sufficient for maintaining the release PR, but it may not trigger downstream tag-push workflows reliably. Configure `RELEASE_PLEASE_TOKEN` for full release automation.
 
 ## 1. Land Releasable Commits on `main`
 
