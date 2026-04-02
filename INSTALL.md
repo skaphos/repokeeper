@@ -43,6 +43,8 @@ After extracting, place `repokeeper` (or `repokeeper.exe` on Windows) somewhere 
 go install github.com/skaphos/repokeeper@latest
 ```
 
+Installed builds include the bundled MCP server (`repokeeper mcp`) used by Claude Code, Cursor, Windsurf, OpenAI Codex, and similar runtimes. See [docs/mcp-setup.md](docs/mcp-setup.md) for runtime configuration and mutation-tool safety notes such as the required `execute_sync` `confirm=true` gate.
+
 ## From local source checkout
 
 Install from a cloned repository:
