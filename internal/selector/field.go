@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-package repokeeper
+package selector
 
 import (
 	"fmt"
@@ -9,7 +9,9 @@ import (
 	"github.com/skaphos/repokeeper/internal/strutil"
 )
 
-func resolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
+// ResolveRepoFilter combines --only and --field-selector into a single FilterKind.
+// If fieldSelector is non-empty, only must be "all" (or empty).
+func ResolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
 	onlyTrimmed := strings.ToLower(strings.TrimSpace(only))
 	if onlyTrimmed == "" {
 		onlyTrimmed = string(engine.FilterAll)
@@ -22,10 +24,12 @@ func resolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
 	if onlyTrimmed != string(engine.FilterAll) {
 		return "", fmt.Errorf("--field-selector cannot be combined with --only=%q", onlyTrimmed)
 	}
-	return parseFieldSelectorFilter(selectorTrimmed)
+	return ParseFieldSelectorFilter(selectorTrimmed)
 }
 
-func parseFieldSelectorFilter(fieldSelector string) (engine.FilterKind, error) {
+// ParseFieldSelectorFilter parses a single field selector expression into a FilterKind.
+// Only one expression is currently supported.
+func ParseFieldSelectorFilter(fieldSelector string) (engine.FilterKind, error) {
 	parts := strutil.SplitCSV(fieldSelector)
 	if len(parts) != 1 {
 		return "", fmt.Errorf("only a single field selector is currently supported")

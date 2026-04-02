@@ -15,6 +15,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/repometa"
+	"github.com/skaphos/repokeeper/internal/selector"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )
@@ -145,11 +146,11 @@ var indexReposCmd = &cobra.Command{
 		yes := assumeYes(cmd)
 		labelSelectorRaw, _ := cmd.Flags().GetString("selector")
 		localLabelSelectorRaw, _ := cmd.Flags().GetString("local-selector")
-		labelSelector, err := parseLabelSelector(labelSelectorRaw)
+		labelSelector, err := selector.ParseLabelSelector(labelSelectorRaw)
 		if err != nil {
 			return err
 		}
-		localLabelSelector, err := parseLabelSelectorForFlag(localLabelSelectorRaw, "--local-selector")
+		localLabelSelector, err := selector.ParseLabelSelectorForFlag(localLabelSelectorRaw, "--local-selector")
 		if err != nil {
 			return err
 		}
@@ -267,7 +268,7 @@ func selectIndexBulkEntries(cmd *cobra.Command, cfg *config.Config) ([]registry.
 	return entries, nil
 }
 
-func filterBulkIndexEntriesByLabels(entries []registry.Entry, sharedReqs, localReqs []labelRequirement) []registry.Entry {
+func filterBulkIndexEntriesByLabels(entries []registry.Entry, sharedReqs, localReqs []selector.LabelRequirement) []registry.Entry {
 	if len(sharedReqs) == 0 && len(localReqs) == 0 {
 		return entries
 	}
@@ -277,10 +278,10 @@ func filterBulkIndexEntriesByLabels(entries []registry.Entry, sharedReqs, localR
 		if entry.RepoMetadata != nil {
 			sharedLabels = entry.RepoMetadata.Labels
 		}
-		if !labelsMatchSelector(sharedLabels, sharedReqs) {
+		if !selector.LabelsMatchSelector(sharedLabels, sharedReqs) {
 			continue
 		}
-		if !labelsMatchSelector(entry.Labels, localReqs) {
+		if !selector.LabelsMatchSelector(entry.Labels, localReqs) {
 			continue
 		}
 		filtered = append(filtered, entry)

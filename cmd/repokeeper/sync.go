@@ -14,6 +14,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/selector"
 	"github.com/skaphos/repokeeper/internal/strutil"
 	"github.com/skaphos/repokeeper/internal/tableutil"
 	"github.com/skaphos/repokeeper/internal/termstyle"
@@ -79,7 +80,7 @@ var syncCmd = &cobra.Command{
 		if pushLocal && !updateLocal {
 			return fmt.Errorf("--push-local requires --update-local")
 		}
-		filter, err := resolveRepoFilter(only, fieldSelector)
+		filter, err := selector.ResolveRepoFilter(only, fieldSelector)
 		if err != nil {
 			return err
 		}
