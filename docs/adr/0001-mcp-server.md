@@ -20,7 +20,7 @@ The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) provides a 
 
 Add an MCP server to RepoKeeper as a new frontend to the existing engine layer, exposed via a `repokeeper mcp` subcommand using stdio transport. The MCP tools will be **agent-intent-oriented** rather than 1:1 CLI mirrors, designed around how agents think about repository work.
 
-The skill will be updated to reference MCP tools when available, with CLI fallback for runtimes that do not support MCP.
+The skill will be updated to reference MCP tools when available, with CLI fallback for runtimes or workflows where MCP is unavailable or not preferred.
 
 ## Tool Surface Design
 
@@ -29,7 +29,7 @@ The skill will be updated to reference MCP tools when available, with CLI fallba
 1. **Agent intent over CLI parity.** Tools map to what agents want to do ("list repositories", "get context for this repo", "which paths matter?"), not to CLI flags.
 2. **Read/write separation.** Read tools have no side effects. Write tools are clearly marked and require explicit confirmation where destructive.
 3. **Fast path and thorough path.** `list_repositories` reads the registry (fast). `build_workspace_inventory` runs live git inspection (thorough). Agents choose based on need.
-4. **Safety at the protocol level.** `plan_sync` and `execute_sync` are separate tools (not a `dry_run` flag). `execute_sync` requires an explicit `confirm: true` parameter since MCP has no interactive prompts.
+4. **Safety at the protocol level.** `plan_sync` and `execute_sync` are separate tools (not a `dry_run` flag). `execute_sync` requires an explicit `confirm: true` parameter since MCP has no interactive prompts, and requests that omit `confirm` or set it to `false` are rejected.
 
 ### Discovery and Inventory (read-only)
 
@@ -132,7 +132,7 @@ Discover repos under configured or specified roots and update the registry.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `roots` | string[] | no | Override scan roots (default: config roots) |
+| `roots` | string[] | no | Override scan roots (default: effective workspace root). Each item must be a string path. |
 | `prune_stale` | boolean | no | Remove entries marked missing beyond staleness threshold |
 
 **Returns:** `{discovered, new, missing, pruned, repos: [{repo_id, path, status}]}`
@@ -165,7 +165,7 @@ Execute a sync operation. Requires explicit `confirm: true` as a safety gate.
 | `update_local` | boolean | no | Enable local rebase |
 | `push_local` | boolean | no | Enable push |
 | `force` | boolean | no | Force operations on diverged repos |
-| `confirm` | boolean | **yes** | Must be `true` to execute. Safety gate. |
+| `confirm` | boolean | **yes** | Must be present and `true` to execute. Safety gate; omitted or `false` requests are rejected. |
 
 **Returns:** Array of `{repo_id, path, action, outcome, ok, error?}`
 
@@ -178,8 +178,8 @@ Set or remove machine-local labels on a repository.
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `repo` | string | yes | Repo identifier |
-| `set` | object | no | Labels to set (key-value map) |
-| `remove` | string[] | no | Label keys to remove |
+| `set` | object | no | Labels to set (string-to-string key-value map) |
+| `remove` | string[] | no | Label keys to remove. Each item must be a string label key. |
 
 **Returns:** `{repo_id, labels}` (updated label set)
 
