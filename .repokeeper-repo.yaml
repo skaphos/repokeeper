@@ -1,7 +1,7 @@
 apiVersion: repokeeper/v1
 kind: RepoMetadata
 repo_id: github.com/skaphos/repokeeper
-name: Repokeeper
+name: RepoKeeper
 labels:
     kind: tool
     org: skaphos
@@ -17,3 +17,6 @@ paths:
         - scripts/
     low_value:
         - .github/
+related_repos:
+    - repo_id: github.com/skaphos/homebrew-tools
+      relationship: distributed-by
