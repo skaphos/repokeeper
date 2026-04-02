@@ -148,6 +148,23 @@ func resultJSON(result *mcp.CallToolResult) []byte {
 	return []byte(tc.Text)
 }
 
+func structuredContentMap(result *mcp.CallToolResult) map[string]any {
+	Expect(result).NotTo(BeNil())
+	Expect(result.StructuredContent).NotTo(BeNil())
+	structured, ok := result.StructuredContent.(map[string]any)
+	Expect(ok).To(BeTrue(), "expected map structured content, got %T", result.StructuredContent)
+	return structured
+}
+
+func structuredListJSON(result *mcp.CallToolResult, key string) []byte {
+	structured := structuredContentMap(result)
+	payload, ok := structured[key]
+	Expect(ok).To(BeTrue(), "expected structured content key %q", key)
+	b, err := json.Marshal(payload)
+	Expect(err).NotTo(HaveOccurred())
+	return b
+}
+
 func intPtr(v int) *int { return &v }
 
 // --- test data ---
@@ -336,8 +353,28 @@ var _ = Describe("MCPServer", func() {
 
 			var repos []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 			Expect(repos).To(HaveLen(3))
 			Expect(repos[0]["last_seen"]).To(Equal("2026-04-01T12:00:00Z"))
+		})
+
+		It("returns empty wrapped repositories when filters match nothing", func() {
+			result, err := callTool(srv, "list_repositories", map[string]any{
+				"label_selector": "team=missing",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var repos []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
+			Expect(repos).To(BeEmpty())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 		})
 
 		It("formats last_seen in UTC RFC3339", func() {
@@ -556,8 +593,27 @@ var _ = Describe("MCPServer", func() {
 
 			var repos []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 			Expect(repos).To(HaveLen(2))
 			Expect(repos[0]["match_reason"]).To(Equal("all"))
+		})
+
+		It("returns empty wrapped repositories when no repos match", func() {
+			result, err := callTool(srv, "select_repositories", map[string]any{
+				"name_match": "missing",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			var repos []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
+			Expect(repos).To(BeEmpty())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 		})
 
 		It("filters by label selector", func() {
@@ -747,6 +803,10 @@ var _ = Describe("MCPServer", func() {
 
 			var repos []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 			Expect(repos).To(HaveLen(2))
 
 			// beta is in the registry — should have path and status
@@ -777,6 +837,10 @@ var _ = Describe("MCPServer", func() {
 			var repos []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
 			Expect(repos).To(BeEmpty())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 		})
 
 		It("returns empty array when metadata has no related repos", func() {
@@ -795,6 +859,10 @@ var _ = Describe("MCPServer", func() {
 			var repos []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
 			Expect(repos).To(BeEmpty())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 		})
 
 		It("returns error when repo parameter is missing", func() {
@@ -959,9 +1027,28 @@ var _ = Describe("MCPServer", func() {
 
 			var entries []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &entries)).To(Succeed())
+
+			var structuredEntries []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "plan"), &structuredEntries)).To(Succeed())
+			Expect(structuredEntries).To(Equal(entries))
 			Expect(entries).To(HaveLen(1))
 			Expect(entries[0]["planned"]).To(BeTrue())
 			Expect(entries[0]["repo_id"]).To(Equal("github.com/example/alpha"))
+		})
+
+		It("returns empty wrapped plan when there are no sync actions", func() {
+			eng.syncResult = nil
+
+			result, err := callTool(srv, "plan_sync", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			var entries []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &entries)).To(Succeed())
+			Expect(entries).To(BeEmpty())
+
+			var structuredEntries []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "plan"), &structuredEntries)).To(Succeed())
+			Expect(structuredEntries).To(Equal(entries))
 		})
 
 		It("returns error when sync fails", func() {
@@ -1019,9 +1106,30 @@ var _ = Describe("MCPServer", func() {
 
 			var entries []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &entries)).To(Succeed())
+
+			var structuredEntries []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "results"), &structuredEntries)).To(Succeed())
+			Expect(structuredEntries).To(Equal(entries))
 			Expect(entries).To(HaveLen(1))
 			Expect(entries[0]["ok"]).To(BeTrue())
 			Expect(entries[0]["outcome"]).To(Equal("fetched"))
+		})
+
+		It("returns empty wrapped results when execution plan is empty", func() {
+			eng.syncResult = nil
+
+			result, err := callTool(srv, "execute_sync", map[string]any{
+				"confirm": true,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			var entries []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &entries)).To(Succeed())
+			Expect(entries).To(BeEmpty())
+
+			var structuredEntries []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "results"), &structuredEntries)).To(Succeed())
+			Expect(structuredEntries).To(Equal(entries))
 		})
 
 		It("returns error when sync fails", func() {

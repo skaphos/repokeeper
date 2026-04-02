@@ -141,7 +141,7 @@ func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest)
 		})
 	}
 
-	return mcp.NewToolResultJSON(entries)
+	return newStructuredListResult("plan", entries)
 }
 
 // --- execute_sync ---
@@ -195,7 +195,7 @@ func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolReque
 		})
 	}
 
-	return mcp.NewToolResultJSON(entries)
+	return newStructuredListResult("results", entries)
 }
 
 // --- set_labels ---

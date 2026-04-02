@@ -150,7 +150,7 @@ func (s *MCPServer) handleSelectRepositories(ctx context.Context, req mcp.CallTo
 		})
 	}
 
-	return mcp.NewToolResultJSON(entries)
+	return newStructuredListResult("repositories", entries)
 }
 
 // --- shared helpers ---
