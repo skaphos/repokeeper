@@ -194,7 +194,8 @@ func scanWorkspaceTool() mcp.Tool {
 			ReadOnlyHint: boolPtr(false),
 		}),
 		mcp.WithArray("roots",
-			mcp.Description("Override scan roots (default: config roots)"),
+			mcp.Description("Override scan roots (default: effective workspace root)"),
+			mcp.WithStringItems(),
 		),
 		mcp.WithBoolean("prune_stale",
 			mcp.Description("Remove entries marked missing beyond staleness threshold"),
@@ -264,9 +265,11 @@ func setLabelsTool() mcp.Tool {
 		),
 		mcp.WithObject("set",
 			mcp.Description("Labels to set (key-value map)"),
+			mcp.AdditionalProperties(map[string]any{"type": "string"}),
 		),
 		mcp.WithArray("remove",
 			mcp.Description("Label keys to remove"),
+			mcp.WithStringItems(),
 		),
 	)
 }
