@@ -303,6 +303,19 @@ var _ = Describe("MCPServer", func() {
 			var repos []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
 			Expect(repos).To(HaveLen(3))
+			Expect(repos[0]["last_seen"]).To(Equal("2026-04-01T12:00:00Z"))
+		})
+
+		It("formats last_seen in UTC RFC3339", func() {
+			eng.reg.Entries[0].LastSeen = time.Date(2026, 4, 1, 7, 0, 0, 0, time.FixedZone("CDT", -5*60*60))
+
+			result, err := callTool(srv, "list_repositories", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var repos []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
+			Expect(repos[0]["last_seen"]).To(Equal("2026-04-01T12:00:00Z"))
 		})
 
 		It("filters by status", func() {

@@ -6,6 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/obs"
+	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 func TestBuildMCPLoggerWithoutPathReturnsNopLogger(t *testing.T) {
@@ -80,5 +85,20 @@ func TestBuildMCPLoggerReturnsOpenFileErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "open log file") {
 		t.Fatalf("error %q does not mention log file open failure", err)
+	}
+}
+
+func TestNewMCPEngineWiresLoggerIntoGitAdapter(t *testing.T) {
+	t.Parallel()
+
+	logger := obs.NopLogger()
+	eng := newMCPEngine(&config.Config{Registry: &registry.Registry{}}, logger)
+
+	adapter, ok := eng.Adapter().(*vcs.GitAdapter)
+	if !ok {
+		t.Fatalf("expected *vcs.GitAdapter, got %T", eng.Adapter())
+	}
+	if adapter.Logger != logger {
+		t.Fatal("expected MCP logger to be wired into git adapter")
 	}
 }

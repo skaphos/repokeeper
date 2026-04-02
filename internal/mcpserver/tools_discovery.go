@@ -4,6 +4,7 @@ package mcpserver
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -59,7 +60,7 @@ func (s *MCPServer) handleListRepositories(_ context.Context, req mcp.CallToolRe
 			Labels:      e.Labels,
 			Annotations: e.Annotations,
 			Status:      string(e.Status),
-			LastSeen:    e.LastSeen.Format("2006-01-02T15:04:05Z"),
+			LastSeen:    e.LastSeen.UTC().Format(time.RFC3339),
 		})
 	}
 

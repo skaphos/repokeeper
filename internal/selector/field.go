@@ -19,7 +19,13 @@ func ResolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
 
 	selectorTrimmed := strings.TrimSpace(fieldSelector)
 	if selectorTrimmed == "" {
+		if fieldSelector != "" {
+			return "", fmt.Errorf("--field-selector cannot be blank")
+		}
 		return engine.FilterKind(onlyTrimmed), nil
+	}
+	if len(strutil.SplitCSV(fieldSelector)) == 0 {
+		return "", fmt.Errorf("--field-selector cannot be blank")
 	}
 	if onlyTrimmed != string(engine.FilterAll) {
 		return "", fmt.Errorf("--field-selector cannot be combined with --only=%q", onlyTrimmed)
@@ -30,14 +36,17 @@ func ResolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
 // ParseFieldSelectorFilter parses a single field selector expression into a FilterKind.
 // Only one expression is currently supported.
 func ParseFieldSelectorFilter(fieldSelector string) (engine.FilterKind, error) {
+	if strings.TrimSpace(fieldSelector) == "" {
+		return "", fmt.Errorf("--field-selector cannot be blank")
+	}
 	parts := strutil.SplitCSV(fieldSelector)
+	if len(parts) == 0 {
+		return "", fmt.Errorf("--field-selector cannot be blank")
+	}
 	if len(parts) != 1 {
 		return "", fmt.Errorf("only a single field selector is currently supported")
 	}
 	expr := strings.TrimSpace(parts[0])
-	if expr == "" {
-		return engine.FilterAll, nil
-	}
 	tokens := strings.SplitN(expr, "=", 2)
 	if len(tokens) != 2 {
 		return "", fmt.Errorf("invalid --field-selector expression %q (expected key=value)", expr)

@@ -43,8 +43,7 @@ var mcpCmd = &cobra.Command{
 			return fmt.Errorf("registry not found in %q (run repokeeper scan first)", cfgPath)
 		}
 
-		adapter := vcs.NewGitAdapter(nil)
-		eng := engine.New(cfg, cfg.Registry, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), logger)
+		eng := newMCPEngine(cfg, logger)
 		srv := mcpserver.New(eng, cfgPath, Version, logger)
 
 		logger.Infof("MCP server starting (config=%s, repos=%d)", cfgPath, len(cfg.Registry.Entries))
@@ -70,6 +69,11 @@ func buildMCPLogger(path string) (obs.Logger, func(), error) {
 	}
 	l := &fileLogger{out: log.New(f, "", log.LstdFlags)}
 	return l, func() { _ = f.Close() }, nil
+}
+
+func newMCPEngine(cfg *config.Config, logger obs.Logger) *engine.Engine {
+	adapter := vcs.NewGitAdapter(nil, logger)
+	return engine.New(cfg, cfg.Registry, adapter, vcs.NewGitErrorClassifier(), vcs.NewGitURLNormalizer(), logger)
 }
 
 type fileLogger struct{ out *log.Logger }

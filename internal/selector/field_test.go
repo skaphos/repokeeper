@@ -31,6 +31,21 @@ var _ = Describe("Field Selector", func() {
 			_, err := selector.ResolveRepoFilter("dirty", "tracking.status=gone")
 			Expect(err).To(HaveOccurred())
 		})
+
+		It("rejects blank field-selector input", func() {
+			_, err := selector.ResolveRepoFilter("", "   ")
+			Expect(err).To(MatchError("--field-selector cannot be blank"))
+		})
+
+		It("rejects comma-only blank field-selector input before only validation", func() {
+			_, err := selector.ResolveRepoFilter("dirty", ",")
+			Expect(err).To(MatchError("--field-selector cannot be blank"))
+		})
+
+		It("rejects whitespace comma blank field-selector input before only validation", func() {
+			_, err := selector.ResolveRepoFilter("dirty", " , ")
+			Expect(err).To(MatchError("--field-selector cannot be blank"))
+		})
 	})
 
 	Describe("ParseFieldSelectorFilter", func() {
@@ -42,7 +57,17 @@ var _ = Describe("Field Selector", func() {
 
 		It("rejects blank selector", func() {
 			_, err := selector.ParseFieldSelectorFilter("  ")
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("--field-selector cannot be blank"))
+		})
+
+		It("rejects comma-only blank selector", func() {
+			_, err := selector.ParseFieldSelectorFilter(",")
+			Expect(err).To(MatchError("--field-selector cannot be blank"))
+		})
+
+		It("rejects whitespace comma blank selector", func() {
+			_, err := selector.ParseFieldSelectorFilter(" , ")
+			Expect(err).To(MatchError("--field-selector cannot be blank"))
 		})
 
 		It("rejects missing equals sign", func() {
