@@ -97,7 +97,7 @@ func (s *MCPServer) handleGetRelatedRepositories(ctx context.Context, req mcp.Ca
 	}
 
 	if status.RepoMetadata == nil || len(status.RepoMetadata.RelatedRepos) == 0 {
-		return mcp.NewToolResultJSON([]relatedRepoEntry{})
+		return newStructuredListResult("repositories", []relatedRepoEntry{})
 	}
 
 	entries := make([]relatedRepoEntry, 0, len(status.RepoMetadata.RelatedRepos))
@@ -115,5 +115,5 @@ func (s *MCPServer) handleGetRelatedRepositories(ctx context.Context, req mcp.Ca
 		entries = append(entries, re)
 	}
 
-	return mcp.NewToolResultJSON(entries)
+	return newStructuredListResult("repositories", entries)
 }

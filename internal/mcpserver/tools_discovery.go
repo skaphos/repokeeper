@@ -64,7 +64,7 @@ func (s *MCPServer) handleListRepositories(_ context.Context, req mcp.CallToolRe
 		})
 	}
 
-	return mcp.NewToolResultJSON(entries)
+	return newStructuredListResult("repositories", entries)
 }
 
 func matchesStatusFilter(entryStatus registry.EntryStatus, filter string) bool {
