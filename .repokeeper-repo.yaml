@@ -1,0 +1,19 @@
+apiVersion: repokeeper/v1
+kind: RepoMetadata
+repo_id: github.com/skaphos/repokeeper
+name: Repokeeper
+labels:
+    kind: tool
+    org: skaphos
+    role: repo-manager
+    tool: repokeeper
+entrypoints:
+    readme: README.md
+paths:
+    authoritative:
+        - cmd/
+        - docs/
+        - internal/
+        - scripts/
+    low_value:
+        - .github/
