@@ -11,7 +11,7 @@ import (
 func newStructuredListResult[T any](key string, entries []T) (*mcp.CallToolResult, error) {
 	b, err := json.Marshal(entries)
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal JSON: %w", err)
+		return nil, fmt.Errorf("unable to marshal text fallback JSON for list key %q: %w", key, err)
 	}
 
 	return &mcp.CallToolResult{

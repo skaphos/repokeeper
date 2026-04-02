@@ -859,6 +859,10 @@ var _ = Describe("MCPServer", func() {
 			var repos []map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
 			Expect(repos).To(BeEmpty())
+
+			var structuredRepos []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "repositories"), &structuredRepos)).To(Succeed())
+			Expect(structuredRepos).To(Equal(repos))
 		})
 
 		It("returns error when repo parameter is missing", func() {
