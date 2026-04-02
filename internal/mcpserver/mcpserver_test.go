@@ -292,6 +292,40 @@ var _ = Describe("MCPServer", func() {
 		Expect(tools).To(HaveKey("remove_repository"))
 	})
 
+	It("publishes explicit string item schemas for array mutation inputs", func() {
+		tools := srv.Inner().ListTools()
+
+		rootsSchema, ok := tools["scan_workspace"].Tool.InputSchema.Properties["roots"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(rootsSchema["type"]).To(Equal("array"))
+		rootsItems, ok := rootsSchema["items"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(rootsItems["type"]).To(Equal("string"))
+
+		removeSchema, ok := tools["set_labels"].Tool.InputSchema.Properties["remove"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(removeSchema["type"]).To(Equal("array"))
+		removeItems, ok := removeSchema["items"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(removeItems["type"]).To(Equal("string"))
+
+		setSchema, ok := tools["set_labels"].Tool.InputSchema.Properties["set"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(setSchema["type"]).To(Equal("object"))
+		additionalProperties, ok := setSchema["additionalProperties"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(additionalProperties["type"]).To(Equal("string"))
+	})
+
+	It("publishes execute_sync confirm as a required boolean safety gate", func() {
+		tool := srv.Inner().ListTools()["execute_sync"].Tool
+
+		Expect(tool.InputSchema.Required).To(ContainElement("confirm"))
+		confirmSchema, ok := tool.InputSchema.Properties["confirm"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(confirmSchema["type"]).To(Equal("boolean"))
+	})
+
 	// --- Phase 1 tools ---
 
 	Describe("list_repositories", func() {
@@ -898,6 +932,17 @@ var _ = Describe("MCPServer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
 		})
+
+		It("rejects non-string roots items", func() {
+			result, err := callTool(srv, "scan_workspace", map[string]any{
+				"roots": []any{"/home/user/repos", 1},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+
+			text := string(resultJSON(result))
+			Expect(text).To(ContainSubstring(`argument "roots" item 1 must be a string`))
+		})
 	})
 
 	Describe("plan_sync", func() {
@@ -949,6 +994,20 @@ var _ = Describe("MCPServer", func() {
 			result, err := callTool(srv, "execute_sync", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
+
+			text := string(resultJSON(result))
+			Expect(text).To(ContainSubstring(`required argument "confirm" not found`))
+		})
+
+		It("rejects non-boolean confirm values", func() {
+			result, err := callTool(srv, "execute_sync", map[string]any{
+				"confirm": "true",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+
+			text := string(resultJSON(result))
+			Expect(text).To(ContainSubstring(`argument "confirm" must be a boolean`))
 		})
 
 		It("executes sync with confirm=true", func() {
@@ -1021,6 +1080,30 @@ var _ = Describe("MCPServer", func() {
 			result, err := callTool(srv, "set_labels", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("rejects non-string remove items", func() {
+			result, err := callTool(srv, "set_labels", map[string]any{
+				"repo":   "github.com/example/alpha",
+				"remove": []any{"env", 1},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+
+			text := string(resultJSON(result))
+			Expect(text).To(ContainSubstring(`argument "remove" item 1 must be a string`))
+		})
+
+		It("rejects non-string set values", func() {
+			result, err := callTool(srv, "set_labels", map[string]any{
+				"repo": "github.com/example/alpha",
+				"set":  map[string]any{"tier": 1},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+
+			text := string(resultJSON(result))
+			Expect(text).To(ContainSubstring(`argument "set" key "tier" must have a string value`))
 		})
 	})
 

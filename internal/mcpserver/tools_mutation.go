@@ -3,6 +3,7 @@ package mcpserver
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -30,7 +31,10 @@ type scanRepoEntry struct {
 }
 
 func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	rootsRaw := req.GetStringSlice("roots", nil)
+	rootsRaw, err := optionalStringSliceArg(req, "roots")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	pruneStale := req.GetBool("prune_stale", false)
 
 	cfg := s.engine.Config()
@@ -153,7 +157,10 @@ type syncResultEntry struct {
 }
 
 func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	confirm := req.GetBool("confirm", false)
+	confirm, err := requireStrictBoolArg(req, "confirm")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	if !confirm {
 		return mcp.NewToolResultError("safety gate: execute_sync requires confirm=true"), nil
 	}
@@ -210,19 +217,21 @@ func (s *MCPServer) handleSetLabels(_ context.Context, req mcp.CallToolRequest) 
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	setRaw := req.GetArguments()["set"]
-	removeRaw := req.GetStringSlice("remove", nil)
+	setRaw, err := optionalStringMapArg(req, "set")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	removeRaw, err := optionalStringSliceArg(req, "remove")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 
 	if entry.Labels == nil {
 		entry.Labels = make(map[string]string)
 	}
 
-	if setMap, ok := setRaw.(map[string]any); ok {
-		for k, v := range setMap {
-			if sv, ok := v.(string); ok {
-				entry.Labels[k] = sv
-			}
-		}
+	for k, v := range setRaw {
+		entry.Labels[k] = v
 	}
 
 	for _, key := range removeRaw {
@@ -322,6 +331,73 @@ func parseSyncOptions(req mcp.CallToolRequest) engine.SyncOptions {
 		PushLocal:   req.GetBool("push_local", false),
 		Force:       req.GetBool("force", false),
 	}
+}
+
+func optionalStringSliceArg(req mcp.CallToolRequest, name string) ([]string, error) {
+	raw, ok := req.GetArguments()[name]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+
+	switch items := raw.(type) {
+	case []string:
+		return append([]string(nil), items...), nil
+	case []any:
+		values := make([]string, 0, len(items))
+		for i, item := range items {
+			value, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("argument %q item %d must be a string", name, i)
+			}
+			values = append(values, value)
+		}
+
+		return values, nil
+	default:
+		return nil, fmt.Errorf("argument %q must be an array of strings", name)
+	}
+}
+
+func optionalStringMapArg(req mcp.CallToolRequest, name string) (map[string]string, error) {
+	raw, ok := req.GetArguments()[name]
+	if !ok || raw == nil {
+		return nil, nil
+	}
+
+	switch items := raw.(type) {
+	case map[string]string:
+		values := make(map[string]string, len(items))
+		for key, value := range items {
+			values[key] = value
+		}
+		return values, nil
+	case map[string]any:
+		values := make(map[string]string, len(items))
+		for key, item := range items {
+			value, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("argument %q key %q must have a string value", name, key)
+			}
+			values[key] = value
+		}
+		return values, nil
+	default:
+		return nil, fmt.Errorf("argument %q must be an object with string values", name)
+	}
+}
+
+func requireStrictBoolArg(req mcp.CallToolRequest, name string) (bool, error) {
+	raw, ok := req.GetArguments()[name]
+	if !ok {
+		return false, fmt.Errorf("required argument %q not found", name)
+	}
+
+	value, ok := raw.(bool)
+	if !ok {
+		return false, fmt.Errorf("argument %q must be a boolean", name)
+	}
+
+	return value, nil
 }
 
 // saveConfig persists the current config (including embedded registry) to disk.
