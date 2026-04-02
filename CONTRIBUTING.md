@@ -15,10 +15,11 @@ Thanks for contributing to RepoKeeper.
 - Use DCO sign-offs on every commit:
   - `git commit --signoff ...`
   - Required trailer format: `Signed-off-by: Your Name <you@example.com>`
-- Prefer Conventional Commits for release automation:
+- Use Conventional Commits for the commits that land on `main`. Release Please depends on these commit types to determine version bumps and changelog entries:
   - `feat:` -> minor
   - `fix:` / `perf:` -> patch
   - `docs:`, `test:`, `ci:`, `chore:`, `refactor:` -> no bump by default
+- If you use squash merges, the final squash commit message must also follow Conventional Commit format.
 
 Examples:
 
@@ -67,4 +68,4 @@ PRs should include:
 
 ## Release Process
 
-See `RELEASE.md` for tagging and release automation.
+See `RELEASE.md` for the Release Please flow and downstream release automation.
