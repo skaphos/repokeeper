@@ -61,6 +61,18 @@ Add to your Windsurf MCP configuration:
 }
 ```
 
+### OpenAI Codex
+
+Codex supports MCP server definitions in `~/.codex/config.toml`. For a local RepoKeeper MCP server, add:
+
+```toml
+[mcp_servers.repokeeper]
+command = "repokeeper"
+args = ["mcp"]
+```
+
+If your workspace config is not discoverable from the working directory, pass `--config` here the same way you would in other MCP clients.
+
 ### Custom Config Path
 
 If your `.repokeeper.yaml` is not in a parent of your working directory, pass `--config`:
@@ -104,6 +116,38 @@ The MCP server exposes 14 tools organized by intent:
 | `add_repository` | Clone and register a repo | Clones to disk |
 | `remove_repository` | Remove from registry (tracking-only default) | Optional disk delete |
 
+Mutation-tool argument notes:
+
+- `scan_workspace.roots` is a string array of absolute or otherwise valid filesystem roots.
+- If `scan_workspace.roots` is omitted, RepoKeeper falls back to the effective workspace root resolved from the active config path.
+- `set_labels.set` is an object whose values must be strings.
+- `set_labels.remove` is a string array of label keys to delete.
+- `execute_sync.confirm` is a required safety gate. The call must include `"confirm": true`; omitting it or setting it to `false` is rejected.
+
+Examples:
+
+```json
+{
+  "roots": ["/work/repos", "/opt/mirrors"],
+  "prune_stale": true
+}
+```
+
+```json
+{
+  "repo": "github.com/example/alpha",
+  "set": {"team": "platform"},
+  "remove": ["env"]
+}
+```
+
+```json
+{
+  "label_selector": "team=platform",
+  "confirm": true
+}
+```
+
 ### Resources
 
 | URI | Description |
@@ -128,9 +172,9 @@ Use `--log-file` to capture MCP server logs (stdout is owned by the protocol in 
 }
 ```
 
-## Runtimes Without MCP Support
+## CLI Skill Fallback
 
-For runtimes that do not support MCP (such as Codex/OpenAI agents), use the bundled skill instead:
+If your runtime does not support MCP, or you want a CLI-driven fallback instead of MCP, use the bundled skill:
 
 ```bash
 repokeeper skill install
