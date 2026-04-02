@@ -36,7 +36,7 @@ func ParseFieldSelectorFilter(fieldSelector string) (engine.FilterKind, error) {
 	}
 	expr := strings.TrimSpace(parts[0])
 	if expr == "" {
-		return engine.FilterAll, nil
+		return "", fmt.Errorf("--field-selector cannot be blank")
 	}
 	tokens := strings.SplitN(expr, "=", 2)
 	if len(tokens) != 2 {
