@@ -404,11 +404,11 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 
 #### Phase 4: Polish + Skill Update
 
-- [ ] Update `internal/skillbundle/repokeeper/SKILL.md` with MCP tool mapping section
+- [x] Update `internal/skillbundle/repokeeper/SKILL.md` with MCP recommendation and tool mapping section
 - [ ] Integration tests (in-process MCP client → tool call → JSON response)
 - [ ] Manual end-to-end test with Claude Code MCP configuration
-- [ ] Update `README.md` with MCP setup instructions
-- [ ] Update `docs/commands.md` with MCP tool reference
+- [x] Update `README.md` with MCP setup instructions
+- [x] Create `docs/mcp-setup.md` with per-runtime setup and full tool reference
 
 **Acceptance:**
 
@@ -416,9 +416,9 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 - [ ] Agent can call `list_repositories` → structured JSON response
 - [ ] Agent can call `get_repository_context` → full repo context
 - [ ] Agent can call `plan_sync` → dry-run plan → `execute_sync` → sync executes
-- [ ] Skill fallback path still works for runtimes without MCP support
-- [ ] `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...` passes
-- [ ] Overall test coverage remains >= 80%
+- [x] Skill fallback path still works for runtimes without MCP support
+- [x] `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...` passes
+- [x] Overall test coverage remains >= 80%
 
 ---
 

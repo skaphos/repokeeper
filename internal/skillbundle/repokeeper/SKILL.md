@@ -10,6 +10,8 @@ metadata:
 
 # RepoKeeper
 
+> **Prefer MCP when available.** If your agent runtime supports the Model Context Protocol, configure the RepoKeeper MCP server instead of using this skill. MCP provides typed tool schemas, structured JSON responses, and automatic tool discovery without parsing CLI output. See [docs/mcp-setup.md](https://github.com/skaphos/repokeeper/blob/main/docs/mcp-setup.md) for setup instructions.
+
 Use RepoKeeper as the first stop for multi-repository work. It tells you what repositories exist, where they live, how healthy they are, and which ones can be updated safely.
 
 ## Scope and context
@@ -248,3 +250,19 @@ Use `--force` only when you intentionally want to replace or reconcile an existi
 - do not skip the preview step before mutating reconcile flows
 - do not treat dirty repos as safe to update unless the user explicitly accepts `--rebase-dirty`
 - do not assume `tracking.status=behind` is currently selectable with `--field-selector`; inspect JSON output from `get` instead
+
+## MCP tool equivalents
+
+If the RepoKeeper MCP server is configured, prefer these tools over CLI commands:
+
+| CLI workflow | MCP tool |
+|---|---|
+| `repokeeper get -o json` | `list_repositories` (fast) or `build_workspace_inventory` (live) |
+| `repokeeper describe <repo> -o json` | `get_repository_context` |
+| `repokeeper scan` | `scan_workspace` |
+| `repokeeper reconcile --dry-run` | `plan_sync` |
+| `repokeeper reconcile --update-local` | `execute_sync` (with `confirm: true`) |
+| `repokeeper label <repo> --set k=v` | `set_labels` |
+| `repokeeper add <url> <path>` | `add_repository` |
+
+MCP tools return structured JSON directly and enforce safety gates at the protocol level.

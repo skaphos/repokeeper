@@ -107,6 +107,23 @@ Quick highlights:
 
 The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper skill install` works from packaged builds such as Homebrew installs.
 
+### MCP Server (Agent Integration)
+
+RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server for agent runtimes that support the Model Context Protocol (Claude Code, Cursor, Windsurf, etc.). MCP is the preferred integration path — it provides typed tool schemas, structured JSON responses, and automatic tool discovery.
+
+```json
+{
+  "mcpServers": {
+    "repokeeper": {
+      "command": "repokeeper",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+The MCP server exposes 14 tools (8 read, 6 mutation) and browsable resources. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime setup instructions and the full tool reference.
+
 ### Repo-local metadata
 
 RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.yaml` or `repokeeper.yaml`.
@@ -232,6 +249,7 @@ Optional local checkout update:
 ## Documentation
 
 - [docs/commands.md](docs/commands.md) - command reference
+- [docs/mcp-setup.md](docs/mcp-setup.md) - MCP server setup for agent runtimes
 - [docs/skills/README.md](docs/skills/README.md) - user-scope agent skill installation and usage
 - [docs/man/README.md](docs/man/README.md) - manpage generation plan
 - [DESIGN.md](DESIGN.md) — full design specification and architecture
