@@ -43,7 +43,7 @@ After extracting, place `repokeeper` (or `repokeeper.exe` on Windows) somewhere 
 go install github.com/skaphos/repokeeper@latest
 ```
 
-Installed builds include the bundled MCP server (`repokeeper mcp`) used by Claude Code, Cursor, Windsurf, OpenAI Codex, and similar runtimes. See [docs/mcp-setup.md](docs/mcp-setup.md) for runtime configuration and the current read-and-plan MCP boundary.
+Installed builds include the bundled MCP server (`repokeeper mcp`) used by Claude Code, Cursor, Windsurf, OpenAI Codex, and similar runtimes. See [docs/mcp-setup.md](docs/mcp-setup.md) for runtime configuration and the current MCP tool boundary, including currently shipped state-changing operations.
 
 ## From local source checkout
 
