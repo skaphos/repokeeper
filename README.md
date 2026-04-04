@@ -122,7 +122,7 @@ RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server fo
 }
 ```
 
-The MCP server is intended as a read-and-plan surface with browsable resources. CLI and TUI remain the execution surfaces for state-changing operations. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime setup instructions and the current tool reference.
+The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI/TUI counterparts, so agents and users should treat them as execution surfaces when enabled. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime setup instructions and the current tool reference.
 
 ### Repo-local metadata
 
