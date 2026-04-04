@@ -2,13 +2,13 @@
 
 A cross-platform multi-repo hygiene tool for developers who work across multiple machines and directory layouts.
 
-RepoKeeper inventories your repositories, reports drift and broken tracking, and performs safe sync actions (fetch/prune) — without touching working trees or submodules.
+RepoKeeper inventories your repositories, reports drift and broken tracking, and performs safe sync actions (remote refresh by default, optional local update when explicitly enabled) — without hidden working-tree mutation or submodule recursion.
 
 ## Features
 
 - **Discover** repositories across configured root directories (Git by default, optional experimental Hg)
 - **Report** per-repo health: dirty/clean, branch, tracking status, ahead/behind, stale upstreams
-- **Sync** safely with `git fetch --all --prune` (never checkout/reset; optional `--update-local` uses `pull --rebase`)
+- **Sync** safely with fetch/prune-first behavior; optional `--update-local` uses `pull --rebase` under explicit conditions
 - **Registry** is stored in `.repokeeper.yaml` with staleness detection
 - **Repo-local metadata** can be read from `.repokeeper-repo.yaml` or `repokeeper.yaml` and surfaced in JSON, describe output, and the TUI detail view
 - **CLI-first** with tabular (`table`/`wide`) and JSON output formats
@@ -109,7 +109,7 @@ The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper 
 
 ### MCP Server (Agent Integration)
 
-RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server for agent runtimes that support the Model Context Protocol (Claude Code, Cursor, Windsurf, etc.). MCP is the preferred integration path — it provides typed tool schemas, structured JSON responses, and automatic tool discovery.
+RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server for agent runtimes that support the Model Context Protocol (Claude Code, Cursor, Windsurf, etc.). MCP is the preferred integration path for inspection and planning workflows — it provides typed tool schemas, structured JSON responses, and automatic tool discovery.
 
 ```json
 {
@@ -122,11 +122,14 @@ RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server fo
 }
 ```
 
-The MCP server exposes 14 tools (8 read, 6 mutation) and browsable resources. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime setup instructions and the full tool reference.
+The MCP server is intended as a read-and-plan surface with browsable resources. CLI and TUI remain the execution surfaces for state-changing operations. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime setup instructions and the current tool reference.
 
 ### Repo-local metadata
 
 RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.yaml` or `repokeeper.yaml`.
+
+- `.repokeeper.yaml` remains the machine-local workspace config and registry.
+- `.repokeeper-repo.yaml` is the source-controlled repo metadata surface.
 
 - Reads are automatic and read-only in `scan`, `get`, `describe`, and the TUI list/detail views.
 - `label` remains machine-local only.
@@ -224,7 +227,7 @@ The default scan/display root is inferred from the directory containing the acti
 
 RepoKeeper is designed to be safe to run on repos with dirty working trees:
 
-- By default, **never** runs `checkout`, `pull`, `reset`, `rebase`, or `merge`
+- By default, sync does **not** run checkout, reset, merge, or other hidden branch-navigation behavior
 - **Never** updates or recurses into submodules
 - Fetch uses `--no-recurse-submodules` and `-c fetch.recurseSubmodules=false` as belt-and-suspenders
 - All mutating commands support `--dry-run`
@@ -245,6 +248,8 @@ Optional local checkout update:
 - `--push-local` pushes local commits when a branch is ahead (instead of skipping with "local commits to push")
 - `--continue-on-error` keeps processing all repos after per-repo failures (default true)
 - In dry-run/preflight mode, these checks are evaluated up front so the plan calls out which repos are candidates for `fetch + rebase` versus `skip local update (...)`.
+
+Branch switching and prune execution are separate workflow areas rather than hidden sync side effects.
 
 ## Documentation
 
