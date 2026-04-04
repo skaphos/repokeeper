@@ -30,6 +30,11 @@ tasks:
     cmds:
       - go build -o repokeeper .
 
+  notices:
+    desc: Regenerate third-party notice inventories and license texts
+    cmds:
+      - '{{if eq OS "windows"}}powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/generate-notices.ps1{{else}}./scripts/generate-notices.sh{{end}}'
+
   install:
     desc: Install repokeeper binary to $GOPATH/bin
     cmds:
