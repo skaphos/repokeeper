@@ -32,6 +32,10 @@ Examples:
 - Keep REUSE metadata valid:
   - Source files should include SPDX headers (for example an `SPDX-License-Identifier` header with value `MIT`).
   - Use `reuse lint` to validate licensing metadata.
+- Properly credit every library we ship or use for repo automation:
+  - Regenerate `third_party_licenses/` with `go -C tools tool task notices` whenever `go.mod` or `go.sum` changes.
+  - Review `THIRD_PARTY_NOTICES.md` and the generated runtime CSV inventory before merging dependency updates.
+  - Review new development or CI tooling licenses before adoption, even when they are not part of the shipped binary notice set.
 - Format code:
   - `go -C tools tool task fmt`
 - Lint code:

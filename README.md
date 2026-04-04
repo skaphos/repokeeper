@@ -301,3 +301,16 @@ go -C tools tool task fmt
 ## License
 
 [MIT](LICENSE)
+
+## Third-Party Notices
+
+RepoKeeper includes third-party open source components.
+
+- Runtime dependency notices for distributed binaries live in [`third_party_licenses/runtime/`](third_party_licenses/runtime/) with an inventory in [`third_party_licenses/runtime-report.csv`](third_party_licenses/runtime-report.csv).
+- The maintenance workflow and attribution expectations live in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+When dependencies change, regenerate the notice artifacts before opening a PR:
+
+```bash
+go -C tools tool task notices
+```
