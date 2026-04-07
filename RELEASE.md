@@ -26,6 +26,7 @@ Release Please opens and maintains the release PR from commits already merged to
 Use the same checks CI runs:
 
 - `go -C tools tool task ci`
+- `go -C tools tool task notices`
 
 Optional version preview:
 
@@ -58,6 +59,7 @@ After workflow completion:
 
 - Confirm the GitHub Release exists for the tag.
 - Confirm expected artifacts are attached.
+- Confirm the release archives include `THIRD_PARTY_NOTICES.md` and `third_party_licenses/`.
 - Confirm release notes/version metadata look correct.
 
 ## Rollback / Fix Forward

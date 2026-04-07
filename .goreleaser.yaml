@@ -30,6 +30,10 @@ archives:
         formats:
           - zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - THIRD_PARTY_NOTICES.md
+      - third_party_licenses/**
 
 checksum:
   name_template: "checksums.txt"
