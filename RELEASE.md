@@ -47,6 +47,9 @@ The release PR merge creates the version tag and an initial GitHub release entry
 
 - Builds release artifacts
 - Publishes release assets to the GitHub release for that tag
+- Generates SPDX JSON SBOMs for the archived release artifacts
+- Signs `checksums.txt` with a keyless Sigstore bundle (`checksums.txt.sigstore.json`)
+- Publishes GitHub artifact attestations for the release artifacts and release metadata assets
 - Updates Homebrew cask in `github.com/skaphos/homebrew-tools` (`Casks/repokeeper.rb`) when the Homebrew GitHub App credentials are configured
 
 Release Please is responsible for the release PR, version bump, changelog commit, and tag creation. GoReleaser is responsible for publishing the final release assets for that tag and may update the GitHub release metadata/body as part of publishing.
@@ -60,7 +63,32 @@ After workflow completion:
 - Confirm the GitHub Release exists for the tag.
 - Confirm expected artifacts are attached.
 - Confirm the release archives include `THIRD_PARTY_NOTICES.md` and `third_party_licenses/`.
+- Confirm `checksums.txt`, `checksums.txt.sigstore.json`, and the generated `*.sbom.json` files are attached.
 - Confirm release notes/version metadata look correct.
+
+Example verification flow for `vX.Y.Z`:
+
+```bash
+mkdir -p /tmp/repokeeper-release && cd /tmp/repokeeper-release
+gh release download vX.Y.Z --repo skaphos/repokeeper \
+  --pattern 'checksums.txt' \
+  --pattern 'checksums.txt.sigstore.json' \
+  --pattern '*.sbom.json' \
+  --pattern 'repokeeper_vX.Y.Z_linux_amd64.tar.gz'
+sha256sum -c checksums.txt --ignore-missing
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity "https://github.com/skaphos/repokeeper/.github/workflows/release.yml@refs/tags/vX.Y.Z" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  checksums.txt
+gh attestation verify repokeeper_vX.Y.Z_linux_amd64.tar.gz --repo skaphos/repokeeper
+```
+
+Notes:
+
+- `cosign` verifies that the published checksum file was keylessly signed by the release workflow identity for that tag.
+- `gh attestation verify` verifies the GitHub-hosted provenance attestation for a downloaded release asset.
+- The `*.sbom.json` assets are SPDX JSON SBOMs generated from the published release archives.
 
 ## Rollback / Fix Forward
 
