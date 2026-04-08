@@ -86,11 +86,12 @@ Branch switching and prune execution are separate workflow areas with their own 
 
 ### 4.3 MCP boundary
 
-RepoKeeper MCP is a **read-and-plan surface**.
+RepoKeeper MCP is **primarily** a read-and-plan surface.
 
 * MCP may expose inventory, inspection, validation, and side-effect-free preview tools.
-* MCP must not execute sync, prune, branch switch, or other state-changing workflows.
-* CLI and TUI own execution.
+* The current MCP server also exposes explicit state-changing tools such as scan, sync execution, label mutation, and add/remove flows.
+* Any mutation through MCP must remain explicit and safety-bounded; it must not be hidden behind read-only or preview operations.
+* CLI and TUI remain the primary operator interfaces for execution.
 
 ### 4.4 Mutating command safety
 

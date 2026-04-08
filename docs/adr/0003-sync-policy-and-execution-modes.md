@@ -107,9 +107,9 @@ They may:
 
 ### MCP
 
-MCP may expose sync planning only.
+MCP primarily exposes sync planning.
 
-It must not execute sync.
+The current shipped server also includes an explicit `execute_sync` mutation tool. Any MCP sync execution must remain opt-in and safety-gated rather than implicit.
 
 ## Consequences
 

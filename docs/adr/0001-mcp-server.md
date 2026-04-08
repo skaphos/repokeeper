@@ -18,8 +18,8 @@ That direction still stands, but the product boundary is now stricter than the o
 
 RepoKeeper needs a clean separation between:
 
-- **MCP** as an information and planning surface for agents
-- **CLI/TUI** as the only execution surfaces for repo mutations
+- **MCP** as the primary information and planning surface for agents
+- **CLI/TUI** as the primary operator interfaces for repo mutations
 
 This matches the broader RepoKeeper operating model:
 
@@ -30,7 +30,7 @@ This matches the broader RepoKeeper operating model:
 
 ## Decision
 
-RepoKeeper will keep an MCP server, but MCP is defined as a **read-and-plan surface only**.
+RepoKeeper will keep an MCP server, and MCP is defined as **primarily** a read-and-plan surface.
 
 MCP may expose:
 
@@ -41,26 +41,24 @@ MCP may expose:
 - validation output
 - side-effect-free plans and previews
 
-MCP must not expose:
+The current shipped MCP surface also includes some explicit mutation tools while the product boundary converges.
 
-- sync execution
-- prune execution
-- branch switch / checkout execution
-- registry mutation
-- repo-local metadata writes
-- clone, remove, reset, or delete flows
-- any action that mutates repository state, working tree state, registry state, or on-disk repo metadata
+Those mutation tools:
 
-Execution remains the responsibility of CLI and TUI, where RepoKeeper can present plans, request confirmation, and make mutation intent explicit.
+- must be intentionally invoked as mutation surfaces
+- must preserve explicit safety gates and confirmation requirements where applicable
+- must not be hidden behind read-only or preview operations
+
+CLI and TUI remain the primary operator interfaces for execution, and narrowing the MCP surface remains the long-term direction.
 
 ## Tool Surface Design
 
 ### Principles
 
 1. **Agent intent over CLI parity.** Tools should map to what an agent wants to know, not to Cobra command shapes.
-2. **Read and plan only.** MCP supports inspection, explanation, validation, and side-effect-free previews.
+2. **Read and plan first.** MCP should prioritize inspection, explanation, validation, and side-effect-free previews.
 3. **Deterministic structured output.** MCP responses must be machine-readable and explain non-trivial decisions with stable fields and reason codes where needed.
-4. **Execution belongs elsewhere.** Any action that changes repo state or local state must stay in CLI/TUI.
+4. **Mutation must stay explicit.** Any action that changes repo state or local state must be clearly marked and safety-bounded regardless of interface.
 5. **Fast path and thorough path.** MCP may provide both registry-backed and live-inspection views when both are useful.
 
 ### Read Tools
@@ -80,7 +78,7 @@ These tools may read registry state, repo-local metadata, or live VCS state, but
 
 ### Planning Tools
 
-Planning tools are also side-effect-free. They may evaluate current state and return a preview of what RepoKeeper would do if an operator later chooses execution through CLI or TUI.
+Planning tools are also side-effect-free. They may evaluate current state and return a preview of what RepoKeeper would do if an operator later chooses execution through CLI, TUI, or an explicit mutation-capable MCP tool.
 
 Examples include:
 
@@ -116,7 +114,7 @@ The architectural change in this ADR is about **surface area**, not transport or
 - `repokeeper mcp` remains the stdio-based MCP entrypoint
 - the server continues to use typed schemas and structured JSON
 - read and planning paths remain valid MCP responsibilities
-- execution-oriented engine entrypoints are not part of the long-term MCP contract
+- narrowing execution-oriented engine entrypoints remains the long-term MCP contract direction
 
 ## Skill Guidance
 

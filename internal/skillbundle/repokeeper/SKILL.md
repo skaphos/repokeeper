@@ -261,6 +261,6 @@ If the RepoKeeper MCP server is configured, prefer these tools over CLI commands
 | `repokeeper describe <repo> -o json` | `get_repository_context` |
 | `repokeeper reconcile --dry-run` | `plan_sync` |
 
-Use CLI or TUI for execution workflows such as sync execution, label mutation, add/remove flows, metadata writes, prune execution, or branch switching.
+CLI and TUI remain the preferred operator interfaces for execution-heavy workflows, but the current MCP server also exposes explicit mutation tools such as `scan_workspace`, `execute_sync`, `set_labels`, `add_repository`, and `remove_repository`. Treat those MCP calls as state-changing operations and rely on their documented safety gates before using them.
 
-MCP tools return structured JSON directly for inspection and side-effect-free planning workflows.
+MCP tools return structured JSON directly for inspection and planning workflows, and some also provide explicit mutation surfaces.
