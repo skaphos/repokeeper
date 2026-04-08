@@ -10,7 +10,7 @@ metadata:
 
 # RepoKeeper
 
-> **Prefer MCP when available.** If your agent runtime supports the Model Context Protocol, configure the RepoKeeper MCP server instead of using this skill. MCP provides typed tool schemas, structured JSON responses, and automatic tool discovery without parsing CLI output. See [docs/mcp-setup.md](https://github.com/skaphos/repokeeper/blob/main/docs/mcp-setup.md) for setup instructions.
+> **Prefer MCP when available for inspection and planning.** If your agent runtime supports the Model Context Protocol, configure the RepoKeeper MCP server instead of using this skill for read-only and side-effect-free preview workflows. Use CLI or TUI for execution and mutation workflows. MCP provides typed tool schemas, structured JSON responses, and automatic tool discovery without parsing CLI output. See [docs/mcp-setup.md](https://github.com/skaphos/repokeeper/blob/main/docs/mcp-setup.md) for setup instructions.
 
 Use RepoKeeper as the first stop for multi-repository work. It tells you what repositories exist, where they live, how healthy they are, and which ones can be updated safely.
 
@@ -253,16 +253,14 @@ Use `--force` only when you intentionally want to replace or reconcile an existi
 
 ## MCP tool equivalents
 
-If the RepoKeeper MCP server is configured, prefer these tools over CLI commands:
+If the RepoKeeper MCP server is configured, prefer these tools over CLI commands for inspection and planning workflows:
 
 | CLI workflow | MCP tool |
 |---|---|
 | `repokeeper get -o json` | `list_repositories` (fast) or `build_workspace_inventory` (live) |
 | `repokeeper describe <repo> -o json` | `get_repository_context` |
-| `repokeeper scan` | `scan_workspace` |
 | `repokeeper reconcile --dry-run` | `plan_sync` |
-| `repokeeper reconcile --update-local` | `execute_sync` (with `confirm: true`) |
-| `repokeeper label <repo> --set k=v` | `set_labels` |
-| `repokeeper add <url> <path>` | `add_repository` |
 
-MCP tools return structured JSON directly and enforce safety gates at the protocol level.
+CLI and TUI remain the preferred operator interfaces for execution-heavy workflows, but the current MCP server also exposes explicit mutation tools such as `scan_workspace`, `execute_sync`, `set_labels`, `add_repository`, and `remove_repository`. Treat those MCP calls as state-changing operations and rely on their documented safety gates before using them.
+
+MCP tools return structured JSON directly for inspection and planning workflows, and some also provide explicit mutation surfaces.

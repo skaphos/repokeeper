@@ -10,6 +10,8 @@ metadata:
 
 # RepoKeeper
 
+> **Prefer MCP when available for inspection and planning.** If your agent runtime supports the Model Context Protocol, configure the RepoKeeper MCP server instead of using this skill for inspection and planning workflows. The current MCP server also exposes some explicit mutation tools, so treat any write-capable MCP call as a state-changing operation and rely on its safety gates. Use CLI or TUI as the preferred operator path for execution-heavy workflows. MCP provides typed tool schemas, structured JSON responses, and automatic tool discovery without parsing CLI output. See [docs/mcp-setup.md](https://github.com/skaphos/repokeeper/blob/main/docs/mcp-setup.md) for setup instructions.
+
 Use RepoKeeper as the first stop for multi-repository work. It tells you what repositories exist, where they live, how healthy they are, and which ones can be updated safely.
 
 ## Scope and context

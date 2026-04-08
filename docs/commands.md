@@ -69,8 +69,10 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 ### `repokeeper reconcile`
 
 - Shows a preflight plan before execution.
+- Sync is fetch/prune-first; `--update-local` is the explicit path for local branch update behavior.
 - Prompts only when mutating actions are planned (rebase/stash/checkout-missing clone), unless `--yes`.
 - Supports `--checkout-missing` to clone entries marked missing.
+- Does not act as a general branch-switch workflow.
 
 ### `repokeeper edit`
 

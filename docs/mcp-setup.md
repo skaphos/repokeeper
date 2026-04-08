@@ -1,6 +1,6 @@
 # MCP Server Setup
 
-RepoKeeper includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that gives agent runtimes typed, structured access to all RepoKeeper operations. When available, MCP is the preferred integration path over the bundled skill.
+RepoKeeper includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that gives agent runtimes typed, structured access to RepoKeeper inspection, planning, and currently shipped mutation workflows. When available, MCP is the preferred integration path over the bundled skill for inspection and planning, and it can also be used for explicit state-changing operations that carry their own safety gates.
 
 ## Prerequisites
 
@@ -90,7 +90,7 @@ If your `.repokeeper.yaml` is not in a parent of your working directory, pass `-
 
 ## Available Tools
 
-The MCP server exposes 14 tools organized by intent:
+The current MCP server exposes 14 tools organized by intent. Most tools are read-only or planning-oriented, and a smaller set are explicit mutations.
 
 ### Read Tools (8)
 
@@ -105,19 +105,27 @@ The MCP server exposes 14 tools organized by intent:
 | `get_related_repositories` | Relationship graph from repo metadata |
 | `get_workspace_config` | Current workspace configuration |
 
-### Mutation Tools (6)
+### Planning Tools
+
+| Tool | Description | Safety |
+|---|---|---|
+| `plan_sync` | Preview sync actions (always dry-run) | Read-only |
+
+### Mutation Tools (5)
 
 | Tool | Description | Safety |
 |---|---|---|
 | `scan_workspace` | Discover repos and update registry | Writes registry |
-| `plan_sync` | Preview sync actions (always dry-run) | Read-only |
 | `execute_sync` | Execute sync (requires `confirm: true`) | Safety gate |
 | `set_labels` | Set or remove labels on a repo | Writes registry |
 | `add_repository` | Clone and register a repo | Clones to disk |
 | `remove_repository` | Remove from registry (tracking-only default) | Optional disk delete |
 
-Mutation-tool argument notes:
+CLI and TUI remain the preferred operator interfaces for execution-heavy workflows, but the current MCP server also ships explicit mutation tools. Treat those tools as state-changing operations and rely on their documented safety gates and confirmations before using them.
 
+Argument notes:
+
+- `plan_sync` remains side-effect-free even when it previews local update candidates.
 - `scan_workspace.roots` is a string array of absolute or otherwise valid filesystem roots.
 - If `scan_workspace.roots` is omitted, RepoKeeper falls back to the effective workspace root resolved from the active config path.
 - `set_labels.set` is an object whose values must be strings.
@@ -144,7 +152,8 @@ Examples:
 ```json
 {
   "label_selector": "team=platform",
-  "confirm": true
+  "confirm": true,
+  "update_local": true
 }
 ```
 

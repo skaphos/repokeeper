@@ -4,6 +4,8 @@ This repository ships an OpenCode-compatible agent skill for RepoKeeper at:
 
 `docs/skills/repokeeper/SKILL.md`
 
+Use MCP when available for inspection and planning. The current MCP server also exposes some execution and mutation tools, so treat any scan, sync, label, add/remove, or other write-capable MCP call as an explicit state-changing operation. Use the skill as the CLI fallback and as the preferred guide for CLI/TUI-driven execution workflows.
+
 ## User-scope installation
 
 The easiest path is to let RepoKeeper install or update the bundled skill for you:

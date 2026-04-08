@@ -2,7 +2,7 @@
 
 ## 1. Summary
 
-**RepoKeeper** is a cross-platform multi-repo hygiene tool for developers who work across multiple machines and directory layouts. It inventories repositories, reports drift and broken tracking, and performs safe sync actions (fetch/prune) without touching working trees or submodules.
+**RepoKeeper** is a cross-platform multi-repo hygiene tool for developers who work across multiple machines and directory layouts. It inventories repositories, reports drift and broken tracking, and provides explainable repository maintenance workflows with fetch/prune-first sync, optional local update modes, and explicit separation between planning and execution.
 
 Primary interfaces:
 
@@ -45,7 +45,8 @@ You want "bring everything back in line" behavior **en masse**, but:
 4. **Sync** safely:
 
     * run `git fetch --all --prune --prune-tags` with submodule recursion disabled
-    * do not checkout branches, do not reset, do not pull
+    * default to remote refresh without hidden branch switching
+    * allow stronger local update modes only through explicit policy and execution paths
 5. **Persist per-machine registry** mapping repo-id → local path.
 6. **Output**:
 
@@ -55,8 +56,8 @@ You want "bring everything back in line" behavior **en masse**, but:
 ### 3.2 Non-goals (defer)
 
 * Auto-clone or credential management.
-* Auto-updating `main`/`master` (beyond fetching remote refs).
-* Auto-deleting local branches (even if merged).
+* Silent branch switching as a side effect of sync.
+* Silent local branch deletion as a side effect of sync.
 * Desktop GUI.
 * Full parity for non-Git backends (Hg remains experimental; see §9.1).
 
@@ -77,11 +78,22 @@ Implementation requirements:
 ### 4.2 Working tree safety
 
 * Fetch/prune is allowed even if dirty (it does not modify working tree files).
-* RepoKeeper must **not**:
+* RepoKeeper sync must **not**:
 
     * `checkout`, `pull`, `reset`, `rebase`, `merge` in v1.
 
-### 4.3 Mutating command safety
+Branch switching and prune execution are separate workflow areas with their own plan -> confirm -> execute lifecycles.
+
+### 4.3 MCP boundary
+
+RepoKeeper MCP is **primarily** a read-and-plan surface.
+
+* MCP may expose inventory, inspection, validation, and side-effect-free preview tools.
+* The current MCP server also exposes explicit state-changing tools such as scan, sync execution, label mutation, and add/remove flows.
+* Any mutation through MCP must remain explicit and safety-bounded; it must not be hidden behind read-only or preview operations.
+* CLI and TUI remain the primary operator interfaces for execution.
+
+### 4.4 Mutating command safety
 
 RepoKeeper distinguishes machine-local state from repo-local files:
 
@@ -91,6 +103,7 @@ RepoKeeper distinguishes machine-local state from repo-local files:
 * Promotion merges machine-local labels into `repo_metadata.labels` without overwriting existing shared keys.
 * Selector-driven bulk promotion is explicit through `repokeeper index repos --selector ... --local-selector ... --promote-local-labels --write`.
 * `--yes` can skip the final confirmation prompt for a mutating command, but it never substitutes for an explicit write-capable command or flag.
+* `.repokeeper.yaml` owns machine-local config, registry, and execution policy; `.repokeeper-repo.yaml` owns source-controlled repository metadata.
 
 ## 5. User Experience
 
@@ -257,8 +270,15 @@ Flags:
 
 #### `repokeeper reconcile`
 
-Runs safe fetch/prune on repos (all or selected).
+Runs the sync workflow on repos (all or selected).
 Shows a preflight plan and prompts for confirmation before executing unless `--yes` is passed.
+
+Sync policy modes:
+
+* `remote_only` — fetch/prune without local branch mutation
+* `update_local` — includes `remote_only` and may also apply local branch updates when repo state and safeguards allow
+
+The current CLI surface exposes `update_local` explicitly through `--update-local`. Longer-term policy defaults belong in `.repokeeper.yaml`, but configuration changes default planning behavior, not mutation confirmation requirements.
 
 Flags:
 
@@ -277,6 +297,8 @@ Flags:
 * `--allow-protected-rebase` (optional; override protected branch safeguard)
 * `--checkout-missing` (optional; clone repos marked missing from registry metadata)
 * `-o, --format table|wide|json`
+
+Sync does not own general branch navigation. Branch switching / checkout is a separate workflow area.
 
 #### `repokeeper repair upstream`
 
@@ -386,6 +408,8 @@ List-style commands (`get`, `reconcile`, `repair`) should converge on:
 * stable sorting and deterministic rows
 * explicit per-row machine outcome fields for automation (example: `outcome=fetched|rebased|pushed|skipped_*|failed_*`)
 
+Human-oriented table output is not an adapter contract. Machine-readable JSON and MCP schemas intended for adapters are contractual surfaces and should be versioned/documented accordingly.
+
 Table baseline for repos:
 
 * `NAME` (repo id short name), `PATH`, `BRANCH`, `TRACKING`, `DIRTY`, `STATUS`
@@ -493,6 +517,8 @@ defaults:
 ```
 
 The effective default root is the directory containing the active config file.
+
+This file is the home for machine-local policy and execution defaults. It is not the source-controlled metadata surface for shared repository context.
 
 #### 6.2.2 Registry (embedded in machine config by default)
 
