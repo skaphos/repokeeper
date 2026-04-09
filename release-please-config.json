@@ -1,6 +1,5 @@
 {
   "signoff": "skaphos-release-bot[bot] <261675299+skaphos-release-bot[bot]@users.noreply.github.com>",
-  "skip-github-release": true,
   "packages": {
     ".": {
       "release-type": "go"
