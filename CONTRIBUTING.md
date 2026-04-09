@@ -4,9 +4,20 @@ Thanks for contributing to RepoKeeper.
 
 ## Development Setup
 
-- Go version: see `go.mod` (`go 1.26.1`).
+- Go version: see `go.mod` (`go 1.26.2`).
 - Run task targets without installing tools globally:
   - `go -C tools tool task --list`
+
+## Graphify
+
+- Graphify hooks in this repository are local-only. They live under `.git/hooks` and are not tracked in git.
+- Install `graphify` into a Python environment you control.
+- Record the interpreter that can import `graphify`:
+  - `python3 -c "import sys; open('.graphify_python', 'w').write(sys.executable)"`
+- Install or refresh the local hooks:
+  - `graphify hook install`
+- The hooks read `.graphify_python` first, then fall back to `python3`.
+- The checkout hook only rebuilds after `graphify-out/` already exists, so create an initial graph once with your normal graphify workflow before relying on automatic rebuilds.
 
 ## Branching and Commits
 
