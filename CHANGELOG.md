@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/skaphos/repokeeper/compare/v0.7.0...v0.7.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** restore release-please tag creation ([1591c09](https://github.com/skaphos/repokeeper/commit/1591c09e167a48afbb2f202eaf6d5f163aaf78a6))
+
 ## [0.7.0](https://github.com/skaphos/repokeeper/compare/v0.6.1...v0.7.0) (2026-04-09)
 
 
