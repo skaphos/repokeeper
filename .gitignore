@@ -45,5 +45,6 @@ Thumbs.db
 perf/runs/
 .sisyphus/
 
-# Graphify output
+# Graphify
 graphify-out/
+.graphify_*
