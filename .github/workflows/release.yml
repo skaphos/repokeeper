@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  attestations: write
+  id-token: write
 
 jobs:
   release:
@@ -19,6 +21,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.1.1
       - name: Mint Homebrew app token
         id: app-token
         uses: actions/create-github-app-token@v1
@@ -64,8 +70,19 @@ jobs:
           fi
       - uses: goreleaser/goreleaser-action@v6
         with:
-          version: "~> v2"
+          version: v2.15.2
           args: ${{ steps.goreleaser_args.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Attest release archives
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-checksums: dist/checksums.txt
+      - name: Attest release metadata artifacts
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/checksums.txt
+            dist/*.sbom.json
+            dist/*.sigstore.json
