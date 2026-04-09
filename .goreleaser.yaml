@@ -40,6 +40,9 @@ checksum:
 
 sboms:
   - artifacts: archive
+    documents:
+      - format: spdx-json
+        name_template: "{{ .ArtifactName }}.sbom.json"
 
 signs:
   - cmd: cosign
