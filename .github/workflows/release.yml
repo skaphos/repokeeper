@@ -70,7 +70,7 @@ jobs:
           fi
       - uses: goreleaser/goreleaser-action@v6
         with:
-          version: "~> v2"
+          version: v2.15.2
           args: ${{ steps.goreleaser_args.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ github.token }}

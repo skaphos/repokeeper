@@ -86,6 +86,7 @@ gh attestation verify repokeeper_vX.Y.Z_linux_amd64.tar.gz --repo skaphos/repoke
 
 Notes:
 
+- The `sha256sum -c` example above is Linux-oriented. On macOS, use `shasum -a 256 -c checksums.txt`; on Windows, use PowerShell `Get-FileHash` to verify the downloaded artifacts against `checksums.txt`.
 - `cosign` verifies that the published checksum file was keylessly signed by the release workflow identity for that tag.
 - `gh attestation verify` verifies the GitHub-hosted provenance attestation for a downloaded release asset.
 - The `*.sbom.json` assets are SPDX JSON SBOMs generated from the published release archives.
