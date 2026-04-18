@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/skaphos/repokeeper/compare/v0.7.0...v0.7.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* **release:** goreleaser owns release creation; postflight cask hook ([#194](https://github.com/skaphos/repokeeper/issues/194)) ([642f1a2](https://github.com/skaphos/repokeeper/commit/642f1a2cda37b7da99f51c07a3690016fd8025ac))
+
 ## [0.7.0](https://github.com/skaphos/repokeeper/compare/v0.6.1...v0.7.0) (2026-04-09)
 
 
