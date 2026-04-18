@@ -145,7 +145,7 @@ Because `v0.7.0` exists as an immutable release with no binaries, no future work
 1. Merge this PR into `main`.
 2. Let release-please open its next release PR.
 3. Merge the release PR → inspect the release-please workflow run → confirm release-please pushes the tag but does **not** create a GitHub release.
-4. Watch the `Release` workflow run → confirm goreleaser creates the release, attaches all archives, checksums, SBOMs, signatures, and publishes with the extracted CHANGELOG.md section as the body.
+4. Watch the `Release` workflow run → confirm goreleaser creates the release, attaches all archives, checksums, SBOMs, signatures, and generates the GitHub release notes from its configured changelog/git history.
 5. `gh release view vX.Y.Z --json assets` should list all archives.
 6. `brew tap skaphos/tools && brew install repokeeper` on macOS + Linux should succeed.
 7. `repokeeper --version` should print the new version.
