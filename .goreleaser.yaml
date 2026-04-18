@@ -55,11 +55,31 @@ signs:
 
 changelog:
   sort: asc
+  use: github
   filters:
     exclude:
       - "^docs:"
       - "^test:"
       - "^ci:"
+      - "^chore:"
+      - "^chore\\("
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Performance Improvements
+      regexp: '^.*?perf(\(.+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  mode: replace
+  draft: false
+  make_latest: true
 
 homebrew_casks:
   - repository:
@@ -72,6 +92,11 @@ homebrew_casks:
     license: "MIT"
     binaries:
       - repokeeper
+    custom_block: |
+      postflight do
+        system_command "/usr/bin/xattr",
+                       args: ["-dr", "com.apple.quarantine", "#{staged_path}/repokeeper"]
+      end
 
 snapshot:
   version_template: "{{ .Tag }}-next"
