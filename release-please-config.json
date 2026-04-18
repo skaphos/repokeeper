@@ -89,7 +89,8 @@
   ],
   "packages": {
     ".": {
-      "release-type": "go"
+      "release-type": "go",
+      "skip-github-release": true
     }
   }
 }
