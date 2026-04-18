@@ -133,7 +133,7 @@ Because `v0.7.0` exists as an immutable release with no binaries, no future work
 ### Positive
 - GitHub releases actually ship prebuilt binaries, checksums, SBOMs, and cosign signatures.
 - `brew install skaphos/tools/repokeeper` works on macOS and Linux without Gatekeeper warnings.
-- Release notes stay authored by release-please (single source of truth for the changelog).
+- `CHANGELOG.md` stays authored by release-please, while GoReleaser uses that changelog content as the single source of truth for the GitHub release body.
 - Goreleaser's existing `signs:`, `sboms:`, and attestation steps continue to work unchanged.
 
 ### Negative / risks
