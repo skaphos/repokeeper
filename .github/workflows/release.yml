@@ -15,10 +15,10 @@ jobs:
     name: GoReleaser
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Install Syft
@@ -27,7 +27,7 @@ jobs:
         uses: sigstore/cosign-installer@v4.1.1
       - name: Mint Homebrew app token
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.HOMEBREW_APP_ID }}
           private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
@@ -37,7 +37,7 @@ jobs:
       - name: Run full performance benchmarks
         run: go -C tools tool task -d .. perf-bench
       - name: Upload performance artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: perf-release-${{ github.ref_name }}
           path: |
@@ -55,7 +55,7 @@ jobs:
         run: |
           if [ -z "${HOMEBREW_TOKEN}" ]; then
             echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
-            echo "::warning::GitHub App token was not minted; skipping Homebrew cask publish."
+            echo "::warning::GitHub App token was not minted; skipping Homebrew formula publish."
             exit 0
           fi
 
@@ -66,9 +66,9 @@ jobs:
             echo "args=release --clean" >> "$GITHUB_OUTPUT"
           else
             echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
-            echo "::warning::GitHub App token cannot access skaphos/homebrew-tools; skipping Homebrew cask publish."
+            echo "::warning::GitHub App token cannot access skaphos/homebrew-tools; skipping Homebrew formula publish."
           fi
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: v2.15.2
           args: ${{ steps.goreleaser_args.outputs.args }}
