@@ -116,8 +116,10 @@ homebrew_casks:
       - repokeeper
     custom_block: |
       postflight do
-        system_command "/usr/bin/xattr",
-                       args: ["-dr", "com.apple.quarantine", "#{staged_path}/repokeeper"]
+        on_macos do
+          system_command "/usr/bin/xattr",
+                         args: ["-dr", "com.apple.quarantine", "#{staged_path}/repokeeper"]
+        end
       end
 ```
 
@@ -127,6 +129,8 @@ homebrew_casks:
   - A `postflight` hook that runs `xattr -dr com.apple.quarantine "#{staged_path}/repokeeper"` strips the extended attribute on the user's machine at install time, *after* the download. This is the pattern goreleaser's current `homebrew_casks` docs recommend. It produces the same installed outcome regardless of what the OS attached at download.
 
   We adopt the `postflight` hook. The tradeoff is a few lines of inline Ruby that goreleaser cannot lint, versus a one-line stanza that may no-op at the OS level. We accept the extra lines because the hook actually achieves the goal on the macOS versions our users run today. The correct long-term fix is to notarize the binary with an Apple Developer ID so Gatekeeper accepts it without any workaround — out of scope for this ADR, to be revisited once the project owns a signing/notarization pipeline.
+
+  **Linuxbrew guard.** Homebrew casks are nominally macOS-only, but Linuxbrew will install them and then run the `postflight` hook. `/usr/bin/xattr` does not exist on Linux, so an unguarded `system_command` exits 127 and Linuxbrew rolls back the upgrade (observed on `v0.7.1`). We therefore wrap the `system_command` in an `on_macos do ... end` block so the hook is a no-op on Linuxbrew and the install succeeds. The xattr strip is irrelevant off macOS — there is no Gatekeeper to bypass — so this is a pure platform guard, not a behaviour change.
 
 Shell completions via `generate_completions_from_executable` require the binary to support a `completion` subcommand; I'll check that separately and add it in a follow-up PR if it's wired up.
 
@@ -172,7 +176,7 @@ Phased, to keep each diff reviewable:
 - `.goreleaser.yaml`:
   - Add `release:` block (`mode: replace`, `draft: false`, `make_latest: true`).
   - Extend the existing `changelog:` block with commit groups (Features / Bug Fixes / Performance / Others) so the rendered GitHub release body matches the conventional-commit categories, and extend `filters.exclude` with `^chore:` and `^chore\(` so dependency bumps and housekeeping do not appear in the user-facing release notes.
-  - Update `homebrew_casks:` `custom_block:` to embed a `postflight` hook running `xattr -dr com.apple.quarantine` on the staged binary. Keep `binaries: [repokeeper]` as-is — it is the current plural form; the singular `binary:` field was deprecated in goreleaser v2.12.6.
+  - Update `homebrew_casks:` `custom_block:` to embed a `postflight` hook running `xattr -dr com.apple.quarantine` on the staged binary, guarded by `on_macos do ... end` so Linuxbrew does not try to exec a macOS-only binary. Keep `binaries: [repokeeper]` as-is — it is the current plural form; the singular `binary:` field was deprecated in goreleaser v2.12.6.
 - `.github/workflows/release.yml` + `.github/workflows/ci.yml`: bump action versions to the latest majors that use Node 24, silencing the Node 20 deprecation warnings:
   - `actions/checkout@v4 → v6`
   - `actions/setup-go@v5 → v6`
