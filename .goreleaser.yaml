@@ -94,8 +94,10 @@ homebrew_casks:
       - repokeeper
     custom_block: |
       postflight do
-        system_command "/usr/bin/xattr",
-                       args: ["-dr", "com.apple.quarantine", "#{staged_path}/repokeeper"]
+        on_macos do
+          system_command "/usr/bin/xattr",
+                         args: ["-dr", "com.apple.quarantine", "#{staged_path}/repokeeper"]
+        end
       end
 
 snapshot:
