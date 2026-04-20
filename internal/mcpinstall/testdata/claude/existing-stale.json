@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "repokeeper": {
+      "command": "/old/path/repokeeper",
+      "args": ["mcp", "--old-flag"]
+    }
+  }
+}

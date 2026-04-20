@@ -14,8 +14,9 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 | `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form |
 | `repokeeper index <repo-id-or-path>` | Interactively preview or write repo-local metadata |
 | `repokeeper index repos` | Preview or write repo-local metadata for selected repositories |
-| `repokeeper skill install [target]` | Install or update the bundled RepoKeeper skill for supported runtimes |
-| `repokeeper skill uninstall [target]` | Remove the bundled RepoKeeper skill from supported runtimes |
+| `repokeeper install` | Register RepoKeeper as an MCP server in detected (or --claude/--codex/--opencode) runtimes |
+| `repokeeper install list` | Show per-runtime MCP registration state (table or `--json`) |
+| `repokeeper uninstall` | Remove the RepoKeeper MCP entry from each runtime (prompts unless `--yes`) |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository |
 | `repokeeper delete <repo-id-or-path>` | Delete repo files and remove from registry |
 | `repokeeper edit <repo-id-or-path>` | Open one repo entry in `$VISUAL`/`$EDITOR`, validate, save |
@@ -57,14 +58,15 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 - Uses `--selector` for shared repo metadata labels and `--local-selector` for machine-local labels.
 - Prints a preview for every selected repo and writes only with `--write`.
 
-### `repokeeper skill install` / `repokeeper skill uninstall`
+### `repokeeper install` / `repokeeper install list` / `repokeeper uninstall`
 
-- Installs or removes the bundled `repokeeper` skill in user-scope skill directories.
-- No-argument `install` updates every existing supported directory it detects.
-- Explicit targets supported: `claude`, `opencode`, `openai`, `codex`, `all`.
-- `openai` and `codex` both target `~/.agents/skills/`.
-- `install` writes the skill from content embedded in the compiled RepoKeeper binary.
-- `uninstall` prompts before removing installed skill directories unless `--yes` is passed.
+- Auto-detects Claude Code, Codex, and OpenCode; `--claude`/`--codex`/`--opencode` restrict the target set.
+- `--scope user` (default) or `--scope project`. `--scope project --codex` is a hard error (Codex has no project scope).
+- `--command PATH` overrides the binary path written to config; default is `os.Executable()` so Homebrew's bin shim is used instead of a version-specific Cellar path.
+- `--manual [=all|claude|codex|opencode]` prints config snippets to stdout instead of writing; use for Cursor, Windsurf, or any runtime RepoKeeper doesn't adapter.
+- `install list` reports `not registered`, `registered`, `registered (stale)`, or `unsupported` for each runtime at the chosen scope; `--json` emits `{scope, runtimes[]}`.
+- `uninstall` prompts once before removing unless `--yes` is passed; empty stdin aborts as a safe default.
+- Replaces the removed `repokeeper skill install/uninstall`. The canonical skill file is still at `docs/skills/repokeeper/SKILL.md` — copy it into your runtime's skills directory manually if you need the CLI fallback. See [docs/mcp-setup.md](mcp-setup.md) for per-runtime config paths and tool reference.
 
 ### `repokeeper reconcile`
 

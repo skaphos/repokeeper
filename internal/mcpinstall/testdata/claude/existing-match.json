@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "repokeeper": {
+      "command": "/usr/local/bin/repokeeper",
+      "args": ["mcp"]
+    }
+  }
+}

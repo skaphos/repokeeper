@@ -1,0 +1,9 @@
+{
+  "mcp": {
+    "repokeeper": {
+      "type": "local",
+      "command": ["/usr/local/bin/repokeeper", "mcp"],
+      "enabled": true
+    }
+  }
+}

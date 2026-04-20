@@ -1,0 +1,5 @@
+model = "gpt-4"
+
+[mcp_servers.other]
+command = "/usr/bin/other"
+args = ["run"]
