@@ -9,90 +9,81 @@ RepoKeeper includes a built-in [Model Context Protocol](https://modelcontextprot
 
 ## Quick Start
 
+The fastest path is `repokeeper install`. It auto-detects Claude Code, Codex, and OpenCode and writes the MCP server entry into each detected runtime's config file:
+
 ```bash
-# Verify the MCP server starts
-repokeeper mcp --help
+# Register repokeeper with every detected runtime at user scope
+repokeeper install
+
+# Verify what was registered
+repokeeper install list
+
+# Limit to a single runtime
+repokeeper install --claude
 ```
 
-## Per-Runtime Configuration
+The command is idempotent — re-running it reports `unchanged` when config already matches, `updated` when it had to rewrite a stale entry, and `registered` when the entry was absent. After `brew upgrade` or any binary move, re-run `repokeeper install` to refresh the registered path.
 
-### Claude Code
+### Supported runtimes
 
-Add to `~/.claude/settings.json` (user scope) or `.claude/settings.json` (project scope):
+| Runtime | User scope config | Project scope | Format |
+|---|---|---|---|
+| Claude Code | `~/.claude.json` | `./.mcp.json` | JSON, key `mcpServers.repokeeper` |
+| Codex | `~/.codex/config.toml` | not supported | TOML, key `[mcp_servers.repokeeper]` |
+| OpenCode | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/opencode.json` | `./opencode.json` | JSON, key `mcp.repokeeper` |
 
-```json
-{
-  "mcpServers": {
-    "repokeeper": {
-      "command": "repokeeper",
-      "args": ["mcp"]
-    }
-  }
-}
+### Common flags
+
+- `--claude` / `--codex` / `--opencode` — restrict the target set (otherwise auto-detect).
+- `--scope user` (default) or `--scope project`. `--scope project --codex` is a hard error (Codex has no project scope).
+- `--command PATH` — override the binary path written to config. Default is `os.Executable()`, which resolves to Homebrew's bin shim on macOS rather than a version-specific Cellar path.
+- `--manual [=all|claude|codex|opencode]` — print the config snippet(s) to stdout instead of writing. Use this for runtimes RepoKeeper doesn't adapter (Cursor, Windsurf) or when you prefer to manage config by hand.
+
+### Inspecting state
+
+```bash
+# Per-runtime table
+repokeeper install list
+
+# JSON output for scripting
+repokeeper install list --json
 ```
 
-### Cursor
+The `STATE` column is one of `not registered`, `registered`, `registered (stale)` (command in config no longer matches the current binary), or `unsupported` (scope not supported by this runtime).
 
-Add to your Cursor MCP configuration (Settings > MCP Servers):
+### Removing the entry
 
-```json
-{
-  "mcpServers": {
-    "repokeeper": {
-      "command": "repokeeper",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+# Prompt, then remove repokeeper MCP entries from every detected runtime
+repokeeper uninstall
+
+# Skip the prompt
+repokeeper uninstall --yes
+
+# Limit to a single runtime
+repokeeper uninstall --claude --yes
 ```
 
-### Windsurf
+A declined prompt (or empty stdin in a non-interactive invocation without `--yes`) aborts without removing anything, which is the safe default for scripted contexts.
 
-Add to your Windsurf MCP configuration:
+## Debugging
 
-```json
-{
-  "mcpServers": {
-    "repokeeper": {
-      "command": "repokeeper",
-      "args": ["mcp"]
-    }
-  }
-}
+Use `--log-file` to capture MCP server logs (stdout is owned by the protocol in stdio mode). Pass it via `--command` or edit the config directly:
+
+```bash
+# Register repokeeper and capture debug output to a file.
+repokeeper install --command "$(command -v repokeeper)"
+# Then edit the runtime's config to append --log-file to the args array:
+# "args": ["mcp", "--log-file", "/tmp/repokeeper-mcp.log"]
 ```
 
-### OpenAI Codex
+A future release may expose `--args` on `repokeeper install` to append MCP server flags directly.
 
-Codex supports MCP server definitions in `~/.codex/config.toml`. For a local RepoKeeper MCP server, add:
-
-```toml
-[mcp_servers.repokeeper]
-command = "repokeeper"
-args = ["mcp"]
-```
-
-If your workspace config is not discoverable from the working directory, pass `--config` here the same way you would in other MCP clients.
-
-### Custom Config Path
-
-If your `.repokeeper.yaml` is not in a parent of your working directory, pass `--config`:
-
-```json
-{
-  "mcpServers": {
-    "repokeeper": {
-      "command": "repokeeper",
-      "args": ["mcp", "--config", "/path/to/.repokeeper.yaml"]
-    }
-  }
-}
-```
-
-## Available Tools
+## Available tools
 
 The current MCP server exposes 14 tools organized by intent. Most tools are read-only or planning-oriented, and a smaller set are explicit mutations.
 
-### Read Tools (8)
+### Read tools (8)
 
 | Tool | Description |
 |---|---|
@@ -105,13 +96,13 @@ The current MCP server exposes 14 tools organized by intent. Most tools are read
 | `get_related_repositories` | Relationship graph from repo metadata |
 | `get_workspace_config` | Current workspace configuration |
 
-### Planning Tools
+### Planning tools
 
 | Tool | Description | Safety |
 |---|---|---|
 | `plan_sync` | Preview sync actions (always dry-run) | Read-only |
 
-### Mutation Tools (5)
+### Mutation tools (5)
 
 | Tool | Description | Safety |
 |---|---|---|
@@ -166,27 +157,60 @@ Examples:
 | `repokeeper://repo/{repo_id}` | Single registry entry |
 | `repokeeper://repo/{repo_id}/metadata` | Repo-local metadata |
 
-## Debugging
+## Unsupported runtimes (manual configuration)
 
-Use `--log-file` to capture MCP server logs (stdout is owned by the protocol in stdio mode):
+Some agent runtimes don't expose a canonical flat-file MCP config we can safely rewrite. For those, `repokeeper install --manual` prints the snippet you would paste into their configuration UI:
+
+```bash
+# Print snippets for all three adapter-backed runtimes (Claude, Codex, OpenCode)
+repokeeper install --manual
+
+# Print just the JSON shape a Cursor-style runtime expects
+repokeeper install --manual=claude
+```
+
+### Cursor
+
+Cursor's MCP configuration is managed through its Settings UI (Settings > MCP Servers). Use the JSON shape below:
 
 ```json
 {
   "mcpServers": {
     "repokeeper": {
       "command": "repokeeper",
-      "args": ["mcp", "--log-file", "/tmp/repokeeper-mcp.log"]
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-## CLI Skill Fallback
+### Windsurf
 
-If your runtime does not support MCP, or you want a CLI-driven fallback instead of MCP, use the bundled skill:
+Windsurf's MCP configuration is likewise UI-managed. Use the same JSON shape as Cursor. Replace `"repokeeper"` (the command value) with the absolute path from `command -v repokeeper` if the binary is not on the runtime's `PATH`.
 
-```bash
-repokeeper skill install
+### Custom config path
+
+If your `.repokeeper.yaml` is not in a parent of your working directory, extend `args` with `--config`:
+
+```json
+{
+  "mcpServers": {
+    "repokeeper": {
+      "command": "repokeeper",
+      "args": ["mcp", "--config", "/path/to/.repokeeper.yaml"]
+    }
+  }
+}
 ```
 
-The skill teaches agents to use RepoKeeper via CLI commands. See [docs/skills/README.md](skills/README.md) for details.
+## CLI skill fallback
+
+If your runtime does not support MCP, or you want a CLI-driven fallback instead of MCP, copy the canonical skill file into your runtime's skills directory:
+
+```bash
+# Example: Claude Code
+mkdir -p ~/.claude/skills/repokeeper
+cp docs/skills/repokeeper/SKILL.md ~/.claude/skills/repokeeper/SKILL.md
+```
+
+See [docs/skills/README.md](skills/README.md) for the full list of runtime skill paths and caveats. The previous `repokeeper skill install` CLI was removed in ADR-0008 — MCP via `repokeeper install` is the preferred integration surface for runtimes that support it.
