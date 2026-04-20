@@ -1,0 +1,26 @@
+name: Release PR
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-pr:
+    name: Maintain Release PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint release bot token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.HOMEBREW_APP_ID }}
+          private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - uses: skaphos/actions/release-pr@v1.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
