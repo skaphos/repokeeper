@@ -157,21 +157,20 @@ Examples:
 | `repokeeper://repo/{repo_id}` | Single registry entry |
 | `repokeeper://repo/{repo_id}/metadata` | Repo-local metadata |
 
-## Unsupported runtimes (manual configuration)
+## Runtimes without a RepoKeeper adapter
 
-Some agent runtimes don't expose a canonical flat-file MCP config we can safely rewrite. For those, `repokeeper install --manual` prints the snippet you would paste into their configuration UI:
+`repokeeper install` only writes config for runtimes it has an adapter for (Claude Code, Codex, OpenCode). For other MCP-capable runtimes, edit the runtime's config file by hand using the shape documented below. `repokeeper install --manual` prints the Claude/Codex/OpenCode snippets to stdout as a convenience, but the sections here are authoritative for each runtime.
 
-```bash
-# Print snippets for all three adapter-backed runtimes (Claude, Codex, OpenCode)
-repokeeper install --manual
-
-# Print just the JSON shape a Cursor-style runtime expects
-repokeeper install --manual=claude
-```
+Tip: if `repokeeper` is not on the runtime's `PATH`, replace `"repokeeper"` in the `command` field with the absolute path from `command -v repokeeper`.
 
 ### Cursor
 
-Cursor's MCP configuration is managed through its Settings UI (Settings > MCP Servers). Use the JSON shape below:
+Cursor reads MCP servers from a flat JSON file. The key is `mcpServers`, the same shape Claude Code uses, so `repokeeper install --manual=claude` emits a snippet you can paste verbatim.
+
+- **User scope:** `~/.cursor/mcp.json`
+- **Project scope:** `<repo-root>/.cursor/mcp.json`
+
+Project config overrides user config when both define the same server. See [Cursor's MCP docs](https://cursor.com/docs/context/mcp) for the full option list.
 
 ```json
 {
@@ -184,18 +183,57 @@ Cursor's MCP configuration is managed through its Settings UI (Settings > MCP Se
 }
 ```
 
+### VS Code + GitHub Copilot
+
+VS Code uses its own JSON shape for MCP servers — the root key is `servers` (not `mcpServers`), and each entry carries a `type` discriminator (`"stdio"` for local commands like RepoKeeper).
+
+- **User scope:** open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`) and run **MCP: Open User Configuration**. This opens the correct file under your VS Code user profile.
+- **Project scope:** `<repo-root>/.vscode/mcp.json`
+
+```json
+{
+  "servers": {
+    "repokeeper": {
+      "type": "stdio",
+      "command": "repokeeper",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+VS Code supports sandboxing for stdio MCP servers, restricting filesystem and network access to explicitly allowed paths/domains. If you enable sandboxing for RepoKeeper, allow the directories your workspace config and registry live under (typically the directory containing `.repokeeper.yaml` plus every repo path it references). See [VS Code's MCP configuration reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration) for the sandbox schema.
+
 ### Windsurf
 
-Windsurf's MCP configuration is likewise UI-managed. Use the same JSON shape as Cursor. Replace `"repokeeper"` (the command value) with the absolute path from `command -v repokeeper` if the binary is not on the runtime's `PATH`.
+Windsurf's MCP configuration is managed through its UI. Use the same JSON shape Cursor uses (`mcpServers` root key), then paste it into Windsurf's MCP settings panel.
+
+### Other runtimes
+
+Any runtime that speaks stdio MCP and accepts `{"command": "...", "args": [...]}` in some form can run RepoKeeper. Start from `repokeeper install --manual=claude` (the most widely adopted shape) and translate into the runtime's format if the root key or entry shape differs.
 
 ### Custom config path
 
-If your `.repokeeper.yaml` is not in a parent of your working directory, extend `args` with `--config`:
+If your `.repokeeper.yaml` is not in a parent of your working directory, extend the `args` array with `--config`:
 
 ```json
 {
   "mcpServers": {
     "repokeeper": {
+      "command": "repokeeper",
+      "args": ["mcp", "--config", "/path/to/.repokeeper.yaml"]
+    }
+  }
+}
+```
+
+VS Code's equivalent:
+
+```json
+{
+  "servers": {
+    "repokeeper": {
+      "type": "stdio",
       "command": "repokeeper",
       "args": ["mcp", "--config", "/path/to/.repokeeper.yaml"]
     }
