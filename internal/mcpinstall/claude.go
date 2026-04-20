@@ -30,12 +30,12 @@ func (a *claudeAdapter) Detect() (bool, error) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".claude.json")); err == nil {
 		return true, nil
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return false, err
 	}
 	if _, err := os.Stat(filepath.Join(home, ".claude")); err == nil {
 		return true, nil
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return false, err
 	}
 	return false, nil
@@ -73,7 +73,14 @@ func (a *claudeAdapter) ReadEntry(path string) (Entry, bool, error) {
 	if err != nil {
 		return Entry{}, false, err
 	}
-	servers, _ := doc["mcpServers"].(map[string]any)
+	var servers map[string]any
+	if raw, ok := doc["mcpServers"]; ok {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return Entry{}, false, fmt.Errorf("parse %q: mcpServers is not a JSON object (got %T)", path, raw)
+		}
+		servers = m
+	}
 	if servers == nil {
 		return Entry{}, false, nil
 	}
@@ -81,15 +88,19 @@ func (a *claudeAdapter) ReadEntry(path string) (Entry, bool, error) {
 	if !ok {
 		return Entry{}, false, nil
 	}
-	b, err := json.Marshal(raw)
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return Entry{}, false, fmt.Errorf("parse %q: mcpServers.%s is not a JSON object (got %T)", path, repokeeperKey, raw)
+	}
+	b, err := json.Marshal(m)
 	if err != nil {
-		return Entry{}, false, err
+		return Entry{}, false, fmt.Errorf("parse %q: mcpServers.%s: %w", path, repokeeperKey, err)
 	}
 	var srv claudeServer
 	if err := json.Unmarshal(b, &srv); err != nil {
-		return Entry{}, false, err
+		return Entry{}, false, fmt.Errorf("parse %q: mcpServers.%s: %w", path, repokeeperKey, err)
 	}
-	return Entry{Command: srv.Command, Args: srv.Args}, true, nil
+	return Entry(srv), true, nil
 }
 
 func (a *claudeAdapter) WriteEntry(path string, e Entry) error {
@@ -97,11 +108,18 @@ func (a *claudeAdapter) WriteEntry(path string, e Entry) error {
 	if err != nil {
 		return err
 	}
-	servers, _ := doc["mcpServers"].(map[string]any)
+	var servers map[string]any
+	if raw, ok := doc["mcpServers"]; ok {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("parse %q: mcpServers is not a JSON object (got %T)", path, raw)
+		}
+		servers = m
+	}
 	if servers == nil {
 		servers = map[string]any{}
 	}
-	servers[repokeeperKey] = claudeServer{Command: e.Command, Args: e.Args}
+	servers[repokeeperKey] = claudeServer(e)
 	doc["mcpServers"] = servers
 	return writeJSONDoc(path, doc, 0o644)
 }
@@ -109,12 +127,16 @@ func (a *claudeAdapter) WriteEntry(path string, e Entry) error {
 func (a *claudeAdapter) RemoveEntry(path string) (bool, error) {
 	doc, err := readJSONDoc(path)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return false, nil
-		}
 		return false, err
 	}
-	servers, _ := doc["mcpServers"].(map[string]any)
+	var servers map[string]any
+	if raw, ok := doc["mcpServers"]; ok {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			return false, fmt.Errorf("parse %q: mcpServers is not a JSON object (got %T)", path, raw)
+		}
+		servers = m
+	}
 	if servers == nil {
 		return false, nil
 	}
@@ -136,7 +158,7 @@ func (a *claudeAdapter) RemoveEntry(path string) (bool, error) {
 func readJSONDoc(path string) (map[string]any, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return map[string]any{}, nil
 		}
 		return nil, err

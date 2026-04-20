@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -237,6 +238,56 @@ func TestClaudeRemoveEntryAbsent(t *testing.T) {
 	}
 	if removed {
 		t.Fatal("expected removed=false on absent entry")
+	}
+}
+
+func TestClaudeReadEntryRejectsNonObjectMcpServers(t *testing.T) {
+	t.Parallel()
+	a := &claudeAdapter{}
+	path := copyFixture(t, "claude/mcpservers-not-object.json")
+	_, _, err := a.ReadEntry(path)
+	if err == nil {
+		t.Fatal("expected error for non-object mcpServers")
+	}
+}
+
+func TestClaudeWriteEntryRejectsNonObjectMcpServers(t *testing.T) {
+	t.Parallel()
+	a := &claudeAdapter{}
+	path := copyFixture(t, "claude/mcpservers-not-object.json")
+	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}})
+	if err == nil {
+		t.Fatal("expected error for non-object mcpServers on write")
+	}
+	// Verify the file wasn't rewritten — it should still contain the original array.
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "\"not\"") {
+		t.Fatalf("file was rewritten despite error: %s", raw)
+	}
+}
+
+func TestClaudeReadEntryRejectsNonObjectEntry(t *testing.T) {
+	t.Parallel()
+	a := &claudeAdapter{}
+	path := copyFixture(t, "claude/entry-not-object.json")
+	_, _, err := a.ReadEntry(path)
+	if err == nil {
+		t.Fatal("expected error for non-object repokeeper entry")
+	}
+}
+
+func TestClaudeRemoveEntryMissingFile(t *testing.T) {
+	t.Parallel()
+	a := &claudeAdapter{}
+	// Path that does not exist — readJSONDoc normalizes this to empty map, and
+	// RemoveEntry should return (false, nil) via the "servers is nil" path.
+	path := filepath.Join(t.TempDir(), "does-not-exist.json")
+	removed, err := a.RemoveEntry(path)
+	if err != nil {
+		t.Fatalf("expected (false, nil) for missing file, got err: %v", err)
+	}
+	if removed {
+		t.Fatal("expected removed=false for missing file")
 	}
 }
 
