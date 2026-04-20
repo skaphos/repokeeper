@@ -1,0 +1,9 @@
+{
+  "someOtherKey": "value",
+  "mcpServers": {
+    "other": {
+      "command": "/usr/bin/other",
+      "args": ["run"]
+    }
+  }
+}
