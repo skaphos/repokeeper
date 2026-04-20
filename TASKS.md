@@ -290,7 +290,7 @@ Feedback captured and prioritized:
 - [x] P1: add `repokeeper index <repo-id-or-path>` to interactively preview repo-local metadata and write it only when `--write` is explicitly passed.
 - [x] P1: surface repo-local metadata in the TUI detail view and filter matching so navigation benefits from the same runtime metadata overlay as the CLI.
 - [x] P2: ship an installable user-scope agent skill for RepoKeeper covering init, discovery, labeling, safe navigation, and safe update workflows.
-- [x] P2: add `repokeeper skill install|uninstall` so developers can install or refresh the bundled skill across supported user-scope runtime directories.
+- [x] P2: add `repokeeper skill install|uninstall` so developers can install or refresh the bundled skill across supported user-scope runtime directories. *(Removed in ADR-0008 / SKA-252; replaced by `repokeeper install` for MCP. Manual skill install remains as a copy from `docs/skills/repokeeper/SKILL.md`.)*
 
 **Acceptance:**
 
@@ -404,7 +404,7 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 
 #### Phase 4: Polish + Skill Update
 
-- [x] Update `internal/skillbundle/repokeeper/SKILL.md` with MCP recommendation and tool mapping section
+- [x] Update `docs/skills/repokeeper/SKILL.md` with MCP recommendation and tool mapping section *(canonical location since ADR-0008; the former `internal/skillbundle/` copy was removed.)*
 - [ ] Integration tests (in-process MCP client → tool call → JSON response)
 - [ ] Manual end-to-end test with Claude Code MCP configuration
 - [x] Update `README.md` with MCP setup instructions

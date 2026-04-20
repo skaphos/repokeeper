@@ -229,16 +229,18 @@ Flags:
 * `--write`
 * `--force`
 
-#### `repokeeper skill install [target]` / `repokeeper skill uninstall [target]`
+#### `repokeeper install` / `repokeeper install list` / `repokeeper uninstall`
 
-Installs or removes the bundled `repokeeper` skill for supported agent runtimes.
+Registers (or removes) `repokeeper mcp` in the config file of each detected agent runtime. Replaces the earlier `skill install/uninstall` workflow per ADR-0008: the MCP server is the preferred integration surface, and the skill is now a manual-copy resource at `docs/skills/repokeeper/SKILL.md`.
 
 Behavior:
 
-* `install` with no target installs into every existing supported user-scope directory.
-* Explicit targets are `claude`, `opencode`, `openai`, `codex`, and `all`.
-* `openai` and `codex` both map to the agent-compatible `~/.agents/skills/` path.
-* `uninstall` removes installed skill directories and prompts unless `--yes` is passed.
+* Auto-detects Claude Code, Codex, and OpenCode; `--claude`/`--codex`/`--opencode` restrict the target set.
+* `--scope user` (default) or `--scope project`. `--scope project --codex` is a hard error (Codex has no project scope).
+* `--command PATH` overrides the binary path written to config; default is `os.Executable()` so Homebrew's bin shim is recorded rather than a version-specific Cellar path.
+* `--manual [=all|claude|codex|opencode]` prints the config snippet(s) to stdout without writing anything (covers Cursor, Windsurf, and any unsupported runtime).
+* `install list [--json]` reports `not registered`, `registered`, `registered (stale)`, or `unsupported` for each runtime at the chosen scope.
+* `uninstall` prompts once before deleting unless `--yes` is set; empty stdin aborts as a safe default.
 
 #### `repokeeper add <path> <git-repo-url>`
 
