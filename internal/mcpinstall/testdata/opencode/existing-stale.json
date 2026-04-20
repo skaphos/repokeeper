@@ -1,0 +1,9 @@
+{
+  "mcp": {
+    "repokeeper": {
+      "type": "local",
+      "command": ["/old/path/repokeeper", "mcp", "--old-flag"],
+      "enabled": true
+    }
+  }
+}

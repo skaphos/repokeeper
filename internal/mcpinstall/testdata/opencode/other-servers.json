@@ -1,0 +1,10 @@
+{
+  "someOtherKey": "value",
+  "mcp": {
+    "other": {
+      "type": "local",
+      "command": ["/usr/bin/other", "run"],
+      "enabled": true
+    }
+  }
+}
