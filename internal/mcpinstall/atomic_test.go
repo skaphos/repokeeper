@@ -94,6 +94,13 @@ func TestWriteAtomicFollowsSymlink(t *testing.T) {
 	if string(got) != "new" {
 		t.Fatalf("got %q want %q", got, "new")
 	}
+	targetInfo, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if targetInfo.Mode().Perm() != 0o644 {
+		t.Fatalf("got target mode %v want 0644 (preserved)", targetInfo.Mode().Perm())
+	}
 }
 
 func TestWriteAtomicNoFileAtRequestedMode(t *testing.T) {
