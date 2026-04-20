@@ -101,28 +101,25 @@ Quick highlights:
 - `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
 - `repokeeper index repos --local-selector ... --promote-local-labels --write` explicitly bulk-promotes machine-local labels into repo-local metadata for selected repos.
 - Running `repokeeper` with no subcommand launches the interactive TUI (`l` edits repo labels, `i` edits or initializes repo-local metadata from detail view).
-- `repokeeper skill install [target]` installs or updates the bundled RepoKeeper skill for supported runtimes.
+- `repokeeper install` registers `repokeeper mcp` with your agent runtime (Claude Code, Codex, or OpenCode); `repokeeper install list` shows registration state; `repokeeper uninstall` removes the entry.
 - `get` supports shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
 
-The bundled skill is embedded in the compiled RepoKeeper binary, so `repokeeper skill install` works from packaged builds such as Homebrew installs.
-
 ### MCP Server (Agent Integration)
 
-RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server for agent runtimes that support the Model Context Protocol (Claude Code, Cursor, Windsurf, etc.). MCP is the preferred integration path for inspection and planning workflows — it provides typed tool schemas, structured JSON responses, and automatic tool discovery.
+RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server for agent runtimes that support the Model Context Protocol (Claude Code, Codex, OpenCode, Cursor, Windsurf, etc.). MCP is the preferred integration path for inspection and planning workflows — it provides typed tool schemas, structured JSON responses, and automatic tool discovery.
 
-```json
-{
-  "mcpServers": {
-    "repokeeper": {
-      "command": "repokeeper",
-      "args": ["mcp"]
-    }
-  }
-}
+The fastest setup is `repokeeper install`, which auto-detects Claude Code, Codex, and OpenCode and writes the server entry into the runtime's config:
+
+```bash
+repokeeper install            # register with every detected runtime
+repokeeper install list       # inspect registration state
+repokeeper uninstall          # remove entries (prompts unless --yes)
 ```
 
-The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI/TUI counterparts, so agents and users should treat them as execution surfaces when enabled. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime setup instructions and the current tool reference.
+For runtimes without a flat-file MCP config RepoKeeper can adapter (Cursor, Windsurf), `repokeeper install --manual` prints the snippet you paste into their settings UI. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime paths, the full `install`/`uninstall` flag reference, and the MCP tool catalog.
+
+The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI/TUI counterparts, so agents and users should treat them as execution surfaces when enabled.
 
 ### Repo-local metadata
 
