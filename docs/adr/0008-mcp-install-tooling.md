@@ -135,7 +135,7 @@ One adapter per runtime (`claude.go`, `codex.go`, `opencode.go`), each responsib
 - serializing its specific shape (`mcpServers.<name>` vs `[mcp_servers.<name>]` vs `mcp.<name>` with argv-array command),
 - writing atomically (`<path>.tmp.<pid>` → `os.Rename`, symlink-aware, preserving file mode if the file pre-existed; otherwise `0600` for user-scope, `0644` for project-scope).
 
-The same `runtime.go` file also exposes the slice of all adapters (`All()`) and lookup helpers (`ByName`, `BySelection(flags)`) — they are thin enough not to warrant a separate file and keep the package's Go-source count within the project's per-phase cap.
+The same `runtime.go` file also exposes the slice of all adapters (`All()`), a lookup helper (`ByName`), and a `Selection` value type with `SelectionFromFlags(claude, codex, opencode bool) Selection` and `(Selection).Resolve() ([]Runtime, error)` — they are thin enough not to warrant a separate file and keep the package's Go-source count within the project's per-phase cap. `Selection` separates flag parsing from runtime lookup so CLI code can build a `Selection` from any source (flags, config, tests) before resolving it.
 
 **Rejected alternatives for the architecture:**
 
@@ -228,7 +228,7 @@ Rather than overwriting byte-different entries in place, prompt the user.
 Phased to stay within the project's 5-files-per-phase guardrail and keep each PR reviewable.
 
 **Phase 1 — Adapter layer (no CLI wiring).**
-- `internal/mcpinstall/runtime.go` — `Runtime` interface, `Entry` struct, `Scope` enum, adapter registry (`All()`, `ByName`, `BySelection`), and shared helpers.
+- `internal/mcpinstall/runtime.go` — `Runtime` interface, `Entry` struct, `Scope` enum, adapter registry (`All()`, `ByName`), and `Selection` (with `SelectionFromFlags` + `Resolve`) for flag-driven runtime targeting with auto-detect fallback.
 - `internal/mcpinstall/atomic.go` — atomic-write helper (tmp + rename, symlink-aware, mode preservation).
 - `internal/mcpinstall/claude.go` — Claude Code adapter (JSON, `mcpServers.<name>`, user + project scopes).
 - `internal/mcpinstall/codex.go` — Codex adapter (TOML, `[mcp_servers.<name>]`, user scope only; project path returns error).
