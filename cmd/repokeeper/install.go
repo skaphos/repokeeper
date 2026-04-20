@@ -4,6 +4,7 @@ package repokeeper
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -28,6 +29,8 @@ func init() {
 	installCmd.Flags().Bool("opencode", false, "target OpenCode")
 	installCmd.Flags().String("scope", "user", "config scope (user|project)")
 	installCmd.Flags().String("command", "", "binary path to write into config (default: os.Executable())")
+	installCmd.Flags().String("manual", "", "print config snippet(s) to stdout instead of writing (value: all|claude|codex|opencode)")
+	installCmd.Flags().Lookup("manual").NoOptDefVal = "all"
 	rootCmd.AddCommand(installCmd)
 }
 
@@ -37,6 +40,15 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 	opencode, _ := cmd.Flags().GetBool("opencode")
 	scopeStr, _ := cmd.Flags().GetString("scope")
 	override, _ := cmd.Flags().GetString("command")
+
+	if cmd.Flags().Changed("manual") {
+		target, _ := cmd.Flags().GetString("manual")
+		desired, err := desiredInstallEntry(override)
+		if err != nil {
+			return err
+		}
+		return printManualSnippets(cmd.OutOrStdout(), target, desired)
+	}
 
 	scope, err := parseInstallScope(scopeStr)
 	if err != nil {
@@ -106,6 +118,41 @@ func parseInstallScope(s string) (mcpinstall.Scope, error) {
 	default:
 		return 0, fmt.Errorf("invalid --scope %q (want user or project)", s)
 	}
+}
+
+// manualTargets are the runtime names install --manual knows about,
+// in the order `--manual=all` emits them.
+var manualTargets = []string{"claude", "codex", "opencode"}
+
+func printManualSnippets(w io.Writer, target string, desired mcpinstall.Entry) error {
+	key := strings.ToLower(strings.TrimSpace(target))
+	if key == "" {
+		key = "all"
+	}
+	var names []string
+	switch key {
+	case "all":
+		names = manualTargets
+	case "claude", "codex", "opencode":
+		names = []string{key}
+	default:
+		return fmt.Errorf("invalid --manual %q (want all|claude|codex|opencode)", target)
+	}
+	for i, name := range names {
+		snippet, err := mcpinstall.Snippet(name, desired)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "# %s\n%s", name, snippet); err != nil {
+			return err
+		}
+		if i < len(names)-1 {
+			if _, err := fmt.Fprintln(w); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func desiredInstallEntry(override string) (mcpinstall.Entry, error) {

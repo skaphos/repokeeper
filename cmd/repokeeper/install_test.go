@@ -35,6 +35,8 @@ func resetInstallFlags(t *testing.T) {
 		_ = installCmd.Flags().Set("opencode", "false")
 		_ = installCmd.Flags().Set("scope", "user")
 		_ = installCmd.Flags().Set("command", "")
+		_ = installCmd.Flags().Set("manual", "")
+		installCmd.Flags().Lookup("manual").Changed = false
 	})
 }
 
@@ -239,6 +241,91 @@ func TestInstallAutoDetectSkipsCodexForProjectScope(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "codex") {
 		t.Fatalf("stdout should not mention codex on auto-skip: %q", stdout.String())
+	}
+}
+
+func TestInstallManualAllEmitsAllSnippets(t *testing.T) {
+	home := withInstallEnv(t)
+	stdout, _, err := runInstallWithFlags(t, map[string]string{
+		"manual":  "all",
+		"command": "/fake/repokeeper",
+	})
+	if err != nil {
+		t.Fatalf("install --manual: %v", err)
+	}
+	out := stdout.String()
+	for _, name := range []string{"claude", "codex", "opencode"} {
+		if !strings.Contains(out, "# "+name) {
+			t.Fatalf("missing %s section in: %q", name, out)
+		}
+	}
+	if !strings.Contains(out, "\"mcpServers\"") {
+		t.Fatal("expected claude JSON mcpServers key")
+	}
+	if !strings.Contains(out, "[mcp_servers.repokeeper]") {
+		t.Fatal("expected codex TOML header")
+	}
+	if !strings.Contains(out, "\"mcp\"") {
+		t.Fatal("expected opencode JSON mcp key")
+	}
+	// Must not write any files under HOME.
+	entries, _ := os.ReadDir(home)
+	if len(entries) != 0 {
+		t.Fatalf("expected clean HOME, found %d entries", len(entries))
+	}
+}
+
+func TestInstallManualBareIsEquivalentToAll(t *testing.T) {
+	withInstallEnv(t)
+	// Simulate bare `--manual` by honoring NoOptDefVal of "all".
+	installCmd.Flags().Lookup("manual").NoOptDefVal = "all"
+	stdout, _, err := runInstallWithFlags(t, map[string]string{
+		"manual":  "all",
+		"command": "/fake/repokeeper",
+	})
+	if err != nil {
+		t.Fatalf("install --manual: %v", err)
+	}
+	for _, name := range []string{"claude", "codex", "opencode"} {
+		if !strings.Contains(stdout.String(), "# "+name) {
+			t.Fatalf("missing %s section: %q", name, stdout.String())
+		}
+	}
+}
+
+func TestInstallManualSingleTarget(t *testing.T) {
+	home := withInstallEnv(t)
+	stdout, _, err := runInstallWithFlags(t, map[string]string{
+		"manual":  "codex",
+		"command": "/fake/repokeeper",
+	})
+	if err != nil {
+		t.Fatalf("install --manual=codex: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "[mcp_servers.repokeeper]") {
+		t.Fatalf("missing codex TOML header: %q", out)
+	}
+	if strings.Contains(out, "\"mcpServers\"") || strings.Contains(out, "\"mcp\"") {
+		t.Fatalf("should not include other runtimes: %q", out)
+	}
+	entries, _ := os.ReadDir(home)
+	if len(entries) != 0 {
+		t.Fatalf("expected clean HOME, found %d entries", len(entries))
+	}
+}
+
+func TestInstallManualRejectsUnknownTarget(t *testing.T) {
+	withInstallEnv(t)
+	_, _, err := runInstallWithFlags(t, map[string]string{
+		"manual":  "nope",
+		"command": "/fake/repokeeper",
+	})
+	if err == nil {
+		t.Fatal("expected rejection of --manual=nope")
+	}
+	if !strings.Contains(err.Error(), "invalid --manual") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
