@@ -108,6 +108,59 @@ func TestResolveAutoDetectError(t *testing.T) {
 	}
 }
 
+func TestAllSortsFakeRuntimes(t *testing.T) {
+	withFakes(t,
+		&fakeRuntime{name: "gamma"},
+		&fakeRuntime{name: "alpha"},
+		&fakeRuntime{name: "beta"},
+	)
+	got := All()
+	if len(got) != 3 {
+		t.Fatalf("expected 3 runtimes, got %d", len(got))
+	}
+	want := []string{"alpha", "beta", "gamma"}
+	for i, r := range got {
+		if r.Name() != want[i] {
+			t.Fatalf("index %d: got %q want %q (full order: %v)", i, r.Name(), want[i], names(got))
+		}
+	}
+}
+
+func TestByNameHit(t *testing.T) {
+	withFakes(t, &fakeRuntime{name: "alpha"}, &fakeRuntime{name: "beta"})
+	r, ok := ByName("beta")
+	if !ok {
+		t.Fatal("expected hit")
+	}
+	if r.Name() != "beta" {
+		t.Fatalf("got %q want beta", r.Name())
+	}
+}
+
+func TestByNameMissAgainstNonEmpty(t *testing.T) {
+	withFakes(t, &fakeRuntime{name: "alpha"})
+	if _, ok := ByName("beta"); ok {
+		t.Fatal("expected miss against non-empty registry")
+	}
+}
+
+func TestScopeString(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		s    Scope
+		want string
+	}{
+		{ScopeUser, "user"},
+		{ScopeProject, "project"},
+		{Scope(99), "unknown"},
+	}
+	for _, tc := range cases {
+		if got := tc.s.String(); got != tc.want {
+			t.Fatalf("Scope(%d).String(): got %q want %q", int(tc.s), got, tc.want)
+		}
+	}
+}
+
 func names(rs []Runtime) []string {
 	out := make([]string, len(rs))
 	for i, r := range rs {

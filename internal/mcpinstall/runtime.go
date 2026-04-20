@@ -3,6 +3,7 @@ package mcpinstall
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 )
 
@@ -85,6 +86,11 @@ type Selection struct {
 
 // SelectionFromFlags builds a Selection from individual runtime bool
 // flags. Order is deterministic: claude, codex, opencode.
+//
+// The three runtime names are intentionally hardcoded rather than
+// discovered dynamically; adding a fourth runtime requires adding a
+// parameter here and wiring a new flag in the CLI. v1 scope is the
+// three adapters named in ADR-0008.
 func SelectionFromFlags(claude, codex, opencode bool) Selection {
 	s := Selection{}
 	if claude {
@@ -105,7 +111,7 @@ func SelectionFromFlags(claude, codex, opencode bool) Selection {
 // list is honored even for runtimes Detect() would return false for.
 func (s Selection) Resolve() ([]Runtime, error) {
 	if len(s.Explicit) == 0 {
-		present := []Runtime{}
+		var present []Runtime
 		for _, r := range All() {
 			ok, err := r.Detect()
 			if err != nil {
@@ -121,7 +127,7 @@ func (s Selection) Resolve() ([]Runtime, error) {
 	for _, name := range s.Explicit {
 		r, ok := ByName(name)
 		if !ok {
-			return nil, errors.New("unknown runtime: " + name)
+			return nil, fmt.Errorf("unknown runtime: %q", name)
 		}
 		out = append(out, r)
 	}
