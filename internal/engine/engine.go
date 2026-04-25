@@ -35,6 +35,9 @@ const (
 	FilterClean          FilterKind = "clean"
 	FilterGone           FilterKind = "gone"
 	FilterDiverged       FilterKind = "diverged"
+	FilterBehind         FilterKind = "behind"
+	FilterAhead          FilterKind = "ahead"
+	FilterEqual          FilterKind = "equal"
 	FilterRemoteMismatch FilterKind = "remote-mismatch"
 	FilterMissing        FilterKind = "missing"
 )
@@ -863,7 +866,7 @@ func (e *Engine) prepareSyncEntry(ctx context.Context, entry registry.Entry, opt
 }
 
 func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry registry.Entry, opts SyncOptions) (bool, *SyncResult) {
-	if opts.Filter != FilterDirty && opts.Filter != FilterClean && opts.Filter != FilterGone && opts.Filter != FilterDiverged && opts.Filter != FilterRemoteMismatch {
+	if !filterRequiresInspect(opts.Filter) {
 		return true, nil
 	}
 	status, err := e.InspectRepo(ctx, entry.Path)
@@ -880,10 +883,26 @@ func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry regist
 		return status.Tracking.Status == model.TrackingGone, nil
 	case FilterDiverged:
 		return status.Tracking.Status == model.TrackingDiverged, nil
+	case FilterBehind:
+		return status.Tracking.Status == model.TrackingBehind, nil
+	case FilterAhead:
+		return status.Tracking.Status == model.TrackingAhead, nil
+	case FilterEqual:
+		return status.Tracking.Status == model.TrackingEqual, nil
 	case FilterRemoteMismatch:
 		return hasRemoteMismatch(*status, entry, e.normalizer), nil
 	default:
 		return true, nil
+	}
+}
+
+func filterRequiresInspect(kind FilterKind) bool {
+	switch kind {
+	case FilterDirty, FilterClean, FilterGone, FilterDiverged,
+		FilterBehind, FilterAhead, FilterEqual, FilterRemoteMismatch:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -1376,6 +1395,12 @@ func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Regist
 		return status.Tracking.Status == model.TrackingGone
 	case FilterDiverged:
 		return status.Tracking.Status == model.TrackingDiverged
+	case FilterBehind:
+		return status.Tracking.Status == model.TrackingBehind
+	case FilterAhead:
+		return status.Tracking.Status == model.TrackingAhead
+	case FilterEqual:
+		return status.Tracking.Status == model.TrackingEqual
 	case FilterRemoteMismatch:
 		if reg == nil {
 			return false

@@ -4,8 +4,8 @@ package repokeeper
 import "github.com/spf13/cobra"
 
 const (
-	repoFilterUsage           = "filter: all, errors, dirty, clean, gone, diverged, remote-mismatch, missing"
-	fieldSelectorUsage        = "field selector (phase 1): tracking.status=diverged|gone, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true"
+	repoFilterUsage           = "filter: all, errors, dirty, clean, gone, diverged, behind, ahead, equal, remote-mismatch, missing"
+	fieldSelectorUsage        = "field selector (phase 1): tracking.status=all|gone|diverged|behind|ahead|equal, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true"
 	labelSelectorUsage        = "label selector: key or key=value (comma-separated AND)"
 	upstreamRepairFilterUsage = "filter: all, missing, mismatch"
 	noHeadersUsage            = "when using table format, do not print headers"

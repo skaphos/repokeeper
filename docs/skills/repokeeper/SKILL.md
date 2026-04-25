@@ -251,4 +251,3 @@ Use `--force` only when you intentionally want to replace or reconcile an existi
 - do not assume `get` updates repositories; it only reports health
 - do not skip the preview step before mutating reconcile flows
 - do not treat dirty repos as safe to update unless the user explicitly accepts `--rebase-dirty`
-- do not assume `tracking.status=behind` is currently selectable with `--field-selector`; inspect JSON output from `get` instead

@@ -25,6 +25,9 @@ var _ = Describe("Field Selector", func() {
 			Entry("field selector error", "", "repo.error=true", engine.FilterErrors),
 			Entry("field selector remote mismatch", "", "remote.mismatch=true", engine.FilterRemoteMismatch),
 			Entry("field selector gone", "", "tracking.status=gone", engine.FilterGone),
+			Entry("field selector behind", "", "tracking.status=behind", engine.FilterBehind),
+			Entry("field selector ahead", "", "tracking.status=ahead", engine.FilterAhead),
+			Entry("field selector equal", "", "tracking.status=equal", engine.FilterEqual),
 		)
 
 		It("rejects mixed --only and --field-selector", func() {
@@ -81,8 +84,8 @@ var _ = Describe("Field Selector", func() {
 		})
 
 		It("rejects unsupported value", func() {
-			_, err := selector.ParseFieldSelectorFilter("tracking.status=equal")
-			Expect(err).To(HaveOccurred())
+			_, err := selector.ParseFieldSelectorFilter("tracking.status=bogus")
+			Expect(err).To(MatchError(ContainSubstring(`unsupported tracking.status value "bogus"`)))
 		})
 
 		It("rejects multi selector", func() {
