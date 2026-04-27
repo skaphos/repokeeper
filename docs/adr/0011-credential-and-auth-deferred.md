@@ -50,7 +50,7 @@ Both of those future ADRs must reaffirm or explicitly override this decision; ne
 ### Neutral
 
 * This formalizes an existing non-goal rather than changing behavior.
-* Error-class output (`auth_failure`, `permission_denied`) remains the integration point for tooling that wants to surface auth issues; the classification itself is not in scope here.
+* Error-class output (`auth`, `network`, `timeout`, `corrupt`, `missing_remote`, `unknown`) remains the integration point for tooling; auth-related failures are surfaced via `auth`, and the classification itself is not in scope here.
 
 ## Alternatives Considered
 
