@@ -1,6 +1,6 @@
 # Release Process
 
-This repository releases via `skaphos/actions` (PR-gated version bump + annotated tag push) and `goreleaser` (artifact build + GitHub release publish). See [ADR-0008](./docs/adr/0008-replace-release-please-with-skaphos-actions.md) for the rationale behind the current shape and [ADR-0007](./docs/adr/0007-release-binaries-and-homebrew.md) for why goreleaser owns the GitHub release object.
+This repository releases via `skaphos/actions` (PR-gated version bump + annotated tag push) and `goreleaser` (artifact build + GitHub release publish). See [ADR-0009](./docs/adr/0009-replace-release-please-with-skaphos-actions.md) for the rationale behind the current shape and [ADR-0007](./docs/adr/0007-release-binaries-and-homebrew.md) for why goreleaser owns the GitHub release object.
 
 ## Pipeline shape
 
