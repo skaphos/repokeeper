@@ -6,7 +6,7 @@
 
 ## Context
 
-RepoKeeper is moving toward standalone adapters such as IDE plugins, while also tightening MCP into a read-and-plan surface.
+RepoKeeper is moving toward standalone adapters such as IDE plugins while keeping MCP as the primary typed surface for inspection, planning, and a limited set of explicit execution workflows. The MCP boundary is tighter than the CLI but still includes some state-changing tools that mirror CLI/TUI behavior.
 
 That means external consumers need stable contracts that do not depend on importing internal Go packages or scraping human text output.
 
