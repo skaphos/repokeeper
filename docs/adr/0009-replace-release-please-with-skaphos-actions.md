@@ -1,4 +1,4 @@
-# ADR-0008: Replace Release Please with skaphos/actions
+# ADR-0009: Replace Release Please with skaphos/actions
 
 **Status:** Accepted
 **Date:** 2026-04-19
@@ -38,7 +38,7 @@ Adopt `skaphos/actions` as the PR gate + tag push, keep the existing goreleaser-
 
 - **`.github/workflows/release-pr.yml`** — triggers on `push: main`, calls `skaphos/actions/release-pr@v1.0.0`. Maintains a single release PR that bumps `.release-please-manifest.json`.
 - **`.github/workflows/release-tag.yml`** — triggers on `pull_request: closed` with the `release-pr` label, calls `skaphos/actions/release-tag@v1.0.0`. Pushes the annotated `vX.Y.Z` tag.
-- **`docs/adr/0008-replace-release-please-with-skaphos-actions.md`** — this document.
+- **`docs/adr/0009-replace-release-please-with-skaphos-actions.md`** — this document.
 
 ### Files deleted
 
