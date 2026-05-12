@@ -42,3 +42,7 @@ perf/runs/
 .graphify_ast.json
 .graphify_python
 .graphify_uncached.txt
+
+# graphify per-checkout state (absolute paths / mtimes — not portable)
+graphify-out/.graphify_root
+graphify-out/manifest.json
