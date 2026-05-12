@@ -36,3 +36,9 @@ Thumbs.db
 .cache/
 perf/runs/
 .sisyphus/
+.codex/
+
+# graphify temp files (cleaned up at end of a normal run; orphaned if interrupted)
+.graphify_ast.json
+.graphify_python
+.graphify_uncached.txt
