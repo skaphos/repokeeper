@@ -1,0 +1,4 @@
+[mcp_servers.repokeeper]
+command = "/bin/repokeeper"
+args = ["mcp"]
+enabled = "not-a-bool"

@@ -100,7 +100,11 @@ func (a *claudeAdapter) ReadEntry(path string) (Entry, bool, error) {
 	if err := json.Unmarshal(b, &srv); err != nil {
 		return Entry{}, false, fmt.Errorf("parse %q: mcpServers.%s: %w", path, repokeeperKey, err)
 	}
-	return Entry(srv), true, nil
+	return Entry{
+		Command: srv.Command,
+		Args:    srv.Args,
+		Enabled: true,
+	}, true, nil
 }
 
 func (a *claudeAdapter) WriteEntry(path string, e Entry) error {
@@ -119,7 +123,7 @@ func (a *claudeAdapter) WriteEntry(path string, e Entry) error {
 	if servers == nil {
 		servers = map[string]any{}
 	}
-	servers[repokeeperKey] = claudeServer(e)
+	servers[repokeeperKey] = claudeServer{Command: e.Command, Args: e.Args}
 	doc["mcpServers"] = servers
 	return writeJSONDoc(path, doc, 0o644)
 }

@@ -133,7 +133,7 @@ func (a *opencodeAdapter) ReadEntry(path string) (Entry, bool, error) {
 	if len(srv.Command) == 0 {
 		return Entry{}, false, fmt.Errorf("parse %q: mcp.%s.command is empty", path, repokeeperKey)
 	}
-	return Entry{Command: srv.Command[0], Args: srv.Command[1:]}, true, nil
+	return Entry{Command: srv.Command[0], Args: srv.Command[1:], Enabled: srv.Enabled}, true, nil
 }
 
 func (a *opencodeAdapter) WriteEntry(path string, e Entry) error {
@@ -152,7 +152,7 @@ func (a *opencodeAdapter) WriteEntry(path string, e Entry) error {
 		servers = map[string]any{}
 	}
 	argv := append([]string{e.Command}, e.Args...)
-	servers[repokeeperKey] = opencodeServer{Type: "local", Command: argv, Enabled: true}
+	servers[repokeeperKey] = opencodeServer{Type: "local", Command: argv, Enabled: e.Enabled}
 	doc["mcp"] = servers
 	return writeJSONDoc(path, doc, 0o644)
 }

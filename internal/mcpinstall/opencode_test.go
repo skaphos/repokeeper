@@ -193,7 +193,7 @@ func TestOpenCodeWriteEntryFreshFile(t *testing.T) {
 	t.Parallel()
 	a := &opencodeAdapter{}
 	path := filepath.Join(t.TempDir(), "opencode.json")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp", "-v"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp", "-v"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -228,7 +228,7 @@ func TestOpenCodeWriteEntryPreservesOtherKeys(t *testing.T) {
 	t.Parallel()
 	a := &opencodeAdapter{}
 	path := copyFixture(t, "opencode/other-servers.json")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -274,7 +274,7 @@ func TestOpenCodeWriteEntryRejectsNonObjectMcp(t *testing.T) {
 	t.Parallel()
 	a := &opencodeAdapter{}
 	path := copyFixture(t, "opencode/mcp-not-object.json")
-	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}})
+	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true})
 	if err == nil {
 		t.Fatal("expected error for non-object mcp on write")
 	}
@@ -340,7 +340,7 @@ func TestOpenCodeRefusesJsoncPath(t *testing.T) {
 	if _, _, err := a.ReadEntry(path); err == nil {
 		t.Fatal("expected ReadEntry to refuse .jsonc path")
 	}
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err == nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err == nil {
 		t.Fatal("expected WriteEntry to refuse .jsonc path")
 	}
 }
@@ -357,7 +357,7 @@ func TestOpenCodeRefusesJsoncSibling(t *testing.T) {
 	if _, _, err := a.ReadEntry(jsonPath); err == nil {
 		t.Fatal("expected ReadEntry to refuse when .jsonc sibling exists")
 	}
-	if err := a.WriteEntry(jsonPath, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err == nil {
+	if err := a.WriteEntry(jsonPath, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err == nil {
 		t.Fatal("expected WriteEntry to refuse when .jsonc sibling exists")
 	}
 	if _, err := a.RemoveEntry(jsonPath); err == nil {

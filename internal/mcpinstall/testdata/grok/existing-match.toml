@@ -1,0 +1,4 @@
+[mcp_servers.repokeeper]
+command = "/usr/local/bin/repokeeper"
+args = ["mcp"]
+enabled = true
