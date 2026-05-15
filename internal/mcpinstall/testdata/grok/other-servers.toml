@@ -1,0 +1,6 @@
+model = "grok-3"
+
+[mcp_servers.other]
+command = "/usr/bin/other"
+args = ["run"]
+enabled = true

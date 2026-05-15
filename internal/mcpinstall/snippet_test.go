@@ -54,6 +54,24 @@ func TestSnippetCodexIsValidTOML(t *testing.T) {
 	}
 }
 
+func TestSnippetGrokIsValidTOML(t *testing.T) {
+	t.Parallel()
+	got, err := Snippet("grok", Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]any
+	if err := toml.Unmarshal([]byte(got), &doc); err != nil {
+		t.Fatalf("not valid TOML: %v\n%s", err, got)
+	}
+	if !strings.Contains(got, "[mcp_servers.repokeeper]") {
+		t.Fatalf("grok snippet missing table header: %s", got)
+	}
+	if !strings.Contains(got, "enabled = true") {
+		t.Fatalf("grok snippet missing enabled = true: %s", got)
+	}
+}
+
 func TestSnippetOpenCodeUsesArgvArray(t *testing.T) {
 	t.Parallel()
 	got, err := Snippet("opencode", Entry{Command: "/bin/repokeeper", Args: []string{"mcp", "-v"}})

@@ -21,6 +21,7 @@ func init() {
 	uninstallCmd.Flags().Bool("claude", false, "target Claude Code")
 	uninstallCmd.Flags().Bool("codex", false, "target Codex")
 	uninstallCmd.Flags().Bool("opencode", false, "target OpenCode")
+	uninstallCmd.Flags().Bool("grok", false, "target Grok")
 	uninstallCmd.Flags().String("scope", "user", "config scope (user|project)")
 	rootCmd.AddCommand(uninstallCmd)
 }
@@ -36,6 +37,7 @@ func runUninstall(cmd *cobra.Command, _ []string) error {
 	claude, _ := cmd.Flags().GetBool("claude")
 	codex, _ := cmd.Flags().GetBool("codex")
 	opencode, _ := cmd.Flags().GetBool("opencode")
+	grok, _ := cmd.Flags().GetBool("grok")
 	scopeStr, _ := cmd.Flags().GetString("scope")
 
 	scope, err := parseInstallScope(scopeStr)
@@ -43,14 +45,14 @@ func runUninstall(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	sel := mcpinstall.SelectionFromFlags(claude, codex, opencode)
+	sel := mcpinstall.SelectionFromFlags(claude, codex, opencode, grok)
 	explicit := len(sel.Explicit) > 0
 	runtimes, err := sel.Resolve()
 	if err != nil {
 		return err
 	}
 	if len(runtimes) == 0 {
-		return errors.New("no MCP-capable runtime detected; pass --claude, --codex, or --opencode explicitly")
+		return errors.New("no MCP-capable runtime detected; pass --claude, --codex, --opencode, or --grok explicitly")
 	}
 
 	targets, err := collectUninstallTargets(runtimes, scope, explicit)

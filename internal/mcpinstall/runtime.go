@@ -29,9 +29,14 @@ func (s Scope) String() string {
 // Entry is the runtime-agnostic MCP server entry we write into each
 // agent's config file. Runtime adapters translate this to their native
 // shape (JSON object vs TOML table, command+args vs argv-array, etc).
+//
+// Enabled is respected by runtimes that support an explicit enabled flag
+// (OpenCode, Grok). Adapters for runtimes without the concept (Claude,
+// Codex) always report and write Enabled as true.
 type Entry struct {
 	Command string
 	Args    []string
+	Enabled bool
 }
 
 // ErrScopeUnsupported is returned by adapters that do not support a
@@ -85,13 +90,12 @@ type Selection struct {
 }
 
 // SelectionFromFlags builds a Selection from individual runtime bool
-// flags. Order is deterministic: claude, codex, opencode.
+// flags. Order is deterministic: claude, codex, opencode, grok.
 //
-// The three runtime names are intentionally hardcoded rather than
-// discovered dynamically; adding a fourth runtime requires adding a
-// parameter here and wiring a new flag in the CLI. v1 scope is the
-// three adapters named in ADR-0008.
-func SelectionFromFlags(claude, codex, opencode bool) Selection {
+// The runtime names are intentionally hardcoded rather than discovered
+// dynamically; adding a new runtime requires adding a parameter here and
+// wiring a new flag in the CLI.
+func SelectionFromFlags(claude, codex, opencode, grok bool) Selection {
 	s := Selection{}
 	if claude {
 		s.Explicit = append(s.Explicit, "claude")
@@ -101,6 +105,9 @@ func SelectionFromFlags(claude, codex, opencode bool) Selection {
 	}
 	if opencode {
 		s.Explicit = append(s.Explicit, "opencode")
+	}
+	if grok {
+		s.Explicit = append(s.Explicit, "grok")
 	}
 	return s
 }

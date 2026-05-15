@@ -134,7 +134,7 @@ func TestCodexWriteEntryFreshFile(t *testing.T) {
 	t.Parallel()
 	a := &codexAdapter{}
 	path := filepath.Join(t.TempDir(), "codex.toml")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -151,7 +151,7 @@ func TestCodexWriteEntryPreservesOthers(t *testing.T) {
 	t.Parallel()
 	a := &codexAdapter{}
 	path := copyFixture(t, "codex/other-servers.toml")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -171,7 +171,7 @@ func TestCodexWriteEntryRejectsNonTableMcpServers(t *testing.T) {
 	t.Parallel()
 	a := &codexAdapter{}
 	path := copyFixture(t, "codex/mcp-servers-not-table.toml")
-	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}})
+	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true})
 	if err == nil {
 		t.Fatal("expected error for non-table mcp_servers on write")
 	}

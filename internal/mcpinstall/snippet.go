@@ -19,20 +19,26 @@ func Snippet(runtime string, e Entry) (string, error) {
 	case "claude":
 		return renderJSON(map[string]any{
 			"mcpServers": map[string]any{
-				repokeeperKey: claudeServer(e),
+				repokeeperKey: claudeServer{Command: e.Command, Args: e.Args},
 			},
 		})
 	case "codex":
 		return renderTOML(map[string]any{
 			"mcp_servers": map[string]any{
-				repokeeperKey: codexServer(e),
+				repokeeperKey: codexServer{Command: e.Command, Args: e.Args},
 			},
 		})
 	case "opencode":
 		argv := append([]string{e.Command}, e.Args...)
 		return renderJSON(map[string]any{
 			"mcp": map[string]any{
-				repokeeperKey: opencodeServer{Type: "local", Command: argv, Enabled: true},
+				repokeeperKey: opencodeServer{Type: "local", Command: argv, Enabled: e.Enabled},
+			},
+		})
+	case "grok":
+		return renderTOML(map[string]any{
+			"mcp_servers": map[string]any{
+				repokeeperKey: grokServer{Command: e.Command, Args: e.Args, Enabled: e.Enabled},
 			},
 		})
 	default:
