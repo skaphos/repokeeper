@@ -83,22 +83,30 @@ func TestGrokConfigPathUser(t *testing.T) {
 
 func TestGrokConfigPathProject(t *testing.T) {
 	// Use a temp cwd for project scope. Cannot use t.Parallel because of os.Chdir.
-	cwd := t.TempDir()
+	// We must re-fetch the working directory after Chdir because on macOS
+	// t.TempDir() returns a /var/... path while os.Getwd() often returns
+	// the realpath under /private/var/..., causing a mismatch.
+	tempDir := t.TempDir()
 	old, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chdir(cwd); err != nil {
+	if err := os.Chdir(tempDir); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	realCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	a := &grokAdapter{}
 	path, err := a.ConfigPath(ScopeProject)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(cwd, ".grok", "config.toml")
+	want := filepath.Join(realCwd, ".grok", "config.toml")
 	if path != want {
 		t.Fatalf("got %q want %q", path, want)
 	}
