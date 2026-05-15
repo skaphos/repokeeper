@@ -172,9 +172,18 @@ func TestGrokReadEntryRejectsNonTableMcpServers(t *testing.T) {
 func TestGrokReadEntryRejectsNonTableEntry(t *testing.T) {
 	t.Parallel()
 	a := &grokAdapter{}
-	path := copyFixture(t, "grok/entry-not-table.toml")
+	path := copyFixture(t, "grok/repokeeper-not-table.toml")
 	if _, _, err := a.ReadEntry(path); err == nil {
 		t.Fatal("expected error for non-table repokeeper entry")
+	}
+}
+
+func TestGrokReadEntryRejectsBadEnabledType(t *testing.T) {
+	t.Parallel()
+	a := &grokAdapter{}
+	path := copyFixture(t, "grok/bad-enabled-type.toml")
+	if _, _, err := a.ReadEntry(path); err == nil {
+		t.Fatal("expected error for bad enabled type in repokeeper entry")
 	}
 }
 

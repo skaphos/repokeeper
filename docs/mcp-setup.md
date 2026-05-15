@@ -38,7 +38,7 @@ The command is idempotent — re-running it reports `unchanged` when config alre
 - `--claude` / `--codex` / `--opencode` / `--grok` — restrict the target set (otherwise auto-detect).
 - `--scope user` (default) or `--scope project`. `--scope project --codex` is a hard error (Codex has no project scope).
 - `--command PATH` — override the binary path written to config. Default is `os.Executable()`, which resolves to Homebrew's bin shim on macOS rather than a version-specific Cellar path.
-- `--manual [=all|claude|codex|opencode|grok]` — print the config snippet(s) to stdout instead of writing. Use this for runtimes RepoKeeper doesn't adapter (Cursor, Windsurf) or when you prefer to manage config by hand.
+- `--manual [=all|claude|codex|opencode|grok]` — print the config snippet(s) to stdout instead of writing. Use this for runtimes RepoKeeper doesn't adapt (Cursor, Windsurf) or when you prefer to manage config by hand.
 
 ### Inspecting state
 
