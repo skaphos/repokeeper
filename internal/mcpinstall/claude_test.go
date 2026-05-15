@@ -141,7 +141,7 @@ func TestClaudeWriteEntryFreshFile(t *testing.T) {
 	t.Parallel()
 	a := &claudeAdapter{}
 	path := filepath.Join(t.TempDir(), "claude.json")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -166,7 +166,7 @@ func TestClaudeWriteEntryPreservesOtherKeys(t *testing.T) {
 	t.Parallel()
 	a := &claudeAdapter{}
 	path := copyFixture(t, "claude/other-servers.json")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -190,7 +190,7 @@ func TestClaudeWriteEntryOverwritesStale(t *testing.T) {
 	t.Parallel()
 	a := &claudeAdapter{}
 	path := copyFixture(t, "claude/existing-stale.json")
-	if err := a.WriteEntry(path, Entry{Command: "/new/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/new/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	e, present, err := a.ReadEntry(path)
@@ -255,7 +255,7 @@ func TestClaudeWriteEntryRejectsNonObjectMcpServers(t *testing.T) {
 	t.Parallel()
 	a := &claudeAdapter{}
 	path := copyFixture(t, "claude/mcpservers-not-object.json")
-	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}})
+	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true})
 	if err == nil {
 		t.Fatal("expected error for non-object mcpServers on write")
 	}

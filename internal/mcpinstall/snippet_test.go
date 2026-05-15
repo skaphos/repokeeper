@@ -56,7 +56,7 @@ func TestSnippetCodexIsValidTOML(t *testing.T) {
 
 func TestSnippetGrokIsValidTOML(t *testing.T) {
 	t.Parallel()
-	got, err := Snippet("grok", Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}})
+	got, err := Snippet("grok", Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true})
 	if err != nil {
 		t.Fatal(err)
 	}

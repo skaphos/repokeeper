@@ -84,7 +84,11 @@ func (a *codexAdapter) ReadEntry(path string) (Entry, bool, error) {
 	if err := toml.Unmarshal(b, &srv); err != nil {
 		return Entry{}, false, fmt.Errorf("parse %q: mcp_servers.%s: %w", path, repokeeperKey, err)
 	}
-	return Entry(srv), true, nil
+	return Entry{
+		Command: srv.Command,
+		Args:    srv.Args,
+		Enabled: true,
+	}, true, nil
 }
 
 func (a *codexAdapter) WriteEntry(path string, e Entry) error {
@@ -100,7 +104,7 @@ func (a *codexAdapter) WriteEntry(path string, e Entry) error {
 		servers = map[string]any{}
 	}
 	// Use a typed struct so TOML serializes the table in a canonical form.
-	servers[repokeeperKey] = codexServer(e)
+	servers[repokeeperKey] = codexServer{Command: e.Command, Args: e.Args}
 	doc["mcp_servers"] = servers
 	return writeTOMLDoc(path, doc, 0o644)
 }

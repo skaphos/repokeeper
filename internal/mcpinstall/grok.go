@@ -111,7 +111,7 @@ func (a *grokAdapter) ReadEntry(path string) (Entry, bool, error) {
 	if err := toml.Unmarshal(b, &srv); err != nil {
 		return Entry{}, false, fmt.Errorf("parse %q: mcp_servers.%s: %w", path, repokeeperKey, err)
 	}
-	return Entry{Command: srv.Command, Args: srv.Args}, true, nil
+	return Entry{Command: srv.Command, Args: srv.Args, Enabled: srv.Enabled}, true, nil
 }
 
 func (a *grokAdapter) WriteEntry(path string, e Entry) error {
@@ -129,7 +129,7 @@ func (a *grokAdapter) WriteEntry(path string, e Entry) error {
 	servers[repokeeperKey] = grokServer{
 		Command: e.Command,
 		Args:    e.Args,
-		Enabled: true,
+		Enabled: e.Enabled,
 	}
 	doc["mcp_servers"] = servers
 	return writeTOMLDoc(path, doc, 0o644)

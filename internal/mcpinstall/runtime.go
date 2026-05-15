@@ -29,9 +29,14 @@ func (s Scope) String() string {
 // Entry is the runtime-agnostic MCP server entry we write into each
 // agent's config file. Runtime adapters translate this to their native
 // shape (JSON object vs TOML table, command+args vs argv-array, etc).
+//
+// Enabled is respected by runtimes that support an explicit enabled flag
+// (OpenCode, Grok). Adapters for runtimes without the concept (Claude,
+// Codex) always report and write Enabled as true.
 type Entry struct {
 	Command string
 	Args    []string
+	Enabled bool
 }
 
 // ErrScopeUnsupported is returned by adapters that do not support a

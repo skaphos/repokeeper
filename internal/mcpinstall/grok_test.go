@@ -191,7 +191,7 @@ func TestGrokWriteEntryFreshFile(t *testing.T) {
 	t.Parallel()
 	a := &grokAdapter{}
 	path := filepath.Join(t.TempDir(), "grok.toml")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -211,7 +211,7 @@ func TestGrokWriteEntryPreservesOthers(t *testing.T) {
 	t.Parallel()
 	a := &grokAdapter{}
 	path := copyFixture(t, "grok/other-servers.toml")
-	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}}); err != nil {
+	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(path)
@@ -231,7 +231,7 @@ func TestGrokWriteEntryRejectsNonTableMcpServers(t *testing.T) {
 	t.Parallel()
 	a := &grokAdapter{}
 	path := copyFixture(t, "grok/mcp-servers-not-table.toml")
-	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}})
+	err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true})
 	if err == nil {
 		t.Fatal("expected error for non-table mcp_servers on write")
 	}
