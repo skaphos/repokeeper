@@ -9,7 +9,7 @@ RepoKeeper includes a built-in [Model Context Protocol](https://modelcontextprot
 
 ## Quick Start
 
-The fastest path is `repokeeper install`. It auto-detects Claude Code, Codex, and OpenCode and writes the MCP server entry into each detected runtime's config file:
+The fastest path is `repokeeper install`. It auto-detects Claude Code, Codex, OpenCode, and Grok and writes the MCP server entry into each detected runtime's config file:
 
 ```bash
 # Register repokeeper with every detected runtime at user scope
@@ -31,13 +31,14 @@ The command is idempotent — re-running it reports `unchanged` when config alre
 | Claude Code | `~/.claude.json` | `./.mcp.json` | JSON, key `mcpServers.repokeeper` |
 | Codex | `~/.codex/config.toml` | not supported | TOML, key `[mcp_servers.repokeeper]` |
 | OpenCode | `${OPENCODE_CONFIG_DIR:-${XDG_CONFIG_HOME:-~/.config}/opencode}/opencode.json` | `./opencode.json` | JSON, key `mcp.repokeeper` |
+| Grok | `~/.grok/config.toml` | `./.grok/config.toml` | TOML, key `[mcp_servers.repokeeper]` (with `enabled = true`) |
 
 ### Common flags
 
-- `--claude` / `--codex` / `--opencode` — restrict the target set (otherwise auto-detect).
+- `--claude` / `--codex` / `--opencode` / `--grok` — restrict the target set (otherwise auto-detect).
 - `--scope user` (default) or `--scope project`. `--scope project --codex` is a hard error (Codex has no project scope).
 - `--command PATH` — override the binary path written to config. Default is `os.Executable()`, which resolves to Homebrew's bin shim on macOS rather than a version-specific Cellar path.
-- `--manual [=all|claude|codex|opencode]` — print the config snippet(s) to stdout instead of writing. Use this for runtimes RepoKeeper doesn't adapter (Cursor, Windsurf) or when you prefer to manage config by hand.
+- `--manual [=all|claude|codex|opencode|grok]` — print the config snippet(s) to stdout instead of writing. Use this for runtimes RepoKeeper doesn't adapter (Cursor, Windsurf) or when you prefer to manage config by hand.
 
 ### Inspecting state
 
@@ -159,7 +160,7 @@ Examples:
 
 ## Runtimes without a RepoKeeper adapter
 
-`repokeeper install` only writes config for runtimes it has an adapter for (Claude Code, Codex, OpenCode). For other MCP-capable runtimes, edit the runtime's config file by hand using the shape documented below. `repokeeper install --manual` prints the Claude/Codex/OpenCode snippets to stdout as a convenience, but the sections here are authoritative for each runtime.
+`repokeeper install` only writes config for runtimes it has an adapter for (Claude Code, Codex, OpenCode, Grok). For other MCP-capable runtimes, edit the runtime's config file by hand using the shape documented below. `repokeeper install --manual` prints the supported runtime snippets to stdout as a convenience, but the sections here are authoritative for each runtime.
 
 Tip: if `repokeeper` is not on the runtime's `PATH`, replace `"repokeeper"` in the `command` field with the absolute path from `command -v repokeeper`.
 

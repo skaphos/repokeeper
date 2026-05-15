@@ -85,13 +85,12 @@ type Selection struct {
 }
 
 // SelectionFromFlags builds a Selection from individual runtime bool
-// flags. Order is deterministic: claude, codex, opencode.
+// flags. Order is deterministic: claude, codex, opencode, grok.
 //
-// The three runtime names are intentionally hardcoded rather than
-// discovered dynamically; adding a fourth runtime requires adding a
-// parameter here and wiring a new flag in the CLI. v1 scope is the
-// three adapters named in ADR-0008.
-func SelectionFromFlags(claude, codex, opencode bool) Selection {
+// The runtime names are intentionally hardcoded rather than discovered
+// dynamically; adding a new runtime requires adding a parameter here and
+// wiring a new flag in the CLI.
+func SelectionFromFlags(claude, codex, opencode, grok bool) Selection {
 	s := Selection{}
 	if claude {
 		s.Explicit = append(s.Explicit, "claude")
@@ -101,6 +100,9 @@ func SelectionFromFlags(claude, codex, opencode bool) Selection {
 	}
 	if opencode {
 		s.Explicit = append(s.Explicit, "opencode")
+	}
+	if grok {
+		s.Explicit = append(s.Explicit, "grok")
 	}
 	return s
 }

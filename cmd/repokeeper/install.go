@@ -17,7 +17,7 @@ var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Register RepoKeeper as an MCP server in your agent runtime",
 	Long: "Writes a `repokeeper mcp` entry into the config file of each detected (or explicitly selected) runtime.\n\n" +
-		"Auto-detects Claude Code, Codex, and OpenCode by default. Use --claude/--codex/--opencode to restrict the targets. " +
+		"Auto-detects Claude Code, Codex, OpenCode, and Grok by default. Use --claude/--codex/--opencode/--grok to restrict the targets. " +
 		"Use --scope project to write the current directory's project-scoped config instead of the user-scoped one. " +
 		"Use --command to override the binary path written to config (defaults to the current executable).",
 	RunE: runInstall,
@@ -27,9 +27,10 @@ func init() {
 	installCmd.Flags().Bool("claude", false, "target Claude Code")
 	installCmd.Flags().Bool("codex", false, "target Codex")
 	installCmd.Flags().Bool("opencode", false, "target OpenCode")
+	installCmd.Flags().Bool("grok", false, "target Grok")
 	installCmd.Flags().String("scope", "user", "config scope (user|project)")
 	installCmd.Flags().String("command", "", "binary path to write into config (default: os.Executable())")
-	installCmd.Flags().String("manual", "", "print config snippet(s) to stdout instead of writing (value: all|claude|codex|opencode)")
+	installCmd.Flags().String("manual", "", "print config snippet(s) to stdout instead of writing (value: all|claude|codex|opencode|grok)")
 	installCmd.Flags().Lookup("manual").NoOptDefVal = "all"
 	rootCmd.AddCommand(installCmd)
 }
@@ -38,6 +39,7 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 	claude, _ := cmd.Flags().GetBool("claude")
 	codex, _ := cmd.Flags().GetBool("codex")
 	opencode, _ := cmd.Flags().GetBool("opencode")
+	grok, _ := cmd.Flags().GetBool("grok")
 	scopeStr, _ := cmd.Flags().GetString("scope")
 	override, _ := cmd.Flags().GetString("command")
 
@@ -55,14 +57,14 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	sel := mcpinstall.SelectionFromFlags(claude, codex, opencode)
+	sel := mcpinstall.SelectionFromFlags(claude, codex, opencode, grok)
 	explicit := len(sel.Explicit) > 0
 	runtimes, err := sel.Resolve()
 	if err != nil {
 		return err
 	}
 	if len(runtimes) == 0 {
-		return errors.New("no MCP-capable runtime detected; pass --claude, --codex, or --opencode explicitly")
+		return errors.New("no MCP-capable runtime detected; pass --claude, --codex, --opencode, or --grok explicitly")
 	}
 
 	desired, err := desiredInstallEntry(override)
@@ -122,7 +124,7 @@ func parseInstallScope(s string) (mcpinstall.Scope, error) {
 
 // manualTargets are the runtime names install --manual knows about,
 // in the order `--manual=all` emits them.
-var manualTargets = []string{"claude", "codex", "opencode"}
+var manualTargets = []string{"claude", "codex", "opencode", "grok"}
 
 func printManualSnippets(w io.Writer, target string, desired mcpinstall.Entry) error {
 	key := strings.ToLower(strings.TrimSpace(target))
@@ -133,10 +135,10 @@ func printManualSnippets(w io.Writer, target string, desired mcpinstall.Entry) e
 	switch key {
 	case "all":
 		names = manualTargets
-	case "claude", "codex", "opencode":
+	case "claude", "codex", "opencode", "grok":
 		names = []string{key}
 	default:
-		return fmt.Errorf("invalid --manual %q (want all|claude|codex|opencode)", target)
+		return fmt.Errorf("invalid --manual %q (want all|claude|codex|opencode|grok)", target)
 	}
 	for i, name := range names {
 		snippet, err := mcpinstall.Snippet(name, desired)

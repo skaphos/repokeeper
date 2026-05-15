@@ -101,15 +101,15 @@ Quick highlights:
 - `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
 - `repokeeper index repos --local-selector ... --promote-local-labels --write` explicitly bulk-promotes machine-local labels into repo-local metadata for selected repos.
 - Running `repokeeper` with no subcommand launches the interactive TUI (`l` edits repo labels, `i` edits or initializes repo-local metadata from detail view).
-- `repokeeper install` registers `repokeeper mcp` with your agent runtime (Claude Code, Codex, or OpenCode); `repokeeper install list` shows registration state; `repokeeper uninstall` removes the entry.
+- `repokeeper install` registers `repokeeper mcp` with your agent runtime (Claude Code, Codex, OpenCode, or Grok); `repokeeper install list` shows registration state; `repokeeper uninstall` removes the entry.
 - `get` supports shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
 
 ### MCP Server (Agent Integration)
 
-RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server for agent runtimes that support the Model Context Protocol (Claude Code, Codex, OpenCode, Cursor, Windsurf, etc.). MCP is the preferred integration path for inspection and planning workflows — it provides typed tool schemas, structured JSON responses, and automatic tool discovery.
+RepoKeeper includes a built-in [MCP](https://modelcontextprotocol.io/) server for agent runtimes that support the Model Context Protocol (Claude Code, Codex, OpenCode, Grok, Cursor, Windsurf, etc.). MCP is the preferred integration path for inspection and planning workflows — it provides typed tool schemas, structured JSON responses, and automatic tool discovery.
 
-The fastest setup is `repokeeper install`, which auto-detects Claude Code, Codex, and OpenCode and writes the server entry into the runtime's config:
+The fastest setup is `repokeeper install`, which auto-detects Claude Code, Codex, OpenCode, and Grok and writes the server entry into the runtime's config:
 
 ```bash
 repokeeper install            # register with every detected runtime

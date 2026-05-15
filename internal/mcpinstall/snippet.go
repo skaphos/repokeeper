@@ -35,6 +35,12 @@ func Snippet(runtime string, e Entry) (string, error) {
 				repokeeperKey: opencodeServer{Type: "local", Command: argv, Enabled: true},
 			},
 		})
+	case "grok":
+		return renderTOML(map[string]any{
+			"mcp_servers": map[string]any{
+				repokeeperKey: grokServer{Command: e.Command, Args: e.Args, Enabled: true},
+			},
+		})
 	default:
 		return "", fmt.Errorf("unknown runtime: %q", runtime)
 	}

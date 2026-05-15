@@ -52,7 +52,7 @@ func TestByNameMiss(t *testing.T) {
 
 func TestSelectionFromFlagsEmpty(t *testing.T) {
 	t.Parallel()
-	s := SelectionFromFlags(false, false, false)
+	s := SelectionFromFlags(false, false, false, false)
 	if len(s.Explicit) != 0 {
 		t.Fatalf("expected empty selection, got %v", s.Explicit)
 	}
@@ -60,8 +60,8 @@ func TestSelectionFromFlagsEmpty(t *testing.T) {
 
 func TestSelectionFromFlagsAll(t *testing.T) {
 	t.Parallel()
-	s := SelectionFromFlags(true, true, true)
-	want := []string{"claude", "codex", "opencode"}
+	s := SelectionFromFlags(true, true, true, true)
+	want := []string{"claude", "codex", "opencode", "grok"}
 	if !reflect.DeepEqual(s.Explicit, want) {
 		t.Fatalf("got %v want %v", s.Explicit, want)
 	}
