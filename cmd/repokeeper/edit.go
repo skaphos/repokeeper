@@ -208,21 +208,6 @@ func trackingBranchFromUpstream(upstream string) string {
 	return parts[len(parts)-1]
 }
 
-func validateUpstreamRef(upstream string) error {
-	trimmed := strings.TrimSpace(upstream)
-	if trimmed == "" {
-		return fmt.Errorf("--set-upstream is required")
-	}
-	parts := strings.SplitN(trimmed, "/", 2)
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return fmt.Errorf("invalid --set-upstream %q: expected remote/branch", upstream)
-	}
-	if strings.Contains(parts[0], "/") {
-		return fmt.Errorf("invalid --set-upstream %q: expected remote/branch", upstream)
-	}
-	return nil
-}
-
 func init() {
 	editCmd.Flags().String("registry", "", "override registry file path")
 	rootCmd.AddCommand(editCmd)
