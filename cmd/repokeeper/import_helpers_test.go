@@ -2,11 +2,10 @@
 package repokeeper
 
 import (
-	"github.com/spf13/cobra"
-
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/spf13/cobra"
 )
 
 // cloneImportedRepos is a test-only helper that collapses the plan/execute
