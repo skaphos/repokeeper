@@ -3,6 +3,7 @@ name: Release Tag
 on:
   pull_request:
     types: [closed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -10,7 +11,12 @@ permissions:
 jobs:
   release-tag:
     name: Push Release Tag
-    if: github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'release-pr')
+    # Guard against accidental tag pushes: only fire for merged PRs
+    # against main that carry the release-please label.
+    if: >-
+      github.event.pull_request.merged &&
+      github.event.pull_request.base.ref == 'main' &&
+      contains(github.event.pull_request.labels.*.name, 'release-pr')
     runs-on: ubuntu-latest
     steps:
       - name: Mint release bot token
