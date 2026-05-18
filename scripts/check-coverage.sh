@@ -25,7 +25,12 @@ threshold_for_pkg() {
   esac
 }
 
-mapfile -t coverage_rows < <(
+# Read awk output via a `while` loop instead of `mapfile` so the script
+# works on Bash 3.2 (the default /bin/bash on macOS).
+coverage_rows=()
+while IFS= read -r row; do
+  coverage_rows+=("$row")
+done < <(
   awk -F'[: ,]+' '
     NR>1 {
       file=$1; stmts=$4; cnt=$5;
