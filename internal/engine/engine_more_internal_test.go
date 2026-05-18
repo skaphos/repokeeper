@@ -306,6 +306,9 @@ func TestFilterStatusKindsAndSorts(t *testing.T) {
 	}
 	missing := model.RepoStatus{RepoID: "missing", Path: "/repos/missing", ErrorClass: "missing"}
 	gone := model.RepoStatus{RepoID: "gone", Path: "/repos/gone", Tracking: model.Tracking{Status: model.TrackingGone}}
+	behind := model.RepoStatus{RepoID: "behind", Path: "/repos/behind", Tracking: model.Tracking{Status: model.TrackingBehind}}
+	ahead := model.RepoStatus{RepoID: "ahead", Path: "/repos/ahead", Tracking: model.Tracking{Status: model.TrackingAhead}}
+	equal := model.RepoStatus{RepoID: "equal", Path: "/repos/equal", Tracking: model.Tracking{Status: model.TrackingEqual}}
 
 	if !filterStatus(FilterAll, clean, reg) {
 		t.Fatal("expected all filter to include repo")
@@ -330,6 +333,24 @@ func TestFilterStatusKindsAndSorts(t *testing.T) {
 	}
 	if !filterStatus(FilterRemoteMismatch, dirty, reg) {
 		t.Fatal("expected remote mismatch filter to include mismatched repo")
+	}
+	if !filterStatus(FilterBehind, behind, reg) {
+		t.Fatal("expected behind filter to include behind repo")
+	}
+	if filterStatus(FilterBehind, ahead, reg) {
+		t.Fatal("expected behind filter to exclude non-behind repo")
+	}
+	if !filterStatus(FilterAhead, ahead, reg) {
+		t.Fatal("expected ahead filter to include ahead repo")
+	}
+	if filterStatus(FilterAhead, behind, reg) {
+		t.Fatal("expected ahead filter to exclude non-ahead repo")
+	}
+	if !filterStatus(FilterEqual, equal, reg) {
+		t.Fatal("expected equal filter to include equal repo")
+	}
+	if filterStatus(FilterEqual, behind, reg) {
+		t.Fatal("expected equal filter to exclude non-equal repo")
 	}
 
 	repos := []model.RepoStatus{{RepoID: "b"}, {RepoID: "a"}}
