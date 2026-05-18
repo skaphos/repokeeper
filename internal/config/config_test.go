@@ -4,7 +4,6 @@ package config_test
 import (
 	"os"
 	"path/filepath"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -175,9 +174,4 @@ var _ = Describe("Config", func() {
 		Expect(config.EffectiveRoot(cfgPath)).To(Equal(filepath.Clean(filepath.Join("/tmp", "workspace"))))
 	})
 
-	It("returns an RFC3339 timestamp for last updated", func() {
-		ts := config.LastUpdated()
-		_, err := time.Parse(time.RFC3339, ts)
-		Expect(err).NotTo(HaveOccurred())
-	})
 })

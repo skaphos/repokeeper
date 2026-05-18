@@ -42,55 +42,6 @@ func TestRenderDivider(t *testing.T) {
 	}
 }
 
-func TestRenderRow(t *testing.T) {
-	t.Parallel()
-
-	repo := model.RepoStatus{RepoID: "acme/service"}
-	row := renderRow(defaultColumns(), distributeWidths(defaultColumns(), 100), repo)
-	if !strings.Contains(row, "│") {
-		t.Fatalf("expected row to contain column separators: %q", row)
-	}
-	if !strings.Contains(row, "acme/service") {
-		t.Fatalf("expected row to contain repo id: %q", row)
-	}
-}
-
-func TestRenderRowNilWorktree(t *testing.T) {
-	t.Parallel()
-
-	repo := model.RepoStatus{RepoID: "r1", Worktree: nil}
-	row := renderRow(defaultColumns(), distributeWidths(defaultColumns(), 100), repo)
-	parts := strings.Split(row, " │ ")
-	if len(parts) != 7 {
-		t.Fatalf("expected 7 columns, got %d", len(parts))
-	}
-	if got := strings.TrimSpace(parts[4]); got != "-" {
-		t.Fatalf("expected DIRTY column to be '-', got %q", got)
-	}
-}
-
-func TestRenderRowMirror(t *testing.T) {
-	t.Parallel()
-
-	repo := model.RepoStatus{RepoID: "r1", Type: "mirror", Head: model.Head{Branch: "main"}}
-	row := renderRow(defaultColumns(), distributeWidths(defaultColumns(), 100), repo)
-	parts := strings.Split(row, " │ ")
-	if got := strings.TrimSpace(parts[1]); got != "-" {
-		t.Fatalf("expected BRANCH column to be '-', got %q", got)
-	}
-}
-
-func TestRenderRowDetachedHead(t *testing.T) {
-	t.Parallel()
-
-	repo := model.RepoStatus{RepoID: "r1", Head: model.Head{Detached: true}}
-	row := renderRow(defaultColumns(), distributeWidths(defaultColumns(), 100), repo)
-	parts := strings.Split(row, " │ ")
-	if got := strings.TrimSpace(parts[1]); got != "detached" {
-		t.Fatalf("expected BRANCH column to be 'detached', got %q", got)
-	}
-}
-
 func TestColValueRepo(t *testing.T) {
 	t.Parallel()
 

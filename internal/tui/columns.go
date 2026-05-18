@@ -231,14 +231,6 @@ func renderDivider(widths []int) string {
 	return strings.Join(parts, "─┼─")
 }
 
-func renderRow(cols []columnDef, widths []int, repo model.RepoStatus) string {
-	cells := make([]string, len(cols))
-	for i, col := range cols {
-		cells[i] = truncPad(col.value(repo), widths[i])
-	}
-	return strings.Join(cells, " │ ")
-}
-
 func renderStyledRow(cols []columnDef, widths []int, repo model.RepoStatus) string {
 	cells := make([]string, len(cols))
 	for i, col := range cols {
