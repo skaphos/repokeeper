@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/skaphos/repokeeper/internal/registry"
 	"go.yaml.in/yaml/v3"
@@ -274,11 +273,6 @@ func Save(cfg *Config, path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
-}
-
-// LastUpdated is a helper to get "now" in a consistent format for timestamps.
-func LastUpdated() string {
-	return time.Now().Format(time.RFC3339)
 }
 
 func isConfigFilePath(path string) bool {
