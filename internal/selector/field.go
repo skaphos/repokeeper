@@ -63,8 +63,14 @@ func ParseFieldSelectorFilter(fieldSelector string) (engine.FilterKind, error) {
 			return engine.FilterGone, nil
 		case "diverged":
 			return engine.FilterDiverged, nil
+		case "behind":
+			return engine.FilterBehind, nil
+		case "ahead":
+			return engine.FilterAhead, nil
+		case "equal":
+			return engine.FilterEqual, nil
 		default:
-			return "", fmt.Errorf("unsupported tracking.status value %q", value)
+			return "", fmt.Errorf("unsupported tracking.status value %q (expected one of: all, gone, diverged, behind, ahead, equal)", value)
 		}
 	case "worktree.dirty":
 		switch value {
