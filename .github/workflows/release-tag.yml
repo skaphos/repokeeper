@@ -12,7 +12,7 @@ jobs:
   release-tag:
     name: Push Release Tag
     # Guard against accidental tag pushes: only fire for merged PRs
-    # against main that carry the release-please label.
+    # against main that carry the release-pr label.
     if: >-
       github.event.pull_request.merged &&
       github.event.pull_request.base.ref == 'main' &&
