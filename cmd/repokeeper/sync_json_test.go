@@ -44,7 +44,7 @@ var _ = Describe("sync -o json result shape", func() {
 		Expect(obj).NotTo(HaveKey("planned"))
 	})
 
-	It("emits outcome, ok and the skip reason for a skipped repo", func() {
+	It("emits outcome, ok and the error reason for a skipped repo", func() {
 		obj := marshalOne(engine.SyncResult{
 			RepoID:  "github.com/org/no-upstream",
 			Path:    "/work/org/no-upstream",
@@ -57,6 +57,20 @@ var _ = Describe("sync -o json result shape", func() {
 		Expect(obj).To(HaveKeyWithValue("outcome", "skipped_no_upstream"))
 		Expect(obj).To(HaveKeyWithValue("ok", true))
 		Expect(obj).To(HaveKeyWithValue("error", engine.SyncErrorSkippedNoUpstream))
+	})
+
+	It("emits the typed skip_reason for a skipped local update", func() {
+		obj := marshalOne(engine.SyncResult{
+			RepoID:     "github.com/org/dirty",
+			Path:       "/work/org/dirty",
+			Outcome:    engine.SyncOutcomeSkippedLocalUpdate,
+			OK:         true,
+			SkipReason: engine.SyncReasonDirtyWorkingTree,
+		})
+
+		Expect(obj).To(HaveKeyWithValue("outcome", "skipped_local_update"))
+		Expect(obj).To(HaveKeyWithValue("ok", true))
+		Expect(obj).To(HaveKeyWithValue("skip_reason", engine.SyncReasonDirtyWorkingTree))
 	})
 
 	It("marks dry-run entries planned and suppresses the dry-run sentinel", func() {
