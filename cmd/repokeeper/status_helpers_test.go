@@ -150,7 +150,23 @@ func TestDesignDocNamesStatusJSONAPIVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read %s: %v", docPath, err)
 	}
-	if !strings.Contains(string(data), statusJSONAPIVersion) {
-		t.Fatalf("%s does not name the current statusJSONAPIVersion %q; update the JSON output schema policy in §6.3", docPath, statusJSONAPIVersion)
+	content := string(data)
+
+	// Scope the check to the §6.3 Status JSON schema section. The same
+	// apiVersion value also appears elsewhere in the doc (e.g. the config
+	// example), so a document-wide search would still pass if §6.3 went stale.
+	const header = "### 6.3 Status JSON schema"
+	start := strings.Index(content, header)
+	if start < 0 {
+		t.Fatalf("%s is missing the %q section header", docPath, header)
+	}
+	section := content[start:]
+	// The section runs until the next top-level (## ) heading. "\n## " does not
+	// match the "#### " subheadings within §6.3, so the policy text is included.
+	if end := strings.Index(section[len(header):], "\n## "); end >= 0 {
+		section = section[:len(header)+end]
+	}
+	if !strings.Contains(section, statusJSONAPIVersion) {
+		t.Fatalf("%s §6.3 does not name the current statusJSONAPIVersion %q; update the Status JSON schema section", docPath, statusJSONAPIVersion)
 	}
 }
