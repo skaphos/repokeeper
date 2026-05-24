@@ -608,6 +608,37 @@ The `get` / `status -o json` output is a contractual surface (§"adapter contrac
 * The output `apiVersion` is versioned **independently of the config `apiVersion`** (`internal/config`). They happen to share the value `skaphos.io/repokeeper/v1beta1` today, but a bump to one does not require a bump to the other.
 * The value is sourced from a single constant (`statusJSONAPIVersion` in `cmd/repokeeper`). A test (`TestDesignDocNamesStatusJSONAPIVersion`) asserts this document names the current constant value, so the emitted version and this policy cannot silently diverge.
 
+### 6.4 Sync (reconcile) JSON schema
+
+`reconcile -o json` (alias `sync -o json`) emits a top-level JSON **array** of per-repo result objects — one record per repo in the sync set. Unlike the `get`/`status` collection it is unenveloped, matching the other action commands (`scan`, `repair-upstream`) and the MCP `plan_sync`/`execute_sync` result shape, so CLI and MCP consumers parse identical fields:
+
+```json
+[
+  {
+    "repo_id": "github.com/org/repo",
+    "path": "/home/user/work/org/repo",
+    "action": "git fetch --all --prune",
+    "outcome": "fetched",
+    "ok": true
+  },
+  {
+    "repo_id": "github.com/org/no-upstream",
+    "path": "/home/user/work/org/no-upstream",
+    "action": "",
+    "outcome": "skipped_no_upstream",
+    "ok": true,
+    "error": "skipped-no-upstream"
+  }
+]
+```
+
+Field notes:
+
+* **`outcome`** — the typed `OutcomeKind` (`fetched`, `rebased`, `pushed`, `skipped_no_upstream`, `skipped_missing`, `failed_fetch`, etc.). With `--dry-run` the planned variants are emitted (`planned_fetch`, `planned_push`, `planned_checkout_missing`) and **`planned`** is `true`.
+* **`ok`** — `false` only for operational failures (and `skipped_missing`); intentional skips report `ok: true` with a populated **`error`** reason. Exit-code behavior is independent of this field and unchanged by `-o json`.
+* **`error`** / **`skip_reason`** — omitted when empty.
+* The shape is a stable adapter surface: additive fields are non-breaking; renaming/removing a field or changing a value's meaning is a break. The DTO lives in `cmd/repokeeper` (`syncResultJSON`).
+
 ## 7. Git Operations (Engine Contract)
 
 RepoKeeper shells out to the installed `git` binary for parity with real-world behavior. Use Go git libraries only when the CLI is a poor fit (performance, missing capability, or brittle parsing), and document any such fallback.
