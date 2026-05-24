@@ -378,31 +378,6 @@ func stringMapsEqual(a, b map[string]string) bool {
 	return true
 }
 
-func cloneImportedRepos(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool) error {
-	_, err := cloneImportedReposWithProgress(cmd, cfg, bundle, cwd, dangerouslyDeleteExisting, nil)
-	return err
-}
-
-func cloneImportedReposWithProgress(cmd *cobra.Command, cfg *config.Config, bundle exportBundle, cwd string, dangerouslyDeleteExisting bool, progress *syncProgressWriter) ([]engine.SyncResult, error) {
-	return cloneImportedEntriesWithProgress(cmd, cfg, bundle, cwd, dangerouslyDeleteExisting, nil, progress)
-}
-
-func cloneImportedEntriesWithProgress(
-	cmd *cobra.Command,
-	cfg *config.Config,
-	bundle exportBundle,
-	cwd string,
-	dangerouslyDeleteExisting bool,
-	entries []registry.Entry,
-	progress *syncProgressWriter,
-) ([]engine.SyncResult, error) {
-	plan, err := planImportedEntries(cfg, bundle, cwd, dangerouslyDeleteExisting, entries)
-	if err != nil {
-		return nil, err
-	}
-	return executeImportClonePlanWithProgress(cmd, cfg, plan, progress)
-}
-
 func planImportedEntries(
 	cfg *config.Config,
 	bundle exportBundle,
@@ -594,20 +569,6 @@ func setRegistryEntryByRepoID(reg *registry.Registry, entry registry.Entry) {
 		return
 	}
 	reg.Entries = append(reg.Entries, entry)
-}
-
-func removeRegistryEntryByRepoID(reg *registry.Registry, repoID string) {
-	if reg == nil {
-		return
-	}
-	out := reg.Entries[:0]
-	for _, entry := range reg.Entries {
-		if entry.RepoID == repoID {
-			continue
-		}
-		out = append(out, entry)
-	}
-	reg.Entries = out
 }
 
 func importTargetRelativePath(entry registry.Entry, root string) string {

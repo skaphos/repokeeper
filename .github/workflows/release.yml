@@ -29,8 +29,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.HOMEBREW_APP_ID }}
-          private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
           owner: skaphos
           repositories: homebrew-tools
           skip-token-revoke: false
@@ -70,7 +70,7 @@ jobs:
           fi
       - uses: goreleaser/goreleaser-action@v7
         with:
-          version: v2.15.2
+          version: v2.15.4
           args: ${{ steps.goreleaser_args.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ github.token }}

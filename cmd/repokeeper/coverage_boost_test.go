@@ -11,7 +11,6 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 )
 
@@ -54,22 +53,6 @@ func TestWriteImportCloneFailureSummaryNoFailures(t *testing.T) {
 	if errOut.Len() != 0 {
 		t.Fatalf("expected no output for empty failures, got: %q", errOut.String())
 	}
-}
-
-func TestRemoveRegistryEntryByRepoID(t *testing.T) {
-	reg := &registry.Registry{
-		Entries: []registry.Entry{
-			{RepoID: "r1", Path: "/r1"},
-			{RepoID: "r2", Path: "/r2"},
-		},
-	}
-	removeRegistryEntryByRepoID(reg, "r1")
-	if len(reg.Entries) != 1 || reg.Entries[0].RepoID != "r2" {
-		t.Fatalf("unexpected registry after remove: %+v", reg.Entries)
-	}
-
-	// Nil registry should be a no-op.
-	removeRegistryEntryByRepoID(nil, "r2")
 }
 
 func TestWriteRemoteMismatchPlan(t *testing.T) {

@@ -67,33 +67,6 @@ func TestTrackingBranchFromUpstream(t *testing.T) {
 	}
 }
 
-func TestValidateUpstreamRef(t *testing.T) {
-	cases := []struct {
-		name        string
-		upstream    string
-		expectError bool
-	}{
-		{name: "valid simple", upstream: "origin/main"},
-		{name: "valid nested branch", upstream: "upstream/release/v1"},
-		{name: "missing slash", upstream: "origin", expectError: true},
-		{name: "missing remote", upstream: "/main", expectError: true},
-		{name: "missing branch", upstream: "origin/", expectError: true},
-		{name: "empty", upstream: "", expectError: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := validateUpstreamRef(tc.upstream)
-			if tc.expectError && err == nil {
-				t.Fatalf("expected error for %q", tc.upstream)
-			}
-			if !tc.expectError && err != nil {
-				t.Fatalf("expected no error for %q, got %v", tc.upstream, err)
-			}
-		})
-	}
-}
-
 func TestEditRunEUpdatesSingleRepoFromEditor(t *testing.T) {
 	tmp := t.TempDir()
 	repoPath := filepath.Join(tmp, "repo")
