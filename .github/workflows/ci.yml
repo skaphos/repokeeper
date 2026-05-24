@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Least-privilege default for all jobs. Every job only reads the repo
+# (checkout, build, test, lint); artifact uploads and step summaries do not
+# require token scopes. Grant narrower per-job permissions if a job ever needs
+# more (e.g. contents: write for releases).
+permissions:
+  contents: read
+
 jobs:
   dco:
     name: DCO
