@@ -3,7 +3,10 @@ package repokeeper
 
 import (
 	"encoding/json"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/skaphos/repokeeper/internal/model"
 )
@@ -23,12 +26,16 @@ func TestRelatedReposString(t *testing.T) {
 
 // TestStatusJSONOutputIncludesAPIVersion locks the SKA-208 contract: the
 // `get`/`status -o json` envelope carries a top-level apiVersion equal to the
-// schema constant, in both the normal and --only diverged shapes, without
-// dropping the existing generated_at/repos fields.
+// schema constant, in both the normal and --only diverged shapes, while
+// preserving the existing generated_at/repos fields. Assertions unmarshal into
+// a map so a *removed* field is detected (a struct field would silently default
+// to its zero value).
 func TestStatusJSONOutputIncludesAPIVersion(t *testing.T) {
 	t.Parallel()
 
+	generatedAt := time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC)
 	report := &model.StatusReport{
+		GeneratedAt: generatedAt,
 		Repos: []model.RepoStatus{
 			{RepoID: "github.com/org/healthy", Path: "/repos/healthy", Tracking: model.Tracking{Status: model.TrackingEqual}},
 			{
@@ -39,51 +46,111 @@ func TestStatusJSONOutputIncludesAPIVersion(t *testing.T) {
 		},
 	}
 
-	t.Run("normal output", func(t *testing.T) {
-		t.Parallel()
-		raw, err := json.Marshal(buildStatusJSONOutput(report, false))
+	decode := func(t *testing.T, v any) map[string]json.RawMessage {
+		t.Helper()
+		raw, err := json.Marshal(v)
 		if err != nil {
 			t.Fatalf("marshal status json: %v", err)
 		}
-		var doc struct {
-			APIVersion  string            `json:"apiVersion"`
-			GeneratedAt string            `json:"generated_at"`
-			Repos       []json.RawMessage `json:"repos"`
-			Diverged    []json.RawMessage `json:"diverged"`
-		}
+		var doc map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			t.Fatalf("unmarshal status json: %v\n%s", err, raw)
 		}
-		if doc.APIVersion != statusJSONAPIVersion {
-			t.Errorf("apiVersion = %q, want %q", doc.APIVersion, statusJSONAPIVersion)
+		return doc
+	}
+
+	assertString := func(t *testing.T, doc map[string]json.RawMessage, key string) string {
+		t.Helper()
+		raw, ok := doc[key]
+		if !ok {
+			t.Fatalf("expected key %q to be present in output (existing field must not be dropped)", key)
 		}
-		if len(doc.Repos) != len(report.Repos) {
-			t.Errorf("repos length = %d, want %d (existing field must be preserved)", len(doc.Repos), len(report.Repos))
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			t.Fatalf("key %q is not a string: %v", key, err)
 		}
-		if doc.Diverged != nil {
-			t.Errorf("normal output must not include diverged array, got %v", doc.Diverged)
+		return s
+	}
+
+	assertArrayLen := func(t *testing.T, doc map[string]json.RawMessage, key string, want int) {
+		t.Helper()
+		raw, ok := doc[key]
+		if !ok {
+			t.Fatalf("expected key %q to be present in output", key)
+		}
+		var arr []json.RawMessage
+		if err := json.Unmarshal(raw, &arr); err != nil {
+			t.Fatalf("key %q is not an array: %v", key, err)
+		}
+		if len(arr) != want {
+			t.Errorf("%s length = %d, want %d", key, len(arr), want)
+		}
+	}
+
+	t.Run("normal output", func(t *testing.T) {
+		t.Parallel()
+		doc := decode(t, buildStatusJSONOutput(report, false))
+
+		if got := assertString(t, doc, "apiVersion"); got != statusJSONAPIVersion {
+			t.Errorf("apiVersion = %q, want %q", got, statusJSONAPIVersion)
+		}
+		// generated_at must survive and round-trip, not just exist.
+		if got := assertString(t, doc, "generated_at"); got != generatedAt.Format(time.RFC3339Nano) {
+			t.Errorf("generated_at = %q, want %q", got, generatedAt.Format(time.RFC3339Nano))
+		}
+		assertArrayLen(t, doc, "repos", len(report.Repos))
+		if _, ok := doc["diverged"]; ok {
+			t.Errorf("normal output must not include a diverged array")
 		}
 	})
 
 	t.Run("diverged output", func(t *testing.T) {
 		t.Parallel()
-		raw, err := json.Marshal(buildStatusJSONOutput(report, true))
+		doc := decode(t, buildStatusJSONOutput(report, true))
+
+		if got := assertString(t, doc, "apiVersion"); got != statusJSONAPIVersion {
+			t.Errorf("diverged apiVersion = %q, want %q", got, statusJSONAPIVersion)
+		}
+		// The existing repos field must remain alongside the diverged advice.
+		assertArrayLen(t, doc, "repos", len(report.Repos))
+		assertArrayLen(t, doc, "diverged", 1)
+	})
+}
+
+// TestStatusJSONOutputNilReportIsSafe guards the nil-report path: building the
+// diverged envelope from a nil report must not panic and must still carry the
+// apiVersion (regression for the buildDivergedAdvice nil-deref).
+func TestStatusJSONOutputNilReportIsSafe(t *testing.T) {
+	t.Parallel()
+	for _, includeDiverged := range []bool{false, true} {
+		raw, err := json.Marshal(buildStatusJSONOutput(nil, includeDiverged))
 		if err != nil {
-			t.Fatalf("marshal diverged json: %v", err)
+			t.Fatalf("marshal nil report (diverged=%t): %v", includeDiverged, err)
 		}
 		var doc struct {
-			APIVersion string            `json:"apiVersion"`
-			Repos      []json.RawMessage `json:"repos"`
-			Diverged   []json.RawMessage `json:"diverged"`
+			APIVersion string `json:"apiVersion"`
 		}
 		if err := json.Unmarshal(raw, &doc); err != nil {
-			t.Fatalf("unmarshal diverged json: %v\n%s", err, raw)
+			t.Fatalf("unmarshal nil report (diverged=%t): %v", includeDiverged, err)
 		}
 		if doc.APIVersion != statusJSONAPIVersion {
-			t.Errorf("diverged apiVersion = %q, want %q", doc.APIVersion, statusJSONAPIVersion)
+			t.Errorf("nil report (diverged=%t) apiVersion = %q, want %q", includeDiverged, doc.APIVersion, statusJSONAPIVersion)
 		}
-		if len(doc.Diverged) != 1 {
-			t.Errorf("diverged advice length = %d, want 1", len(doc.Diverged))
-		}
-	})
+	}
+}
+
+// TestDesignDocNamesStatusJSONAPIVersion is the drift guard backing DESIGN.md's
+// claim that the documented schema version cannot silently diverge from the
+// emitted constant. If statusJSONAPIVersion is bumped without updating §6.3,
+// this fails.
+func TestDesignDocNamesStatusJSONAPIVersion(t *testing.T) {
+	t.Parallel()
+	const docPath = "../../DESIGN.md"
+	data, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", docPath, err)
+	}
+	if !strings.Contains(string(data), statusJSONAPIVersion) {
+		t.Fatalf("%s does not name the current statusJSONAPIVersion %q; update the JSON output schema policy in §6.3", docPath, statusJSONAPIVersion)
+	}
 }

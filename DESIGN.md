@@ -606,7 +606,7 @@ The `get` / `status -o json` output is a contractual surface (§"adapter contrac
 * **Additive changes are non-breaking and do not bump `apiVersion`.** Adding a new top-level or per-repo field is always allowed; consumers must ignore unknown fields.
 * **Breaking changes bump `apiVersion`.** Removing or renaming a field, or changing a field's type or semantics (including the meaning of an existing enum value), is breaking. The version moves forward (`v1beta1` → next) and the change is documented here.
 * The output `apiVersion` is versioned **independently of the config `apiVersion`** (`internal/config`). They happen to share the value `skaphos.io/repokeeper/v1beta1` today, but a bump to one does not require a bump to the other.
-* The value is sourced from a single constant (`statusJSONAPIVersion` in `cmd/repokeeper`), so the emitted version and this document cannot silently diverge.
+* The value is sourced from a single constant (`statusJSONAPIVersion` in `cmd/repokeeper`). A test (`TestDesignDocNamesStatusJSONAPIVersion`) asserts this document names the current constant value, so the emitted version and this policy cannot silently diverge.
 
 ## 7. Git Operations (Engine Contract)
 

@@ -265,10 +265,12 @@ var statusCmd = &cobra.Command{
 
 func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any {
 	jsonReport := statusJSONReport{APIVersion: statusJSONAPIVersion}
+	var repos []model.RepoStatus
 	if report != nil {
+		repos = report.Repos
 		jsonReport.GeneratedAt = report.GeneratedAt
-		jsonReport.Repos = make([]statusJSONRepo, 0, len(report.Repos))
-		for _, repo := range report.Repos {
+		jsonReport.Repos = make([]statusJSONRepo, 0, len(repos))
+		for _, repo := range repos {
 			jsonReport.Repos = append(jsonReport.Repos, statusJSONRepo{
 				RepoStatus:  repo,
 				LocalLabels: cloneMetadataMap(repo.Labels),
@@ -278,9 +280,11 @@ func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any
 	if !includeDiverged {
 		return jsonReport
 	}
+	// repos is nil-safe here: buildDivergedAdvice ranges over it, so a nil
+	// report yields an empty (non-nil) advice slice rather than panicking.
 	return divergedJSONOutput{
 		statusJSONReport: jsonReport,
-		Diverged:         buildDivergedAdvice(report.Repos),
+		Diverged:         buildDivergedAdvice(repos),
 	}
 }
 
