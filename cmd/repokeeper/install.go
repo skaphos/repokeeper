@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/mcpinstall"
+	"github.com/skaphos/repokeeper/internal/mcpserver"
 	"github.com/spf13/cobra"
 )
 
@@ -148,6 +149,11 @@ func printManualSnippets(w io.Writer, target string, desired mcpinstall.Entry) e
 		if _, err := fmt.Fprintf(w, "# %s\n%s", name, snippet); err != nil {
 			return err
 		}
+		if name == "claude" {
+			if err := printClaudePermissionsBlock(w); err != nil {
+				return err
+			}
+		}
 		if i < len(names)-1 {
 			if _, err := fmt.Fprintln(w); err != nil {
 				return err
@@ -155,6 +161,28 @@ func printManualSnippets(w io.Writer, target string, desired mcpinstall.Entry) e
 		}
 	}
 	return nil
+}
+
+// printClaudePermissionsBlock emits a commented, paste-ready
+// permissions.allow snippet for ~/.claude/settings.json that auto-approves
+// RepoKeeper's read-only tools. Mutation tools are deliberately excluded so
+// they keep prompting (ADR-0001). The tool list is derived from the live MCP
+// server annotations, so it cannot drift from what the server registers.
+func printClaudePermissionsBlock(w io.Writer) error {
+	permissions, err := mcpinstall.ClaudePermissionsSnippet(mcpserver.ReadOnlyToolNames())
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprint(w,
+		"\n# claude — recommended ~/.claude/settings.json permissions\n"+
+			"# Auto-approves RepoKeeper's read-only tools. Mutation tools (scan_workspace,\n"+
+			"# execute_sync, set_labels, add_repository, remove_repository) are omitted on\n"+
+			"# purpose so they keep prompting.\n",
+	); err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(w, permissions)
+	return err
 }
 
 func desiredInstallEntry(override string) (mcpinstall.Entry, error) {

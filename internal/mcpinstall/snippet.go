@@ -4,6 +4,7 @@ package mcpinstall
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -44,6 +45,30 @@ func Snippet(runtime string, e Entry) (string, error) {
 	default:
 		return "", fmt.Errorf("unknown runtime: %q", runtime)
 	}
+}
+
+// ClaudePermissionToolName returns the identifier Claude Code matches in
+// permissions.allow for a repokeeper MCP tool, i.e. mcp__<server>__<tool>.
+func ClaudePermissionToolName(tool string) string {
+	return "mcp__" + repokeeperKey + "__" + tool
+}
+
+// ClaudePermissionsSnippet renders a ~/.claude/settings.json fragment that
+// allow-lists the given tools under permissions.allow. Callers pass the
+// read-only tool set only; mutation tools are intentionally omitted so they
+// keep prompting (ADR-0001's read-and-plan safety model). Entries are sorted
+// for deterministic output.
+func ClaudePermissionsSnippet(toolNames []string) (string, error) {
+	allow := make([]string, 0, len(toolNames))
+	for _, t := range toolNames {
+		allow = append(allow, ClaudePermissionToolName(t))
+	}
+	sort.Strings(allow)
+	return renderJSON(map[string]any{
+		"permissions": map[string]any{
+			"allow": allow,
+		},
+	})
 }
 
 func renderJSON(doc map[string]any) (string, error) {

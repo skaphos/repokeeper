@@ -158,6 +158,34 @@ Examples:
 | `repokeeper://repo/{repo_id}` | Single registry entry |
 | `repokeeper://repo/{repo_id}/metadata` | Repo-local metadata |
 
+## Recommended Claude Code permissions
+
+Claude Code prompts for confirmation on every MCP tool call by default. To skip the prompt for RepoKeeper's safe, read-only tools — while keeping the prompt for anything that changes state — add the following to your Claude Code settings (`~/.claude/settings.json` for user scope, or `.claude/settings.json` for project scope):
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp__repokeeper__build_workspace_inventory",
+      "mcp__repokeeper__get_authoritative_paths",
+      "mcp__repokeeper__get_related_repositories",
+      "mcp__repokeeper__get_repo_metadata",
+      "mcp__repokeeper__get_repository_context",
+      "mcp__repokeeper__get_workspace_config",
+      "mcp__repokeeper__list_repositories",
+      "mcp__repokeeper__plan_sync",
+      "mcp__repokeeper__select_repositories"
+    ]
+  }
+}
+```
+
+> **Warning:** Pasting this grants Claude Code blanket auto-approval for the listed tools — it will run them without asking. Every entry is read-only or dry-run (`plan_sync`), so they cannot change your repositories or registry.
+
+The five mutation tools — `scan_workspace`, `execute_sync`, `set_labels`, `add_repository`, `remove_repository` — are deliberately **not** listed, so they keep prompting on every call (RepoKeeper's read-and-plan safety model, [ADR-0001](adr/0001-mcp-server.md)). Avoid the broad `"mcp__repokeeper__*"` wildcard: it would also auto-approve those mutations.
+
+`repokeeper install --manual=claude` prints this same block (derived from the live server's tool annotations) alongside the registration snippet.
+
 ## Runtimes without a RepoKeeper adapter
 
 `repokeeper install` only writes config for runtimes it has an adapter for (Claude Code, Codex, OpenCode, Grok). For other MCP-capable runtimes, edit the runtime's config file by hand using the shape documented below. `repokeeper install --manual` prints the supported runtime snippets to stdout as a convenience, but the sections here are authoritative for each runtime.
