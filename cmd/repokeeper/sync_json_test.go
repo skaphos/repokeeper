@@ -59,16 +59,38 @@ var _ = Describe("sync -o json result shape", func() {
 		Expect(obj).To(HaveKeyWithValue("error", engine.SyncErrorSkippedNoUpstream))
 	})
 
-	It("marks dry-run entries planned and reports the planned outcome", func() {
+	It("marks dry-run entries planned and suppresses the dry-run sentinel", func() {
+		// Plan entries from the engine carry both Planned=true and a dry-run
+		// sentinel ("dry-run") in Error; that sentinel must not surface in JSON.
 		obj := marshalOne(engine.SyncResult{
 			RepoID:  "github.com/org/repo",
 			Path:    "/work/org/repo",
 			Outcome: engine.SyncOutcomePlannedFetch,
 			OK:      true,
 			Planned: true,
+			Error:   "dry-run",
 		})
 
 		Expect(obj).To(HaveKeyWithValue("planned", true))
 		Expect(obj).To(HaveKeyWithValue("outcome", "planned_fetch"))
+		Expect(obj).NotTo(HaveKey("error"))
+	})
+
+	It("does not report executed results as planned", func() {
+		// The execute path copies the plan item without clearing Planned, so an
+		// executed "fetched" result still has Planned=true on the struct. The
+		// JSON projection must derive planned from the outcome, not that flag.
+		obj := marshalOne(engine.SyncResult{
+			RepoID:  "github.com/org/repo",
+			Path:    "/work/org/repo",
+			Action:  "git fetch --all --prune",
+			Outcome: engine.SyncOutcomeFetched,
+			OK:      true,
+			Planned: true,
+		})
+
+		Expect(obj).To(HaveKeyWithValue("outcome", "fetched"))
+		Expect(obj).To(HaveKeyWithValue("ok", true))
+		Expect(obj).NotTo(HaveKey("planned"))
 	})
 })

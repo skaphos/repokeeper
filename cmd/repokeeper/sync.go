@@ -247,14 +247,28 @@ type syncResultJSON struct {
 }
 
 func toSyncResultJSON(res engine.SyncResult) syncResultJSON {
+	// A record is "planned" only when it is a not-yet-applied action, which the
+	// engine encodes as a planned_* outcome. res.Planned is unreliable here: the
+	// execute path copies the plan item without clearing the flag, so executed
+	// results (e.g. outcome "fetched") would otherwise still report planned=true.
+	planned := strings.HasPrefix(string(res.Outcome), "planned_")
+
+	// Planned entries carry a dry-run sentinel in Error rather than a real
+	// failure or skip reason, so drop the error field for them. This matches the
+	// MCP plan_sync shape, which omits error on plan entries.
+	errText := res.Error
+	if planned {
+		errText = ""
+	}
+
 	return syncResultJSON{
 		RepoID:     res.RepoID,
 		Path:       res.Path,
 		Action:     res.Action,
 		Outcome:    string(res.Outcome),
 		OK:         res.OK,
-		Planned:    res.Planned,
-		Error:      res.Error,
+		Planned:    planned,
+		Error:      errText,
 		SkipReason: res.SkipReason,
 	}
 }
