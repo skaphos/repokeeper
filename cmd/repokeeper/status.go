@@ -47,7 +47,15 @@ type statusJSONRepo struct {
 	LocalLabels map[string]string `json:"local_labels,omitempty"`
 }
 
+// statusJSONAPIVersion identifies the schema of the `get`/`status -o json`
+// output contract. It is intentionally separate from config.ConfigAPIVersion
+// (same value today) so the output schema can be versioned independently of the
+// config schema. Bump it on any breaking change to the JSON shape; see the JSON
+// output schema stability policy in DESIGN.md §6.3.
+const statusJSONAPIVersion = "skaphos.io/repokeeper/v1beta1"
+
 type statusJSONReport struct {
+	APIVersion  string           `json:"apiVersion"`
 	GeneratedAt time.Time        `json:"generated_at"`
 	Repos       []statusJSONRepo `json:"repos"`
 }
@@ -256,7 +264,7 @@ var statusCmd = &cobra.Command{
 }
 
 func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any {
-	jsonReport := statusJSONReport{}
+	jsonReport := statusJSONReport{APIVersion: statusJSONAPIVersion}
 	if report != nil {
 		jsonReport.GeneratedAt = report.GeneratedAt
 		jsonReport.Repos = make([]statusJSONRepo, 0, len(report.Repos))
