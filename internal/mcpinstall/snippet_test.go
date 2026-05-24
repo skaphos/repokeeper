@@ -16,6 +16,43 @@ func TestSnippetUnknownRuntime(t *testing.T) {
 	}
 }
 
+func TestClaudePermissionToolName(t *testing.T) {
+	t.Parallel()
+	got := ClaudePermissionToolName("list_repositories")
+	if want := "mcp__repokeeper__list_repositories"; got != want {
+		t.Fatalf("ClaudePermissionToolName = %q, want %q", got, want)
+	}
+}
+
+func TestClaudePermissionsSnippet(t *testing.T) {
+	t.Parallel()
+	// Pass names out of order to prove the output is sorted and prefixed.
+	got, err := ClaudePermissionsSnippet([]string{"plan_sync", "list_repositories"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Permissions struct {
+			Allow []string `json:"allow"`
+		} `json:"permissions"`
+	}
+	if err := json.Unmarshal([]byte(got), &doc); err != nil {
+		t.Fatalf("not valid JSON: %v\n%s", err, got)
+	}
+	want := []string{"mcp__repokeeper__list_repositories", "mcp__repokeeper__plan_sync"}
+	if len(doc.Permissions.Allow) != len(want) {
+		t.Fatalf("allow = %v, want %v", doc.Permissions.Allow, want)
+	}
+	for i, w := range want {
+		if doc.Permissions.Allow[i] != w {
+			t.Fatalf("allow[%d] = %q, want %q (full: %v)", i, doc.Permissions.Allow[i], w, doc.Permissions.Allow)
+		}
+	}
+	if !strings.HasSuffix(got, "\n") {
+		t.Fatalf("snippet should end with newline: %q", got)
+	}
+}
+
 func TestSnippetClaudeIsValidJSON(t *testing.T) {
 	t.Parallel()
 	got, err := Snippet("claude", Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}})

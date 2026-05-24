@@ -2,6 +2,8 @@
 package mcpserver
 
 import (
+	"sort"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
@@ -42,6 +44,23 @@ func New(eng EngineAPI, cfgPath, version string, logger obs.Logger) *MCPServer {
 
 // Inner returns the underlying mcp-go server for transport binding.
 func (s *MCPServer) Inner() *server.MCPServer { return s.inner }
+
+// ReadOnlyToolNames returns the sorted names of every registered tool whose
+// ReadOnlyHint annotation is true. It derives the set from the live registered
+// tools (registerTools is the single source of truth), so it can never drift
+// from what the server actually exposes. Tool registration does not touch the
+// engine, so a nil engine is safe for enumeration here.
+func ReadOnlyToolNames() []string {
+	s := New(nil, "", "", nil)
+	names := make([]string, 0)
+	for name, st := range s.inner.ListTools() {
+		if hint := st.Tool.Annotations.ReadOnlyHint; hint != nil && *hint {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
 
 func (s *MCPServer) registerTools() {
 	s.inner.AddTools(
