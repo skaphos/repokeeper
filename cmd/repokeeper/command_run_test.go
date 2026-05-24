@@ -472,8 +472,12 @@ func TestSyncRunEJSONMissingFilter(t *testing.T) {
 	if err := syncCmd.RunE(syncCmd, nil); err != nil {
 		t.Fatalf("sync run failed: %v", err)
 	}
-	if !strings.Contains(out.String(), "\"RepoID\": \"github.com/org/repo-missing\"") {
-		t.Fatalf("expected missing repo in json output, got: %q", out.String())
+	got := out.String()
+	if !strings.Contains(got, "\"repo_id\": \"github.com/org/repo-missing\"") {
+		t.Fatalf("expected missing repo_id in json output, got: %q", got)
+	}
+	if !strings.Contains(got, "\"outcome\": \"skipped_missing\"") {
+		t.Fatalf("expected skipped_missing outcome in json output, got: %q", got)
 	}
 }
 

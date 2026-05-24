@@ -167,7 +167,7 @@ var syncCmd = &cobra.Command{
 		switch mode.kind {
 		case outputKindJSON:
 			setColorOutputMode(cmd, string(mode.kind))
-			data, err := json.MarshalIndent(results, "", "  ")
+			data, err := json.MarshalIndent(toSyncResultJSONs(results), "", "  ")
 			if err != nil {
 				return err
 			}
@@ -227,6 +227,58 @@ func init() {
 	syncCmd.Flags().Bool("wrap", false, "allow table columns to wrap instead of truncating")
 	addVCSFlag(syncCmd)
 
+}
+
+// syncResultJSON is the stable, machine-readable shape emitted by
+// `reconcile` / `sync -o json`. It is a thin snake_case projection of
+// engine.SyncResult and intentionally mirrors the MCP plan_sync/execute_sync
+// result shape (internal/mcpserver syncPlanEntry/syncResultEntry) so CLI and
+// MCP consumers parse the same fields. Adding a field is non-breaking; renaming
+// or removing one, or changing a value's meaning, is a contract break.
+type syncResultJSON struct {
+	RepoID     string `json:"repo_id"`
+	Path       string `json:"path"`
+	Action     string `json:"action"`
+	Outcome    string `json:"outcome"`
+	OK         bool   `json:"ok"`
+	Planned    bool   `json:"planned,omitempty"`
+	Error      string `json:"error,omitempty"`
+	SkipReason string `json:"skip_reason,omitempty"`
+}
+
+func toSyncResultJSON(res engine.SyncResult) syncResultJSON {
+	// A record is "planned" only when it is a not-yet-applied action, which the
+	// engine encodes as a planned_* outcome. res.Planned is unreliable here: the
+	// execute path copies the plan item without clearing the flag, so executed
+	// results (e.g. outcome "fetched") would otherwise still report planned=true.
+	planned := strings.HasPrefix(string(res.Outcome), "planned_")
+
+	// Planned entries carry a dry-run sentinel in Error rather than a real
+	// failure or skip reason, so drop the error field for them. This matches the
+	// MCP plan_sync shape, which omits error on plan entries.
+	errText := res.Error
+	if planned {
+		errText = ""
+	}
+
+	return syncResultJSON{
+		RepoID:     res.RepoID,
+		Path:       res.Path,
+		Action:     res.Action,
+		Outcome:    string(res.Outcome),
+		OK:         res.OK,
+		Planned:    planned,
+		Error:      errText,
+		SkipReason: res.SkipReason,
+	}
+}
+
+func toSyncResultJSONs(results []engine.SyncResult) []syncResultJSON {
+	out := make([]syncResultJSON, 0, len(results))
+	for _, res := range results {
+		out = append(out, toSyncResultJSON(res))
+	}
+	return out
 }
 
 func writeSyncPlan(cmd *cobra.Command, plan []engine.SyncResult, cwd string, roots []string) error {
