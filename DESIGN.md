@@ -564,6 +564,7 @@ Top-level:
 
 ```json
 {
+  "apiVersion": "skaphos.io/repokeeper/v1beta1",
   "generated_at": "…",
   "repos": [
     {
@@ -596,6 +597,16 @@ Field notes:
 * **`remotes`** — all configured remotes for the repo, not just one. The `primary_remote` field indicates which remote was used for `repo_id` derivation.
 * **`primary_remote`** — preference order: `origin` > first alphabetically. Used for repo identity and tracking status.
 * **`tracking.ahead`** / **`tracking.behind`** — integer counts. Both `0` when `status` is `"equal"`. Both `null` when `status` is `"gone"` or `"none"` (no upstream to compare against).
+* **`apiVersion`** — identifies the schema of this JSON contract (see the stability policy below). When filtered to `diverged`, the top-level object additionally carries a `diverged` advice array; `apiVersion` is unchanged by that filter.
+
+#### JSON output schema stability policy
+
+The `get` / `status -o json` output is a contractual surface (§"adapter contract": machine-readable JSON is versioned/documented, unlike human-oriented table output). Its schema is identified by the top-level `apiVersion`, currently `skaphos.io/repokeeper/v1beta1`. The contract:
+
+* **Additive changes are non-breaking and do not bump `apiVersion`.** Adding a new top-level or per-repo field is always allowed; consumers must ignore unknown fields.
+* **Breaking changes bump `apiVersion`.** Removing or renaming a field, or changing a field's type or semantics (including the meaning of an existing enum value), is breaking. The version moves forward (`v1beta1` → next) and the change is documented here.
+* The output `apiVersion` is versioned **independently of the config `apiVersion`** (`internal/config`). They happen to share the value `skaphos.io/repokeeper/v1beta1` today, but a bump to one does not require a bump to the other.
+* The value is sourced from a single constant (`statusJSONAPIVersion` in `cmd/repokeeper`). A test (`TestDesignDocNamesStatusJSONAPIVersion`) asserts this document names the current constant value, so the emitted version and this policy cannot silently diverge.
 
 ## 7. Git Operations (Engine Contract)
 

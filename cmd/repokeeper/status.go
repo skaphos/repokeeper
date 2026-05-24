@@ -47,7 +47,15 @@ type statusJSONRepo struct {
 	LocalLabels map[string]string `json:"local_labels,omitempty"`
 }
 
+// statusJSONAPIVersion identifies the schema of the `get`/`status -o json`
+// output contract. It is intentionally separate from config.ConfigAPIVersion
+// (same value today) so the output schema can be versioned independently of the
+// config schema. Bump it on any breaking change to the JSON shape; see the JSON
+// output schema stability policy in DESIGN.md §6.3.
+const statusJSONAPIVersion = "skaphos.io/repokeeper/v1beta1"
+
 type statusJSONReport struct {
+	APIVersion  string           `json:"apiVersion"`
 	GeneratedAt time.Time        `json:"generated_at"`
 	Repos       []statusJSONRepo `json:"repos"`
 }
@@ -256,11 +264,13 @@ var statusCmd = &cobra.Command{
 }
 
 func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any {
-	jsonReport := statusJSONReport{}
+	jsonReport := statusJSONReport{APIVersion: statusJSONAPIVersion}
+	var repos []model.RepoStatus
 	if report != nil {
+		repos = report.Repos
 		jsonReport.GeneratedAt = report.GeneratedAt
-		jsonReport.Repos = make([]statusJSONRepo, 0, len(report.Repos))
-		for _, repo := range report.Repos {
+		jsonReport.Repos = make([]statusJSONRepo, 0, len(repos))
+		for _, repo := range repos {
 			jsonReport.Repos = append(jsonReport.Repos, statusJSONRepo{
 				RepoStatus:  repo,
 				LocalLabels: cloneMetadataMap(repo.Labels),
@@ -270,9 +280,11 @@ func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any
 	if !includeDiverged {
 		return jsonReport
 	}
+	// repos is nil-safe here: buildDivergedAdvice ranges over it, so a nil
+	// report yields an empty (non-nil) advice slice rather than panicking.
 	return divergedJSONOutput{
 		statusJSONReport: jsonReport,
-		Diverged:         buildDivergedAdvice(report.Repos),
+		Diverged:         buildDivergedAdvice(repos),
 	}
 }
 
