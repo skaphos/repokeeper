@@ -4,6 +4,7 @@ package repokeeper
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/spf13/cobra"
 )
@@ -529,5 +531,119 @@ func TestRunDescribeRepoPersistsRefreshedRepoMetadataSnapshot(t *testing.T) {
 	}
 	if entry.RepoMetadata == nil || entry.RepoMetadata.Name != "Describe Repo" {
 		t.Fatalf("expected metadata payload persisted, got %+v", entry.RepoMetadata)
+	}
+}
+
+// TestRunDescribeRepoJSONShape asserts that `describe -o json` on a healthy repo
+// emits the full structured superset (SKA-205 acceptance criterion #5). Existing
+// JSON tests only cover the missing-path and inspect-error cases, so this guards
+// the populated shape: repo_id, path, head, tracking, worktree, remotes[], and
+// repo_metadata.
+func TestRunDescribeRepoJSONShape(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo")
+
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %s failed: %v\n%s", strings.Join(args, " "), err, string(out))
+		}
+	}
+
+	runGit("init", "-b", "main", repoPath)
+	runGit("-C", repoPath, "config", "user.email", "test@example.com")
+	runGit("-C", repoPath, "config", "user.name", "Test")
+	runGit("-C", repoPath, "remote", "add", "origin", "https://github.com/org/repo.git")
+
+	metadataPath := filepath.Join(repoPath, ".repokeeper-repo.yaml")
+	metadata := "apiVersion: repokeeper/v1\nkind: RepoMetadata\nname: Describe Repo\n"
+	if err := os.WriteFile(metadataPath, []byte(metadata), 0o644); err != nil {
+		t.Fatalf("write metadata: %v", err)
+	}
+	runGit("-C", repoPath, "add", "-A")
+	runGit("-C", repoPath, "commit", "--no-gpg-sign", "-m", "initial commit")
+
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "github.com/org/repo", Path: repoPath, Status: registry.StatusPresent,
+	}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	restoreConfig := withConfigFlag(t, cfgPath)
+	defer restoreConfig()
+
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.SetOut(out)
+	cmd.Flags().String("registry", "", "")
+	cmd.Flags().String("format", "table", "")
+	if err := cmd.Flags().Set("format", "json"); err != nil {
+		t.Fatalf("set format flag: %v", err)
+	}
+
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	if err := runDescribeRepo(cmd, []string{"github.com/org/repo"}); err != nil {
+		t.Fatalf("runDescribeRepo: %v", err)
+	}
+
+	var status model.RepoStatus
+	if err := json.Unmarshal(out.Bytes(), &status); err != nil {
+		t.Fatalf("describe -o json did not emit valid JSON: %v\noutput: %q", err, out.String())
+	}
+
+	if status.RepoID != "github.com/org/repo" {
+		t.Errorf("repo_id = %q, want github.com/org/repo", status.RepoID)
+	}
+	if status.Path != repoPath {
+		t.Errorf("path = %q, want %q", status.Path, repoPath)
+	}
+	if status.Error != "" {
+		t.Errorf("unexpected error field on healthy repo: %q", status.Error)
+	}
+	if status.Worktree == nil {
+		t.Error("worktree is nil; expected non-bare worktree on healthy repo")
+	}
+	if status.Head.Detached || status.Head.Branch == "" {
+		t.Errorf("head = %+v, want attached branch", status.Head)
+	}
+	if len(status.Remotes) == 0 {
+		t.Fatal("remotes[] is empty; expected origin")
+	}
+	foundOrigin := false
+	for _, r := range status.Remotes {
+		// The inspect path may normalize the URL form (e.g. https → ssh), so
+		// assert the remote name and that it still references the repo, not an
+		// exact URL string.
+		if r.Name == "origin" && strings.Contains(r.URL, "org/repo") {
+			foundOrigin = true
+		}
+	}
+	if !foundOrigin {
+		t.Errorf("remotes[] missing origin referencing org/repo, got %+v", status.Remotes)
+	}
+	if status.RepoMetadata == nil || status.RepoMetadata.Name != "Describe Repo" {
+		t.Errorf("repo_metadata not populated, got %+v", status.RepoMetadata)
+	}
+
+	// The shape must serialize keys that consumers (MCP, scripts) depend on, even
+	// when zero-valued. tracking has no omitempty tag, so it must always appear.
+	raw := out.String()
+	for _, key := range []string{"\"tracking\"", "\"head\"", "\"worktree\"", "\"remotes\""} {
+		if !strings.Contains(raw, key) {
+			t.Errorf("json output missing required key %s\noutput: %q", key, raw)
+		}
 	}
 }
