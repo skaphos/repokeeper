@@ -166,7 +166,7 @@ func structuredListJSON(result *mcp.CallToolResult, key string) []byte {
 	return b
 }
 
-func intPtr(v int) *int   { return &v }
+func intPtr(v int) *int    { return &v }
 func boolPtr(v bool) *bool { return &v }
 
 // --- test data ---
@@ -1372,7 +1372,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		// This is the key acceptance test for "Claude Code discovers and lists all 14 MCP tools"
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1413,7 +1413,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("can call a read tool end-to-end through the in-process client", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1442,7 +1442,7 @@ var _ = Describe("InProcess MCP Client", func() {
 
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1487,7 +1487,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("exposes correct annotations on mutation vs read-only tools via client", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1506,7 +1506,7 @@ var _ = Describe("InProcess MCP Client", func() {
 			switch t.Name {
 			case "execute_sync", "scan_workspace", "set_labels", "add_repository", "remove_repository":
 				Expect(t.Annotations.ReadOnlyHint).To(Equal(boolPtr(false)))
-				if t.Name == "execute_sync" {
+				if t.Name == "execute_sync" || t.Name == "remove_repository" {
 					Expect(t.Annotations.DestructiveHint).To(Equal(boolPtr(true)))
 				}
 			default:
@@ -1520,7 +1520,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("exercises get_repository_context via real client (success + error)", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1535,7 +1535,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		// Success path
 		result, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "get_repository_context",
+				Name:      "get_repository_context",
 				Arguments: map[string]any{"repo": "github.com/example/alpha"},
 			},
 		})
@@ -1547,7 +1547,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		// Error path - unknown repo
 		badResult, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "get_repository_context",
+				Name:      "get_repository_context",
 				Arguments: map[string]any{"repo": "does/not/exist"},
 			},
 		})
@@ -1558,7 +1558,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("exercises build_workspace_inventory and asserts structuredContent is a record", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1587,7 +1587,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: get_workspace_config via real client", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1609,7 +1609,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: select_repositories via real client (success + error)", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1623,7 +1623,7 @@ var _ = Describe("InProcess MCP Client", func() {
 
 		result, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "select_repositories",
+				Name:      "select_repositories",
 				Arguments: map[string]any{"label_selector": "team=platform"},
 			},
 		})
@@ -1633,7 +1633,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		// Error case: invalid field selector
 		bad, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "select_repositories",
+				Name:      "select_repositories",
 				Arguments: map[string]any{"field_selector": "invalid.field=true"},
 			},
 		})
@@ -1644,7 +1644,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: get_repo_metadata via real client (success + null case)", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1658,7 +1658,7 @@ var _ = Describe("InProcess MCP Client", func() {
 
 		result, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "get_repo_metadata",
+				Name:      "get_repo_metadata",
 				Arguments: map[string]any{"repo": "github.com/example/alpha"},
 			},
 		})
@@ -1669,7 +1669,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: get_authoritative_paths via real client (error when no metadata)", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1685,7 +1685,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		// This still exercises the full tool path via the real client.
 		result, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "get_authoritative_paths",
+				Name:      "get_authoritative_paths",
 				Arguments: map[string]any{"repo": "github.com/example/alpha"},
 			},
 		})
@@ -1696,7 +1696,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: get_related_repositories via real client", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1710,7 +1710,7 @@ var _ = Describe("InProcess MCP Client", func() {
 
 		result, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "get_related_repositories",
+				Name:      "get_related_repositories",
 				Arguments: map[string]any{"repo": "github.com/example/alpha"},
 			},
 		})
@@ -1721,7 +1721,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: scan_workspace via real client (success + error)", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1743,7 +1743,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: set_labels via real client (success + error)", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1771,7 +1771,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: add_repository via real client (exercises the tool path)", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1804,7 +1804,7 @@ var _ = Describe("InProcess MCP Client", func() {
 	It("dedicated: remove_repository via real client", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
-		defer c.Close()
+		defer func() { _ = c.Close() }()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -1820,8 +1820,8 @@ var _ = Describe("InProcess MCP Client", func() {
 			Params: mcp.CallToolParams{
 				Name: "remove_repository",
 				Arguments: map[string]any{
-					"repo":          "github.com/example/beta",
-					"delete_files":  false,
+					"repo":         "github.com/example/beta",
+					"delete_files": false,
 				},
 			},
 		})

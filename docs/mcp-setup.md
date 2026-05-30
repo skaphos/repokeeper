@@ -290,7 +290,7 @@ Use this checklist when validating a new RepoKeeper MCP integration (especially 
 - [ ] Client lists **exactly 14 tools**
 - [ ] All read-only tools have `readOnlyHint: true`
 - [ ] Mutation tools (`scan_workspace`, `set_labels`, `add_repository`, `remove_repository`) have `readOnlyHint: false`
-- [ ] `execute_sync` has `destructiveHint: true`
+- [ ] `execute_sync` and `remove_repository` have `destructiveHint: true`
 
 ### 2. Read-only Tools (safe, no side effects)
 - [ ] `list_repositories` — returns registry entries
