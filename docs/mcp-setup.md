@@ -320,4 +320,19 @@ Use this checklist when validating a new RepoKeeper MCP integration (especially 
 - [ ] Works in at least one other runtime (Codex, OpenCode, Cursor, Windsurf, or a generic MCP client)
 - [ ] Read-only tools can be auto-approved via permissions; mutations still prompt
 
-Run this checklist after any change to `internal/mcpserver/` or before cutting a release that touches the MCP surface. Record results in the Linear ticket (SKA-470) or a PR description.
+Run this checklist after any change to `internal/mcpserver/` or before cutting a release that touches the MCP surface. Record results in the Linear ticket (SKA-470 or SKA-201) or a PR description.
+
+### Reproducible Verification with Script (Recommended for SKA-201)
+
+Instead of manually setting up test data every time, use the helper script:
+
+```bash
+./scripts/verify-mcp.sh
+```
+
+This script:
+- Creates a fresh, isolated workspace with several test repositories in different states.
+- Generates a ready-to-use `.mcp.json` you can point Claude Code at.
+- Prints the exact verification checklist tailored to the test data it created.
+
+This makes manual end-to-end verification (SKA-201) repeatable and much less error-prone. After running the script, follow the printed instructions to configure Claude Code and work through the checklist.
