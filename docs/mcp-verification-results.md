@@ -12,13 +12,18 @@ This document captures the preparation and evidence for the manual end-to-end ve
 The environment was prepared using:
 
 ```bash
-./scripts/verify-mcp.sh --keep
+./scripts/verify-mcp.sh
 ```
 
 **Resulting persistent workspace** (as of this run):
 
-- **Path**: `/tmp/repokeeper-mcp-verify-Z6f4vN`
-- **Config**: `/tmp/repokeeper-mcp-verify-Z6f4vN/.repokeeper.yaml`
+> `<WORKSPACE>` is a placeholder. `scripts/verify-mcp.sh` creates the workspace
+> with `mktemp`, so the real path is unique per run. Substitute the absolute
+> path that the script prints (e.g. `/tmp/repokeeper-mcp-verify-XXXXXX`) into
+> every snippet below.
+
+- **Path**: `<WORKSPACE>`
+- **Config**: `<WORKSPACE>/.repokeeper.yaml`
 - **Claude Code MCP config** (copy this):
 
 ```json
@@ -26,7 +31,7 @@ The environment was prepared using:
   "mcpServers": {
     "repokeeper-verify": {
       "command": "repokeeper",
-      "args": ["mcp", "--config", "/tmp/repokeeper-mcp-verify-Z6f4vN/.repokeeper.yaml", "--log-file", "/tmp/repokeeper-mcp-verify-Z6f4vN/mcp.log"]
+      "args": ["mcp", "--config", "<WORKSPACE>/.repokeeper.yaml", "--log-file", "<WORKSPACE>/mcp.log"]
     }
   }
 }
@@ -37,7 +42,7 @@ The environment was prepared using:
 - `beta` (clean)
 - `gamma` (has uncommitted "dirty change" for status testing)
 
-**Log file** (will be written when the MCP server runs): `/tmp/repokeeper-mcp-verify-Z6f4vN/mcp.log`
+**Log file** (will be written when the MCP server runs): `<WORKSPACE>/mcp.log`
 
 ## How to Run the Verification (for the user)
 
@@ -88,14 +93,14 @@ The environment was prepared using:
 
 **Setup command executed**:
 ```bash
-./scripts/verify-mcp.sh --keep
+./scripts/verify-mcp.sh
 ```
 
-**Workspace location** (persistent because of `--keep`): `/tmp/repokeeper-mcp-verify-Z6f4vN`
+**Workspace location** (preserved by default; pass `--cleanup` to remove on exit): `<WORKSPACE>`
 
 **MCP server invocation** (what Claude Code will use):
 ```
-repokeeper mcp --config /tmp/repokeeper-mcp-verify-Z6f4vN/.repokeeper.yaml --log-file /tmp/repokeeper-mcp-verify-Z6f4vN/mcp.log
+repokeeper mcp --config <WORKSPACE>/.repokeeper.yaml --log-file <WORKSPACE>/mcp.log
 ```
 
 **User action required**: Point your local Claude Code at the config above, then execute the checklist in a real session and append your actual results below.
@@ -116,7 +121,7 @@ This fully satisfies the core "one dedicated test per tool" requirement for SKA-
 
 ---
 
-**Actual Claude Code Run Results** (to be filled by user after running the prepared environment at `/tmp/repokeeper-mcp-verify-Z6f4vN`):
+**Actual Claude Code Run Results** (to be filled by user after running the prepared environment at `<WORKSPACE>`):
 
 - Date of Claude session: 
 - Claude Code version:

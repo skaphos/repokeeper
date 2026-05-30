@@ -1783,22 +1783,20 @@ var _ = Describe("InProcess MCP Client", func() {
 		_, err = c.Initialize(ctx, initReq)
 		Expect(err).NotTo(HaveOccurred())
 
-		// The handler may return error for various validation reasons in the test mock.
-		// The important thing is that the tool is exercised end-to-end via the real MCP client.
+		// Use the argument names the handler actually requires (url + path) so
+		// this exercises the valid add_repository protocol path, not just the
+		// missing-parameter error branch.
 		result, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
 				Name: "add_repository",
 				Arguments: map[string]any{
-					"repo_id":    "github.com/example/newone",
-					"path":       "/tmp/fake-new-repo",
-					"remote_url": "git@github.com:example/newone.git",
+					"url":  "git@github.com:example/newone.git",
+					"path": "/tmp/fake-new-repo",
 				},
 			},
 		})
 		Expect(err).NotTo(HaveOccurred())
-		// We don't assert IsError here because the mock engine doesn't fully implement the happy path for this tool.
-		// The call itself exercises the complete MCP dispatch path.
-		_ = result
+		Expect(result.IsError).To(BeFalse())
 	})
 
 	It("dedicated: remove_repository via real client", func() {

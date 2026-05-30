@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
 #
 # verify-mcp.sh
 #
@@ -8,52 +9,63 @@
 # This directly supports closing SKA-201.
 #
 # Usage:
-#   ./scripts/verify-mcp.sh [--keep]
+#   ./scripts/verify-mcp.sh [--cleanup]
 #
-#   --keep   Do not delete the temporary workspace after the script exits
-#            (useful for capturing evidence or running the manual verification).
+#   --cleanup   Delete the temporary workspace when the script exits.
+#               By default the workspace is PRESERVED, because the generated
+#               .mcp.json, test repos, and log path must outlive this script
+#               for Claude Code to start the MCP server against them.
+#               (--keep is accepted as a no-op alias for the default.)
 #
 # After running, follow the printed instructions to point Claude Code at
 # the generated .mcp.json and run through the verification checklist.
 
 set -euo pipefail
 
-KEEP_DIR=false
-if [[ "${1:-}" == "--keep" ]]; then
-    KEEP_DIR=true
-    shift
-fi
+# The workspace is preserved by default so the emitted .mcp.json / repos / log
+# remain available to Claude Code after this script exits. Pass --cleanup to
+# remove it on exit instead.
+CLEANUP=false
+case "${1:-}" in
+    --cleanup) CLEANUP=true; shift ;;
+    --keep)    CLEANUP=false; shift ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 TMP_DIR="$(mktemp -d -t repokeeper-mcp-verify-XXXXXX)"
 
-if [[ "$KEEP_DIR" == "false" ]]; then
+if [[ "$CLEANUP" == "true" ]]; then
     trap 'rm -rf "$TMP_DIR"' EXIT
 fi
 
 echo "==> Creating isolated verification workspace at: $TMP_DIR"
 
-echo "==> Creating isolated verification workspace at: $TMP_DIR"
-
-# Create a minimal .repokeeper.yaml
-cat > "$TMP_DIR/.repokeeper.yaml" << 'EOF'
+# Create a minimal .repokeeper.yaml (unquoted heredoc so $TMP_DIR expands to
+# the real workspace path instead of a literal "$TMP_DIR/repos").
+cat > "$TMP_DIR/.repokeeper.yaml" << EOF
 roots:
   - "$TMP_DIR/repos"
 defaults:
   main_branch: main
 EOF
 
-# Create some test git repositories
+# Create some test git repositories. Configure a local Git identity per repo so
+# the commits succeed even on machines without a global user.name/user.email
+# (common in CI and clean dev environments).
 mkdir -p "$TMP_DIR/repos"
 
 for name in alpha beta gamma; do
     repo_path="$TMP_DIR/repos/$name"
     mkdir -p "$repo_path"
-    (cd "$repo_path" && git init -q && git checkout -q -b main)
+    git init -q "$repo_path"
+    git -C "$repo_path" checkout -q -b main
+    git -C "$repo_path" config user.name "RepoKeeper Verify"
+    git -C "$repo_path" config user.email "verify@repokeeper.local"
     echo "# $name" > "$repo_path/README.md"
-    (cd "$repo_path" && git add . && git commit -q -m "Initial commit for $name")
+    git -C "$repo_path" add .
+    git -C "$repo_path" commit -q -m "Initial commit for $name"
 done
 
 # Make gamma look a bit different (for status testing)
@@ -143,13 +155,15 @@ cat << 'CHECKLIST'
 
 CHECKLIST
 
-if [[ "$KEEP_DIR" == "true" ]]; then
+if [[ "$CLEANUP" == "true" ]]; then
     echo ""
-    echo "==> --keep was used. Workspace preserved at: $TMP_DIR"
-    echo "    You can manually delete it later when finished with verification."
+    echo "==> --cleanup was used. Workspace will be removed when this script exits."
+    echo "    Note: Claude Code cannot use the generated .mcp.json after that."
 else
     echo ""
-    echo "==> When you are done, you can safely delete: $TMP_DIR"
+    echo "==> Workspace preserved at: $TMP_DIR"
+    echo "    Delete it manually when you are finished with verification,"
+    echo "    or re-run with --cleanup to have it removed automatically."
 fi
 
 echo ""
