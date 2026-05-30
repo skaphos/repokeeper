@@ -57,8 +57,6 @@ changelog:
   disable: true
 
 release:
-  mode: keep-existing
-  use_existing_draft: true
   draft: false
   make_latest: true
 

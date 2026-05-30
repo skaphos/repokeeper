@@ -27,3 +27,50 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          skip-github-release: true
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Create release tag after release PR merge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          subject="$(git log -1 --pretty=%s)"
+          case "${subject}" in
+            "chore(main): release "*)
+              ;;
+            *)
+              echo "HEAD is not a release commit (${subject}); skipping tag creation."
+              exit 0
+              ;;
+          esac
+
+          if ! git diff-tree --no-commit-id --name-only -r HEAD | grep -qx '.release-please-manifest.json'; then
+            echo "No release manifest change in HEAD; skipping tag creation."
+            exit 0
+          fi
+
+          version="$(jq -r '."."' .release-please-manifest.json)"
+          if [ -z "${version}" ] || [ "${version}" = "null" ]; then
+            echo "Could not read root package version from .release-please-manifest.json" >&2
+            exit 1
+          fi
+
+          tag="v${version}"
+          git fetch --tags origin
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Tag ${tag} already exists locally; skipping."
+            exit 0
+          fi
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+            echo "Tag ${tag} already exists on GitHub; skipping."
+            exit 0
+          fi
+
+          git config user.name "skaphos-release-bot[bot]"
+          git config user.email "261675299+skaphos-release-bot[bot]@users.noreply.github.com"
+          git tag -a "${tag}" -m "${tag}"
+          git push origin "refs/tags/${tag}"

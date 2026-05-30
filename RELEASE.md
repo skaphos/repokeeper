@@ -1,6 +1,6 @@
 # Release Process
 
-This repository releases via Release Please (PR-gated version bump, changelog, tag, and draft GitHub release notes) and `goreleaser` (artifact build and publish). See [ADR-0012](./docs/adr/0012-release-please-owns-release-notes.md) for the current release-note ownership decision and [ADR-0007](./docs/adr/0007-release-binaries-and-homebrew.md) for the binary/Homebrew release design it updates.
+This repository releases via Release Please (PR-gated version bump and changelog) and `goreleaser` (GitHub release object, artifacts, and Homebrew publish). See [ADR-0013](./docs/adr/0013-goreleaser-owns-github-release.md) for the current release ownership decision and [ADR-0007](./docs/adr/0007-release-binaries-and-homebrew.md) for the binary/Homebrew release design it builds on.
 
 ## Pipeline shape
 
@@ -9,9 +9,10 @@ commits on main → release-please.yml (opens/updates release PR)
                 ↓
             human reviews + merges the release PR
                 ↓
-       Release Please creates vX.Y.Z tag + draft GitHub release notes
+       release-please.yml creates the vX.Y.Z tag
                 ↓
-           release.yml → goreleaser attaches
+           release.yml → goreleaser publishes
+                          - GitHub release object + release notes
                           - Binaries, checksums, SBOMs, cosign signatures
                           - Homebrew cask in skaphos/homebrew-tools
                           - Build-provenance attestations
@@ -59,12 +60,13 @@ On every push to `main`, `release-please.yml` recomputes the next version and op
 
 When the Release Please PR merges:
 
-- Release Please updates `CHANGELOG.md`, creates the `vX.Y.Z` tag, and creates a draft GitHub release with release notes.
+- Release Please updates `CHANGELOG.md` and `.release-please-manifest.json`.
+- `release-please.yml` creates the annotated `vX.Y.Z` tag for the release commit.
 - The tag push triggers `release.yml`, which runs GoReleaser to:
+  - Create and publish the GitHub release.
   - Build release binaries for `{linux,darwin,windows}/{amd64,arm64}`.
   - Generate SPDX-JSON SBOMs per archive via `syft`.
   - Sign `checksums.txt` with a keyless Sigstore bundle (`checksums.txt.sigstore.json`).
-  - Attach artifacts to the existing draft GitHub release without replacing Release Please notes, then publish it.
   - Publish the Homebrew cask to `github.com/skaphos/homebrew-tools` when the Homebrew GitHub App token is reachable.
   - Publish GitHub artifact attestations for the release binaries and metadata assets.
 
@@ -115,4 +117,4 @@ Notes:
 
 - CI workflow is aligned to `Taskfile.yml` targets.
 - Release Please is pinned to the latest major action (`googleapis/release-please-action@v5`).
-- The GoReleaser workflow remains tag-driven (`v*`) and attaches artifacts to the Release Please draft release before publishing it.
+- The GoReleaser workflow remains tag-driven (`v*`) and owns the GitHub release object end to end.
