@@ -57,10 +57,10 @@ changelog:
   disable: true
 
 release:
-  mode: keep-existing
-  use_existing_draft: true
   draft: false
   make_latest: true
+  footer: |
+    See [CHANGELOG.md](https://github.com/skaphos/repokeeper/blob/{{ .Tag }}/CHANGELOG.md) for the full release notes.
 
 homebrew_casks:
   - repository:
