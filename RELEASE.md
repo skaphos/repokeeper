@@ -12,7 +12,7 @@ commits on main → release-please.yml (opens/updates release PR)
        release-please.yml creates the vX.Y.Z tag
                 ↓
            release.yml → goreleaser publishes
-                          - GitHub release object + release notes
+                          - GitHub release object
                           - Binaries, checksums, SBOMs, cosign signatures
                           - Homebrew cask in skaphos/homebrew-tools
                           - Build-provenance attestations
