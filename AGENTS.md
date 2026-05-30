@@ -35,13 +35,14 @@
 
 ## Commit & Pull Request Guidelines
 - **All changes must be delivered via a pull request. Never commit directly to `main`.**
-- Branch naming: use a prefix that matches the change type:
-  - `feature/<short-description>` — new functionality
-  - `bug/<short-description>` — bug fixes
+- Branch naming: use a Conventional Commit **type** prefix that matches the change, followed by a short description. Never prefix branches with a username or a tracker's auto-suggested name.
+  - `feat/<short-description>` — new functionality
+  - `fix/<short-description>` — bug fixes
   - `chore/<short-description>` — maintenance, deps, tooling
   - `docs/<short-description>` — documentation only
   - `ci/<short-description>` — CI/CD pipeline changes
   - `refactor/<short-description>` — internal restructuring without behaviour change
+  - `test/<short-description>` — test-only changes
 - Keep branches focused: one logical change per PR. Split unrelated concerns into separate PRs.
 - All commits must be signed (global SSH signing via 1Password is configured; do not pass `-S` manually).
 - Use concise, imperative subjects (example: "Add registry staleness check") and include context in the body if needed.
