@@ -44,7 +44,8 @@ type remoteMismatchPlan = engine.RemoteMismatchPlan
 
 type statusJSONRepo struct {
 	model.RepoStatus
-	LocalLabels map[string]string `json:"local_labels,omitempty"`
+	LocalLabels              map[string]string `json:"local_labels,omitempty"`
+	RepairUpstreamSuggestion bool              `json:"repair_upstream_suggestion,omitempty"`
 }
 
 // statusJSONAPIVersion identifies the schema of the `get`/`status -o json`
@@ -244,6 +245,7 @@ var statusCmd = &cobra.Command{
 				break
 			}
 			logOutputWriteFailure(cmd, "status table", writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, false))
+			logOutputWriteFailure(cmd, "status repair-upstream hint", writeRepairUpstreamHint(cmd, report))
 		case outputKindWide:
 			setColorOutputMode(cmd, string(mode.kind))
 			if filter == engine.FilterDiverged {
@@ -251,6 +253,7 @@ var statusCmd = &cobra.Command{
 				break
 			}
 			logOutputWriteFailure(cmd, "status wide", writeStatusTable(cmd, report, cwd, []string{cfgRoot}, noHeaders, true))
+			logOutputWriteFailure(cmd, "status repair-upstream hint", writeRepairUpstreamHint(cmd, report))
 		default:
 			return fmt.Errorf("unsupported format %q", format)
 		}
@@ -272,8 +275,9 @@ func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any
 		jsonReport.Repos = make([]statusJSONRepo, 0, len(repos))
 		for _, repo := range repos {
 			jsonReport.Repos = append(jsonReport.Repos, statusJSONRepo{
-				RepoStatus:  repo,
-				LocalLabels: cloneMetadataMap(repo.Labels),
+				RepoStatus:               repo,
+				LocalLabels:              cloneMetadataMap(repo.Labels),
+				RepairUpstreamSuggestion: repo.Tracking.Status == model.TrackingGone,
 			})
 		}
 	}
@@ -410,6 +414,31 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		}
 	}
 	return w.Flush()
+}
+
+func writeRepairUpstreamHint(cmd *cobra.Command, report *model.StatusReport) error {
+	if isQuiet(cmd) {
+		return nil
+	}
+	count := countGoneRepos(report)
+	if count == 0 {
+		return nil
+	}
+	_, err := fmt.Fprintf(cmd.ErrOrStderr(), "hint: %d repo(s) have gone upstream - run 'repokeeper repair-upstream <repo>' to fix\n", count)
+	return err
+}
+
+func countGoneRepos(report *model.StatusReport) int {
+	if report == nil {
+		return 0
+	}
+	count := 0
+	for _, repo := range report.Repos {
+		if repo.Tracking.Status == model.TrackingGone {
+			count++
+		}
+	}
+	return count
 }
 
 func writeDivergedStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string, noHeaders bool, wide bool) error {

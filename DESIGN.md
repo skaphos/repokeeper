@@ -584,6 +584,7 @@ Top-level:
         "ahead": 2,
         "behind": 0
       },
+      "repair_upstream_suggestion": true,
       "submodules": { "has_submodules": true },
       "last_sync": { "ok": true, "at": "…", "error": "" }
     }
@@ -597,6 +598,7 @@ Field notes:
 * **`remotes`** — all configured remotes for the repo, not just one. The `primary_remote` field indicates which remote was used for `repo_id` derivation.
 * **`primary_remote`** — preference order: `origin` > first alphabetically. Used for repo identity and tracking status.
 * **`tracking.ahead`** / **`tracking.behind`** — integer counts. Both `0` when `status` is `"equal"`. Both `null` when `status` is `"gone"` or `"none"` (no upstream to compare against).
+* **`repair_upstream_suggestion`** — optional boolean emitted on repos with `tracking.status == "gone"`, indicating that `repokeeper repair-upstream <repo>` is the suggested recovery path.
 * **`apiVersion`** — identifies the schema of this JSON contract (see the stability policy below). When filtered to `diverged`, the top-level object additionally carries a `diverged` advice array; `apiVersion` is unchanged by that filter.
 
 #### JSON output schema stability policy
