@@ -54,30 +54,11 @@ signs:
       - --yes
 
 changelog:
-  sort: asc
-  use: github
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^chore:"
-      - "^chore\\("
-  groups:
-    - title: Features
-      regexp: '^.*?feat(\(.+\))??!?:.+$'
-      order: 0
-    - title: Bug Fixes
-      regexp: '^.*?fix(\(.+\))??!?:.+$'
-      order: 1
-    - title: Performance Improvements
-      regexp: '^.*?perf(\(.+\))??!?:.+$'
-      order: 2
-    - title: Others
-      order: 999
+  disable: true
 
 release:
-  mode: replace
+  mode: keep-existing
+  use_existing_draft: true
   draft: false
   make_latest: true
 
