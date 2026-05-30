@@ -281,3 +281,58 @@ cp docs/skills/repokeeper/SKILL.md ~/.claude/skills/repokeeper/SKILL.md
 ```
 
 See [docs/skills/README.md](skills/README.md) for the full list of runtime skill paths and caveats. The previous `repokeeper skill install` CLI was removed in ADR-0008 — MCP via `repokeeper install` is the preferred integration surface for runtimes that support it.
+
+## Manual Verification Checklist (MCP Phase 4 / SKA-470)
+
+Use this checklist when validating a new RepoKeeper MCP integration (especially after changes to tools, annotations, or the server).
+
+### 1. Tool Discovery (all 14 tools visible)
+- [ ] Client lists **exactly 14 tools**
+- [ ] All read-only tools have `readOnlyHint: true`
+- [ ] Mutation tools (`scan_workspace`, `set_labels`, `add_repository`, `remove_repository`) have `readOnlyHint: false`
+- [ ] `execute_sync` and `remove_repository` have `destructiveHint: true`
+
+### 2. Read-only Tools (safe, no side effects)
+- [ ] `list_repositories` — returns registry entries
+- [ ] `get_repository_context` — deep view for one repo
+- [ ] `get_workspace_config` — current config
+- [ ] `build_workspace_inventory` — live status for repos
+- [ ] `select_repositories` — filtering works
+- [ ] `get_repo_metadata`, `get_authoritative_paths`, `get_related_repositories` — return expected data or null
+
+### 3. Planning Tools (dry-run only)
+- [ ] `plan_sync` — returns a plan without executing anything
+- [ ] `plan_sync` works with filters and label selectors
+
+### 4. Mutation Tools + Safety Gates
+- [ ] `scan_workspace` — updates registry (use a temp workspace)
+- [ ] `execute_sync` **rejects** when `confirm` is missing or `false`
+- [ ] `execute_sync` **succeeds** only when `confirm: true`
+- [ ] `set_labels`, `add_repository`, `remove_repository` — require valid input and update state
+
+### 5. Structured Content + Error Handling
+- [ ] Tools that support it return `structuredContent` (e.g. `execute_sync` results)
+- [ ] Invalid arguments produce clear `isError: true` responses with helpful text
+- [ ] Unknown repo IDs return proper errors
+
+### 6. Client Compatibility Smoke Test
+- [ ] Works in Claude Code (with and without permissions.allow)
+- [ ] Works in at least one other runtime (Codex, OpenCode, Cursor, Windsurf, or a generic MCP client)
+- [ ] Read-only tools can be auto-approved via permissions; mutations still prompt
+
+Run this checklist after any change to `internal/mcpserver/` or before cutting a release that touches the MCP surface. Record results in the Linear ticket (SKA-470 or SKA-201) or a PR description.
+
+### Reproducible Verification with Script (Recommended for SKA-201)
+
+Instead of manually setting up test data every time, use the helper script:
+
+```bash
+./scripts/verify-mcp.sh
+```
+
+This script:
+- Creates a fresh, isolated workspace with several test repositories in different states.
+- Generates a ready-to-use `.mcp.json` you can point Claude Code at.
+- Prints the exact verification checklist tailored to the test data it created.
+
+This makes manual end-to-end verification (SKA-201) repeatable and much less error-prone. After running the script, follow the printed instructions to configure Claude Code and work through the checklist.

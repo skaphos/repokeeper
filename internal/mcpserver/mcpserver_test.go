@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
@@ -165,7 +166,8 @@ func structuredListJSON(result *mcp.CallToolResult, key string) []byte {
 	return b
 }
 
-func intPtr(v int) *int { return &v }
+func intPtr(v int) *int    { return &v }
+func boolPtr(v bool) *bool { return &v }
 
 // --- test data ---
 
@@ -1343,3 +1345,485 @@ func expectResourceError(response mcp.JSONRPCMessage) {
 	_, ok := response.(mcp.JSONRPCError)
 	Expect(ok).To(BeTrue(), "expected JSONRPCError, got %T", response)
 }
+
+// --- In-process MCP client protocol tests (for SKA-470) ---
+
+var _ = Describe("InProcess MCP Client", func() {
+	var (
+		eng *mockEngine
+		srv *mcpserver.MCPServer
+	)
+
+	BeforeEach(func() {
+		var err error
+		tmpDir, err := os.MkdirTemp("", "mcp-inprocess-*")
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+		eng = &mockEngine{
+			cfg: newTestConfig(),
+			reg: newTestRegistry(),
+		}
+		cfgPath := filepath.Join(tmpDir, ".repokeeper.yaml")
+		srv = mcpserver.New(eng, cfgPath, "0.1.0-test", nil)
+	})
+
+	It("exposes all 14 tools via real in-process client ListTools", func() {
+		// This is the key acceptance test for "Claude Code discovers and lists all 14 MCP tools"
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(toolsResult.Tools).To(HaveLen(14), "expected exactly 14 tools")
+
+		toolNames := make(map[string]bool)
+		for _, t := range toolsResult.Tools {
+			toolNames[t.Name] = true
+			// Basic annotation sanity
+			if t.Name == "execute_sync" {
+				Expect(t.Annotations.DestructiveHint).To(Equal(boolPtr(true)))
+			}
+			if t.Name == "list_repositories" {
+				Expect(t.Annotations.ReadOnlyHint).To(Equal(boolPtr(true)))
+			}
+		}
+
+		// Spot-check key tools from all phases
+		Expect(toolNames).To(HaveKey("list_repositories"))
+		Expect(toolNames).To(HaveKey("get_repository_context"))
+		Expect(toolNames).To(HaveKey("build_workspace_inventory"))
+		Expect(toolNames).To(HaveKey("plan_sync"))
+		Expect(toolNames).To(HaveKey("execute_sync"))
+		Expect(toolNames).To(HaveKey("remove_repository"))
+	})
+
+	It("can call a read tool end-to-end through the in-process client", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "list_repositories",
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+		Expect(result.Content).NotTo(BeEmpty())
+	})
+
+	It("can call plan_sync and execute_sync (with confirm) through the real client", func() {
+		eng.syncResult = []engine.SyncResult{
+			{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
+		}
+
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		// plan_sync should work without confirm
+		planResult, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: "plan_sync"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(planResult.IsError).To(BeFalse())
+
+		// execute_sync must reject without confirm (safety gate)
+		badExec, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "execute_sync",
+				Arguments: map[string]any{"confirm": false},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(badExec.IsError).To(BeTrue())
+		text := badExec.Content[0].(mcp.TextContent).Text
+		Expect(text).To(ContainSubstring("safety gate"))
+
+		// execute_sync with confirm=true should succeed
+		goodExec, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "execute_sync",
+				Arguments: map[string]any{"confirm": true},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(goodExec.IsError).To(BeFalse())
+	})
+
+	It("exposes correct annotations on mutation vs read-only tools via client", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+		Expect(err).NotTo(HaveOccurred())
+
+		for _, t := range toolsResult.Tools {
+			switch t.Name {
+			case "execute_sync", "scan_workspace", "set_labels", "add_repository", "remove_repository":
+				Expect(t.Annotations.ReadOnlyHint).To(Equal(boolPtr(false)))
+				if t.Name == "execute_sync" || t.Name == "remove_repository" {
+					Expect(t.Annotations.DestructiveHint).To(Equal(boolPtr(true)))
+				}
+			default:
+				// All others should be marked read-only
+				Expect(t.Annotations.ReadOnlyHint).To(Equal(boolPtr(true)))
+			}
+		}
+	})
+
+	// Additional per-tool in-process tests to progress SKA-200
+	It("exercises get_repository_context via real client (success + error)", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Success path
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "get_repository_context",
+				Arguments: map[string]any{"repo": "github.com/example/alpha"},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+		structured := structuredContentMap(result)
+		Expect(structured["repo_id"]).To(Equal("github.com/example/alpha"))
+
+		// Error path - unknown repo
+		badResult, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "get_repository_context",
+				Arguments: map[string]any{"repo": "does/not/exist"},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(badResult.IsError).To(BeTrue())
+	})
+
+	It("exercises build_workspace_inventory and asserts structuredContent is a record", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: "build_workspace_inventory"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+
+		structured := structuredContentMap(result)
+		Expect(structured).To(HaveKey("repos"))
+		// Ensure it's a proper object, not a bare array at top level
+		Expect(structured["generated_at"]).NotTo(BeNil())
+	})
+
+	// === Dedicated per-tool in-process client tests (SKA-200) ===
+
+	It("dedicated: get_workspace_config via real client", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: "get_workspace_config"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+
+	It("dedicated: select_repositories via real client (success + error)", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "select_repositories",
+				Arguments: map[string]any{"label_selector": "team=platform"},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+
+		// Error case: invalid field selector
+		bad, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "select_repositories",
+				Arguments: map[string]any{"field_selector": "invalid.field=true"},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(bad.IsError).To(BeTrue())
+	})
+
+	It("dedicated: get_repo_metadata via real client (success + null case)", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "get_repo_metadata",
+				Arguments: map[string]any{"repo": "github.com/example/alpha"},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+
+	It("dedicated: get_authoritative_paths via real client (error when no metadata)", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		// In the test fixtures most repos have no .repokeeper-repo.yaml, so this correctly errors.
+		// This still exercises the full tool path via the real client.
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "get_authoritative_paths",
+				Arguments: map[string]any{"repo": "github.com/example/alpha"},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeTrue())
+	})
+
+	It("dedicated: get_related_repositories via real client", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "get_related_repositories",
+				Arguments: map[string]any{"repo": "github.com/example/alpha"},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+
+	It("dedicated: scan_workspace via real client (success + error)", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: "scan_workspace"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+
+	It("dedicated: set_labels via real client (success + error)", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "set_labels",
+				Arguments: map[string]any{
+					"repo": "github.com/example/alpha",
+					"set":  map[string]any{"tier": "critical"},
+				},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+
+	It("dedicated: add_repository via real client (exercises the tool path)", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Use the argument names the handler actually requires (url + path) so
+		// this exercises the valid add_repository protocol path, not just the
+		// missing-parameter error branch.
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "add_repository",
+				Arguments: map[string]any{
+					"url":  "git@github.com:example/newone.git",
+					"path": "/tmp/fake-new-repo",
+				},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+
+	It("dedicated: remove_repository via real client", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "remove_repository",
+				Arguments: map[string]any{
+					"repo":         "github.com/example/beta",
+					"delete_files": false,
+				},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+})

@@ -405,17 +405,23 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 #### Phase 4: Polish + Skill Update
 
 - [x] Update `docs/skills/repokeeper/SKILL.md` with MCP recommendation and tool mapping section *(canonical location since ADR-0008; the former `internal/skillbundle/` copy was removed.)*
-- [ ] Integration tests (in-process MCP client → tool call → JSON response)
-- [ ] Manual end-to-end test with Claude Code MCP configuration
+- [x] Integration tests (in-process MCP client → tool call → JSON response)
+- [ ] Manual end-to-end test with Claude Code MCP configuration  (harness `scripts/verify-mcp.sh` + evidence doc prepared; **live Claude Code run still pending user execution** — see `docs/mcp-verification-results.md`)
 - [x] Update `README.md` with MCP setup instructions
 - [x] Create `docs/mcp-setup.md` with per-runtime setup and full tool reference
 
 **Acceptance:**
 
-- [ ] Claude Code discovers and lists all 14 MCP tools when configured
-- [ ] Agent can call `list_repositories` → structured JSON response
-- [ ] Agent can call `get_repository_context` → full repo context
-- [ ] Agent can call `plan_sync` → dry-run plan → `execute_sync` → sync executes
+> The criteria below are covered by automated in-process MCP **protocol** tests
+> (`internal/mcpserver/mcpserver_test.go`, `client.NewInProcessClient` → Initialize
+> → ListTools → CallTool). The boxes track the equivalent **live Claude Code
+> client** acceptance, which remains pending a real session — see
+> `docs/mcp-verification-results.md`.
+
+- [ ] Claude Code discovers and lists all 14 MCP tools when configured  *(automated: in-process ListTools test passes)*
+- [ ] Agent can call `list_repositories` → structured JSON response  *(automated: dedicated in-process CallTool test passes)*
+- [ ] Agent can call `get_repository_context` → full repo context  *(automated: dedicated in-process CallTool test passes)*
+- [ ] Agent can call `plan_sync` → dry-run plan → `execute_sync` → sync executes  *(automated: in-process protocol tests cover the plan/execute path incl. confirm gate)*
 - [x] Skill fallback path still works for runtimes without MCP support
 - [x] `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run ./...` passes
 - [x] Overall test coverage remains >= 80%
@@ -460,7 +466,7 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 
 - [x] golangci-lint configured via `.golangci.yml`
 - [x] Lint runs on every PR and push to main
-- [ ] Lint failures block merge
+- [x] Lint failures block merge  (validated 2026-05-30: `build` job has `needs: [..., lint, ...]` in ci.yml + strict golangci config)
 
 ### CI pipeline (GitHub Actions)
 
