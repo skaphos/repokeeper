@@ -12,3 +12,12 @@ updates:
     directory: /tools
     schedule:
       interval: weekly
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: weekly
+    # Group all action bumps into a single PR for lower noise.
+    groups:
+      actions:
+        patterns:
+          - "*"
