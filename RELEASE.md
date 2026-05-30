@@ -1,18 +1,17 @@
 # Release Process
 
-This repository releases via `skaphos/actions` (PR-gated version bump + annotated tag push) and `goreleaser` (artifact build + GitHub release publish). See [ADR-0009](./docs/adr/0009-replace-release-please-with-skaphos-actions.md) for the rationale behind the current shape and [ADR-0007](./docs/adr/0007-release-binaries-and-homebrew.md) for why goreleaser owns the GitHub release object.
+This repository releases via Release Please (PR-gated version bump, changelog, tag, and draft GitHub release notes) and `goreleaser` (artifact build and publish). See [ADR-0012](./docs/adr/0012-release-please-owns-release-notes.md) for the current release-note ownership decision and [ADR-0007](./docs/adr/0007-release-binaries-and-homebrew.md) for the binary/Homebrew release design it updates.
 
 ## Pipeline shape
 
 ```
-commits on main → release-pr.yml (opens/updates release PR)
+commits on main → release-please.yml (opens/updates release PR)
                 ↓
             human reviews + merges the release PR
                 ↓
-       release-tag.yml (pushes annotated vX.Y.Z tag)
+       Release Please creates vX.Y.Z tag + draft GitHub release notes
                 ↓
-           release.yml → goreleaser publishes
-                          - GitHub release + release notes
+           release.yml → goreleaser attaches
                           - Binaries, checksums, SBOMs, cosign signatures
                           - Homebrew cask in skaphos/homebrew-tools
                           - Build-provenance attestations
@@ -22,12 +21,12 @@ commits on main → release-pr.yml (opens/updates release PR)
 
 - You have push access to `main` (for regular merges — release tagging is automated).
 - The `skaphos-release-bot` GitHub App is installed on `skaphos/repokeeper` and `skaphos/homebrew-tools` with `contents: write` and `pull-requests: write`.
-- `HOMEBREW_APP_ID` is set as a repository or organization variable, and `HOMEBREW_APP_PRIVATE_KEY` is set as a GitHub Actions secret. Both `release-pr.yml` and `release-tag.yml` mint short-lived installation tokens from this pair on the fly.
+- `RELEASE_BOT_APP_ID` is set as a repository or organization variable, and `RELEASE_BOT_PRIVATE_KEY` is set as a GitHub Actions secret. `release-please.yml` and `release.yml` mint short-lived installation tokens from this pair on the fly.
 - CI is green on `main`.
 
 ## 1. Land releasable commits on `main`
 
-`skaphos/actions/release-pr` infers the next version via [`svu`](https://github.com/caarlos0/svu) from Conventional Commits on `main` since the last `v*` tag:
+Release Please infers the next version and release notes from Conventional Commits on `main` since the last `v*` tag:
 
 - `feat:` → minor bump
 - `fix:` / `perf:` → patch bump
@@ -49,22 +48,23 @@ Optional version preview:
 
 ## 3. Review and merge the release PR
 
-On every push to `main`, `release-pr.yml` recomputes the next version and opens or force-updates a `release/v<next>` PR labelled `release-pr`. The PR contains exactly one file diff: `.release-please-manifest.json`.
+On every push to `main`, `release-please.yml` recomputes the next version and opens or updates a Release Please PR. The PR updates `.release-please-manifest.json` and `CHANGELOG.md`.
 
 - Review the version bump.
-- If the computed version is wrong (rare — happens when `svu`'s commit-type inference disagrees with intent), hand-edit the manifest in the PR branch before merging. Whatever version is in the manifest at merge time is the version that gets tagged.
+- Review the generated changelog entry and release notes.
+- If the computed version is wrong, adjust the commit history or configure Release Please explicitly before merging.
 - Merge the release PR when ready.
 
 ## 4. Tag push + GitHub release automation
 
-When the release PR merges:
+When the Release Please PR merges:
 
-- `release-tag.yml` fires on `pull_request: closed`. It reads the version from the manifest at the merge commit and pushes an annotated `vX.Y.Z` tag.
+- Release Please updates `CHANGELOG.md`, creates the `vX.Y.Z` tag, and creates a draft GitHub release with release notes.
 - The tag push triggers `release.yml`, which runs GoReleaser to:
   - Build release binaries for `{linux,darwin,windows}/{amd64,arm64}`.
   - Generate SPDX-JSON SBOMs per archive via `syft`.
   - Sign `checksums.txt` with a keyless Sigstore bundle (`checksums.txt.sigstore.json`).
-  - Create the GitHub release with notes rendered from Conventional Commits, grouped as Features / Bug Fixes / Performance / Others.
+  - Attach artifacts to the existing draft GitHub release without replacing Release Please notes, then publish it.
   - Publish the Homebrew cask to `github.com/skaphos/homebrew-tools` when the Homebrew GitHub App token is reachable.
   - Publish GitHub artifact attestations for the release binaries and metadata assets.
 
@@ -108,11 +108,11 @@ Notes:
 ## Rollback / fix forward
 
 - If `release.yml` (goreleaser) fails after the tag is pushed, fix the workflow issue and re-run the failed workflow, or cut a follow-up patch release from `main`.
-- If `release-pr` computes the wrong version or the PR body is wrong, let additional commits land — the next push to `main` will regenerate the PR.
+- If Release Please computes the wrong version or PR body, fix the commit history/configuration and let the next push to `main` regenerate the PR.
 - Manual tag creation is reserved for emergency recovery only.
 
 ## Notes
 
 - CI workflow is aligned to `Taskfile.yml` targets.
-- `skaphos/actions/release-pr@v1.0.0` is currently pinned strictly; after one successful full release cycle under this pipeline, the pin will be relaxed to `@v1`.
-- The GoReleaser workflow remains tag-driven (`v*`) and is otherwise unchanged.
+- Release Please is pinned to the latest major action (`googleapis/release-please-action@v5`).
+- The GoReleaser workflow remains tag-driven (`v*`) and attaches artifacts to the Release Please draft release before publishing it.

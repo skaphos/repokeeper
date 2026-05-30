@@ -26,7 +26,7 @@ Thanks for contributing to RepoKeeper.
 - Use DCO sign-offs on every commit:
   - `git commit --signoff ...`
   - Required trailer format: `Signed-off-by: Your Name <you@example.com>`
-- Use Conventional Commits for the commits that land on `main`. `skaphos/actions/release-pr` infers the next version from these via [`svu`](https://github.com/caarlos0/svu):
+- Use Conventional Commits for the commits that land on `main`. Release Please uses them to infer the next version and release notes:
   - `feat:` -> minor
   - `fix:` / `perf:` -> patch
   - `docs:`, `test:`, `ci:`, `chore:`, `refactor:` -> no bump by default
@@ -84,4 +84,4 @@ PRs should include:
 
 ## Release Process
 
-See `RELEASE.md` for the release flow (`skaphos/actions` PR gate + `goreleaser` publish) and downstream release automation.
+See `RELEASE.md` for the release flow (Release Please PR gate + `goreleaser` artifact publish) and downstream release automation.

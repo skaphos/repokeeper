@@ -1,4 +1,4 @@
-name: Release PR
+name: Release Please
 
 on:
   push:
@@ -7,10 +7,11 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 jobs:
-  release-pr:
-    name: Maintain Release PR
+  release-please:
+    name: Release Please
     runs-on: ubuntu-latest
     steps:
       - name: Mint release bot token
@@ -21,6 +22,8 @@ jobs:
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-      - uses: skaphos/actions/release-pr@v1.0.0
+      - uses: googleapis/release-please-action@v5
         with:
           token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
