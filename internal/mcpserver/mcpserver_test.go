@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
@@ -165,7 +166,8 @@ func structuredListJSON(result *mcp.CallToolResult, key string) []byte {
 	return b
 }
 
-func intPtr(v int) *int { return &v }
+func intPtr(v int) *int   { return &v }
+func boolPtr(v bool) *bool { return &v }
 
 // --- test data ---
 
@@ -1343,3 +1345,174 @@ func expectResourceError(response mcp.JSONRPCMessage) {
 	_, ok := response.(mcp.JSONRPCError)
 	Expect(ok).To(BeTrue(), "expected JSONRPCError, got %T", response)
 }
+
+// --- In-process MCP client protocol tests (for SKA-470) ---
+
+var _ = Describe("InProcess MCP Client", func() {
+	var (
+		eng *mockEngine
+		srv *mcpserver.MCPServer
+	)
+
+	BeforeEach(func() {
+		var err error
+		tmpDir, err := os.MkdirTemp("", "mcp-inprocess-*")
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+		eng = &mockEngine{
+			cfg: newTestConfig(),
+			reg: newTestRegistry(),
+		}
+		cfgPath := filepath.Join(tmpDir, ".repokeeper.yaml")
+		srv = mcpserver.New(eng, cfgPath, "0.1.0-test", nil)
+	})
+
+	It("exposes all 14 tools via real in-process client ListTools", func() {
+		// This is the key acceptance test for "Claude Code discovers and lists all 14 MCP tools"
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer c.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(toolsResult.Tools).To(HaveLen(14), "expected exactly 14 tools")
+
+		toolNames := make(map[string]bool)
+		for _, t := range toolsResult.Tools {
+			toolNames[t.Name] = true
+			// Basic annotation sanity
+			if t.Name == "execute_sync" {
+				Expect(t.Annotations.DestructiveHint).To(Equal(boolPtr(true)))
+			}
+			if t.Name == "list_repositories" {
+				Expect(t.Annotations.ReadOnlyHint).To(Equal(boolPtr(true)))
+			}
+		}
+
+		// Spot-check key tools from all phases
+		Expect(toolNames).To(HaveKey("list_repositories"))
+		Expect(toolNames).To(HaveKey("get_repository_context"))
+		Expect(toolNames).To(HaveKey("build_workspace_inventory"))
+		Expect(toolNames).To(HaveKey("plan_sync"))
+		Expect(toolNames).To(HaveKey("execute_sync"))
+		Expect(toolNames).To(HaveKey("remove_repository"))
+	})
+
+	It("can call a read tool end-to-end through the in-process client", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer c.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "list_repositories",
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+		Expect(result.Content).NotTo(BeEmpty())
+	})
+
+	It("can call plan_sync and execute_sync (with confirm) through the real client", func() {
+		eng.syncResult = []engine.SyncResult{
+			{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
+		}
+
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer c.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		// plan_sync should work without confirm
+		planResult, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: "plan_sync"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(planResult.IsError).To(BeFalse())
+
+		// execute_sync must reject without confirm (safety gate)
+		badExec, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "execute_sync",
+				Arguments: map[string]any{"confirm": false},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(badExec.IsError).To(BeTrue())
+		text := badExec.Content[0].(mcp.TextContent).Text
+		Expect(text).To(ContainSubstring("safety gate"))
+
+		// execute_sync with confirm=true should succeed
+		goodExec, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "execute_sync",
+				Arguments: map[string]any{"confirm": true},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(goodExec.IsError).To(BeFalse())
+	})
+
+	It("exposes correct annotations on mutation vs read-only tools via client", func() {
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer c.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+		Expect(err).NotTo(HaveOccurred())
+
+		for _, t := range toolsResult.Tools {
+			switch t.Name {
+			case "execute_sync", "scan_workspace", "set_labels", "add_repository", "remove_repository":
+				Expect(t.Annotations.ReadOnlyHint).To(Equal(boolPtr(false)))
+				if t.Name == "execute_sync" {
+					Expect(t.Annotations.DestructiveHint).To(Equal(boolPtr(true)))
+				}
+			default:
+				// All others should be marked read-only
+				Expect(t.Annotations.ReadOnlyHint).To(Equal(boolPtr(true)))
+			}
+		}
+	})
+})

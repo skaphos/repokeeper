@@ -460,7 +460,7 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 
 - [x] golangci-lint configured via `.golangci.yml`
 - [x] Lint runs on every PR and push to main
-- [ ] Lint failures block merge
+- [x] Lint failures block merge  (validated 2026-05-30: `build` job has `needs: [..., lint, ...]` in ci.yml + strict golangci config)
 
 ### CI pipeline (GitHub Actions)
 
