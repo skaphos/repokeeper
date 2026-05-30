@@ -88,6 +88,30 @@ func TestHandleSyncPlanError(t *testing.T) {
 	}
 }
 
+func TestRenderSyncPlanViewShowsConfirmCancelFooter(t *testing.T) {
+	t.Parallel()
+
+	plan := []engine.SyncResult{{RepoID: "acme/backend", Planned: true, Action: "git fetch"}}
+	m := tuiModel{mode: viewSyncPlan, syncPlan: plan, width: 120, height: 20}
+
+	out := renderSyncPlanView(m)
+
+	// The plan view must make the confirm/cancel choice explicit before any
+	// sync executes (SKA-202): both modal buttons and a keybinding footer.
+	for _, want := range []string{
+		"Sync Plan",
+		"acme/backend",
+		"Cancel",
+		"Confirm sync",
+		"enter: confirm",
+		"esc: cancel",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected sync plan view to contain %q, got:\n%s", want, out)
+		}
+	}
+}
+
 func TestHandleSyncPlanKeyConfirm(t *testing.T) {
 	t.Parallel()
 
