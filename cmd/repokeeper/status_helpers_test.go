@@ -2,6 +2,7 @@
 package repokeeper
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/spf13/cobra"
 )
 
 func TestRelatedReposString(t *testing.T) {
@@ -114,6 +116,101 @@ func TestStatusJSONOutputIncludesAPIVersion(t *testing.T) {
 		// The existing repos field must remain alongside the diverged advice.
 		assertArrayLen(t, doc, "repos", len(report.Repos))
 		assertArrayLen(t, doc, "diverged", 1)
+	})
+}
+
+func TestStatusJSONOutputFlagsGoneRepairSuggestion(t *testing.T) {
+	t.Parallel()
+
+	report := &model.StatusReport{
+		GeneratedAt: time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC),
+		Repos: []model.RepoStatus{
+			{RepoID: "github.com/org/gone", Path: "/repos/gone", Tracking: model.Tracking{Status: model.TrackingGone}},
+			{RepoID: "github.com/org/clean", Path: "/repos/clean", Tracking: model.Tracking{Status: model.TrackingEqual}},
+		},
+	}
+
+	raw, err := json.Marshal(buildStatusJSONOutput(report, false))
+	if err != nil {
+		t.Fatalf("marshal status json: %v", err)
+	}
+	var doc struct {
+		Repos []struct {
+			RepoID                   string `json:"repo_id"`
+			RepairUpstreamSuggestion bool   `json:"repair_upstream_suggestion"`
+		} `json:"repos"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal status json: %v\n%s", err, raw)
+	}
+	if len(doc.Repos) != 2 {
+		t.Fatalf("repos length = %d, want 2", len(doc.Repos))
+	}
+	if !doc.Repos[0].RepairUpstreamSuggestion {
+		t.Fatalf("expected gone repo to carry repair_upstream_suggestion: %s", raw)
+	}
+	if doc.Repos[1].RepairUpstreamSuggestion {
+		t.Fatalf("did not expect clean repo to carry repair_upstream_suggestion: %s", raw)
+	}
+}
+
+func TestWriteRepairUpstreamHint(t *testing.T) {
+	t.Parallel()
+
+	report := &model.StatusReport{Repos: []model.RepoStatus{
+		{Tracking: model.Tracking{Status: model.TrackingGone}},
+		{Tracking: model.Tracking{Status: model.TrackingEqual}},
+		{Tracking: model.Tracking{Status: model.TrackingGone}},
+	}}
+
+	t.Run("writes hint for gone repos", func(t *testing.T) {
+		t.Parallel()
+		errOut := &bytes.Buffer{}
+		cmd := &cobra.Command{}
+		cmd.Flags().Bool("quiet", false, "")
+		cmd.SetErr(errOut)
+
+		if err := writeRepairUpstreamHint(cmd, report); err != nil {
+			t.Fatalf("write hint: %v", err)
+		}
+		got := errOut.String()
+		if !strings.Contains(got, "hint: 2 repo(s) have gone upstream") {
+			t.Fatalf("expected gone hint count, got %q", got)
+		}
+		if !strings.Contains(got, "repokeeper repair upstream") {
+			t.Fatalf("expected repair-upstream command hint, got %q", got)
+		}
+	})
+
+	t.Run("omits hint without gone repos", func(t *testing.T) {
+		t.Parallel()
+		errOut := &bytes.Buffer{}
+		cmd := &cobra.Command{}
+		cmd.Flags().Bool("quiet", false, "")
+		cmd.SetErr(errOut)
+
+		cleanReport := &model.StatusReport{Repos: []model.RepoStatus{{Tracking: model.Tracking{Status: model.TrackingEqual}}}}
+		if err := writeRepairUpstreamHint(cmd, cleanReport); err != nil {
+			t.Fatalf("write hint: %v", err)
+		}
+		if got := errOut.String(); got != "" {
+			t.Fatalf("expected no hint without gone repos, got %q", got)
+		}
+	})
+
+	t.Run("quiet suppresses hint", func(t *testing.T) {
+		t.Parallel()
+		errOut := &bytes.Buffer{}
+		cmd := &cobra.Command{}
+		cmd.Flags().Bool("quiet", true, "")
+		cmd.SetErr(errOut)
+
+		if err := writeRepairUpstreamHint(cmd, report); err != nil {
+			t.Fatalf("write hint: %v", err)
+		}
+		if got := errOut.String(); got != "" {
+			t.Fatalf("expected quiet mode to suppress hint, got %q", got)
+		}
 	})
 }
 

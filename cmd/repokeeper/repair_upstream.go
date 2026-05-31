@@ -250,7 +250,7 @@ func needsUpstreamRepair(repo model.RepoStatus, targetUpstream string) bool {
 	if current != target {
 		return true
 	}
-	return repo.Tracking.Status == model.TrackingNone
+	return repo.Tracking.Status == model.TrackingNone || repo.Tracking.Status == model.TrackingGone
 }
 
 func resolveUpstreamTargetBranch(entry registry.Entry, repo model.RepoStatus, cfg *config.Config) string {

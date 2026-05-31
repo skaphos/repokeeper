@@ -588,6 +588,9 @@ func TestRepairHelpers(t *testing.T) {
 		if !repairNeedsUpstream(model.RepoStatus{Tracking: model.Tracking{Upstream: "origin/main", Status: model.TrackingNone}}, "origin/main") {
 			t.Fatal("tracking none should require upstream re-set")
 		}
+		if !repairNeedsUpstream(model.RepoStatus{Tracking: model.Tracking{Upstream: "origin/main", Status: model.TrackingGone}}, "origin/main") {
+			t.Fatal("gone upstream should require upstream re-set")
+		}
 	})
 }
 

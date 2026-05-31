@@ -33,6 +33,10 @@ func TestNeedsUpstreamRepair(t *testing.T) {
 	if !needsUpstreamRepair(repo, "origin/main") {
 		t.Fatal("expected missing tracking to need repair")
 	}
+	repo.Tracking = model.Tracking{Upstream: "origin/main", Status: model.TrackingGone}
+	if !needsUpstreamRepair(repo, "origin/main") {
+		t.Fatal("expected gone upstream to need repair")
+	}
 	if needsUpstreamRepair(repo, "  ") {
 		t.Fatal("expected blank target upstream to skip repair")
 	}

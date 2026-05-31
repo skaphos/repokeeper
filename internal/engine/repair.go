@@ -150,5 +150,5 @@ func repairNeedsUpstream(status model.RepoStatus, target string) bool {
 	if current != t {
 		return true
 	}
-	return status.Tracking.Status == model.TrackingNone
+	return status.Tracking.Status == model.TrackingNone || status.Tracking.Status == model.TrackingGone
 }
