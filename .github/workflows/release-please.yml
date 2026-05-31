@@ -22,6 +22,45 @@ jobs:
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
+      - name: Reconcile tagged release PR labels
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          gh label create "autorelease: tagged" \
+            --color "0e8a16" \
+            --description "Release Please release PR has been tagged" \
+            >/dev/null 2>&1 || true
+
+          mapfile -t pending_prs < <(
+            gh pr list \
+              --state merged \
+              --label "autorelease: pending" \
+              --json number,title \
+              --jq '.[] | @base64'
+          )
+
+          for encoded in "${pending_prs[@]}"; do
+            pr="$(printf '%s' "${encoded}" | base64 -d)"
+            number="$(jq -r '.number' <<<"${pr}")"
+            title="$(jq -r '.title' <<<"${pr}")"
+
+            if [[ ! "${title}" =~ ^chore\(main\):\ release\ ([^[:space:]]+) ]]; then
+              echo "PR #${number} is pending but does not look like a release PR (${title}); skipping."
+              continue
+            fi
+
+            tag="v${BASH_REMATCH[1]}"
+            if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+              echo "PR #${number} has existing tag ${tag}; marking autorelease: tagged."
+              gh pr edit "${number}" \
+                --remove-label "autorelease: pending" \
+                --add-label "autorelease: tagged"
+            else
+              echo "PR #${number} is still pending; tag ${tag} does not exist."
+            fi
+          done
       - uses: googleapis/release-please-action@v5
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -49,6 +88,27 @@ jobs:
             fi
           fi
 
+          pr_number=""
+          if [[ "${subject}" =~ \(\#([0-9]+)\)$ ]]; then
+            pr_number="${BASH_REMATCH[1]}"
+          fi
+
+          mark_release_pr_tagged() {
+            if [ -z "${pr_number}" ]; then
+              echo "Could not determine release PR number from ${subject}; skipping label update."
+              return 0
+            fi
+
+            gh label create "autorelease: tagged" \
+              --color "0e8a16" \
+              --description "Release Please release PR has been tagged" \
+              >/dev/null 2>&1 || true
+
+            gh pr edit "${pr_number}" \
+              --remove-label "autorelease: pending" \
+              --add-label "autorelease: tagged"
+          }
+
           case "${subject}" in
             "chore(main): release "*)
               ;;
@@ -73,10 +133,12 @@ jobs:
           git fetch --tags origin
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
             echo "Tag ${tag} already exists locally; skipping."
+            mark_release_pr_tagged
             exit 0
           fi
           if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
             echo "Tag ${tag} already exists on GitHub; skipping."
+            mark_release_pr_tagged
             exit 0
           fi
 
@@ -84,3 +146,4 @@ jobs:
           git config user.email "261675299+skaphos-release-bot[bot]@users.noreply.github.com"
           git tag -a "${tag}" -m "${tag}"
           git push origin "refs/tags/${tag}"
+          mark_release_pr_tagged
