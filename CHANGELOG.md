@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/skaphos/repokeeper/compare/v1.1.0...v1.2.0) (2026-05-31)
+
+
+### Features
+
+* **get:** suggest repair-upstream for gone repos ([#237](https://github.com/skaphos/repokeeper/issues/237)) ([2c13aba](https://github.com/skaphos/repokeeper/commit/2c13abac79207c6d9a9e2b3c69b57bb9522a96bf))
+
 ## [0.7.1](https://github.com/skaphos/repokeeper/compare/v0.7.0...v0.7.1) (2026-04-18)
 
 
