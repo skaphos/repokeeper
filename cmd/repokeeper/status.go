@@ -424,7 +424,7 @@ func writeRepairUpstreamHint(cmd *cobra.Command, report *model.StatusReport) err
 	if count == 0 {
 		return nil
 	}
-	_, err := fmt.Fprintf(cmd.ErrOrStderr(), "hint: %d repo(s) have gone upstream - run 'repokeeper repair-upstream <repo>' to fix\n", count)
+	_, err := fmt.Fprintf(cmd.ErrOrStderr(), "hint: %d repo(s) have gone upstream - run 'repokeeper repair upstream' to inspect and repair\n", count)
 	return err
 }
 

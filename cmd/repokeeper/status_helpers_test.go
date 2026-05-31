@@ -177,7 +177,7 @@ func TestWriteRepairUpstreamHint(t *testing.T) {
 		if !strings.Contains(got, "hint: 2 repo(s) have gone upstream") {
 			t.Fatalf("expected gone hint count, got %q", got)
 		}
-		if !strings.Contains(got, "repokeeper repair-upstream <repo>") {
+		if !strings.Contains(got, "repokeeper repair upstream") {
 			t.Fatalf("expected repair-upstream command hint, got %q", got)
 		}
 	})
