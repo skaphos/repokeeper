@@ -21,6 +21,28 @@ builds:
       - -X github.com/skaphos/repokeeper/cmd/repokeeper.Commit={{.Commit}}
       - -X github.com/skaphos/repokeeper/cmd/repokeeper.Date={{.Date}}
 
+# macOS code signing + notarization, cross-platform via quill (no Mac runner
+# required). Auto-skipped unless MACOS_SIGN_P12 is set, so local/snapshot builds
+# and forks without the secrets are unaffected. Runs after build and before
+# archive, so the signed+notarized binary is what gets tarred, checksummed,
+# SBOM'd, and cosign-signed.
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids:
+        - repokeeper
+      sign:
+        # base64-encoded Developer ID Application .p12 (certificate + private key)
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        # App Store Connect API key (issuer UUID, key ID, base64-encoded .p8)
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
+        wait: true
+        timeout: 20m
+
 archives:
   - id: default
     formats:
