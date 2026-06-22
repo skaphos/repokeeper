@@ -42,17 +42,36 @@ func Load(repoRoot string) (string, *model.RepoMetadata, error) {
 	return path, &metadata, nil
 }
 
-func Save(repoRoot string, metadata *model.RepoMetadata, force bool) (string, error) {
-	if metadata == nil {
-		return "", fmt.Errorf("repo metadata is required")
-	}
-	normalized := normalize(*metadata)
+// canonicalize returns the normalized metadata with apiVersion/kind defaults
+// applied — the exact form Save persists. Shared by Save and Render so that a
+// previewed diff reflects the bytes that will actually be written.
+func canonicalize(metadata model.RepoMetadata) model.RepoMetadata {
+	normalized := normalize(metadata)
 	if normalized.APIVersion == "" {
 		normalized.APIVersion = APIVersion
 	}
 	if normalized.Kind == "" {
 		normalized.Kind = Kind
 	}
+	return normalized
+}
+
+// Render returns the canonical YAML bytes that Save would write for metadata,
+// without validating or touching the filesystem. It is used to preview a
+// proposal and to diff it against an existing repo metadata file.
+func Render(metadata *model.RepoMetadata) ([]byte, error) {
+	if metadata == nil {
+		return nil, fmt.Errorf("repo metadata is required")
+	}
+	canonical := canonicalize(*metadata)
+	return yaml.Marshal(&canonical)
+}
+
+func Save(repoRoot string, metadata *model.RepoMetadata, force bool) (string, error) {
+	if metadata == nil {
+		return "", fmt.Errorf("repo metadata is required")
+	}
+	normalized := canonicalize(*metadata)
 	if err := Validate(&normalized); err != nil {
 		return "", err
 	}

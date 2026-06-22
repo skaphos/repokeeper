@@ -3,6 +3,7 @@ package repokeeper
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -11,19 +12,28 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pmezard/go-difflib/difflib"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/repometa"
 	"github.com/skaphos/repokeeper/internal/selector"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v3"
 )
 
 var indexCmd = &cobra.Command{
 	Use:   "index <repo-id-or-path>",
 	Short: "Interactively propose repo-local metadata for a tracked repository",
-	Args:  cobra.ExactArgs(1),
+	Long: `Interactively propose repo-local metadata for a tracked repository.
+
+By default the command previews the proposed .repokeeper-repo.yaml without
+writing it. When the repository already has a metadata file, the preview is
+rendered as a unified diff of the current file against the proposed content
+(or a note that it is unchanged); otherwise the full proposed file is shown.
+
+Pass --write to save the proposal. Overwriting an existing file requires
+--force, and the diff is shown before the write is confirmed.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -61,26 +71,26 @@ var indexCmd = &cobra.Command{
 		default:
 			return fmt.Errorf("load existing repo metadata: %w (use --force to replace)", existingErr)
 		}
-		if writeFile && existingErr == nil && !force {
-			return fmt.Errorf("repo metadata already exists at %s (use --force to overwrite)", existingPath)
-		}
 
 		proposal, err := buildIndexProposal(entry, existing, yes, promoteLocalLabels, cmd.InOrStdin(), cmd.ErrOrStderr())
 		if err != nil {
 			return err
 		}
-		proposal.APIVersion = repometa.APIVersion
-		proposal.Kind = repometa.Kind
-		preview, err := yaml.Marshal(proposal)
+		proposed, err := repometa.Render(proposal)
 		if err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "# Repo metadata preview\n# Target: %s\n%s", existingPath, string(preview)); err != nil {
+		if err := writeMetadataPreview(cmd.OutOrStdout(), existingPath, proposed, existingErr); err != nil {
 			return err
 		}
 		if !writeFile {
 			infof(cmd, "preview only; rerun with --write to save repo metadata")
 			return nil
+		}
+		// The diff/preview above is always shown first; only then enforce that
+		// overwriting an existing, loadable file requires --force.
+		if existingErr == nil && !force {
+			return fmt.Errorf("repo metadata already exists at %s (use --force to overwrite)", existingPath)
 		}
 		if !yes {
 			confirmed, err := confirmWithPrompt(cmd, fmt.Sprintf("Write repo metadata to %s? [y/N]: ", existingPath))
@@ -119,7 +129,16 @@ var indexCmd = &cobra.Command{
 var indexReposCmd = &cobra.Command{
 	Use:   "repos",
 	Short: "Preview or write repo-local metadata for selected repositories",
-	Args:  cobra.NoArgs,
+	Long: `Preview or write repo-local metadata for selected repositories.
+
+Each selected repository is previewed in turn. When a repository already has a
+.repokeeper-repo.yaml, its preview is rendered as a unified diff of the current
+file against the proposed content (or a note that it is unchanged); otherwise
+the full proposed file is shown.
+
+Pass --write to save the proposals. Overwriting existing files requires
+--force, and the diffs are shown before the write is confirmed.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -168,9 +187,10 @@ var indexReposCmd = &cobra.Command{
 		}
 
 		type bulkProposal struct {
-			entry    registry.Entry
-			target   string
-			proposal *model.RepoMetadata
+			entry       registry.Entry
+			target      string
+			proposal    *model.RepoMetadata
+			existingErr error
 		}
 		proposals := make([]bulkProposal, 0, len(selected))
 		for _, entry := range selected {
@@ -184,28 +204,35 @@ var indexReposCmd = &cobra.Command{
 			default:
 				return fmt.Errorf("load existing repo metadata for %s: %w (use --force to replace)", entry.RepoID, existingErr)
 			}
-			if writeFile && existingErr == nil && !force {
-				return fmt.Errorf("repo metadata already exists at %s for %s (use --force to overwrite)", existingPath, entry.RepoID)
-			}
 			proposal := guessRepoMetadataDefaults(entry, existing)
 			proposal.Labels = mergePromotedLabels(proposal.Labels, entry.Labels)
-			proposal.APIVersion = repometa.APIVersion
-			proposal.Kind = repometa.Kind
-			proposals = append(proposals, bulkProposal{entry: entry, target: existingPath, proposal: proposal})
+			proposals = append(proposals, bulkProposal{entry: entry, target: existingPath, proposal: proposal, existingErr: existingErr})
 		}
 
 		for _, proposal := range proposals {
-			preview, err := yaml.Marshal(proposal.proposal)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "# Repo: %s\n", proposal.entry.RepoID); err != nil {
+				return err
+			}
+			proposed, err := repometa.Render(proposal.proposal)
 			if err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "# Repo metadata preview\n# Repo: %s\n# Target: %s\n%s", proposal.entry.RepoID, proposal.target, string(preview)); err != nil {
+			if err := writeMetadataPreview(cmd.OutOrStdout(), proposal.target, proposed, proposal.existingErr); err != nil {
 				return err
 			}
 		}
 		if !writeFile {
 			infof(cmd, "preview only; rerun with --write to save repo metadata")
 			return nil
+		}
+		// Previews/diffs for every repo are shown above; only then enforce that
+		// overwriting an existing, loadable file requires --force.
+		if !force {
+			for _, proposal := range proposals {
+				if proposal.existingErr == nil {
+					return fmt.Errorf("repo metadata already exists at %s for %s (use --force to overwrite)", proposal.target, proposal.entry.RepoID)
+				}
+			}
 		}
 		if !yes {
 			confirmed, err := confirmWithPrompt(cmd, fmt.Sprintf("Write repo metadata for %d repositories? [y/N]: ", len(proposals)))
@@ -449,6 +476,53 @@ func fallbackMetadataPath(repoRoot, current string) string {
 		return current
 	}
 	return filepath.Join(repoRoot, repometa.PreferredFilename)
+}
+
+// writeMetadataPreview renders an index proposal for the user. Whenever a file
+// already exists at existingPath it shows a unified diff of that file's raw
+// bytes against the proposed content (or a note when nothing would change) —
+// even if the file could not be parsed/loaded, so a --force replace still shows
+// what would change. When no file exists it prints the full proposed file.
+// loadErr is the error from loading the existing metadata (if any) and is used
+// only to annotate the diff when the on-disk file could not be parsed. proposed
+// must be the canonical bytes Save would write (see repometa.Render).
+func writeMetadataPreview(out io.Writer, existingPath string, proposed []byte, loadErr error) error {
+	current, readErr := os.ReadFile(existingPath)
+	if readErr != nil {
+		// No existing file on disk (or it can't be read): show the full proposal.
+		_, err := fmt.Fprintf(out, "# Repo metadata preview\n# Target: %s\n%s", existingPath, string(proposed))
+		return err
+	}
+	note := ""
+	if loadErr != nil && !errors.Is(loadErr, repometa.ErrNotFound) {
+		note = fmt.Sprintf("# note: existing file could not be parsed (%v); diffing raw contents\n", loadErr)
+	}
+	diff, err := unifiedDiff(current, proposed, existingPath)
+	if err != nil {
+		return err
+	}
+	if diff == "" {
+		_, err := fmt.Fprintf(out, "# Repo metadata unchanged\n# Target: %s\n%s", existingPath, note)
+		return err
+	}
+	_, err = fmt.Fprintf(out, "# Repo metadata diff\n# Target: %s\n%s%s", existingPath, note, diff)
+	return err
+}
+
+// unifiedDiff returns a unified diff describing the change from current to
+// proposed for the file at path, with three lines of context. It returns an
+// empty string when the two are identical.
+func unifiedDiff(current, proposed []byte, path string) (string, error) {
+	if bytes.Equal(current, proposed) {
+		return "", nil
+	}
+	return difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+		A:        difflib.SplitLines(string(current)),
+		B:        difflib.SplitLines(string(proposed)),
+		FromFile: path + " (current)",
+		ToFile:   path + " (proposed)",
+		Context:  3,
+	})
 }
 
 func detectReadmeEntrypoint(repoRoot string) string {

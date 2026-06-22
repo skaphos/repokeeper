@@ -2,6 +2,7 @@
 package repometa
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -80,6 +81,41 @@ func TestSaveWritesCanonicalFile(t *testing.T) {
 	}
 	if metadata.Labels["role"] != "docs" {
 		t.Fatalf("expected saved labels, got %#v", metadata.Labels)
+	}
+}
+
+func TestRenderMatchesSaveOutput(t *testing.T) {
+	t.Parallel()
+	meta := &model.RepoMetadata{
+		Name:   "Repo",
+		RepoID: "github.com/example/repo",
+		Labels: map[string]string{"role": "docs"},
+	}
+	rendered, err := Render(meta)
+	if err != nil {
+		t.Fatalf("render metadata: %v", err)
+	}
+	repo := t.TempDir()
+	path, err := Save(repo, meta, false)
+	if err != nil {
+		t.Fatalf("save metadata: %v", err)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read saved file: %v", err)
+	}
+	if !bytes.Equal(rendered, saved) {
+		t.Fatalf("render output must equal saved file.\nrender:\n%s\nsaved:\n%s", rendered, saved)
+	}
+	if !strings.Contains(string(rendered), "apiVersion: "+APIVersion) {
+		t.Fatalf("expected canonical apiVersion marker in render output, got:\n%s", rendered)
+	}
+}
+
+func TestRenderRequiresMetadata(t *testing.T) {
+	t.Parallel()
+	if _, err := Render(nil); err == nil {
+		t.Fatal("expected error rendering nil metadata")
 	}
 }
 
