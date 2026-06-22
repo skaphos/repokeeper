@@ -4,7 +4,7 @@ Thanks for contributing to RepoKeeper.
 
 ## Development Setup
 
-- Go version: see `go.mod` (`go 1.26.3`).
+- Go version: see `go.mod` (`go 1.26.4`).
 - Run task targets without installing tools globally:
   - `go -C tools tool task --list`
 
