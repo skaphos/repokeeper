@@ -3,6 +3,7 @@ package repokeeper
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/pmezard/go-difflib/difflib"
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
@@ -23,7 +25,16 @@ import (
 var indexCmd = &cobra.Command{
 	Use:   "index <repo-id-or-path>",
 	Short: "Interactively propose repo-local metadata for a tracked repository",
-	Args:  cobra.ExactArgs(1),
+	Long: `Interactively propose repo-local metadata for a tracked repository.
+
+By default the command previews the proposed .repokeeper-repo.yaml without
+writing it. When the repository already has a metadata file, the preview is
+rendered as a unified diff of the current file against the proposed content
+(or a note that it is unchanged); otherwise the full proposed file is shown.
+
+Pass --write to save the proposal. Overwriting an existing file requires
+--force, and the diff is shown before the write is confirmed.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -69,13 +80,11 @@ var indexCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		proposal.APIVersion = repometa.APIVersion
-		proposal.Kind = repometa.Kind
-		preview, err := yaml.Marshal(proposal)
+		proposed, err := repometa.Render(proposal)
 		if err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "# Repo metadata preview\n# Target: %s\n%s", existingPath, string(preview)); err != nil {
+		if err := writeMetadataPreview(cmd.OutOrStdout(), existingPath, proposed, existingErr); err != nil {
 			return err
 		}
 		if !writeFile {
@@ -449,6 +458,48 @@ func fallbackMetadataPath(repoRoot, current string) string {
 		return current
 	}
 	return filepath.Join(repoRoot, repometa.PreferredFilename)
+}
+
+// writeMetadataPreview renders an index proposal for the user. When a current
+// repo metadata file was loaded (existingErr == nil) it shows a unified diff of
+// that file against the proposed content, or a note when nothing would change.
+// Otherwise it prints the full proposed file. proposed must be the canonical
+// bytes Save would write (see repometa.Render).
+func writeMetadataPreview(out io.Writer, existingPath string, proposed []byte, existingErr error) error {
+	if existingErr == nil {
+		current, err := os.ReadFile(existingPath)
+		if err != nil {
+			return fmt.Errorf("read existing repo metadata: %w", err)
+		}
+		diff, err := unifiedDiff(current, proposed, existingPath)
+		if err != nil {
+			return err
+		}
+		if diff == "" {
+			_, err := fmt.Fprintf(out, "# Repo metadata unchanged\n# Target: %s\n", existingPath)
+			return err
+		}
+		_, err = fmt.Fprintf(out, "# Repo metadata diff\n# Target: %s\n%s", existingPath, diff)
+		return err
+	}
+	_, err := fmt.Fprintf(out, "# Repo metadata preview\n# Target: %s\n%s", existingPath, string(proposed))
+	return err
+}
+
+// unifiedDiff returns a unified diff describing the change from current to
+// proposed for the file at path, with three lines of context. It returns an
+// empty string when the two are identical.
+func unifiedDiff(current, proposed []byte, path string) (string, error) {
+	if bytes.Equal(current, proposed) {
+		return "", nil
+	}
+	return difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+		A:        difflib.SplitLines(string(current)),
+		B:        difflib.SplitLines(string(proposed)),
+		FromFile: path + " (current)",
+		ToFile:   path + " (proposed)",
+		Context:  3,
+	})
 }
 
 func detectReadmeEntrypoint(repoRoot string) string {

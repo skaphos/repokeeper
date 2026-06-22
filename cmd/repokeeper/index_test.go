@@ -219,3 +219,102 @@ func TestGuessRepoMetadataDefaultsClonesExistingMetadata(t *testing.T) {
 		t.Fatalf("expected related repos slice clone, got %#v", existing.RelatedRepos)
 	}
 }
+
+func TestUnifiedDiffEmptyWhenIdentical(t *testing.T) {
+	t.Parallel()
+	content := []byte("name: Repo\nrepoID: acme/repo\n")
+	got, err := unifiedDiff(content, content, "/repo/.repokeeper-repo.yaml")
+	if err != nil {
+		t.Fatalf("unified diff: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("expected empty diff for identical content, got %q", got)
+	}
+}
+
+func TestUnifiedDiffReportsChanges(t *testing.T) {
+	t.Parallel()
+	current := []byte("name: Old Name\nrepoID: acme/repo\n")
+	proposed := []byte("name: New Name\nrepoID: acme/repo\n")
+	got, err := unifiedDiff(current, proposed, "/repo/.repokeeper-repo.yaml")
+	if err != nil {
+		t.Fatalf("unified diff: %v", err)
+	}
+	for _, want := range []string{"(current)", "(proposed)", "-name: Old Name", "+name: New Name"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected diff to contain %q, got:\n%s", want, got)
+		}
+	}
+}
+
+func TestWriteMetadataPreviewNewFile(t *testing.T) {
+	t.Parallel()
+	proposed, err := repometa.Render(&model.RepoMetadata{Name: "Repo", RepoID: "acme/repo"})
+	if err != nil {
+		t.Fatalf("render proposal: %v", err)
+	}
+	var out bytes.Buffer
+	target := filepath.Join(t.TempDir(), repometa.PreferredFilename)
+	if err := writeMetadataPreview(&out, target, proposed, repometa.ErrNotFound); err != nil {
+		t.Fatalf("write preview: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "# Repo metadata preview") {
+		t.Fatalf("expected full preview header, got:\n%s", got)
+	}
+	if !strings.Contains(got, string(proposed)) {
+		t.Fatalf("expected full proposed file in preview, got:\n%s", got)
+	}
+}
+
+func TestWriteMetadataPreviewUnchanged(t *testing.T) {
+	t.Parallel()
+	proposed, err := repometa.Render(&model.RepoMetadata{Name: "Repo", RepoID: "acme/repo"})
+	if err != nil {
+		t.Fatalf("render proposal: %v", err)
+	}
+	target := filepath.Join(t.TempDir(), repometa.PreferredFilename)
+	if err := os.WriteFile(target, proposed, 0o644); err != nil {
+		t.Fatalf("seed existing file: %v", err)
+	}
+	var out bytes.Buffer
+	if err := writeMetadataPreview(&out, target, proposed, nil); err != nil {
+		t.Fatalf("write preview: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "# Repo metadata unchanged") {
+		t.Fatalf("expected unchanged note, got:\n%s", got)
+	}
+	if strings.Contains(got, "@@") {
+		t.Fatalf("did not expect a diff body for unchanged content, got:\n%s", got)
+	}
+}
+
+func TestWriteMetadataPreviewShowsDiff(t *testing.T) {
+	t.Parallel()
+	current, err := repometa.Render(&model.RepoMetadata{Name: "Old Name", RepoID: "acme/repo"})
+	if err != nil {
+		t.Fatalf("render current: %v", err)
+	}
+	proposed, err := repometa.Render(&model.RepoMetadata{Name: "New Name", RepoID: "acme/repo"})
+	if err != nil {
+		t.Fatalf("render proposal: %v", err)
+	}
+	target := filepath.Join(t.TempDir(), repometa.PreferredFilename)
+	if err := os.WriteFile(target, current, 0o644); err != nil {
+		t.Fatalf("seed existing file: %v", err)
+	}
+	var out bytes.Buffer
+	if err := writeMetadataPreview(&out, target, proposed, nil); err != nil {
+		t.Fatalf("write preview: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "# Repo metadata diff") {
+		t.Fatalf("expected diff header, got:\n%s", got)
+	}
+	for _, want := range []string{"-name: Old Name", "+name: New Name"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected diff to contain %q, got:\n%s", want, got)
+		}
+	}
+}
