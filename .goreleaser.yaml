@@ -22,13 +22,16 @@ builds:
       - -X github.com/skaphos/repokeeper/cmd/repokeeper.Date={{.Date}}
 
 # macOS code signing + notarization, cross-platform via quill (no Mac runner
-# required). Auto-skipped unless MACOS_SIGN_P12 is set, so local/snapshot builds
-# and forks without the secrets are unaffected. Runs after build and before
-# archive, so the signed+notarized binary is what gets tarred, checksummed,
-# SBOM'd, and cosign-signed.
+# required). Auto-skipped unless all five MACOS_* secrets are set, so local/
+# snapshot builds and forks without the secrets are unaffected. Runs after build
+# and before archive, so the signed+notarized binary is what gets tarred,
+# checksummed, SBOM'd, and cosign-signed.
 notarize:
   macos:
-    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+    - enabled: >-
+        {{ and (isEnvSet "MACOS_SIGN_P12") (isEnvSet "MACOS_SIGN_PASSWORD")
+        (isEnvSet "MACOS_NOTARY_ISSUER_ID") (isEnvSet "MACOS_NOTARY_KEY_ID")
+        (isEnvSet "MACOS_NOTARY_KEY") }}
       ids:
         - repokeeper
       sign:
