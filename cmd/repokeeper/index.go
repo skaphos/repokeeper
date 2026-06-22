@@ -71,9 +71,6 @@ Pass --write to save the proposal. Overwriting an existing file requires
 		default:
 			return fmt.Errorf("load existing repo metadata: %w (use --force to replace)", existingErr)
 		}
-		if writeFile && existingErr == nil && !force {
-			return fmt.Errorf("repo metadata already exists at %s (use --force to overwrite)", existingPath)
-		}
 
 		proposal, err := buildIndexProposal(entry, existing, yes, promoteLocalLabels, cmd.InOrStdin(), cmd.ErrOrStderr())
 		if err != nil {
@@ -89,6 +86,11 @@ Pass --write to save the proposal. Overwriting an existing file requires
 		if !writeFile {
 			infof(cmd, "preview only; rerun with --write to save repo metadata")
 			return nil
+		}
+		// The diff/preview above is always shown first; only then enforce that
+		// overwriting an existing, loadable file requires --force.
+		if existingErr == nil && !force {
+			return fmt.Errorf("repo metadata already exists at %s (use --force to overwrite)", existingPath)
 		}
 		if !yes {
 			confirmed, err := confirmWithPrompt(cmd, fmt.Sprintf("Write repo metadata to %s? [y/N]: ", existingPath))
@@ -202,9 +204,6 @@ Pass --write to save the proposals. Overwriting existing files requires
 			default:
 				return fmt.Errorf("load existing repo metadata for %s: %w (use --force to replace)", entry.RepoID, existingErr)
 			}
-			if writeFile && existingErr == nil && !force {
-				return fmt.Errorf("repo metadata already exists at %s for %s (use --force to overwrite)", existingPath, entry.RepoID)
-			}
 			proposal := guessRepoMetadataDefaults(entry, existing)
 			proposal.Labels = mergePromotedLabels(proposal.Labels, entry.Labels)
 			proposals = append(proposals, bulkProposal{entry: entry, target: existingPath, proposal: proposal, existingErr: existingErr})
@@ -225,6 +224,15 @@ Pass --write to save the proposals. Overwriting existing files requires
 		if !writeFile {
 			infof(cmd, "preview only; rerun with --write to save repo metadata")
 			return nil
+		}
+		// Previews/diffs for every repo are shown above; only then enforce that
+		// overwriting an existing, loadable file requires --force.
+		if !force {
+			for _, proposal := range proposals {
+				if proposal.existingErr == nil {
+					return fmt.Errorf("repo metadata already exists at %s for %s (use --force to overwrite)", proposal.target, proposal.entry.RepoID)
+				}
+			}
 		}
 		if !yes {
 			confirmed, err := confirmWithPrompt(cmd, fmt.Sprintf("Write repo metadata for %d repositories? [y/N]: ", len(proposals)))
@@ -470,29 +478,34 @@ func fallbackMetadataPath(repoRoot, current string) string {
 	return filepath.Join(repoRoot, repometa.PreferredFilename)
 }
 
-// writeMetadataPreview renders an index proposal for the user. When a current
-// repo metadata file was loaded (existingErr == nil) it shows a unified diff of
-// that file against the proposed content, or a note when nothing would change.
-// Otherwise it prints the full proposed file. proposed must be the canonical
-// bytes Save would write (see repometa.Render).
-func writeMetadataPreview(out io.Writer, existingPath string, proposed []byte, existingErr error) error {
-	if existingErr == nil {
-		current, err := os.ReadFile(existingPath)
-		if err != nil {
-			return fmt.Errorf("read existing repo metadata: %w", err)
-		}
-		diff, err := unifiedDiff(current, proposed, existingPath)
-		if err != nil {
-			return err
-		}
-		if diff == "" {
-			_, err := fmt.Fprintf(out, "# Repo metadata unchanged\n# Target: %s\n", existingPath)
-			return err
-		}
-		_, err = fmt.Fprintf(out, "# Repo metadata diff\n# Target: %s\n%s", existingPath, diff)
+// writeMetadataPreview renders an index proposal for the user. Whenever a file
+// already exists at existingPath it shows a unified diff of that file's raw
+// bytes against the proposed content (or a note when nothing would change) —
+// even if the file could not be parsed/loaded, so a --force replace still shows
+// what would change. When no file exists it prints the full proposed file.
+// loadErr is the error from loading the existing metadata (if any) and is used
+// only to annotate the diff when the on-disk file could not be parsed. proposed
+// must be the canonical bytes Save would write (see repometa.Render).
+func writeMetadataPreview(out io.Writer, existingPath string, proposed []byte, loadErr error) error {
+	current, readErr := os.ReadFile(existingPath)
+	if readErr != nil {
+		// No existing file on disk (or it can't be read): show the full proposal.
+		_, err := fmt.Fprintf(out, "# Repo metadata preview\n# Target: %s\n%s", existingPath, string(proposed))
 		return err
 	}
-	_, err := fmt.Fprintf(out, "# Repo metadata preview\n# Target: %s\n%s", existingPath, string(proposed))
+	note := ""
+	if loadErr != nil && !errors.Is(loadErr, repometa.ErrNotFound) {
+		note = fmt.Sprintf("# note: existing file could not be parsed (%v); diffing raw contents\n", loadErr)
+	}
+	diff, err := unifiedDiff(current, proposed, existingPath)
+	if err != nil {
+		return err
+	}
+	if diff == "" {
+		_, err := fmt.Fprintf(out, "# Repo metadata unchanged\n# Target: %s\n%s", existingPath, note)
+		return err
+	}
+	_, err = fmt.Fprintf(out, "# Repo metadata diff\n# Target: %s\n%s%s", existingPath, note, diff)
 	return err
 }
 

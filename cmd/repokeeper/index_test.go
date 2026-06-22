@@ -3,6 +3,7 @@ package repokeeper
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -315,6 +316,30 @@ func TestWriteMetadataPreviewShowsDiff(t *testing.T) {
 	for _, want := range []string{"-name: Old Name", "+name: New Name"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected diff to contain %q, got:\n%s", want, got)
+		}
+	}
+}
+
+func TestWriteMetadataPreviewDiffsUnparseableExisting(t *testing.T) {
+	t.Parallel()
+	proposed, err := repometa.Render(&model.RepoMetadata{Name: "Repo", RepoID: "acme/repo"})
+	if err != nil {
+		t.Fatalf("render proposal: %v", err)
+	}
+	target := filepath.Join(t.TempDir(), repometa.PreferredFilename)
+	// Existing on-disk file that is present but not valid metadata.
+	if err := os.WriteFile(target, []byte("name: [unterminated\n"), 0o644); err != nil {
+		t.Fatalf("seed existing file: %v", err)
+	}
+	var out bytes.Buffer
+	loadErr := errors.New("parse .repokeeper-repo.yaml: yaml: bad indentation")
+	if err := writeMetadataPreview(&out, target, proposed, loadErr); err != nil {
+		t.Fatalf("write preview: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"# Repo metadata diff", "could not be parsed", "+name: Repo"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected diff of unparseable existing file to contain %q, got:\n%s", want, got)
 		}
 	}
 }
