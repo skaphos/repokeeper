@@ -19,7 +19,6 @@ import (
 	"github.com/skaphos/repokeeper/internal/repometa"
 	"github.com/skaphos/repokeeper/internal/selector"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v3"
 )
 
 var indexCmd = &cobra.Command{
@@ -128,7 +127,16 @@ Pass --write to save the proposal. Overwriting an existing file requires
 var indexReposCmd = &cobra.Command{
 	Use:   "repos",
 	Short: "Preview or write repo-local metadata for selected repositories",
-	Args:  cobra.NoArgs,
+	Long: `Preview or write repo-local metadata for selected repositories.
+
+Each selected repository is previewed in turn. When a repository already has a
+.repokeeper-repo.yaml, its preview is rendered as a unified diff of the current
+file against the proposed content (or a note that it is unchanged); otherwise
+the full proposed file is shown.
+
+Pass --write to save the proposals. Overwriting existing files requires
+--force, and the diffs are shown before the write is confirmed.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -177,9 +185,10 @@ var indexReposCmd = &cobra.Command{
 		}
 
 		type bulkProposal struct {
-			entry    registry.Entry
-			target   string
-			proposal *model.RepoMetadata
+			entry       registry.Entry
+			target      string
+			proposal    *model.RepoMetadata
+			existingErr error
 		}
 		proposals := make([]bulkProposal, 0, len(selected))
 		for _, entry := range selected {
@@ -198,17 +207,18 @@ var indexReposCmd = &cobra.Command{
 			}
 			proposal := guessRepoMetadataDefaults(entry, existing)
 			proposal.Labels = mergePromotedLabels(proposal.Labels, entry.Labels)
-			proposal.APIVersion = repometa.APIVersion
-			proposal.Kind = repometa.Kind
-			proposals = append(proposals, bulkProposal{entry: entry, target: existingPath, proposal: proposal})
+			proposals = append(proposals, bulkProposal{entry: entry, target: existingPath, proposal: proposal, existingErr: existingErr})
 		}
 
 		for _, proposal := range proposals {
-			preview, err := yaml.Marshal(proposal.proposal)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "# Repo: %s\n", proposal.entry.RepoID); err != nil {
+				return err
+			}
+			proposed, err := repometa.Render(proposal.proposal)
 			if err != nil {
 				return err
 			}
-			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "# Repo metadata preview\n# Repo: %s\n# Target: %s\n%s", proposal.entry.RepoID, proposal.target, string(preview)); err != nil {
+			if err := writeMetadataPreview(cmd.OutOrStdout(), proposal.target, proposed, proposal.existingErr); err != nil {
 				return err
 			}
 		}
