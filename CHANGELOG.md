@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/skaphos/repokeeper/compare/v1.2.0...v1.3.0) (2026-06-22)
+
+
+### Features
+
+* **index:** show unified diff of proposed vs existing repo metadata ([#248](https://github.com/skaphos/repokeeper/issues/248)) ([a708607](https://github.com/skaphos/repokeeper/commit/a708607c4650672107f05504b9c40635b6a247f7))
+
 ## [1.2.0](https://github.com/skaphos/repokeeper/compare/v1.1.0...v1.2.0) (2026-05-31)
 
 
