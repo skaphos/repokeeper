@@ -9,7 +9,7 @@ require (
 	github.com/caarlos0/go-shellwords v1.0.12
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 	github.com/mark3labs/mcp-go v0.55.0
-	github.com/onsi/ginkgo/v2 v2.31.0
+	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.0
 	github.com/pelletier/go-toml/v2 v2.4.0
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
