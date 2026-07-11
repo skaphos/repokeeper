@@ -217,3 +217,45 @@ func TestPrepareSyncEntryUnknownFilterFailsClosed(t *testing.T) {
 		t.Fatalf("expected FilterAll to queue the entry, got queue=%v immediate=%v", queue, immediate)
 	}
 }
+
+// Fail-fast: a planned item with no steps is a corrupt/invalid plan. steps is
+// unexported, so the planner is the only thing that can populate it; an empty
+// slice must fail as failed_invalid rather than silently report a no-op success.
+func TestExecutePlannedSyncItemEmptyStepsFailsInvalid(t *testing.T) {
+	adapter := &planAdapter{}
+	eng := newPlanExecEngine(adapter)
+
+	item := SyncResult{Path: "/repo", Planned: true, Outcome: SyncOutcomeFetched}
+	got := eng.executePlannedSyncItem(context.Background(), item)
+
+	if got.OK {
+		t.Fatalf("expected empty-steps item to fail, got OK=true (outcome=%v)", got.Outcome)
+	}
+	if got.Outcome != SyncOutcomeFailedInvalid {
+		t.Fatalf("expected outcome %v, got %v", SyncOutcomeFailedInvalid, got.Outcome)
+	}
+	if len(adapter.calls) != 0 {
+		t.Fatalf("expected no adapter calls for an invalid plan, got %v", adapter.calls)
+	}
+}
+
+// Fail-fast: an unrecognized step (corrupt plan, or a new step type added
+// without executor support) must fail as failed_invalid rather than skip the
+// work and report success.
+func TestExecutePlannedNonCloneUnknownStepFailsInvalid(t *testing.T) {
+	adapter := &planAdapter{}
+	eng := newPlanExecEngine(adapter)
+
+	item := SyncResult{Path: "/repo", Planned: true, steps: []syncStep{syncStep("bogus")}}
+	got := eng.executePlannedSyncItem(context.Background(), item)
+
+	if got.OK {
+		t.Fatalf("expected unknown-step item to fail, got OK=true (outcome=%v)", got.Outcome)
+	}
+	if got.Outcome != SyncOutcomeFailedInvalid {
+		t.Fatalf("expected outcome %v, got %v", SyncOutcomeFailedInvalid, got.Outcome)
+	}
+	if len(adapter.calls) != 0 {
+		t.Fatalf("expected no adapter calls before hitting the unknown step, got %v", adapter.calls)
+	}
+}

@@ -648,7 +648,19 @@ func (e *Engine) executePlannedSyncItem(ctx context.Context, item SyncResult) Sy
 	executed.Error = ""
 	executed.ErrorClass = ""
 
-	if len(item.steps) > 0 && item.steps[0] == syncStepClone {
+	// A planned item must carry at least one step. steps is unexported, so the
+	// planner is the only thing that can populate it; an empty slice means a
+	// corrupt/invalid plan rather than a legitimate no-op. Fail fast instead of
+	// silently reporting success and keeping a planned_* outcome.
+	if len(item.steps) == 0 {
+		executed.OK = false
+		executed.Outcome = SyncOutcomeFailedInvalid
+		executed.Error = "planned sync item has no steps"
+		executed.ErrorClass = "invalid"
+		return executed
+	}
+
+	if item.steps[0] == syncStepClone {
 		return e.executePlannedClone(ctx, executed)
 	}
 	return e.executePlannedNonClone(ctx, executed)
@@ -708,6 +720,15 @@ func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult
 			if err := e.adapter.Push(ctx, executed.Path); err != nil {
 				return e.failedPlannedSyncResult(executed, SyncOutcomeFailedPush, err)
 			}
+		default:
+			// An unrecognized step means a corrupt plan or a new step type added
+			// without executor support. Fail fast rather than silently skipping
+			// the work and reporting success.
+			executed.OK = false
+			executed.Outcome = SyncOutcomeFailedInvalid
+			executed.Error = fmt.Sprintf("unrecognized sync step %v in plan", step)
+			executed.ErrorClass = "invalid"
+			return executed
 		}
 	}
 	executed.OK = true
