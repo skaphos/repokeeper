@@ -8,10 +8,201 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/spf13/cobra"
 )
+
+// TestTruncateASCIIRuneBoundary guards against slicing multi-byte UTF-8
+// values on a byte boundary, which produces invalid UTF-8 in table cells for
+// non-ASCII paths/branches. Every case is asserted with utf8.ValidString in
+// addition to checking the exact expected content.
+func TestTruncateASCIIRuneBoundary(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		value string
+		max   int
+		want  string
+	}{
+		{
+			name:  "ascii value shorter than max is unchanged",
+			value: "abc",
+			max:   10,
+			want:  "abc",
+		},
+		{
+			name:  "ascii hard truncate at small max",
+			value: "abcdef",
+			max:   3,
+			want:  "abc",
+		},
+		{
+			name: "multi-byte value truncated with ellipsis stays valid utf-8",
+			// each kanji is 3 bytes in UTF-8; old byte-slicing logic would cut
+			// mid-rune for a max that isn't a multiple of the rune's byte width.
+			value: "日本語テスト",
+			max:   4,
+			want:  "日...",
+		},
+		{
+			name:  "multi-byte value hard-truncated at small max stays valid utf-8",
+			value: "日本語",
+			max:   2,
+			want:  "日本",
+		},
+		{
+			name:  "multi-byte value shorter than max is unchanged",
+			value: "日本語",
+			max:   10,
+			want:  "日本語",
+		},
+		{
+			name:  "zero max returns empty string without panicking",
+			value: "abcdef",
+			max:   0,
+			want:  "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := truncateASCII(tc.value, tc.max)
+			if got != tc.want {
+				t.Fatalf("truncateASCII(%q, %d) = %q, want %q", tc.value, tc.max, got, tc.want)
+			}
+			if !utf8.ValidString(got) {
+				t.Fatalf("truncateASCII(%q, %d) = %q is not valid UTF-8", tc.value, tc.max, got)
+			}
+		})
+	}
+}
+
+// TestSanitizeForDisplayStripsControlAndANSISequences guards writeStatusDetails
+// against emitting raw ANSI/control sequences from untrusted label,
+// annotation, error, and repo-metadata values (settable via the CLI or an
+// imported repo-local metadata bundle) verbatim to the TTY.
+func TestSanitizeForDisplayStripsControlAndANSISequences(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "plain value is unchanged", value: "prod-team", want: "prod-team"},
+		{name: "empty value is unchanged", value: "", want: ""},
+		{
+			name:  "csi color sequence is stripped",
+			value: "\x1b[31mdanger\x1b[0m",
+			want:  "danger",
+		},
+		{
+			name:  "osc terminal title injection is stripped",
+			value: "safe\x1b]0;pwned\x07tail",
+			want:  "safetail",
+		},
+		{
+			name:  "embedded newline cannot forge an extra KEY: line",
+			value: "team=platform\nADMIN: true",
+			want:  "team=platformADMIN: true",
+		},
+		{
+			name:  "carriage return and tab are stripped",
+			value: "a\rb\tc",
+			want:  "abc",
+		},
+		{
+			name:  "del and other c0 control bytes are stripped",
+			value: "a\x7fb\x00c",
+			want:  "abc",
+		},
+		{
+			name:  "unicode content outside the control range is preserved",
+			value: "日本語-label",
+			want:  "日本語-label",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := sanitizeForDisplay(tc.value)
+			if got != tc.want {
+				t.Fatalf("sanitizeForDisplay(%q) = %q, want %q", tc.value, got, tc.want)
+			}
+			if !utf8.ValidString(got) {
+				t.Fatalf("sanitizeForDisplay(%q) = %q is not valid UTF-8", tc.value, got)
+			}
+		})
+	}
+}
+
+// TestWriteStatusDetailsSanitizesUntrustedValues is an end-to-end regression
+// for the writeStatusDetails wiring: a control/ANSI sequence smuggled into a
+// label, an annotation, the error string, or repo metadata must not reach
+// cmd.OutOrStdout() verbatim.
+func TestWriteStatusDetailsSanitizesUntrustedValues(t *testing.T) {
+	t.Parallel()
+
+	out := &bytes.Buffer{}
+	cmd := &cobra.Command{}
+	cmd.SetOut(out)
+
+	repo := model.RepoStatus{
+		Path:   "/repos/testrepo",
+		Head:   model.Head{Branch: "main"},
+		Labels: map[string]string{"team": "platform\x1b[31m"},
+		Annotations: map[string]string{
+			"owner": "sre\nADMIN: true",
+		},
+		Tracking:          model.Tracking{Status: model.TrackingNone},
+		Error:             "boom\x1b]0;pwned\x07after",
+		RepoMetadataError: "bad\x1b[2Jmetadata",
+		RepoMetadata: &model.RepoMetadata{
+			Name:   "evil\x1b[31mname",
+			RepoID: "org/evil\x1b[0mid",
+		},
+	}
+
+	if err := writeStatusDetails(cmd, repo, "/repos", nil); err != nil {
+		t.Fatalf("writeStatusDetails returned error: %v", err)
+	}
+	got := out.String()
+
+	if strings.ContainsRune(got, 0x1b) {
+		t.Fatalf("expected no raw ESC bytes in output, got %q", got)
+	}
+	if strings.Contains(got, "\x07") {
+		t.Fatalf("expected no raw BEL byte in output, got %q", got)
+	}
+	for _, line := range strings.Split(got, "\n") {
+		if line == "ADMIN: true" {
+			t.Fatalf("embedded newline in annotation value forged a standalone ADMIN line: %q", got)
+		}
+	}
+	if !strings.Contains(got, "LABELS: team=platform\n") {
+		t.Fatalf("expected sanitized label line, got %q", got)
+	}
+	if !strings.Contains(got, "ERROR: boomafter\n") {
+		t.Fatalf("expected sanitized error line, got %q", got)
+	}
+	if !strings.Contains(got, "REPO_METADATA_ERROR: badmetadata\n") {
+		t.Fatalf("expected sanitized repo metadata error line, got %q", got)
+	}
+	if !strings.Contains(got, "REPO_METADATA_NAME: evilname\n") {
+		t.Fatalf("expected sanitized repo metadata name line, got %q", got)
+	}
+	if !strings.Contains(got, "REPO_METADATA_REPO_ID: org/evilid\n") {
+		t.Fatalf("expected sanitized repo metadata repo id line, got %q", got)
+	}
+	if !utf8.ValidString(got) {
+		t.Fatalf("expected valid UTF-8 output, got %q", got)
+	}
+}
 
 func TestRelatedReposString(t *testing.T) {
 	t.Parallel()

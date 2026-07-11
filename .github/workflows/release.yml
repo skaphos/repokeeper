@@ -68,9 +68,9 @@ jobs:
             echo "args=release --clean --skip=homebrew" >> "$GITHUB_OUTPUT"
             echo "::warning::GitHub App token cannot access skaphos/homebrew-tools; skipping Homebrew formula publish."
           fi
-      - uses: goreleaser/goreleaser-action@v7.2.2
+      - uses: goreleaser/goreleaser-action@v7.2.3
         with:
-          version: v2.16.0
+          version: v2.17.0
           args: ${{ steps.goreleaser_args.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -83,11 +83,11 @@ jobs:
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
       - name: Attest release archives
-        uses: actions/attest-build-provenance@v4.1.0
+        uses: actions/attest-build-provenance@v4.1.1
         with:
           subject-checksums: dist/checksums.txt
       - name: Attest release metadata artifacts
-        uses: actions/attest-build-provenance@v4.1.0
+        uses: actions/attest-build-provenance@v4.1.1
         with:
           subject-path: |
             dist/checksums.txt

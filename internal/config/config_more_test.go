@@ -78,9 +78,71 @@ func TestFindNearestConfigPathErrorsOnInvalidCWD(t *testing.T) {
 		t.Fatalf("write file: %v", err)
 	}
 
-	_, err := FindNearestConfigPath(filePath)
+	_, err := findNearestConfigPath(filePath)
 	if err == nil {
 		t.Fatal("expected error for invalid cwd file path")
+	}
+}
+
+func TestFindNearestConfigPathIgnoresDirectoryNamedLikeConfig(t *testing.T) {
+	tmp := t.TempDir()
+	// A directory (not a regular file) named .repokeeper.yaml must not be
+	// treated as a config file.
+	if err := os.Mkdir(filepath.Join(tmp, LocalConfigFilename), 0o755); err != nil {
+		t.Fatalf("mkdir config-named dir: %v", err)
+	}
+	got, err := findNearestConfigPath(tmp)
+	if err != nil {
+		t.Fatalf("findNearestConfigPath: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("expected no config match for a directory, got %q", got)
+	}
+}
+
+func TestFindNearestConfigPathDoesNotWalkIntoSharedDir(t *testing.T) {
+	// Simulate a planted config in a shared, world-writable ancestor. The walk
+	// must not ascend into it and adopt the planted file.
+	shared := filepath.Join(t.TempDir(), "shared")
+	if err := os.Mkdir(shared, 0o777); err != nil {
+		t.Fatalf("mkdir shared: %v", err)
+	}
+	// Make it world-writable + sticky regardless of umask (mimics /tmp).
+	if err := os.Chmod(shared, 0o777|os.ModeSticky); err != nil {
+		t.Fatalf("chmod shared: %v", err)
+	}
+	planted := filepath.Join(shared, LocalConfigFilename)
+	if err := os.WriteFile(planted, []byte("exclude: []\n"), 0o644); err != nil {
+		t.Fatalf("write planted config: %v", err)
+	}
+	child := filepath.Join(shared, "victim")
+	if err := os.Mkdir(child, 0o755); err != nil {
+		t.Fatalf("mkdir victim: %v", err)
+	}
+
+	got, err := findNearestConfigPath(child)
+	if err != nil {
+		t.Fatalf("findNearestConfigPath: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("expected walk to stop before adopting planted config, got %q", got)
+	}
+}
+
+func TestFindNearestConfigPathStopsAtHome(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("no home directory available")
+	}
+	// From within home the walk must never return a path above home.
+	got, err := findNearestConfigPath(home)
+	if err != nil {
+		t.Fatalf("findNearestConfigPath: %v", err)
+	}
+	if got != "" {
+		if rel, relErr := filepath.Rel(home, got); relErr == nil && strings.HasPrefix(rel, "..") {
+			t.Fatalf("walk escaped above home: %q", got)
+		}
 	}
 }
 
@@ -138,7 +200,7 @@ func TestValidateSavedConfigGVKErrors(t *testing.T) {
 }
 
 func TestConfigDirVariants(t *testing.T) {
-	got, err := ConfigDir(filepath.Join("/tmp", "cfg", "config.yaml"))
+	got, err := configDir(filepath.Join("/tmp", "cfg", "config.yaml"))
 	if err != nil {
 		t.Fatalf("ConfigDir override file: %v", err)
 	}
@@ -146,7 +208,7 @@ func TestConfigDirVariants(t *testing.T) {
 		t.Fatalf("expected file-dir path, got %q", got)
 	}
 
-	got, err = ConfigDir(filepath.Join("/tmp", "cfgdir"))
+	got, err = configDir(filepath.Join("/tmp", "cfgdir"))
 	if err != nil {
 		t.Fatalf("ConfigDir override dir: %v", err)
 	}
@@ -157,7 +219,7 @@ func TestConfigDirVariants(t *testing.T) {
 	if err := os.Setenv("REPOKEEPER_CONFIG", filepath.Join("/tmp", "envcfg", "config.yaml")); err != nil {
 		t.Fatalf("set env: %v", err)
 	}
-	got, err = ConfigDir("")
+	got, err = configDir("")
 	if err != nil {
 		t.Fatalf("ConfigDir env file: %v", err)
 	}
@@ -168,7 +230,7 @@ func TestConfigDirVariants(t *testing.T) {
 	if err := os.Setenv("REPOKEEPER_CONFIG", filepath.Join("/tmp", "envcfgdir")); err != nil {
 		t.Fatalf("set env: %v", err)
 	}
-	got, err = ConfigDir("")
+	got, err = configDir("")
 	if err != nil {
 		t.Fatalf("ConfigDir env dir: %v", err)
 	}

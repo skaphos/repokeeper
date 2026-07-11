@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/skaphos/repokeeper/internal/cliio"
 	"github.com/skaphos/repokeeper/internal/config"
@@ -543,14 +544,22 @@ func formatCell(value string, wrap bool, max int) string {
 	return truncateASCII(value, max)
 }
 
+// truncateASCII truncates value to at most max runes, appending "..." when
+// truncation occurs and room allows. Despite the name (kept for call-site
+// stability), it truncates on rune boundaries rather than byte offsets so
+// non-ASCII paths/branches are never cut mid-codepoint into invalid UTF-8.
 func truncateASCII(value string, max int) string {
-	if len(value) <= max {
+	if max <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(value) <= max {
 		return value
 	}
+	runes := []rune(value)
 	if max <= 3 {
-		return value[:max]
+		return string(runes[:max])
 	}
-	return value[:max-3] + "..."
+	return string(runes[:max-3]) + "..."
 }
 
 func statusExitCode(report *model.StatusReport, reg *registry.Registry) int {
@@ -571,6 +580,81 @@ func statusExitCode(report *model.StatusReport, reg *registry.Registry) int {
 		}
 	}
 	return code
+}
+
+// sanitizeForDisplay strips ANSI/CSI/OSC escape sequences and other C0
+// control characters (including newlines and tabs) from values that may
+// originate from untrusted sources - repo labels/annotations set via the
+// CLI, or repo-local metadata imported from a bundle - before they are
+// written to the terminal in `describe`/`status` detail output. Without
+// this, a crafted label could inject terminal escape sequences or forge
+// extra "KEY: value" lines via an embedded newline. The -o json path does
+// not go through this: JSON output is not interpreted by a terminal.
+func sanitizeForDisplay(value string) string {
+	if value == "" {
+		return value
+	}
+	hasControl := false
+	for _, r := range value {
+		if r == 0x1b || r == 0x7f || (r < 0x20) {
+			hasControl = true
+			break
+		}
+	}
+	if !hasControl {
+		return value
+	}
+	var b strings.Builder
+	b.Grow(len(value))
+	runes := []rune(value)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == 0x1b {
+			i = skipANSIEscape(runes, i)
+			continue
+		}
+		if r == 0x7f || r < 0x20 {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// skipANSIEscape returns the index of the last rune consumed by the escape
+// sequence starting at runes[start] (which must be ESC), so the caller's loop
+// can resume just past it.
+func skipANSIEscape(runes []rune, start int) int {
+	i := start + 1
+	if i >= len(runes) {
+		return start
+	}
+	switch runes[i] {
+	case '[': // CSI: ESC '[' ... final byte in 0x40-0x7e
+		i++
+		for i < len(runes) {
+			if runes[i] >= 0x40 && runes[i] <= 0x7e {
+				return i
+			}
+			i++
+		}
+		return len(runes) - 1
+	case ']': // OSC: ESC ']' ... terminated by BEL or ESC '\'
+		i++
+		for i < len(runes) {
+			if runes[i] == 0x07 {
+				return i
+			}
+			if runes[i] == 0x1b && i+1 < len(runes) && runes[i+1] == '\\' {
+				return i + 1
+			}
+			i++
+		}
+		return len(runes) - 1
+	default:
+		// two-character escape sequence (e.g. ESC followed by a single char)
+		return i
+	}
 }
 
 func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, roots []string) error {
@@ -636,12 +720,12 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 	}
 	if repo.RepoMetadata != nil {
 		if repo.RepoMetadata.Name != "" {
-			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_NAME: %s\n", repo.RepoMetadata.Name); err != nil {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_NAME: %s\n", sanitizeForDisplay(repo.RepoMetadata.Name)); err != nil {
 				return err
 			}
 		}
 		if repo.RepoMetadata.RepoID != "" {
-			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_REPO_ID: %s\n", repo.RepoMetadata.RepoID); err != nil {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_REPO_ID: %s\n", sanitizeForDisplay(repo.RepoMetadata.RepoID)); err != nil {
 				return err
 			}
 		}
@@ -665,7 +749,7 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 		}
 	}
 	if repo.RepoMetadataError != "" {
-		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_ERROR: %s\n", repo.RepoMetadataError); err != nil {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REPO_METADATA_ERROR: %s\n", sanitizeForDisplay(repo.RepoMetadataError)); err != nil {
 			return err
 		}
 	}
@@ -689,7 +773,7 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 		}
 	}
 	if repo.Error != "" {
-		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "ERROR: %s\n", repo.Error); err != nil {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "ERROR: %s\n", sanitizeForDisplay(repo.Error)); err != nil {
 			return err
 		}
 	}
@@ -763,7 +847,7 @@ func metadataMapString(values map[string]string) string {
 	}
 	parts := make([]string, 0, len(values))
 	for k, v := range values {
-		parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+		parts = append(parts, fmt.Sprintf("%s=%s", sanitizeForDisplay(k), sanitizeForDisplay(v)))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, ",")
@@ -773,7 +857,10 @@ func metadataListString(values []string) string {
 	if len(values) == 0 {
 		return "-"
 	}
-	parts := append([]string(nil), values...)
+	parts := make([]string, 0, len(values))
+	for _, v := range values {
+		parts = append(parts, sanitizeForDisplay(v))
+	}
 	sort.Strings(parts)
 	return strings.Join(parts, ",")
 }
@@ -784,11 +871,12 @@ func relatedReposString(values []model.RepoMetadataRelatedRepo) string {
 	}
 	parts := make([]string, 0, len(values))
 	for _, value := range values {
+		repoID := sanitizeForDisplay(value.RepoID)
 		if strings.TrimSpace(value.Relationship) == "" {
-			parts = append(parts, value.RepoID)
+			parts = append(parts, repoID)
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s:%s", value.RepoID, value.Relationship))
+		parts = append(parts, fmt.Sprintf("%s:%s", repoID, sanitizeForDisplay(value.Relationship)))
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, ",")

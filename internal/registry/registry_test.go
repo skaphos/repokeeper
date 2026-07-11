@@ -363,12 +363,24 @@ func TestFindEntriesByRepoIDReturnsAllCheckoutMatches(t *testing.T) {
 
 func TestFindByRepoIDAndCheckoutIDBackfillsLegacyEntries(t *testing.T) {
 	g := NewWithT(t)
-	reg := &registry.Registry{
-		Entries: []registry.Entry{
-			{RepoID: "github.com/acme/repo", Path: "/worktrees/primary", Status: registry.StatusPresent},
-			{RepoID: "github.com/acme/repo", Path: "/worktrees/secondary", Status: registry.StatusPresent},
-		},
-	}
+	// A legacy registry on disk omits checkout_id entirely. Loading it must
+	// backfill checkout_id eagerly so subsequent lookups stay read-only.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "registry.yaml")
+	legacy := "repos:\n" +
+		"  - repo_id: github.com/acme/repo\n" +
+		"    path: /worktrees/primary\n" +
+		"    status: present\n" +
+		"  - repo_id: github.com/acme/repo\n" +
+		"    path: /worktrees/secondary\n" +
+		"    status: present\n"
+	g.Expect(os.WriteFile(path, []byte(legacy), 0o644)).To(Succeed())
+
+	reg, err := registry.Load(path)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(reg.Entries).To(HaveLen(2))
+	g.Expect(reg.Entries[0].CheckoutID).To(Equal("primary"), "load should backfill checkout_id")
+	g.Expect(reg.Entries[1].CheckoutID).To(Equal("secondary"))
 
 	primary := reg.FindByRepoIDAndCheckoutID("github.com/acme/repo", "primary")
 	g.Expect(primary).NotTo(BeNil())
@@ -381,4 +393,72 @@ func TestFindByRepoIDAndCheckoutIDBackfillsLegacyEntries(t *testing.T) {
 	g.Expect(secondary.CheckoutID).To(Equal("secondary"))
 
 	g.Expect(reg.FindByRepoIDAndCheckoutID("github.com/acme/repo", "missing")).To(BeNil())
+}
+
+// TestUpsertKeepsCoexistingSameBasenameCheckouts covers the collision bug: two
+// live checkouts of one repo whose directories share a basename (e.g.
+// work/proj and scratch/proj) must not overwrite each other.
+func TestUpsertKeepsCoexistingSameBasenameCheckouts(t *testing.T) {
+	g := NewWithT(t)
+	root := t.TempDir()
+	workProj := filepath.Join(root, "work", "proj")
+	scratchProj := filepath.Join(root, "scratch", "proj")
+	g.Expect(os.MkdirAll(workProj, 0o755)).To(Succeed())
+	g.Expect(os.MkdirAll(scratchProj, 0o755)).To(Succeed())
+
+	reg := &registry.Registry{}
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/proj", Path: workProj, Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/proj", Path: scratchProj, Status: registry.StatusPresent})
+
+	g.Expect(reg.Entries).To(HaveLen(2), "coexisting same-basename checkouts must both survive")
+
+	work := reg.FindEntry("github.com/acme/proj", workProj)
+	g.Expect(work).NotTo(BeNil())
+	g.Expect(work.Path).To(Equal(workProj))
+	g.Expect(work.Status).NotTo(Equal(registry.StatusMoved), "a coexisting checkout must not be mis-marked as moved")
+
+	scratch := reg.FindEntry("github.com/acme/proj", scratchProj)
+	g.Expect(scratch).NotTo(BeNil())
+	g.Expect(scratch.Path).To(Equal(scratchProj))
+
+	// The two entries must carry distinct checkout identities.
+	g.Expect(work.CheckoutID).NotTo(Equal(scratch.CheckoutID))
+}
+
+// TestUpsertReHomesMovedCheckout confirms that when the previous path is gone
+// (a genuine move), the entry is re-homed rather than duplicated.
+func TestUpsertReHomesMovedCheckout(t *testing.T) {
+	g := NewWithT(t)
+	root := t.TempDir()
+	newPath := filepath.Join(root, "moved", "proj")
+	g.Expect(os.MkdirAll(newPath, 0o755)).To(Succeed())
+	oldPath := filepath.Join(root, "gone", "proj") // never created on disk
+
+	reg := &registry.Registry{}
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/proj", Path: oldPath, Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/proj", Path: newPath, Status: registry.StatusPresent})
+
+	g.Expect(reg.Entries).To(HaveLen(1), "a move must re-home the single entry")
+	g.Expect(reg.Entries[0].Path).To(Equal(newPath))
+	g.Expect(reg.Entries[0].Status).To(Equal(registry.StatusMoved))
+}
+
+// TestLookupsDoNotMutateEntries guards finding #1: lookups must be read-only so
+// they are safe to call concurrently. Legacy entries (empty checkout_id) that
+// are read via a lookup must not have their stored field rewritten.
+func TestLookupsDoNotMutateEntries(t *testing.T) {
+	g := NewWithT(t)
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "github.com/acme/repo", Path: "/worktrees/primary", Status: registry.StatusPresent},
+		},
+	}
+
+	_ = reg.FindEntry("github.com/acme/repo", "/worktrees/primary")
+	_ = reg.FindEntryIndex("github.com/acme/repo", "/worktrees/primary")
+	_ = reg.FindByRepoID("github.com/acme/repo")
+	_ = reg.FindByRepoIDAndCheckoutID("github.com/acme/repo", "primary")
+	_ = reg.FindEntriesByRepoID("github.com/acme/repo")
+
+	g.Expect(reg.Entries[0].CheckoutID).To(BeEmpty(), "read-only lookups must not mutate the stored entry")
 }
