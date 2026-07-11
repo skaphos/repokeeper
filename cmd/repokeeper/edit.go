@@ -187,12 +187,25 @@ func validateEditedRegistryEntry(entry registry.Entry, reg *registry.Registry, i
 		}
 	}
 	if reg != nil {
+		// Multiple registry entries may legitimately share a repo_id (the
+		// supported multi-checkout case: several checkouts of the same
+		// repository at different paths/checkout_ids). Uniqueness is keyed
+		// on (repo_id, checkout_id) when a checkout_id is set, or on
+		// (repo_id, path) otherwise — not on repo_id alone.
+		checkoutID := strings.TrimSpace(entry.CheckoutID)
 		for i := range reg.Entries {
 			if i == index {
 				continue
 			}
-			if reg.Entries[i].RepoID == entry.RepoID {
-				return fmt.Errorf("invalid entry: repo_id %q already exists", entry.RepoID)
+			other := reg.Entries[i]
+			if other.RepoID != entry.RepoID {
+				continue
+			}
+			if checkoutID != "" && strings.TrimSpace(other.CheckoutID) == checkoutID {
+				return fmt.Errorf("invalid entry: repo_id %q and checkout_id %q already exists", entry.RepoID, checkoutID)
+			}
+			if strings.TrimSpace(other.Path) == entryPath {
+				return fmt.Errorf("invalid entry: repo_id %q and path %q already exists", entry.RepoID, entryPath)
 			}
 		}
 	}
@@ -204,8 +217,15 @@ func trackingBranchFromUpstream(upstream string) string {
 	if trimmed == "" {
 		return ""
 	}
-	parts := strings.Split(trimmed, "/")
-	return parts[len(parts)-1]
+	// upstream is "remote/branch"; branch names may themselves contain "/"
+	// (e.g. "origin/feature/x"), so only the first segment (the remote name)
+	// is stripped. Splitting on "/" and taking the last segment would
+	// truncate multi-segment branch names down to their final component.
+	_, branch, found := strings.Cut(trimmed, "/")
+	if !found {
+		return trimmed
+	}
+	return branch
 }
 
 func init() {
