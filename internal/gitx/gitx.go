@@ -4,8 +4,10 @@
 package gitx
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -17,7 +19,9 @@ import (
 // This interface allows mocking in tests.
 type Runner interface {
 	// Run executes a git command in the given directory and returns
-	// combined stdout/stderr output.
+	// trimmed stdout only. Any stderr text is folded into the returned
+	// error (see GitRunner.Run) and never appears in the returned string,
+	// so callers can safely parse the result as machine-readable output.
 	Run(ctx context.Context, dir string, args ...string) (string, error)
 }
 
@@ -37,8 +41,30 @@ func (g *GitRunner) Run(ctx context.Context, dir string, args ...string) (string
 	if dir != "" {
 		cmd.Dir = dir
 	}
-	out, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(out)), err
+	// Force the C locale so git's stderr text is stable, untranslated
+	// English: ClassifyError string-matches stderr, and on a non-English
+	// locale every classification would otherwise degrade to "unknown".
+	// A later duplicate key wins in cmd.Env, so this reliably overrides
+	// whatever locale the parent process is running under.
+	cmd.Env = append(os.Environ(), "LC_ALL=C", "LANG=C")
+
+	// Capture stdout and stderr separately (mirrors internal/vcs's
+	// runCommand) instead of CombinedOutput(), which merges the two.
+	// An exit-0 git warning on stderr (e.g. an unknown gitconfig key)
+	// would otherwise corrupt callers that parse stdout as
+	// machine-readable output (IsRepo/IsBare/ParsePorcelainStatus).
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	out := strings.TrimSpace(stdout.String())
+	if err != nil {
+		if errText := strings.TrimSpace(stderr.String()); errText != "" {
+			return out, fmt.Errorf("%s: %w", errText, err)
+		}
+		return out, err
+	}
+	return out, nil
 }
 
 // IsRepo checks whether the given path is inside a git working tree.
@@ -239,13 +265,29 @@ func Push(ctx context.Context, r Runner, dir string) error {
 
 // SetUpstream configures the current local branch to track the given upstream.
 func SetUpstream(ctx context.Context, r Runner, dir, upstream, branch string) error {
-	out, err := r.Run(ctx, dir, "branch", "--set-upstream-to", strings.TrimSpace(upstream), strings.TrimSpace(branch))
+	upstream = strings.TrimSpace(upstream)
+	branch = strings.TrimSpace(branch)
+	if err := rejectFlagLike("upstream", upstream); err != nil {
+		return err
+	}
+	if err := rejectFlagLike("branch", branch); err != nil {
+		return err
+	}
+	out, err := r.Run(ctx, dir, "branch", "--set-upstream-to", upstream, branch)
 	return wrapRunError("git branch --set-upstream-to", out, err)
 }
 
 // SetRemoteURL updates the URL for a named remote.
 func SetRemoteURL(ctx context.Context, r Runner, dir, remote, remoteURL string) error {
-	out, err := r.Run(ctx, dir, "remote", "set-url", strings.TrimSpace(remote), strings.TrimSpace(remoteURL))
+	remote = strings.TrimSpace(remote)
+	remoteURL = strings.TrimSpace(remoteURL)
+	if err := rejectFlagLike("remote", remote); err != nil {
+		return err
+	}
+	if err := rejectFlagLike("remote URL", remoteURL); err != nil {
+		return err
+	}
+	out, err := r.Run(ctx, dir, "remote", "set-url", remote, remoteURL)
 	return wrapRunError("git remote set-url", out, err)
 }
 
@@ -281,15 +323,42 @@ func CleanFD(ctx context.Context, r Runner, dir string) error {
 }
 
 func Clone(ctx context.Context, r Runner, remoteURL, targetPath, branch string, mirror bool) error {
+	remoteURL = strings.TrimSpace(remoteURL)
+	targetPath = strings.TrimSpace(targetPath)
+	branch = strings.TrimSpace(branch)
+	if err := rejectFlagLike("remote URL", remoteURL); err != nil {
+		return err
+	}
+	if targetPath != "" {
+		if err := rejectFlagLike("target path", targetPath); err != nil {
+			return err
+		}
+	}
+
 	args := []string{"clone"}
 	if mirror {
 		args = append(args, "--mirror")
-	} else if strings.TrimSpace(branch) != "" {
-		args = append(args, "--branch", strings.TrimSpace(branch), "--single-branch")
+	} else if branch != "" {
+		if err := rejectFlagLike("branch", branch); err != nil {
+			return err
+		}
+		args = append(args, "--branch", branch, "--single-branch")
 	}
 	args = append(args, remoteURL, targetPath)
 	out, err := r.Run(ctx, "", args...)
 	return wrapRunError("git clone", out, err)
+}
+
+// rejectFlagLike rejects a positional argument (URL, path, ref, or remote
+// name) that begins with "-". git parses such values as an option rather
+// than a literal positional argument, so an attacker-controlled remote URL,
+// branch, or remote name beginning with "-" could otherwise smuggle
+// arbitrary flags into the git invocation.
+func rejectFlagLike(field, value string) error {
+	if strings.HasPrefix(value, "-") {
+		return fmt.Errorf("gitx: %s must not start with '-': %q", field, value)
+	}
+	return nil
 }
 
 func wrapRunError(op, output string, err error) error {

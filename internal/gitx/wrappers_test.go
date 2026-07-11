@@ -80,6 +80,20 @@ func TestSetUpstreamWrapper(t *testing.T) {
 	}
 }
 
+func TestSetUpstreamRejectsFlagLikeArgs(t *testing.T) {
+	// A malicious/malformed upstream or branch beginning with "-" must be
+	// rejected before it ever reaches git, where it would otherwise be
+	// parsed as a flag instead of a literal ref.
+	mock := &MockRunner{Responses: map[string]MockResponse{}}
+
+	if err := gitx.SetUpstream(context.Background(), mock, "/repo", "--upload-pack=evil", "main"); err == nil {
+		t.Fatal("expected error for flag-like upstream")
+	}
+	if err := gitx.SetUpstream(context.Background(), mock, "/repo", "origin/main", "-x"); err == nil {
+		t.Fatal("expected error for flag-like branch")
+	}
+}
+
 func TestSetRemoteURLWrapper(t *testing.T) {
 	mock := &MockRunner{Responses: map[string]MockResponse{
 		"/repo:remote set-url origin git@github.com:org/repo.git": {Output: ""},
@@ -93,6 +107,17 @@ func TestSetRemoteURLWrapper(t *testing.T) {
 	}}
 	if err := gitx.SetRemoteURL(context.Background(), mock, "/repo", "origin", "git@github.com:org/repo.git"); err == nil {
 		t.Fatal("expected set remote url failure")
+	}
+}
+
+func TestSetRemoteURLRejectsFlagLikeArgs(t *testing.T) {
+	mock := &MockRunner{Responses: map[string]MockResponse{}}
+
+	if err := gitx.SetRemoteURL(context.Background(), mock, "/repo", "-o", "git@github.com:org/repo.git"); err == nil {
+		t.Fatal("expected error for flag-like remote name")
+	}
+	if err := gitx.SetRemoteURL(context.Background(), mock, "/repo", "origin", "--upload-pack=evil"); err == nil {
+		t.Fatal("expected error for flag-like remote URL")
 	}
 }
 
@@ -132,5 +157,22 @@ func TestCloneWrapper(t *testing.T) {
 	}}
 	if err := gitx.Clone(context.Background(), mock, "git@github.com:org/repo.git", "/target", "", false); err == nil {
 		t.Fatal("expected clone error")
+	}
+}
+
+func TestCloneRejectsFlagLikeArgs(t *testing.T) {
+	// A remote URL, target path, or branch beginning with "-" must be
+	// rejected before it reaches git, where it would otherwise be parsed
+	// as a flag (e.g. "--upload-pack=...") instead of a literal argument.
+	mock := &MockRunner{Responses: map[string]MockResponse{}}
+
+	if err := gitx.Clone(context.Background(), mock, "--upload-pack=evil", "/target", "", false); err == nil {
+		t.Fatal("expected error for flag-like remote URL")
+	}
+	if err := gitx.Clone(context.Background(), mock, "git@github.com:org/repo.git", "-x", "", false); err == nil {
+		t.Fatal("expected error for flag-like target path")
+	}
+	if err := gitx.Clone(context.Background(), mock, "git@github.com:org/repo.git", "/target", "-x", false); err == nil {
+		t.Fatal("expected error for flag-like branch")
 	}
 }

@@ -89,12 +89,28 @@ func (h *HgAdapter) ResetHard(context.Context, string) error { return errUnsuppo
 func (h *HgAdapter) CleanFD(context.Context, string) error { return errUnsupportedForHg }
 
 func (h *HgAdapter) Clone(ctx context.Context, remoteURL, targetPath, branch string, mirror bool) error {
-	args := []string{"clone"}
-	if strings.TrimSpace(branch) != "" {
-		args = append(args, "--updaterev", strings.TrimSpace(branch))
-	}
 	if mirror {
 		return errUnsupportedForHg
+	}
+
+	remoteURL = strings.TrimSpace(remoteURL)
+	targetPath = strings.TrimSpace(targetPath)
+	branch = strings.TrimSpace(branch)
+	if err := rejectFlagLike("remote URL", remoteURL); err != nil {
+		return err
+	}
+	if targetPath != "" {
+		if err := rejectFlagLike("target path", targetPath); err != nil {
+			return err
+		}
+	}
+
+	args := []string{"clone"}
+	if branch != "" {
+		if err := rejectFlagLike("branch", branch); err != nil {
+			return err
+		}
+		args = append(args, "--updaterev", branch)
 	}
 	args = append(args, remoteURL, targetPath)
 	_, err := runCommand(ctx, "", "hg", args...)

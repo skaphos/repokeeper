@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,6 +14,21 @@ import (
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
 )
+
+// writeFakeBin writes an executable POSIX shell script to a temp dir and
+// returns its path. Used to test GitRunner.Run's process plumbing (env,
+// stdout/stderr separation) without depending on real git's exact output.
+func writeFakeBin(script string) string {
+	if runtime.GOOS == "windows" {
+		Skip("fake git script uses POSIX shell")
+	}
+	tmpDir, err := os.MkdirTemp("", "gitx-fakebin")
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+	binPath := filepath.Join(tmpDir, "fake-git")
+	Expect(os.WriteFile(binPath, []byte(script), 0o755)).To(Succeed())
+	return binPath
+}
 
 var _ = Describe("GitRunner.Run", func() {
 	var runner *gitx.GitRunner
@@ -37,6 +53,69 @@ var _ = Describe("GitRunner.Run", func() {
 		cancel()
 		_, err := runner.Run(ctx, "", "version")
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("does not merge stderr into stdout on a successful (exit-0) command", func() {
+		// Regression test: an exit-0 warning on stderr (e.g. an unknown
+		// gitconfig key) must not corrupt stdout, since callers like
+		// IsRepo/IsBare/ParsePorcelainStatus parse stdout as
+		// machine-readable output.
+		script := "#!/usr/bin/env sh\n" +
+			"echo 'true'\n" +
+			"echo 'warning: unknown config key foo.bar' 1>&2\n" +
+			"exit 0\n"
+		fakeGit := writeFakeBin(script)
+
+		fakeRunner := &gitx.GitRunner{GitBin: fakeGit}
+		out, err := fakeRunner.Run(context.Background(), "", "rev-parse", "--is-inside-work-tree")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out).To(Equal("true"))
+		Expect(out).NotTo(ContainSubstring("warning"))
+	})
+
+	It("folds stderr text into the returned error without polluting stdout", func() {
+		script := "#!/usr/bin/env sh\n" +
+			"echo 'partial-stdout'\n" +
+			"echo 'fatal: boom' 1>&2\n" +
+			"exit 1\n"
+		fakeGit := writeFakeBin(script)
+
+		fakeRunner := &gitx.GitRunner{GitBin: fakeGit}
+		out, err := fakeRunner.Run(context.Background(), "", "status")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("fatal: boom"))
+		Expect(out).NotTo(ContainSubstring("fatal: boom"))
+	})
+
+	It("forces the C locale regardless of the parent process's locale", func() {
+		// Regression test: ClassifyError string-matches stderr text, so
+		// git must always be run with a stable, untranslated locale.
+		script := "#!/usr/bin/env sh\n" +
+			"echo \"LC_ALL=$LC_ALL LANG=$LANG\"\n" +
+			"exit 0\n"
+		fakeGit := writeFakeBin(script)
+
+		prevLCAll, hadLCAll := os.LookupEnv("LC_ALL")
+		prevLang, hadLang := os.LookupEnv("LANG")
+		Expect(os.Setenv("LC_ALL", "fr_FR.UTF-8")).To(Succeed())
+		Expect(os.Setenv("LANG", "fr_FR.UTF-8")).To(Succeed())
+		DeferCleanup(func() {
+			if hadLCAll {
+				_ = os.Setenv("LC_ALL", prevLCAll)
+			} else {
+				_ = os.Unsetenv("LC_ALL")
+			}
+			if hadLang {
+				_ = os.Setenv("LANG", prevLang)
+			} else {
+				_ = os.Unsetenv("LANG")
+			}
+		})
+
+		fakeRunner := &gitx.GitRunner{GitBin: fakeGit}
+		out, err := fakeRunner.Run(context.Background(), "", "version")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out).To(Equal("LC_ALL=C LANG=C"))
 	})
 })
 
