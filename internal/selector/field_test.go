@@ -35,6 +35,39 @@ var _ = Describe("Field Selector", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		DescribeTable("rejects unknown --only values instead of failing open to all repos",
+			func(only string) {
+				_, err := selector.ResolveRepoFilter(only, "")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("unsupported --only value"))
+			},
+			Entry("typo of errors", "errrors"),
+			Entry("unrelated word", "bogus"),
+			Entry("case-insensitive typo", "ERRRORS"),
+			Entry("field-selector-shaped value used as --only", "tracking.status=gone"),
+		)
+
+		DescribeTable("accepts every documented --only value",
+			func(only string, want engine.FilterKind) {
+				got, err := selector.ResolveRepoFilter(only, "")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(got).To(Equal(want))
+			},
+			Entry("all", "all", engine.FilterAll),
+			Entry("errors", "errors", engine.FilterErrors),
+			Entry("dirty", "dirty", engine.FilterDirty),
+			Entry("clean", "clean", engine.FilterClean),
+			Entry("gone", "gone", engine.FilterGone),
+			Entry("diverged", "diverged", engine.FilterDiverged),
+			Entry("behind", "behind", engine.FilterBehind),
+			Entry("ahead", "ahead", engine.FilterAhead),
+			Entry("equal", "equal", engine.FilterEqual),
+			Entry("remote-mismatch", "remote-mismatch", engine.FilterRemoteMismatch),
+			Entry("missing", "missing", engine.FilterMissing),
+			Entry("empty defaults to all", "", engine.FilterAll),
+			Entry("uppercase is case-insensitive", "DIRTY", engine.FilterDirty),
+		)
+
 		It("rejects blank field-selector input", func() {
 			_, err := selector.ResolveRepoFilter("", "   ")
 			Expect(err).To(MatchError("--field-selector cannot be blank"))

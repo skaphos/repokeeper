@@ -88,7 +88,13 @@ var scanCmd = &cobra.Command{
 
 		switch mode.kind {
 		case outputKindJSON:
-			data, err := json.MarshalIndent(statuses, "", "  ")
+			// get/status -o json always emit [] for an empty result set; match that
+			// contract here instead of letting a nil slice marshal to null.
+			jsonStatuses := statuses
+			if jsonStatuses == nil {
+				jsonStatuses = []model.RepoStatus{}
+			}
+			data, err := json.MarshalIndent(jsonStatuses, "", "  ")
 			if err != nil {
 				return err
 			}
