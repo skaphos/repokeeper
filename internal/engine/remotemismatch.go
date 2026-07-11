@@ -6,7 +6,6 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/remotemismatch"
-	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 // RemoteMismatchReconcileMode controls how remote mismatch reconciliation is applied.
@@ -37,5 +36,5 @@ func (e *Engine) BuildRemoteMismatchPlans(repos []model.RepoStatus, mode RemoteM
 
 // ApplyRemoteMismatchPlans applies reconcile plans to registry and/or git remotes.
 func (e *Engine) ApplyRemoteMismatchPlans(ctx context.Context, plans []RemoteMismatchPlan, mode RemoteMismatchReconcileMode) error {
-	return remotemismatch.ApplyPlans(ctx, plans, e.registry, mode, vcs.NewGitAdapter(nil), nil)
+	return remotemismatch.ApplyPlans(ctx, plans, e.registry, mode, e.adapter, nil)
 }

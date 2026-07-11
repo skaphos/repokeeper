@@ -211,8 +211,8 @@ func TestPullRebaseSkipReasonTable(t *testing.T) {
 }
 
 func TestFilterStatusDefaultKind(t *testing.T) {
-	if !filterStatus(FilterKind("something-new"), model.RepoStatus{}, nil) {
-		t.Fatal("expected unknown filter kind to default to true")
+	if filterStatus(FilterKind("something-new"), model.RepoStatus{}, nil) {
+		t.Fatal("expected unknown filter kind to fail closed (match nothing)")
 	}
 }
 
@@ -377,20 +377,20 @@ func TestExecuteSyncPlanAppliesPlannedActions(t *testing.T) {
 	}
 	eng := &Engine{registry: reg, adapter: adapter, classifier: vcs.NewGitErrorClassifier(), normalizer: vcs.NewGitURLNormalizer(), logger: obs.NopLogger()}
 	plan := []SyncResult{
-		{RepoID: "fetch", Path: "/repos/fetch", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
-		{RepoID: "rebase", Path: "/repos/rebase", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop"},
-		{RepoID: "push", Path: "/repos/push", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git push"},
-		{RepoID: "clone", Path: "/repos/clone", OK: true, Error: "dry-run", Planned: true, Action: "git clone --branch main --single-branch git@github.com:org/clone.git /repos/clone"},
+		{RepoID: "fetch", Path: "/repos/fetch", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", steps: []syncStep{syncStepFetch}},
+		{RepoID: "rebase", Path: "/repos/rebase", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop", steps: []syncStep{syncStepFetch, syncStepStashPush, syncStepPullRebase, syncStepStashPop}},
+		{RepoID: "push", Path: "/repos/push", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git push", steps: []syncStep{syncStepFetch, syncStepPush}},
+		{RepoID: "clone", Path: "/repos/clone", OK: true, Error: "dry-run", Planned: true, Action: "git clone --branch main --single-branch git@github.com:org/clone.git /repos/clone", steps: []syncStep{syncStepClone}},
 		{RepoID: "skip", Path: "/repos/skip", OK: true, Error: "skipped-no-upstream"},
 	}
-	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
+	results, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), plan, SyncOptions{ContinueOnError: true}, nil, nil)
 	if err != nil {
 		t.Fatalf("execute sync plan: %v", err)
 	}
 	if len(results) != len(plan) {
 		t.Fatalf("expected %d results, got %d", len(plan), len(results))
 	}
-	outcome := map[string]SyncOutcome{}
+	outcome := map[string]OutcomeKind{}
 	for _, res := range results {
 		outcome[res.RepoID] = res.Outcome
 	}
@@ -425,10 +425,10 @@ func TestExecuteSyncPlanStopsOnFailureWhenConfigured(t *testing.T) {
 		logger:     obs.NopLogger(),
 	}
 	plan := []SyncResult{
-		{RepoID: "a", Path: "/repos/a", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules"},
-		{RepoID: "b", Path: "/repos/b", OK: true, Error: "dry-run", Planned: true, Action: "git push"},
+		{RepoID: "a", Path: "/repos/a", OK: true, Error: "dry-run", Planned: true, Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", steps: []syncStep{syncStepFetch}},
+		{RepoID: "b", Path: "/repos/b", OK: true, Error: "dry-run", Planned: true, Action: "git push", steps: []syncStep{syncStepPush}},
 	}
-	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
+	results, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), plan, SyncOptions{ContinueOnError: false}, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

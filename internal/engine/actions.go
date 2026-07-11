@@ -130,11 +130,12 @@ func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cf
 	}
 
 	entry := registry.Entry{
-		RepoID:   repoID,
-		Path:     targetPath,
-		Type:     repoType,
-		Status:   registry.StatusPresent,
-		LastSeen: time.Now(),
+		RepoID:    repoID,
+		Path:      targetPath,
+		Type:      repoType,
+		RemoteURL: strings.TrimSpace(remoteURL),
+		Status:    registry.StatusPresent,
+		LastSeen:  time.Now(),
 	}
 	if !mirror {
 		entry.Branch = repoDefaultBranch(ctx, e.adapter, targetPath)

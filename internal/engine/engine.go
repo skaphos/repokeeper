@@ -42,6 +42,50 @@ const (
 	FilterMissing        FilterKind = "missing"
 )
 
+// knownFilterKinds is the set of filter values the engine understands. It backs
+// both up-front validation (ParseFilterKind) and the internal fail-closed
+// defense so an unrecognized filter never silently matches every repository.
+var knownFilterKinds = map[FilterKind]struct{}{
+	FilterAll:            {},
+	FilterErrors:         {},
+	FilterDirty:          {},
+	FilterClean:          {},
+	FilterGone:           {},
+	FilterDiverged:       {},
+	FilterBehind:         {},
+	FilterAhead:          {},
+	FilterEqual:          {},
+	FilterRemoteMismatch: {},
+	FilterMissing:        {},
+}
+
+// isKnownFilterKind reports whether kind is a recognized filter value. An empty
+// kind is the conventional "no filter" and is treated as FilterAll (match all),
+// so only genuinely unrecognized values are rejected.
+func isKnownFilterKind(kind FilterKind) bool {
+	if kind == "" {
+		return true
+	}
+	_, ok := knownFilterKinds[kind]
+	return ok
+}
+
+// ParseFilterKind validates a raw --only/filter value and returns the typed
+// FilterKind. An empty value defaults to FilterAll; any other unrecognized value
+// fails closed with an error rather than matching every repository. Callers may
+// validate up front with this helper; the engine also fails closed internally
+// for defense in depth, so adopting it is not required.
+func ParseFilterKind(raw string) (FilterKind, error) {
+	kind := FilterKind(strings.ToLower(strings.TrimSpace(raw)))
+	if kind == "" {
+		return FilterAll, nil
+	}
+	if !isKnownFilterKind(kind) {
+		return "", fmt.Errorf("unknown filter %q", raw)
+	}
+	return kind, nil
+}
+
 const workerChannelBufferMin = 1
 
 // Engine is the core orchestrator for RepoKeeper operations.
@@ -417,7 +461,30 @@ type SyncResult struct {
 	Planned bool
 	// SkipReason carries typed skip rationale for outcomes that intentionally skip work.
 	SkipReason string
+	// steps is the ordered list of typed VCS operations an executor performs for
+	// this planned item. Execution dispatches on these steps rather than parsing
+	// the human-readable Action string, so non-git backends and skip-with-fetch
+	// plans route through the adapter correctly. It is intentionally unexported:
+	// callers pass a plan straight from Sync into ExecuteSyncPlanWithCallbacks,
+	// and struct copies preserve the field across package boundaries.
+	steps []syncStep
 }
+
+// syncStep identifies a single VCS operation within an executable sync plan.
+type syncStep string
+
+const (
+	syncStepClone      syncStep = "clone"
+	syncStepFetch      syncStep = "fetch"
+	syncStepStashPush  syncStep = "stash_push"
+	syncStepPullRebase syncStep = "pull_rebase"
+	syncStepStashPop   syncStep = "stash_pop"
+	syncStepPush       syncStep = "push"
+)
+
+// preRebaseStashMessage is the stash message used when auto-stashing a dirty
+// worktree before a pull --rebase during local update.
+const preRebaseStashMessage = "repokeeper: pre-rebase stash"
 
 // SyncResultCallback is invoked for each sync result as it is produced.
 // Callbacks run on the coordinator goroutine, so callers can safely write
@@ -429,9 +496,6 @@ type SyncStartCallback func(SyncResult)
 
 // OutcomeKind is the typed outcome category for a single sync result.
 type OutcomeKind string
-
-// SyncOutcome is retained as an alias for compatibility.
-type SyncOutcome = OutcomeKind
 
 const (
 	SyncOutcomeFailedInvalid         OutcomeKind = "failed_invalid"
@@ -480,18 +544,6 @@ const (
 	SyncReasonBranchHasLocalCommitsToPush = "branch has local commits to push"
 	SyncReasonAlreadyUpToDate             = "already up to date"
 )
-
-// ExecuteSyncPlan executes a previously computed dry-run sync plan.
-// It avoids re-inspecting repo state so sync can analyze once and then apply.
-func (e *Engine) ExecuteSyncPlan(ctx context.Context, plan []SyncResult, opts SyncOptions) ([]SyncResult, error) {
-	return e.ExecuteSyncPlanWithCallback(ctx, plan, opts, nil)
-}
-
-// ExecuteSyncPlanWithCallback executes a previously computed dry-run sync plan
-// and invokes callback for each completed result in completion order.
-func (e *Engine) ExecuteSyncPlanWithCallback(ctx context.Context, plan []SyncResult, opts SyncOptions, callback SyncResultCallback) ([]SyncResult, error) {
-	return e.ExecuteSyncPlanWithCallbacks(ctx, plan, opts, nil, callback)
-}
 
 // ExecuteSyncPlanWithCallbacks executes a planned sync and invokes onStart
 // before each repo action begins and onComplete after each repo action ends.
@@ -596,11 +648,10 @@ func (e *Engine) executePlannedSyncItem(ctx context.Context, item SyncResult) Sy
 	executed.Error = ""
 	executed.ErrorClass = ""
 
-	action := strings.ToLower(strings.TrimSpace(item.Action))
-	if strings.Contains(action, "git clone") {
+	if len(item.steps) > 0 && item.steps[0] == syncStepClone {
 		return e.executePlannedClone(ctx, executed)
 	}
-	return e.executePlannedNonClone(ctx, executed, action)
+	return e.executePlannedNonClone(ctx, executed)
 }
 
 func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) SyncResult {
@@ -627,40 +678,64 @@ func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) S
 	return executed
 }
 
-func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult, action string) SyncResult {
+func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult) SyncResult {
 	stashed := false
-	if strings.Contains(action, "git fetch --all") {
-		if err := e.adapter.Fetch(ctx, executed.Path); err != nil {
-			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
+	for _, step := range executed.steps {
+		switch step {
+		case syncStepFetch:
+			if err := e.adapter.Fetch(ctx, executed.Path); err != nil {
+				return e.failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
+			}
+		case syncStepStashPush:
+			created, err := e.adapter.StashPush(ctx, executed.Path, preRebaseStashMessage)
+			if err != nil {
+				return e.failedPlannedSyncResult(executed, SyncOutcomeFailedStash, err)
+			}
+			stashed = created
+		case syncStepPullRebase:
+			if err := e.adapter.PullRebase(ctx, executed.Path); err != nil {
+				return e.failedPlannedSyncResult(executed, SyncOutcomeFailedRebase, err)
+			}
+		case syncStepStashPop:
+			// Only pop when a stash was actually created above.
+			if !stashed {
+				continue
+			}
+			if err := e.adapter.StashPop(ctx, executed.Path); err != nil {
+				return e.failedPlannedSyncResult(executed, SyncOutcomeFailedStashPop, err)
+			}
+		case syncStepPush:
+			if err := e.adapter.Push(ctx, executed.Path); err != nil {
+				return e.failedPlannedSyncResult(executed, SyncOutcomeFailedPush, err)
+			}
 		}
-		executed.Outcome = SyncOutcomeFetched
-	}
-	if strings.Contains(action, "stash push") {
-		created, err := e.adapter.StashPush(ctx, executed.Path, "repokeeper: pre-rebase stash")
-		if err != nil {
-			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedStash, err)
-		}
-		stashed = created
-	}
-	if strings.Contains(action, "pull --rebase") {
-		if err := e.adapter.PullRebase(ctx, executed.Path); err != nil {
-			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedRebase, err)
-		}
-		executed.Outcome = outcomeForRebase(stashed)
-	}
-	if strings.Contains(action, "stash pop") && stashed {
-		if err := e.adapter.StashPop(ctx, executed.Path); err != nil {
-			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedStashPop, err)
-		}
-	}
-	if strings.Contains(action, "git push") {
-		if err := e.adapter.Push(ctx, executed.Path); err != nil {
-			return e.failedPlannedSyncResult(executed, SyncOutcomeFailedPush, err)
-		}
-		executed.Outcome = SyncOutcomePushed
 	}
 	executed.OK = true
+	executed.Outcome = executedNonCloneOutcome(executed, stashed)
 	return executed
+}
+
+// executedNonCloneOutcome maps a successfully executed non-clone plan to its
+// reported outcome. Skip-local-update plans still run their fetch step but must
+// report the skip (with its reason preserved). Otherwise the terminal outcome is
+// that of the last outcome-bearing step performed (fetch < rebase < push in plan
+// order), matching the sequential semantics of the direct apply path.
+func executedNonCloneOutcome(item SyncResult, stashed bool) OutcomeKind {
+	if item.Outcome == SyncOutcomeSkippedLocalUpdate {
+		return SyncOutcomeSkippedLocalUpdate
+	}
+	outcome := item.Outcome
+	for _, s := range item.steps {
+		switch s {
+		case syncStepFetch:
+			outcome = SyncOutcomeFetched
+		case syncStepPullRebase:
+			outcome = outcomeForRebase(stashed)
+		case syncStepPush:
+			outcome = SyncOutcomePushed
+		}
+	}
+	return outcome
 }
 
 func (e *Engine) failedPlannedSyncResult(executed SyncResult, outcome OutcomeKind, err error) SyncResult {
@@ -867,6 +942,11 @@ func (e *Engine) prepareSyncEntry(ctx context.Context, entry registry.Entry, opt
 
 func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry registry.Entry, opts SyncOptions) (bool, *SyncResult) {
 	if !filterRequiresInspect(opts.Filter) {
+		// Non-inspect filters (all/errors/missing) match without a live inspect,
+		// but an unknown filter must fail closed rather than matching every repo.
+		if !isKnownFilterKind(opts.Filter) {
+			return false, nil
+		}
 		return true, nil
 	}
 	status, err := e.InspectRepo(ctx, entry.Path)
@@ -878,7 +958,9 @@ func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry regist
 	case FilterDirty:
 		return status.Worktree != nil && status.Worktree.Dirty, nil
 	case FilterClean:
-		return status.Worktree == nil || !status.Worktree.Dirty, nil
+		// Aligned with filterStatus: a repo with no worktree (e.g. bare) is not
+		// reported as clean, so both filter paths agree on the same repo set.
+		return status.Worktree != nil && !status.Worktree.Dirty, nil
 	case FilterGone:
 		return status.Tracking.Status == model.TrackingGone, nil
 	case FilterDiverged:
@@ -892,7 +974,8 @@ func (e *Engine) syncEntryMatchesInspectFilter(ctx context.Context, entry regist
 	case FilterRemoteMismatch:
 		return hasRemoteMismatch(*status, entry, e.normalizer), nil
 	default:
-		return true, nil
+		// Fail closed: an unknown inspect filter must not match every repo.
+		return false, nil
 	}
 }
 
@@ -952,6 +1035,7 @@ func (e *Engine) handleMissingSyncEntry(ctx context.Context, entry registry.Entr
 			Error:   SyncErrorDryRun,
 			Action:  action,
 			Planned: true,
+			steps:   []syncStep{syncStepClone},
 		}
 	}
 	if err := e.adapter.Clone(ctx, remoteURL, entry.Path, branch, mirror); err != nil {
@@ -985,60 +1069,90 @@ func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts Sy
 }
 
 func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts SyncOptions) SyncResult {
-	action := syncFetchAction(ctx, e.adapter, entry.Path)
-	if opts.UpdateLocal {
-		supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
-		if err != nil {
-			return inspectFailureResult(entry, err, e.classifier)
+	fetchAction := syncFetchAction(ctx, e.adapter, entry.Path)
+
+	// skippedLocalUpdate builds a plan that still fetches but intentionally skips
+	// the local update. The fetch step is retained (and Planned=true) so that
+	// --update-local never fetches fewer repos than a plain sync, while the
+	// reported outcome preserves the typed skip reason.
+	skippedLocalUpdate := func(reason string) SyncResult {
+		return SyncResult{
+			RepoID:     entry.RepoID,
+			Path:       entry.Path,
+			Outcome:    SyncOutcomeSkippedLocalUpdate,
+			OK:         true,
+			ErrorClass: "skipped",
+			Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
+			Action:     fetchAction,
+			SkipReason: reason,
+			Planned:    true,
+			steps:      []syncStep{syncStepFetch},
 		}
-		if !supported {
-			return SyncResult{
-				RepoID:     entry.RepoID,
-				Path:       entry.Path,
-				Outcome:    SyncOutcomeSkippedLocalUpdate,
-				OK:         true,
-				ErrorClass: "skipped",
-				Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
-				Action:     action,
-				SkipReason: reason,
-			}
+	}
+
+	if !opts.UpdateLocal {
+		return SyncResult{
+			RepoID:  entry.RepoID,
+			Path:    entry.Path,
+			Outcome: SyncOutcomePlannedFetch,
+			OK:      true,
+			Error:   SyncErrorDryRun,
+			Action:  fetchAction,
+			Planned: true,
+			steps:   []syncStep{syncStepFetch},
 		}
-		// We still inspect during dry-run so skip reasons and planned actions
-		// match live execution as closely as possible.
-		status, err := e.InspectRepo(ctx, entry.Path)
-		if err != nil {
-			return inspectFailureResult(entry, err, e.classifier)
+	}
+
+	supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
+	if err != nil {
+		return inspectFailureResult(entry, err, e.classifier)
+	}
+	if !supported {
+		return skippedLocalUpdate(reason)
+	}
+	// We still inspect during dry-run so skip reasons and planned actions
+	// match live execution as closely as possible.
+	status, err := e.InspectRepo(ctx, entry.Path)
+	if err != nil {
+		return inspectFailureResult(entry, err, e.classifier)
+	}
+	if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
+		return SyncResult{
+			RepoID:  entry.RepoID,
+			Path:    entry.Path,
+			Outcome: SyncOutcomePlannedPush,
+			OK:      true,
+			Error:   SyncErrorDryRun,
+			Action:  fetchAction + " && git push",
+			Planned: true,
+			steps:   []syncStep{syncStepFetch, syncStepPush},
 		}
-		if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
-			action += " && git push"
-			return SyncResult{
-				RepoID:  entry.RepoID,
-				Path:    entry.Path,
-				Outcome: SyncOutcomePlannedPush,
-				OK:      true,
-				Error:   SyncErrorDryRun,
-				Action:  action,
-				Planned: true,
-			}
-		}
-		if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
-			RebaseDirty:          opts.RebaseDirty,
-			Force:                opts.Force,
-			ProtectedBranches:    opts.ProtectedBranches,
-			AllowProtectedRebase: opts.AllowProtectedRebase,
-		}); reason != "" {
-			return SyncResult{
-				RepoID:     entry.RepoID,
-				Path:       entry.Path,
-				Outcome:    SyncOutcomeSkippedLocalUpdate,
-				OK:         true,
-				ErrorClass: "skipped",
-				Error:      SyncErrorSkippedLocalUpdatePrefix + reason,
-				Action:     action,
-				SkipReason: reason,
-			}
-		}
-		action += " && git pull --rebase --no-recurse-submodules"
+	}
+	if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
+		RebaseDirty:          opts.RebaseDirty,
+		Force:                opts.Force,
+		ProtectedBranches:    opts.ProtectedBranches,
+		AllowProtectedRebase: opts.AllowProtectedRebase,
+	}); reason != "" {
+		return skippedLocalUpdate(reason)
+	}
+
+	// Local update proceeds: fetch, then pull --rebase, auto-stashing a dirty
+	// worktree when --rebase-dirty is set so the rebase does not fail. The stash
+	// steps are emitted into the plan itself so the live execute path performs
+	// them (git pull --rebase has no built-in autostash here).
+	steps := []syncStep{syncStepFetch}
+	action := fetchAction
+	stashPlanned := opts.RebaseDirty && status.Worktree != nil && status.Worktree.Dirty
+	if stashPlanned {
+		steps = append(steps, syncStepStashPush)
+		action += " && git stash push -u -m \"" + preRebaseStashMessage + "\""
+	}
+	steps = append(steps, syncStepPullRebase)
+	action += " && git pull --rebase --no-recurse-submodules"
+	if stashPlanned {
+		steps = append(steps, syncStepStashPop)
+		action += " && git stash pop"
 	}
 	return SyncResult{
 		RepoID:  entry.RepoID,
@@ -1048,6 +1162,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 		Error:   SyncErrorDryRun,
 		Action:  action,
 		Planned: true,
+		steps:   steps,
 	}
 }
 
@@ -1379,7 +1494,8 @@ func (e *Engine) setRegistryUpdatedAt(ts time.Time) {
 
 func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Registry) bool {
 	switch kind {
-	case FilterAll:
+	case FilterAll, "":
+		// An empty kind is the conventional "no filter" and matches all repos.
 		return true
 	case FilterMissing:
 		if reg == nil {
@@ -1413,7 +1529,8 @@ func filterStatus(kind FilterKind, status model.RepoStatus, reg *registry.Regist
 	case FilterErrors:
 		return status.Error != ""
 	default:
-		return true
+		// Fail closed: an unknown filter must not match every repository.
+		return false
 	}
 }
 

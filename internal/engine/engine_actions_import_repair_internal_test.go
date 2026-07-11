@@ -724,6 +724,12 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 		if checkoutEntry == nil || checkoutEntry.Type != "checkout" || checkoutEntry.Path != targetCheckout {
 			t.Fatalf("unexpected checkout entry: %+v", checkoutEntry)
 		}
+		// RemoteURL must be recorded so the fresh clone is visible to sync
+		// (prepareSyncEntry would otherwise short-circuit skipped-no-upstream and
+		// --checkout-missing would fail with a missing remote_url).
+		if checkoutEntry.RemoteURL != "git@github.com:org/repo.git" {
+			t.Fatalf("expected checkout entry RemoteURL set, got %q", checkoutEntry.RemoteURL)
+		}
 
 		if err := eng.CloneAndRegister(context.Background(), "git@github.com:org/mirror.git", targetMirror, cfgPath, true); err != nil {
 			t.Fatalf("clone and register mirror: %v", err)
@@ -731,6 +737,9 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 		mirrorEntry := eng.registry.FindByRepoID("github.com/org/mirror")
 		if mirrorEntry == nil || mirrorEntry.Type != "mirror" || mirrorEntry.Path != targetMirror {
 			t.Fatalf("unexpected mirror entry: %+v", mirrorEntry)
+		}
+		if mirrorEntry.RemoteURL != "git@github.com:org/mirror.git" {
+			t.Fatalf("expected mirror entry RemoteURL set, got %q", mirrorEntry.RemoteURL)
 		}
 
 		if err := eng.CloneAndRegister(context.Background(), "/", targetLocal, cfgPath, false); err != nil {
