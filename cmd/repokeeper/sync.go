@@ -115,7 +115,11 @@ var syncCmd = &cobra.Command{
 			return plan[i].RepoID < plan[j].RepoID
 		})
 		logOutputWriteFailure(cmd, "sync plan", writeSyncPlan(cmd, plan, cwd, []string{cfgRoot}))
-		if !yes && syncPlanNeedsConfirmation(plan) {
+		// --dry-run never applies any of the planned operations, so there is
+		// nothing to confirm. Prompting anyway means a non-interactive dry-run
+		// (e.g. piped stdin, -o json in CI) hits EOF/decline on the prompt and
+		// exits early without printing the plan output callers expect.
+		if !dryRun && !yes && syncPlanNeedsConfirmation(plan) {
 			confirmed, err := confirmSyncExecution(cmd)
 			if err != nil {
 				return err
@@ -162,6 +166,9 @@ var syncCmd = &cobra.Command{
 				}
 				return results[i].RepoID < results[j].RepoID
 			})
+			if err := persistSyncRegistryAfterCheckoutMissing(cfg, cfgPath, results); err != nil {
+				return err
+			}
 		}
 
 		switch mode.kind {
@@ -314,7 +321,9 @@ func syncPlanNeedsConfirmation(plan []engine.SyncResult) bool {
 }
 
 func syncResultNeedsConfirmation(res engine.SyncResult) bool {
-	// Confirmation is reserved for operations that mutate local state.
+	// Confirmation is reserved for operations that mutate local state or a
+	// remote (a --push-local push writes to the remote just as much as a
+	// rebase/stash/clone writes to the local checkout).
 	action := strings.ToLower(strings.TrimSpace(res.Action))
 	if strings.Contains(action, "pull --rebase") || strings.Contains(action, "stash push") {
 		return true
@@ -322,7 +331,33 @@ func syncResultNeedsConfirmation(res engine.SyncResult) bool {
 	if strings.Contains(action, "git clone") {
 		return true
 	}
+	if strings.Contains(action, "git push") {
+		return true
+	}
 	return false
+}
+
+// persistSyncRegistryAfterCheckoutMissing saves cfg's registry to disk when a
+// non-dry-run sync executed one or more successful --checkout-missing clones.
+// ExecuteSyncPlanWithCallbacks only updates the engine's in-memory registry
+// (cfg.Registry, since the same *registry.Registry is shared with the
+// engine); without an explicit save here the clone is never persisted, so
+// the next sync re-plans and re-attempts the same clone.
+func persistSyncRegistryAfterCheckoutMissing(cfg *config.Config, cfgPath string, results []engine.SyncResult) error {
+	if cfg == nil {
+		return nil
+	}
+	cloned := false
+	for _, res := range results {
+		if res.OK && res.Outcome == engine.SyncOutcomeCheckoutMissing {
+			cloned = true
+			break
+		}
+	}
+	if !cloned {
+		return nil
+	}
+	return config.Save(cfg, cfgPath)
 }
 
 type syncTableMode int
@@ -478,10 +513,10 @@ func (s *syncProgressWriter) writeProgressLine(state *syncProgressState, message
 		state.lastLen = len(line)
 		return nil
 	}
-	if newline {
-		_, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s\n", line)
-		return err
-	}
+	// Non-TTY output has no in-place cursor to return to, so there is no
+	// non-newline variant to emit: every call (progress tick or final
+	// result) writes exactly one line. `newline` only distinguishes
+	// behavior in the supportsInPlace branch above.
 	_, err := fmt.Fprintf(s.cmd.OutOrStdout(), "%s\n", line)
 	return err
 }

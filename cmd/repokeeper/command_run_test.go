@@ -561,6 +561,144 @@ func TestSyncRunEUnsupportedFormat(t *testing.T) {
 	}
 }
 
+func TestSyncRunEDryRunSkipsConfirmationPrompt(t *testing.T) {
+	// Regression test: --dry-run never applies any planned operation, so it
+	// must never block on the interactive confirmation prompt. Before the
+	// fix, a plan requiring confirmation (here, a planned --checkout-missing
+	// clone) still triggered the prompt even under --dry-run; with no stdin
+	// available the prompt reads EOF, is treated as "declined", and RunE
+	// returned early without ever printing the requested -o json plan.
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:    "github.com/org/repo-missing",
+				Path:      filepath.Join(tmp, "missing-repo"),
+				RemoteURL: "https://example.invalid/org/repo-missing.git",
+				Branch:    "main",
+				Status:    registry.StatusMissing,
+				LastSeen:  time.Now(),
+			},
+		},
+	}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	syncCmd.SetOut(out)
+	syncCmd.SetErr(errOut)
+	// Deliberately empty stdin: a prompt read here hits EOF immediately.
+	syncCmd.SetIn(bytes.NewReader(nil))
+	defer syncCmd.SetOut(os.Stdout)
+	defer syncCmd.SetErr(os.Stderr)
+	defer syncCmd.SetIn(nil)
+
+	_ = syncCmd.Flags().Set("only", "all")
+	_ = syncCmd.Flags().Set("dry-run", "true")
+	_ = syncCmd.Flags().Set("yes", "false")
+	_ = syncCmd.Flags().Set("checkout-missing", "true")
+	_ = syncCmd.Flags().Set("format", "json")
+	defer func() {
+		_ = syncCmd.Flags().Set("checkout-missing", "false")
+		_ = syncCmd.Flags().Set("dry-run", "false")
+	}()
+
+	if err := syncCmd.RunE(syncCmd, nil); err != nil {
+		t.Fatalf("sync dry-run failed: %v", err)
+	}
+
+	if strings.Contains(errOut.String(), "sync cancelled") {
+		t.Fatalf("expected --dry-run to skip the confirmation prompt entirely, got a cancellation: %q", errOut.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "\"repo_id\": \"github.com/org/repo-missing\"") {
+		t.Fatalf("expected dry-run plan output despite empty stdin, got: %q", got)
+	}
+}
+
+func TestSyncRunEPersistsRegistryAfterCheckoutMissingClone(t *testing.T) {
+	// Regression test: a successful --checkout-missing clone must be
+	// persisted to the config/registry file. Before the fix, the engine only
+	// updated its in-memory registry (the same *registry.Registry as
+	// cfg.Registry), and sync's RunE never called config.Save, so the next
+	// sync re-planned and re-attempted the same clone indefinitely.
+	tmp := t.TempDir()
+	remote := filepath.Join(tmp, "remote.git")
+	mustRunGit(t, tmp, "init", "--bare", remote)
+
+	seed := filepath.Join(tmp, "seed")
+	mustRunGit(t, tmp, "clone", remote, seed)
+	mustRunGit(t, seed, "checkout", "-b", "main")
+	mustRunGit(t, seed, "commit", "--allow-empty", "-m", "init")
+	mustRunGit(t, seed, "push", "-u", "origin", "main")
+
+	missingPath := filepath.Join(tmp, "missing-repo")
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:    "github.com/org/repo-checkout",
+				Path:      missingPath,
+				RemoteURL: remote,
+				Branch:    "main",
+				Status:    registry.StatusMissing,
+				LastSeen:  time.Now(),
+			},
+		},
+	}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	syncCmd.SetOut(out)
+	syncCmd.SetErr(errOut)
+	syncCmd.SetContext(context.Background())
+	defer syncCmd.SetOut(os.Stdout)
+	defer syncCmd.SetErr(os.Stderr)
+
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "true")
+	defer func() { _ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes)) }()
+
+	_ = syncCmd.Flags().Set("only", "all")
+	_ = syncCmd.Flags().Set("dry-run", "false")
+	_ = syncCmd.Flags().Set("checkout-missing", "true")
+	_ = syncCmd.Flags().Set("format", "json")
+	defer func() {
+		_ = syncCmd.Flags().Set("checkout-missing", "false")
+	}()
+
+	if err := syncCmd.RunE(syncCmd, nil); err != nil {
+		t.Fatalf("sync run failed: %v", err)
+	}
+	if _, err := os.Stat(missingPath); err != nil {
+		t.Fatalf("expected repo cloned at %q: %v", missingPath, err)
+	}
+
+	reloaded, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	entry := reloaded.Registry.FindByRepoID("github.com/org/repo-checkout")
+	if entry == nil {
+		t.Fatal("expected registry entry to survive reload")
+	}
+	if entry.Status != registry.StatusPresent {
+		t.Fatalf("expected persisted status %q, got %q (checkout-missing clone was not saved to disk)", registry.StatusPresent, entry.Status)
+	}
+}
+
 func TestDescribeRunEPaths(t *testing.T) {
 	cfgPath, regPath := writeTestConfigAndRegistry(t)
 	cleanup := withTestConfig(t, cfgPath)
