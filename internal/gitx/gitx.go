@@ -311,7 +311,7 @@ func StashPop(ctx context.Context, r Runner, dir string) error {
 	return wrapRunError("git stash pop", out, err)
 }
 
-// Clone runs a clone operation. Branch is ignored for mirror clones.
+// ResetHard resets the worktree and index to HEAD, discarding local changes.
 func ResetHard(ctx context.Context, r Runner, dir string) error {
 	out, err := r.Run(ctx, dir, "reset", "--hard", "HEAD")
 	return wrapRunError("git reset --hard HEAD", out, err)
@@ -322,6 +322,7 @@ func CleanFD(ctx context.Context, r Runner, dir string) error {
 	return wrapRunError("git clean -f -d", out, err)
 }
 
+// Clone runs a clone operation. Branch is ignored for mirror clones.
 func Clone(ctx context.Context, r Runner, remoteURL, targetPath, branch string, mirror bool) error {
 	// remoteURL and targetPath are passed to git verbatim: leading/trailing
 	// whitespace is legal in local paths, and the flag-injection guard only
