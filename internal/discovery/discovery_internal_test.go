@@ -2,11 +2,14 @@
 package discovery
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/skaphos/repokeeper/internal/model"
@@ -260,6 +263,128 @@ func TestScanDefaultsAndEmptyRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(results) != 1 || results[0].Path != repo {
+		t.Fatalf("unexpected scan results: %+v", results)
+	}
+}
+
+func TestRootCovered(t *testing.T) {
+	cases := []struct {
+		name     string
+		path     string
+		accepted []string
+		want     bool
+	}{
+		{"exact-match", "/A", []string{"/A"}, true},
+		{"nested-under-parent", filepath.Join("/A", "sub"), []string{"/A"}, true},
+		{"deeply-nested-under-parent", filepath.Join("/A", "sub", "deeper"), []string{"/A"}, true},
+		{"sibling-with-shared-prefix-not-nested", "/AB", []string{"/A"}, false},
+		{"unrelated-path-not-covered", "/B", []string{"/A"}, false},
+		{"no-accepted-roots", "/A", nil, false},
+		{"covered-by-second-of-several", "/C/sub", []string{"/A", "/C"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rootCovered(tc.path, tc.accepted); got != tc.want {
+				t.Fatalf("rootCovered(%q, %v) = %v, want %v", tc.path, tc.accepted, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWarnInvalidExcludePatterns(t *testing.T) {
+	cases := []struct {
+		name           string
+		patterns       []string
+		wantContains   []string
+		wantNotContain []string
+	}{
+		{
+			name:         "invalid pattern warns with the offending pattern",
+			patterns:     []string{"[invalid"},
+			wantContains: []string{"invalid exclude pattern", "[invalid"},
+		},
+		{
+			name:           "valid patterns do not warn",
+			patterns:       []string{"**/vendor/**", "*.go"},
+			wantNotContain: []string{"invalid exclude pattern"},
+		},
+		{
+			name:           "no patterns do not warn",
+			patterns:       nil,
+			wantNotContain: []string{"invalid exclude pattern"},
+		},
+		{
+			name:           "mixed patterns warn only for the invalid one",
+			patterns:       []string{"**/vendor/**", "[bad"},
+			wantContains:   []string{"[bad"},
+			wantNotContain: []string{"vendor"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			prev := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+			t.Cleanup(func() { slog.SetDefault(prev) })
+
+			warnInvalidExcludePatterns(tc.patterns)
+
+			out := buf.String()
+			for _, want := range tc.wantContains {
+				if !strings.Contains(out, want) {
+					t.Fatalf("expected warning output to contain %q, got: %q", want, out)
+				}
+			}
+			for _, notWant := range tc.wantNotContain {
+				if strings.Contains(out, notWant) {
+					t.Fatalf("expected warning output to NOT contain %q, got: %q", notWant, out)
+				}
+			}
+		})
+	}
+}
+
+// TestScanToleratesDirectoryRemovedMidScan covers the fix for a WalkDir
+// error handler that previously aborted the entire Scan on any error other
+// than fs.ErrPermission. A directory that disappears mid-walk (e.g. a build
+// tool cleaning a temp dir concurrently) must not stop discovery of the
+// remaining roots.
+func TestScanToleratesDirectoryRemovedMidScan(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	keepDir := filepath.Join(root, "a-keep")      // processed before removeDir (lexical order)
+	removeDir := filepath.Join(root, "b-removed") // removed while a-keep is processed
+	afterRepo := filepath.Join(root, "c-after", "repo")
+
+	if err := os.MkdirAll(keepDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(removeDir, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(afterRepo, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := &stubAdapter{
+		isRepoFn: func(_ context.Context, dir string) (bool, error) {
+			if dir == keepDir {
+				if err := os.RemoveAll(removeDir); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return false, nil
+		},
+	}
+
+	results, err := Scan(ctx, Options{
+		Roots:   []string{root},
+		Adapter: adapter,
+	})
+	if err != nil {
+		t.Fatalf("expected Scan to tolerate a directory removed mid-scan, got error: %v", err)
+	}
+	if len(results) != 1 || filepath.Clean(results[0].Path) != filepath.Clean(afterRepo) {
 		t.Fatalf("unexpected scan results: %+v", results)
 	}
 }

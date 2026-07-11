@@ -66,4 +66,111 @@ var _ = Describe("Discovery", func() {
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].Path).To(Equal(repo))
 	})
+
+	It("walks a symlinked root instead of yielding nothing", func() {
+		base := GinkgoT().TempDir()
+		realDir := filepath.Join(base, "real")
+		repo := filepath.Join(realDir, "repo")
+		link := filepath.Join(base, "link")
+
+		Expect(os.MkdirAll(repo, 0o755)).To(Succeed())
+		Expect(exec.Command("git", "init", repo).Run()).To(Succeed())
+		if err := os.Symlink(realDir, link); err != nil {
+			Skip("symlinks not supported on this platform: " + err.Error())
+		}
+
+		// Root itself is a symlink; WalkDir would otherwise lstat it, see a
+		// non-directory entry, and never descend into it at all.
+		results, err := discovery.Scan(context.Background(), discovery.Options{
+			Roots:   []string{link},
+			Adapter: vcs.NewGitAdapter(nil),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(repo)))
+	})
+
+	It("does not descend into a symlinked subdirectory when follow-symlinks is disabled", func() {
+		base := GinkgoT().TempDir()
+		realDir := filepath.Join(base, "target")
+		repo := filepath.Join(realDir, "repo")
+		root := filepath.Join(base, "root")
+		link := filepath.Join(root, "link")
+
+		Expect(os.MkdirAll(repo, 0o755)).To(Succeed())
+		Expect(exec.Command("git", "init", repo).Run()).To(Succeed())
+		Expect(os.MkdirAll(root, 0o755)).To(Succeed())
+		if err := os.Symlink(realDir, link); err != nil {
+			Skip("symlinks not supported on this platform: " + err.Error())
+		}
+
+		results, err := discovery.Scan(context.Background(), discovery.Options{
+			Roots:          []string{root},
+			FollowSymlinks: false,
+			Adapter:        vcs.NewGitAdapter(nil),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(BeEmpty())
+	})
+
+	It("follows a symlinked subdirectory and tolerates a symlink cycle when enabled", func() {
+		base := GinkgoT().TempDir()
+		realDir := filepath.Join(base, "target")
+		repo := filepath.Join(realDir, "repo")
+		root := filepath.Join(base, "root")
+		link := filepath.Join(root, "link")
+		cycle := filepath.Join(realDir, "cycle")
+
+		Expect(os.MkdirAll(repo, 0o755)).To(Succeed())
+		Expect(exec.Command("git", "init", repo).Run()).To(Succeed())
+		Expect(os.MkdirAll(root, 0o755)).To(Succeed())
+		if err := os.Symlink(realDir, link); err != nil {
+			Skip("symlinks not supported on this platform: " + err.Error())
+		}
+		// A symlink back to the already-visited target directory: without a
+		// visited-set guard this would recurse forever.
+		Expect(os.Symlink(realDir, cycle)).To(Succeed())
+
+		done := make(chan struct{})
+		var results []discovery.Result
+		var err error
+		go func() {
+			results, err = discovery.Scan(context.Background(), discovery.Options{
+				Roots:          []string{root},
+				FollowSymlinks: true,
+				Adapter:        vcs.NewGitAdapter(nil),
+			})
+			close(done)
+		}()
+
+		Eventually(done, "5s").Should(BeClosed(), "scan did not terminate; likely stuck in a symlink cycle")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(repo)))
+	})
+
+	It("does not duplicate results when roots overlap", func() {
+		root := GinkgoT().TempDir()
+		repoA := filepath.Join(root, "repoA")
+		sub := filepath.Join(root, "sub")
+		repoB := filepath.Join(sub, "repoB")
+		Expect(exec.Command("git", "init", repoA).Run()).To(Succeed())
+		Expect(exec.Command("git", "init", repoB).Run()).To(Succeed())
+
+		for _, roots := range [][]string{
+			{root, sub},
+			{sub, root},
+		} {
+			results, err := discovery.Scan(context.Background(), discovery.Options{
+				Roots:   roots,
+				Adapter: vcs.NewGitAdapter(nil),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			var paths []string
+			for _, r := range results {
+				paths = append(paths, filepath.Clean(r.Path))
+			}
+			Expect(paths).To(ConsistOf(filepath.Clean(repoA), filepath.Clean(repoB)), "roots=%v", roots)
+		}
+	})
 })
