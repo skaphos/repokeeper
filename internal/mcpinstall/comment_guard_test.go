@@ -51,6 +51,17 @@ func writeTemp(t *testing.T, name, content string) string {
 	return path
 }
 
+// mustReadFile reads path and fails the test if the read errors, so a failed
+// read can't masquerade as an unexpected file content in the assertions below.
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return raw
+}
+
 // --- codex/grok WriteEntry refuses to clobber comments (finding 6) ---
 
 func TestCodexWriteEntryRefusesCommentedFile(t *testing.T) {
@@ -65,7 +76,7 @@ func TestCodexWriteEntryRefusesCommentedFile(t *testing.T) {
 	if !strings.Contains(err.Error(), "comments") {
 		t.Fatalf("expected a comment-preservation error, got: %v", err)
 	}
-	raw, _ := os.ReadFile(path)
+	raw := mustReadFile(t, path)
 	if string(raw) != original {
 		t.Fatalf("commented file was modified despite refusal:\n%s", raw)
 	}
@@ -80,7 +91,7 @@ func TestGrokWriteEntryRefusesCommentedFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected WriteEntry to refuse a commented file")
 	}
-	raw, _ := os.ReadFile(path)
+	raw := mustReadFile(t, path)
 	if string(raw) != original {
 		t.Fatalf("commented file was modified despite refusal:\n%s", raw)
 	}
@@ -94,7 +105,7 @@ func TestCodexWriteEntryAllowsUncommentedFile(t *testing.T) {
 	if err := a.WriteEntry(path, Entry{Command: "/bin/repokeeper", Args: []string{"mcp"}, Enabled: true}); err != nil {
 		t.Fatalf("unexpected error writing uncommented file: %v", err)
 	}
-	raw, _ := os.ReadFile(path)
+	raw := mustReadFile(t, path)
 	if !strings.Contains(string(raw), "[mcp_servers.repokeeper]") {
 		t.Fatalf("entry not written: %s", raw)
 	}
@@ -116,7 +127,7 @@ func TestCodexRemoveEntryAbsentCommentedFileSucceeds(t *testing.T) {
 	if removed {
 		t.Fatal("expected removed=false when entry absent")
 	}
-	raw, _ := os.ReadFile(path)
+	raw := mustReadFile(t, path)
 	if string(raw) != original {
 		t.Fatalf("file changed on no-op remove:\n%s", raw)
 	}
@@ -133,7 +144,7 @@ func TestCodexRemoveEntryPresentCommentedFileRefuses(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected RemoveEntry to refuse a commented file with a present entry")
 	}
-	raw, _ := os.ReadFile(path)
+	raw := mustReadFile(t, path)
 	if string(raw) != original {
 		t.Fatalf("commented file was modified despite refusal:\n%s", raw)
 	}

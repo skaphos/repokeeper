@@ -310,7 +310,7 @@ type removeRepoResponse struct {
 	Removed bool   `json:"removed"`
 }
 
-func (s *MCPServer) handleRemoveRepository(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *MCPServer) handleRemoveRepository(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	repoArg, err := req.RequireString("repo")
 	if err != nil {
 		return mcp.NewToolResultError("missing required parameter: repo"), nil
@@ -339,7 +339,7 @@ func (s *MCPServer) handleRemoveRepository(_ context.Context, req mcp.CallToolRe
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	if err := s.engine.DeleteRepo(context.Background(), entry.RepoID, s.cfgPath, deleteFiles); err != nil {
+	if err := s.engine.DeleteRepo(ctx, entry.RepoID, s.cfgPath, deleteFiles); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
