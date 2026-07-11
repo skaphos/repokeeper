@@ -1015,7 +1015,7 @@ func TestPrepareEditCmdResolvesRowByPathWhenRepoIDDuplicated(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected editReadyMsg, got %T", cmd())
 	}
-	defer os.Remove(msg.tmpPath)
+	defer func() { _ = os.Remove(msg.tmpPath) }()
 	if msg.originalEntry.Path != "/work/secondary" || msg.originalEntry.Branch != "feature" {
 		t.Fatalf("expected edit to target the row under the cursor (secondary checkout), got %+v", msg.originalEntry)
 	}
