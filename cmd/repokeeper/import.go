@@ -61,6 +61,17 @@ var importCmd = &cobra.Command{
 			includeRegistry = false
 			preserveRegistryPath = false
 		}
+		// In merge mode, cloning bundle repos while --include-registry=false
+		// would still register them into the local registry: ExecuteImportClones
+		// upserts every cloned entry into cfg.Registry regardless of
+		// includeRegistry, so skipping only the merge step let cloned repos leak
+		// back in. Replace mode already clears cfg.Registry when
+		// includeRegistry is false (see mergeImportedRegistry), which naturally
+		// short-circuits planImportedEntries; merge mode needs this explicit
+		// gate since the existing local registry is left in place.
+		if mode == importModeMerge && !includeRegistry {
+			cloneRepos = false
+		}
 
 		inputPath := "-"
 		if len(args) == 1 {

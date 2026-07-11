@@ -67,6 +67,67 @@ func TestResolveUpstreamTargetBranch(t *testing.T) {
 	}
 }
 
+func TestParseUpstreamRepairFilter(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{name: "empty defaults to all", in: "", want: "all"},
+		{name: "all", in: "all", want: "all"},
+		{name: "missing", in: "missing", want: "missing"},
+		{name: "mismatch", in: "mismatch", want: "mismatch"},
+		{name: "case-insensitive and trimmed", in: "  MISMATCH  ", want: "mismatch"},
+		{
+			// Regression: an unrecognized --only value must be rejected, not
+			// silently treated as "all" (which would repair tracking for
+			// every repo instead of failing loudly on an operator typo).
+			name:    "unknown value is rejected",
+			in:      "unknown",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseUpstreamRepairFilter(tc.in)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for input %q", tc.in)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for input %q: %v", tc.in, err)
+			}
+			if got != tc.want {
+				t.Fatalf("parseUpstreamRepairFilter(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRepairUpstreamRunERejectsUnknownOnlyFilter(t *testing.T) {
+	cfgPath, _ := writeTestConfigAndRegistry(t)
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+
+	repairUpstreamCmd.SetContext(context.Background())
+	defer repairUpstreamCmd.SetOut(nil)
+	defer repairUpstreamCmd.SetErr(nil)
+	defer func() { _ = repairUpstreamCmd.Flags().Set("only", "all") }()
+
+	_ = repairUpstreamCmd.Flags().Set("registry", "")
+	_ = repairUpstreamCmd.Flags().Set("dry-run", "true")
+	_ = repairUpstreamCmd.Flags().Set("only", "bogus")
+	_ = repairUpstreamCmd.Flags().Set("format", "json")
+
+	err := repairUpstreamCmd.RunE(repairUpstreamCmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "invalid --only") {
+		t.Fatalf("expected invalid --only error, got %v", err)
+	}
+}
+
 func TestRepairUpstreamMatchesFilter(t *testing.T) {
 	if !repairUpstreamMatchesFilter("origin/main", "origin/main", "") {
 		t.Fatal("expected empty filter to match")

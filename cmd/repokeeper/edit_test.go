@@ -56,14 +56,116 @@ func writeEditorFixtureScript(t *testing.T, dir, repoPath string, invalidYAML bo
 }
 
 func TestTrackingBranchFromUpstream(t *testing.T) {
-	if got := trackingBranchFromUpstream("origin/main"); got != "main" {
-		t.Fatalf("expected main, got %q", got)
+	tests := []struct {
+		name     string
+		upstream string
+		want     string
+	}{
+		{name: "simple branch", upstream: "origin/main", want: "main"},
+		{
+			// Regression test: branch names may themselves contain "/". Only
+			// the remote (first path segment) must be stripped, not the last
+			// segment — "upstream/release/v1" is remote "upstream" tracking
+			// branch "release/v1", not branch "v1".
+			name:     "branch name containing slashes",
+			upstream: "upstream/release/v1",
+			want:     "release/v1",
+		},
+		{name: "deeply nested branch name", upstream: "origin/feature/team/x", want: "feature/team/x"},
+		{name: "no remote prefix", upstream: "main", want: "main"},
+		{name: "empty upstream", upstream: "", want: ""},
+		{name: "whitespace-only upstream", upstream: "   ", want: ""},
 	}
-	if got := trackingBranchFromUpstream("upstream/release/v1"); got != "v1" {
-		t.Fatalf("expected v1, got %q", got)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := trackingBranchFromUpstream(tc.upstream); got != tc.want {
+				t.Fatalf("trackingBranchFromUpstream(%q) = %q, want %q", tc.upstream, got, tc.want)
+			}
+		})
 	}
-	if got := trackingBranchFromUpstream(""); got != "" {
-		t.Fatalf("expected empty for empty upstream, got %q", got)
+}
+
+func TestValidateEditedRegistryEntryUniqueness(t *testing.T) {
+	base := func() registry.Entry {
+		return registry.Entry{
+			RepoID: "github.com/org/repo",
+			Path:   "/repos/repo-a",
+			Status: registry.StatusPresent,
+		}
+	}
+
+	tests := []struct {
+		name    string
+		edited  registry.Entry
+		reg     *registry.Registry
+		index   int
+		wantErr bool
+	}{
+		{
+			name:   "no other entries",
+			edited: base(),
+			reg:    &registry.Registry{Entries: []registry.Entry{base()}},
+			index:  0,
+		},
+		{
+			name:   "same repo_id different checkout_id is allowed (multi-checkout)",
+			edited: registry.Entry{RepoID: "github.com/org/repo", CheckoutID: "b", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			reg: &registry.Registry{Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-a", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", CheckoutID: "b", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			}},
+			index: 1,
+		},
+		{
+			name:   "same repo_id different path, no checkout_id, is allowed (multi-checkout)",
+			edited: registry.Entry{RepoID: "github.com/org/repo", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			reg: &registry.Registry{Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			}},
+			index: 1,
+		},
+		{
+			name:   "same repo_id and same checkout_id is rejected",
+			edited: registry.Entry{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			reg: &registry.Registry{Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-a", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			}},
+			index:   1,
+			wantErr: true,
+		},
+		{
+			name:   "same repo_id and same path (no checkout_id) is rejected",
+			edited: registry.Entry{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
+			reg: &registry.Registry{Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
+			}},
+			index:   1,
+			wantErr: true,
+		},
+		{
+			name:   "different repo_id never conflicts",
+			edited: registry.Entry{RepoID: "github.com/org/other", Path: "/repos/repo-a", Status: registry.StatusPresent},
+			reg: &registry.Registry{Entries: []registry.Entry{
+				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/other", Path: "/repos/repo-a", Status: registry.StatusPresent},
+			}},
+			index: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateEditedRegistryEntry(tc.edited, tc.reg, tc.index)
+			if tc.wantErr && err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

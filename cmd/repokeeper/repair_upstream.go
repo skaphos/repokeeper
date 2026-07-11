@@ -51,7 +51,11 @@ var repairUpstreamCmd = &cobra.Command{
 		registryOverride, _ := cmd.Flags().GetString("registry")
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		yes := assumeYes(cmd)
-		only, _ := cmd.Flags().GetString("only")
+		onlyRaw, _ := cmd.Flags().GetString("only")
+		only, err := parseUpstreamRepairFilter(onlyRaw)
+		if err != nil {
+			return err
+		}
 		format, _ := cmd.Flags().GetString("format")
 		mode, err := parseOutputMode(format)
 		if err != nil {
@@ -266,6 +270,22 @@ func resolveUpstreamTargetBranch(entry registry.Entry, repo model.RepoStatus, cf
 		}
 	}
 	return strings.TrimSpace(repo.Head.Branch)
+}
+
+// parseUpstreamRepairFilter validates the --only flag up front, mirroring
+// parseImportMode/parseOutputMode. Without this, an unrecognized value (e.g.
+// a typo) silently fell through repairUpstreamMatchesFilter's default arm as
+// "all", repairing tracking for every repo instead of failing loudly.
+func parseUpstreamRepairFilter(raw string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	switch normalized {
+	case "":
+		return "all", nil
+	case "all", "missing", "mismatch":
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("invalid --only %q (supported: all,missing,mismatch)", raw)
+	}
 }
 
 func repairUpstreamMatchesFilter(current, target, filter string) bool {

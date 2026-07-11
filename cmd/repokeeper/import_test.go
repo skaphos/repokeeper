@@ -680,6 +680,81 @@ func TestImportCommandRunEMergePreflightTreatsNewBundleRepoAsCloneCandidate(t *t
 	}
 }
 
+func TestImportCommandRunEMergeIncludeRegistryFalseDoesNotCloneOrRegisterBundleRepos(t *testing.T) {
+	// Regression test: in merge mode, --include-registry=false must suppress
+	// cloning too. Previously only --file-only disabled cloning, so a bundled
+	// repo would still be cloned and (via ExecuteImportClones, which upserts
+	// every cloned entry into cfg.Registry) registered locally even though
+	// the caller explicitly asked to exclude the registry.
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	bundle := exportBundle{
+		Version: 1,
+		Root:    "/source/root",
+		Config:  config.DefaultConfig(),
+		Registry: &registry.Registry{
+			Entries: []registry.Entry{
+				{
+					RepoID:    "github.com/org/repo-a",
+					Path:      "/source/root/team/repo-a",
+					RemoteURL: "https://example.invalid/org/repo-a.git",
+					Branch:    "main",
+					Status:    registry.StatusPresent,
+				},
+			},
+		},
+	}
+	bundlePath := filepath.Join(t.TempDir(), "bundle.yaml")
+	data, err := yaml.Marshal(&bundle)
+	if err != nil {
+		t.Fatalf("marshal bundle: %v", err)
+	}
+	if err := os.WriteFile(bundlePath, data, 0o644); err != nil {
+		t.Fatalf("write bundle: %v", err)
+	}
+
+	errOut := &bytes.Buffer{}
+	importCmd.SetErr(errOut)
+	defer importCmd.SetErr(os.Stderr)
+	importCmd.SetOut(&bytes.Buffer{})
+	defer importCmd.SetOut(os.Stdout)
+	importCmd.SetContext(context.Background())
+
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "true")
+	defer func() { _ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes)) }()
+
+	_ = importCmd.Flags().Set("mode", "merge")
+	_ = importCmd.Flags().Set("on-conflict", "bundle")
+	_ = importCmd.Flags().Set("file-only", "false")
+	_ = importCmd.Flags().Set("include-registry", "false")
+
+	if err := importCmd.RunE(importCmd, []string{bundlePath}); err != nil {
+		t.Fatalf("import run failed: %v", err)
+	}
+
+	if strings.Contains(errOut.String(), "Planned import clone operations:") {
+		t.Fatalf("expected no clone planning output with --include-registry=false, got: %q", errOut.String())
+	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if cfg.Registry != nil {
+		if got := cfg.Registry.FindByRepoID("github.com/org/repo-a"); got != nil {
+			t.Fatalf("expected bundle repo not registered with --include-registry=false, got %+v", got)
+		}
+	}
+
+	targetPath := filepath.Join(filepath.Dir(cfgPath), "team", "repo-a")
+	if _, err := os.Stat(targetPath); !os.IsNotExist(err) {
+		t.Fatalf("expected no clone attempted at %q, stat err=%v", targetPath, err)
+	}
+}
+
 func TestImportCommandDefaultsToLocalConfigPath(t *testing.T) {
 	tmp := t.TempDir()
 	origWD, err := os.Getwd()

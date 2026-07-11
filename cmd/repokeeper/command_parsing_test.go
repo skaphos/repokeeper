@@ -68,6 +68,19 @@ func TestSyncResultNeedsConfirmationTable(t *testing.T) {
 			res:  engine.SyncResult{Action: "git clone --branch main --single-branch git@github.com:org/repo.git /tmp/repo"},
 			want: true,
 		},
+		{
+			// Regression: --update-local --push-local pushes to a remote,
+			// which is exactly the kind of local/remote-mutating operation
+			// this gate exists to confirm before executing.
+			name: "git push alone",
+			res:  engine.SyncResult{Action: "git push"},
+			want: true,
+		},
+		{
+			name: "fetch + push",
+			res:  engine.SyncResult{Action: "git fetch --all --prune --prune-tags --no-recurse-submodules && git push"},
+			want: true,
+		},
 	}
 
 	for _, tc := range tests {

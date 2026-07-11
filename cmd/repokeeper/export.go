@@ -12,6 +12,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/urlutil"
 	"github.com/skaphos/repokeeper/internal/vcs"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
@@ -68,6 +69,13 @@ var exportCmd = &cobra.Command{
 			exportedRegistry = prepareRegistryForExport(exportedRegistry, bundle.Root)
 			adapter := vcs.NewGitAdapter(nil)
 			populateExportBranches(cmd.Context(), exportedRegistry, adapter.Head, adapter.TrackingStatus)
+			// remote_url must stay usable for import/reconcile, so credentials
+			// embedded in it (https://user:token@host/...) are exported verbatim
+			// rather than silently redacted; warn instead so the operator knows
+			// the bundle carries live credentials in cleartext.
+			if repoIDs := exportEntriesWithEmbeddedCredentials(exportedRegistry); len(repoIDs) > 0 {
+				infof(cmd, "warning: exported bundle embeds credentials in remote_url for %d repo(s): %s (bundle file permissions are restricted to owner-only, but credentials are stored in cleartext)", len(repoIDs), strings.Join(repoIDs, ", "))
+			}
 		}
 		// Export bundles carry registry at the top level only.
 		// config.registry is always omitted to avoid duplicated payloads.
@@ -88,7 +96,15 @@ var exportCmd = &cobra.Command{
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(outputPath, data, 0o644); err != nil {
+		// Bundle files can carry remote_url credentials (see the warning above),
+		// so write owner-only rather than the previous world-readable 0o644.
+		// os.WriteFile only applies the perm bits when it creates the file, so an
+		// existing (possibly 0o644) bundle would keep its old mode. Remove any
+		// existing file first to guarantee a fresh 0o600 create.
+		if err := os.Remove(outputPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.WriteFile(outputPath, data, 0o600); err != nil {
 			return err
 		}
 		infof(cmd, "exported bundle to %s", outputPath)
@@ -101,6 +117,27 @@ func init() {
 	exportCmd.Flags().Bool("include-registry", true, "include registry in the export bundle")
 
 	rootCmd.AddCommand(exportCmd)
+}
+
+// exportEntriesWithEmbeddedCredentials returns the repo IDs of entries whose
+// remote_url carries embedded credentials (e.g. https://user:token@host/...).
+// It reuses urlutil.RedactCredentials as the detector: a URL that redaction
+// changes is a URL that had credentials embedded in it.
+func exportEntriesWithEmbeddedCredentials(reg *registry.Registry) []string {
+	if reg == nil {
+		return nil
+	}
+	var repoIDs []string
+	for _, entry := range reg.Entries {
+		url := strings.TrimSpace(entry.RemoteURL)
+		if url == "" {
+			continue
+		}
+		if urlutil.RedactCredentials(url) != url {
+			repoIDs = append(repoIDs, entry.RepoID)
+		}
+	}
+	return repoIDs
 }
 
 func prepareRegistryForExport(reg *registry.Registry, root string) *registry.Registry {
