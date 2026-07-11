@@ -54,11 +54,7 @@ var moveCmd = &cobra.Command{
 			return fmt.Errorf("entry not found for selector %q", args[0])
 		}
 
-		targetAbs, err := filepath.Abs(filepath.Join(cwd, args[1]))
-		if err != nil {
-			return err
-		}
-		targetAbs = filepath.Clean(targetAbs)
+		targetAbs := resolveAbsoluteTargetPath(cwd, args[1])
 		if targetAbs == filepath.Clean(entry.Path) {
 			return fmt.Errorf("target path is unchanged: %q", targetAbs)
 		}

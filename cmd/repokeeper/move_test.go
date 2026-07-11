@@ -76,6 +76,60 @@ func TestMoveCommandMovesDirectoryAndUpdatesRegistry(t *testing.T) {
 	}
 }
 
+func TestMoveCommandWithAbsoluteTargetDoesNotReRootUnderCWD(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	source := filepath.Join(t.TempDir(), "repo-move-abs-source")
+	if err := os.MkdirAll(source, 0o755); err != nil {
+		t.Fatalf("mkdir source: %v", err)
+	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{{
+			RepoID: "local:repo-move-abs",
+			Path:   source,
+			Status: registry.StatusPresent,
+		}},
+	}
+	if err := config.Save(cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	// The target is an absolute path outside cwd (filepath.Dir(cfgPath), per
+	// withConfigAndCWD). Before the fix, filepath.Join(cwd, target) re-rooted
+	// this under cwd instead of moving to the path the caller asked for.
+	absTarget := filepath.Join(t.TempDir(), "elsewhere", "repo-move-abs-target")
+
+	moveCmd.SetContext(context.Background())
+	_ = moveCmd.Flags().Set("registry", "")
+	if err := moveCmd.RunE(moveCmd, []string{"local:repo-move-abs", absTarget}); err != nil {
+		t.Fatalf("move command failed: %v", err)
+	}
+
+	if _, err := os.Stat(absTarget); err != nil {
+		t.Fatalf("expected repo moved to absolute target %q: %v", absTarget, err)
+	}
+	wrongTarget := filepath.Join(filepath.Dir(cfgPath), absTarget)
+	if _, err := os.Stat(wrongTarget); !os.IsNotExist(err) {
+		t.Fatalf("expected no repo re-rooted under cwd at %q, stat err=%v", wrongTarget, err)
+	}
+
+	cfg, err = config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	got := cfg.Registry.FindByRepoID("local:repo-move-abs")
+	if got == nil || filepath.Clean(got.Path) != filepath.Clean(absTarget) {
+		t.Fatalf("expected registry path %q, got %+v", absTarget, got)
+	}
+}
+
 func TestMoveCommandFailureKeepsRegistryUnchanged(t *testing.T) {
 	cfgPath := writeEmptyConfig(t)
 	cleanup := withConfigAndCWD(t, cfgPath)

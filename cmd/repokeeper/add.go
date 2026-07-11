@@ -67,11 +67,7 @@ var addCmd = &cobra.Command{
 
 		target := args[0]
 		rawURL := args[1]
-		targetAbs, err := filepath.Abs(filepath.Join(cwd, target))
-		if err != nil {
-			return err
-		}
-		targetAbs = filepath.Clean(targetAbs)
+		targetAbs := resolveAbsoluteTargetPath(cwd, target)
 
 		if _, err := os.Stat(targetAbs); err == nil {
 			return fmt.Errorf("target path already exists: %q", targetAbs)
@@ -147,6 +143,21 @@ var addCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// resolveAbsoluteTargetPath returns a cleaned absolute path for target. An
+// already-absolute target is used as-is (only cleaned); a relative target is
+// joined against cwd. This mirrors the absolute-first pattern used by
+// canonicalPathForMatch in describe.go. Unconditionally joining with
+// filepath.Join(cwd, target) is wrong for an absolute target: Join does not
+// special-case absolute path segments, so it re-roots the target under cwd
+// instead of preserving it (e.g. Join("/cwd", "/abs/target") yields
+// "/cwd/abs/target"), silently placing operations at the wrong path.
+func resolveAbsoluteTargetPath(cwd, target string) string {
+	if filepath.IsAbs(target) {
+		return filepath.Clean(target)
+	}
+	return filepath.Clean(filepath.Join(cwd, target))
 }
 
 func init() {
