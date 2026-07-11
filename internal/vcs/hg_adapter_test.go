@@ -132,6 +132,46 @@ func TestHgAdapterUnsupportedOperations(t *testing.T) {
 	}
 }
 
+func TestHgAdapterCloneRejectsFlagLikeArgs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake hg script uses POSIX shell")
+	}
+	// A remote URL, target path, or branch beginning with "-" must be
+	// rejected before it reaches hg, where it would otherwise be parsed
+	// as a flag instead of a literal positional argument. A fake "hg"
+	// that unconditionally succeeds is put on PATH so that, if rejection
+	// did NOT happen, Clone would return a nil error; asserting a non-nil
+	// error here proves the value never reached exec.
+	tmp := t.TempDir()
+	hgPath := filepath.Join(tmp, "hg")
+	if err := os.WriteFile(hgPath, []byte("#!/usr/bin/env sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write fake hg: %v", err)
+	}
+	prevPath := os.Getenv("PATH")
+	if err := os.Setenv("PATH", strings.Join([]string{tmp, prevPath}, ":")); err != nil {
+		t.Fatalf("set PATH: %v", err)
+	}
+	defer func() { _ = os.Setenv("PATH", prevPath) }()
+
+	adapter := NewHgAdapter()
+
+	if err := adapter.Clone(context.Background(), "--config=evil", "/tmp/repo", "", false); err == nil {
+		t.Fatal("expected error for flag-like remote URL")
+	}
+	if err := adapter.Clone(context.Background(), "ssh://example/repo", "-x", "", false); err == nil {
+		t.Fatal("expected error for flag-like target path")
+	}
+	if err := adapter.Clone(context.Background(), "ssh://example/repo", "/tmp/repo", "-x", false); err == nil {
+		t.Fatal("expected error for flag-like branch")
+	}
+	// Sanity check: a non-flag-like clone against the fake hg does succeed,
+	// confirming the fake binary (not a PATH/lookup failure) is what would
+	// have made the above calls succeed had rejection not happened.
+	if err := adapter.Clone(context.Background(), "ssh://example/repo", "/tmp/repo", "default", false); err != nil {
+		t.Fatalf("expected clone with valid args to succeed against fake hg, got %v", err)
+	}
+}
+
 func TestHgAdapterIsRepoGracefullyHandlesCommandError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake hg script uses POSIX shell")

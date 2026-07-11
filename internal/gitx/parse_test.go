@@ -143,6 +143,20 @@ var _ = Describe("ParseForEachRef", func() {
 		entries := gitx.ParseForEachRef("")
 		Expect(entries).To(BeEmpty())
 	})
+
+	// KNOWN LIMITATION (see ParseForEachRef doc comment): "|" is technically
+	// legal in a git ref name, so a branch named "feat|x" is misparsed today.
+	// This is documented rather than fixed in this change because the correct
+	// fix (a NUL-delimited --format string) changes the exact git argv and breaks
+	// internal/engine's mock-runner fixtures, which are outside this
+	// change's file scope.
+	It("documents that a literal pipe in a branch name is currently misparsed", func() {
+		output := "feat|x|origin/feat|x|[ahead 1]|>"
+		entries := gitx.ParseForEachRef(output)
+		Expect(entries).To(HaveLen(1))
+		Expect(entries[0].Branch).To(Equal("feat"), "known-bad: the delimiter split mangles a branch name containing '|'")
+		Expect(entries[0].Branch).NotTo(Equal("feat|x"))
+	})
 })
 
 var _ = Describe("ParseRevListCount", func() {

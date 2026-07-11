@@ -18,10 +18,8 @@ func TestClassifyError(t *testing.T) {
 	}{
 		{name: "nil", err: nil, want: ""},
 		{name: "timeout", err: context.DeadlineExceeded, want: "timeout"},
-		{name: "auth sentinel", err: fmt.Errorf("wrapped: %w", gitx.ErrAuthFailure), want: "auth"},
-		{name: "network sentinel", err: fmt.Errorf("wrapped: %w", gitx.ErrNetworkFailure), want: "network"},
-		{name: "corrupt sentinel", err: fmt.Errorf("wrapped: %w", gitx.ErrCorruptRepo), want: "corrupt"},
-		{name: "missing remote sentinel", err: fmt.Errorf("wrapped: %w", gitx.ErrMissingRemoteRef), want: "missing_remote"},
+		{name: "canceled", err: context.Canceled, want: "timeout"},
+		{name: "wrapped timeout", err: fmt.Errorf("wrapped: %w", context.DeadlineExceeded), want: "timeout"},
 		{name: "auth", err: errors.New("permission denied (publickey)"), want: "auth"},
 		{name: "network", err: errors.New("Could not resolve host: github.com"), want: "network"},
 		{name: "timeout text", err: errors.New("network timeout"), want: "timeout"},

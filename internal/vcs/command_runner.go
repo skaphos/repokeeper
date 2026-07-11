@@ -27,3 +27,15 @@ func runCommand(ctx context.Context, dir, bin string, args ...string) (string, e
 	}
 	return strings.TrimSpace(stdout.String()), nil
 }
+
+// rejectFlagLike rejects a positional argument (URL, path, or ref) that
+// begins with "-". hg (like git) parses such values as an option rather
+// than a literal positional argument, so an attacker-controlled remote
+// URL, branch, or path beginning with "-" could otherwise smuggle
+// arbitrary flags into the hg invocation.
+func rejectFlagLike(field, value string) error {
+	if strings.HasPrefix(value, "-") {
+		return fmt.Errorf("vcs: %s must not start with '-': %q", field, value)
+	}
+	return nil
+}
