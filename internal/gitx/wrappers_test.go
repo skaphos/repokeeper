@@ -176,3 +176,27 @@ func TestCloneRejectsFlagLikeArgs(t *testing.T) {
 		t.Fatal("expected error for flag-like branch")
 	}
 }
+
+func TestCloneDoesNotTrimURLOrPath(t *testing.T) {
+	// Leading/trailing whitespace is legal in local paths, so the remote URL and
+	// target path must reach git verbatim; trimming would clone into the wrong
+	// directory. The flag guard only rejects values whose first byte is '-'.
+	spacedURL := " https://example.com/repo.git"
+	spacedPath := " /tmp/my repo "
+	mock := &MockRunner{Responses: map[string]MockResponse{}}
+	// The clone "fails" with an unexpected-call error because we do not register
+	// a response; we only care that the args reached the runner untouched.
+	_ = gitx.Clone(context.Background(), mock, spacedURL, spacedPath, "", false)
+
+	if len(mock.LastArgs) < 3 {
+		t.Fatalf("expected clone to reach the runner, got args %v", mock.LastArgs)
+	}
+	gotURL := mock.LastArgs[len(mock.LastArgs)-2]
+	gotPath := mock.LastArgs[len(mock.LastArgs)-1]
+	if gotURL != spacedURL {
+		t.Fatalf("remote URL passed to git = %q, want verbatim %q", gotURL, spacedURL)
+	}
+	if gotPath != spacedPath {
+		t.Fatalf("target path passed to git = %q, want verbatim %q", gotPath, spacedPath)
+	}
+}

@@ -323,8 +323,10 @@ func CleanFD(ctx context.Context, r Runner, dir string) error {
 }
 
 func Clone(ctx context.Context, r Runner, remoteURL, targetPath, branch string, mirror bool) error {
-	remoteURL = strings.TrimSpace(remoteURL)
-	targetPath = strings.TrimSpace(targetPath)
+	// remoteURL and targetPath are passed to git verbatim: leading/trailing
+	// whitespace is legal in local paths, and the flag-injection guard only
+	// needs to reject values whose first byte is '-' (a leading space cannot be
+	// parsed as an option), so trimming would only corrupt valid inputs.
 	branch = strings.TrimSpace(branch)
 	if err := rejectFlagLike("remote URL", remoteURL); err != nil {
 		return err

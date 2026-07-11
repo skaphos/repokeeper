@@ -93,8 +93,10 @@ func (h *HgAdapter) Clone(ctx context.Context, remoteURL, targetPath, branch str
 		return errUnsupportedForHg
 	}
 
-	remoteURL = strings.TrimSpace(remoteURL)
-	targetPath = strings.TrimSpace(targetPath)
+	// remoteURL and targetPath are passed to hg verbatim: leading/trailing
+	// whitespace is legal in local paths, and the flag-injection guard only
+	// needs to reject values whose first byte is '-', so trimming would only
+	// corrupt valid inputs.
 	branch = strings.TrimSpace(branch)
 	if err := rejectFlagLike("remote URL", remoteURL); err != nil {
 		return err
