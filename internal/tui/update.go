@@ -3,6 +3,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -123,12 +124,7 @@ func (m tuiModel) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "f5":
-		m.loading = true
-		reg := m.engine.Registry()
-		if reg != nil {
-			m.pendingInspections = len(reg.Entries)
-		}
-		return m, refreshStatusCmd(m.context(), m.engine)
+		return startStatusRefresh(m)
 
 	case "esc":
 		if m.filterText != "" {
@@ -219,7 +215,7 @@ func (m tuiModel) handleSyncPlanKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	left, right := isModalNav(msg)
 	if left {
-		m = modalMoveLeft(m, syncPlanOptionCount)
+		m = modalMoveLeft(m)
 		return m, nil
 	}
 	if right {
@@ -252,14 +248,24 @@ func (m tuiModel) handleSyncProgressKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 	if m.syncDone {
 		m.mode = viewList
 		m.syncPlan = nil
-		m.syncResults = nil
 		m.syncProgress = nil
 		m.syncDone = false
 		m.syncErr = nil
-		m.loading = true
-		return m, refreshStatusCmd(m.context(), m.engine)
+		return startStatusRefresh(m)
 	}
 	return m, nil
+}
+
+// startStatusRefresh puts the model into a loading state and returns the
+// command that re-inspects every registry entry, recording how many
+// repoStatusMsg deliveries to expect so handleRepoStatus clears loading at
+// the right time instead of after the first streamed message.
+func startStatusRefresh(m tuiModel) (tea.Model, tea.Cmd) {
+	m.loading = true
+	if reg := m.engine.Registry(); reg != nil {
+		m.pendingInspections = len(reg.Entries)
+	}
+	return m, refreshStatusCmd(m.context(), m.engine)
 }
 
 func (m tuiModel) moveCursor(delta int) tuiModel {
@@ -341,8 +347,12 @@ func executeSyncCmd(m tuiModel) tea.Cmd {
 	ctx := m.context()
 	plan := m.syncPlan
 	eng := m.engine
-	prog := m.program
+	progRef := m.program
 	return func() tea.Msg {
+		var prog *tea.Program
+		if progRef != nil {
+			prog = progRef.Load()
+		}
 		onStart := func(r engine.SyncResult) {
 			if prog != nil {
 				prog.Send(syncProgressMsg{result: r, started: true})
@@ -403,7 +413,6 @@ func (m tuiModel) handleSyncProgress(msg syncProgressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m tuiModel) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
-	m.syncResults = msg.results
 	m.syncErr = msg.err
 	m.syncDone = true
 	if m.syncProgress == nil {
@@ -418,8 +427,18 @@ func (m tuiModel) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
 	if index := findRepoStatusIndex(m.repos, msg.status); index >= 0 {
 		m.repos[index] = msg.status
-	} else {
+	} else if repoStatusStillTracked(m.engine, msg.status) {
 		m.repos = append(m.repos, msg.status)
+	} else {
+		// A late repoStatusMsg for a row that's no longer in m.repos (e.g. it
+		// was deleted while its inspection was still in flight) and is no
+		// longer in the registry either: drop it instead of resurrecting a
+		// ghost row.
+		m.pendingInspections--
+		if m.pendingInspections <= 0 {
+			m.loading = false
+		}
+		return m, nil
 	}
 	if m.engine != nil {
 		writeRepoMetadataSnapshot(m.engine.Registry(), msg.status)
@@ -432,6 +451,22 @@ func (m tuiModel) handleRepoStatus(msg repoStatusMsg) (tea.Model, tea.Cmd) {
 		m.loading = false
 	}
 	return m, nil
+}
+
+// repoStatusStillTracked reports whether status still corresponds to a
+// registry entry. It is permissive (true) when the engine or registry is
+// unavailable so genuinely new rows (e.g. from the add flow, where the
+// registry already contains the entry before streamStatusCmd is dispatched)
+// keep appearing normally.
+func repoStatusStillTracked(eng EngineAPI, status model.RepoStatus) bool {
+	if eng == nil {
+		return true
+	}
+	reg := eng.Registry()
+	if reg == nil {
+		return true
+	}
+	return reg.FindEntry(status.RepoID, status.Path) != nil
 }
 
 func writeRepoMetadataSnapshot(reg *registry.Registry, status model.RepoStatus) {
@@ -452,8 +487,14 @@ func (m tuiModel) startReset() (tea.Model, tea.Cmd) {
 	if len(list) == 0 || m.cursor >= len(list) {
 		return m, nil
 	}
+	repo := list[m.cursor]
+	if m.engine != nil && repoIDRowCount(m.engine.Registry(), repo.RepoID) > 1 {
+		m.statusMsg = fmt.Sprintf("repo_id %q is ambiguous across multiple checkouts; resolve with 'e' before resetting", repo.RepoID)
+		m.statusIsError = true
+		return m, nil
+	}
 	m.mode = viewResetConfirm
-	m.resetRepoID = list[m.cursor].RepoID
+	m.resetRepoID = repo.RepoID
 	m.modalCursor = 0
 	return m, nil
 }
@@ -469,7 +510,7 @@ func (m tuiModel) handleResetConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 	}
 	left, right := isModalNav(msg)
 	if left {
-		m = modalMoveLeft(m, resetOptionCount)
+		m = modalMoveLeft(m)
 		return m, nil
 	}
 	if right {
@@ -482,7 +523,7 @@ func (m tuiModel) handleResetConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 			m.mode = viewList
 			m.resetRepoID = ""
 			m.modalCursor = 0
-			return m, resetRepoCmd(m.engine, repoID, m.cfgPath)
+			return m, resetRepoCmd(m.context(), m.engine, repoID, m.cfgPath)
 		}
 		m.mode = viewList
 		m.resetRepoID = ""
@@ -499,13 +540,7 @@ func (m tuiModel) handleResetDone(msg resetDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	m.statusMsg = "reset: " + msg.repoID
 	m.statusIsError = false
-	m.loading = true
-	reg := m.engine.Registry()
-	if reg != nil && len(reg.Entries) > 0 {
-		m.pendingInspections = len(reg.Entries)
-		return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
-	}
-	return m, loadStatusCmd(m.context(), m.engine)
+	return startStatusRefresh(m)
 }
 
 func (m tuiModel) startDelete() (tea.Model, tea.Cmd) {
@@ -513,9 +548,15 @@ func (m tuiModel) startDelete() (tea.Model, tea.Cmd) {
 	if len(list) == 0 || m.cursor >= len(list) {
 		return m, nil
 	}
+	repo := list[m.cursor]
+	if m.engine != nil && repoIDRowCount(m.engine.Registry(), repo.RepoID) > 1 {
+		m.statusMsg = fmt.Sprintf("repo_id %q is ambiguous across multiple checkouts; resolve with 'e' before deleting", repo.RepoID)
+		m.statusIsError = true
+		return m, nil
+	}
 	m.mode = viewDeleteConfirm
-	m.deleteRepoID = list[m.cursor].RepoID
-	m.deleteRepoPath = list[m.cursor].Path
+	m.deleteRepoID = repo.RepoID
+	m.deleteRepoPath = repo.Path
 	m.modalCursor = 0
 	return m, nil
 }
@@ -532,7 +573,7 @@ func (m tuiModel) handleDeleteConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 	}
 	left, right := isModalNav(msg)
 	if left {
-		m = modalMoveLeft(m, deleteOptionCount)
+		m = modalMoveLeft(m)
 		return m, nil
 	}
 	if right {
@@ -548,7 +589,8 @@ func (m tuiModel) handleDeleteConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 			m.deleteRepoPath = ""
 			m.modalCursor = 0
 			m.cursor = 0
-			return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, false)
+			m.offset = 0
+			return m, deleteRepoCmd(m.context(), m.engine, repoID, m.cfgPath, false)
 		case 2:
 			repoID := m.deleteRepoID
 			m.mode = viewList
@@ -556,7 +598,8 @@ func (m tuiModel) handleDeleteConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 			m.deleteRepoPath = ""
 			m.modalCursor = 0
 			m.cursor = 0
-			return m, deleteRepoCmd(m.engine, repoID, m.cfgPath, true)
+			m.offset = 0
+			return m, deleteRepoCmd(m.context(), m.engine, repoID, m.cfgPath, true)
 		default:
 			m.mode = viewList
 			m.deleteRepoID = ""
@@ -633,7 +676,7 @@ func (m tuiModel) handleAddKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.mode = viewList
-			return m, cloneAndRegisterCmd(m.engine, url, path, m.cfgPath, m.addMirror)
+			return m, cloneAndRegisterCmd(m.context(), m.engine, url, path, m.cfgPath, m.addMirror)
 		}
 		return m, nil
 
@@ -690,13 +733,7 @@ func (m tuiModel) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	m.statusMsg = "added: " + msg.repoID
 	m.statusIsError = false
-	m.loading = true
-	reg := m.engine.Registry()
-	if reg != nil && len(reg.Entries) > 0 {
-		m.pendingInspections = len(reg.Entries)
-		return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
-	}
-	return m, loadStatusCmd(m.context(), m.engine)
+	return startStatusRefresh(m)
 }
 
 func (m tuiModel) handleLabelEditKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -827,50 +864,15 @@ func resetRepoMetadataEditState(m tuiModel) tuiModel {
 	return m
 }
 
-func (m tuiModel) handleLabelEditDone(msg labelEditDoneMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.statusMsg = "label error: " + msg.err.Error()
-		m.statusIsError = true
-		return m, nil
-	}
-	m.mode = viewDetail
-	m.labelRepoID = ""
-	m.labelRepoPath = ""
-	m.labelInput = ""
-	if !msg.saved {
-		m.statusMsg = "no label changes"
-		m.statusIsError = false
-		return m, nil
-	}
-	m.statusMsg = "updated labels for " + msg.repoID
-	m.statusIsError = false
-	m.loading = true
-	return m, refreshStatusCmd(m.context(), m.engine)
-}
-
-func (m tuiModel) handleRepoMetadataEditDone(msg repoMetadataEditDoneMsg) (tea.Model, tea.Cmd) {
-	if msg.err != nil {
-		m.statusMsg = "repo metadata error: " + msg.err.Error()
-		m.statusIsError = true
-		return m, nil
-	}
-	m = resetRepoMetadataEditState(m)
-	m.mode = viewDetail
-	if !msg.saved {
-		m.statusMsg = "no repo metadata changes"
-		m.statusIsError = false
-		return m, nil
-	}
-	m.statusMsg = "updated repo metadata for " + msg.repoID
-	m.statusIsError = false
-	m.loading = true
-	return m, refreshStatusCmd(m.context(), m.engine)
-}
-
 func (m tuiModel) startRepair() (tea.Model, tea.Cmd) {
 	repoID, target, err := resolveRepairTarget(m)
 	if err != nil {
 		m.statusMsg = err.Error()
+		m.statusIsError = true
+		return m, nil
+	}
+	if repoIDRowCount(m.engine.Registry(), repoID) > 1 {
+		m.statusMsg = fmt.Sprintf("repo_id %q is ambiguous across multiple checkouts; resolve with 'e' before repairing", repoID)
 		m.statusIsError = true
 		return m, nil
 	}
@@ -893,7 +895,7 @@ func (m tuiModel) handleRepairConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 	}
 	left, right := isModalNav(msg)
 	if left {
-		m = modalMoveLeft(m, repairOptionCount)
+		m = modalMoveLeft(m)
 		return m, nil
 	}
 	if right {
@@ -913,7 +915,7 @@ func (m tuiModel) handleRepairConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 		m.repairRepoID = ""
 		m.repairTargetUpstream = ""
 		m.modalCursor = 0
-		return m, repairUpstreamCmd(m.engine, repoID, m.cfgPath)
+		return m, repairUpstreamCmd(m.context(), m.engine, repoID, m.cfgPath)
 	}
 	return m, nil
 }
@@ -937,13 +939,7 @@ func (m tuiModel) handleEditDone(msg editDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	m.statusMsg = "updated " + msg.repoID
 	m.statusIsError = false
-	m.loading = true
-	reg := m.engine.Registry()
-	if reg != nil && len(reg.Entries) > 0 {
-		m.pendingInspections = len(reg.Entries)
-		return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
-	}
-	return m, loadStatusCmd(m.context(), m.engine)
+	return startStatusRefresh(m)
 }
 
 func (m tuiModel) handleRepairDone(msg repairDoneMsg) (tea.Model, tea.Cmd) {
@@ -955,20 +951,12 @@ func (m tuiModel) handleRepairDone(msg repairDoneMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.statusIsError = false
-	switch msg.result.Action {
-	case "repaired":
-		m.statusMsg = "repaired: " + msg.result.RepoID
-		m.loading = true
-		reg := m.engine.Registry()
-		if reg != nil && len(reg.Entries) > 0 {
-			m.pendingInspections = len(reg.Entries)
-			return m, streamStatusCmd(m.context(), m.engine, reg.Entries)
-		}
-		return m, loadStatusCmd(m.context(), m.engine)
-	default:
+	if msg.result.Action != "repaired" {
 		m.statusMsg = msg.result.Action + ": " + msg.result.RepoID
+		return m, nil
 	}
-	return m, nil
+	m.statusMsg = "repaired: " + msg.result.RepoID
+	return startStatusRefresh(m)
 }
 
 func refreshStatusCmd(ctx context.Context, eng EngineAPI) tea.Cmd {

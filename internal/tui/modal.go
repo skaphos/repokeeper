@@ -23,7 +23,7 @@ func renderModalButtons(options []string, selected int) string {
 	return b.String()
 }
 
-func modalMoveLeft(m tuiModel, n int) tuiModel {
+func modalMoveLeft(m tuiModel) tuiModel {
 	if m.modalCursor > 0 {
 		m.modalCursor--
 	}

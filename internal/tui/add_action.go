@@ -21,9 +21,9 @@ type addDoneMsg struct {
 	err    error
 }
 
-func cloneAndRegisterCmd(eng EngineAPI, url, path, cfgPath string, mirror bool) tea.Cmd {
+func cloneAndRegisterCmd(ctx context.Context, eng EngineAPI, url, path, cfgPath string, mirror bool) tea.Cmd {
 	return func() tea.Msg {
-		err := eng.CloneAndRegister(context.Background(), url, path, cfgPath, mirror)
+		err := eng.CloneAndRegister(ctx, url, path, cfgPath, mirror)
 		if err != nil {
 			return addDoneMsg{repoID: repoNameFromURL(url), err: err}
 		}

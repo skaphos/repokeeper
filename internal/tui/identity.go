@@ -6,6 +6,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/registry"
 )
 
 const checkoutIdentitySeparator = "\x00"
@@ -52,6 +53,24 @@ func findRepoStatusIndex(rows []model.RepoStatus, incoming model.RepoStatus) int
 	}
 
 	return -1
+}
+
+// repoIDRowCount returns how many registry entries share repoID. EngineAPI's
+// delete/reset/repair operations are addressed by repo_id alone, so when
+// this is more than one, repo_id cannot safely select a single checkout for
+// those calls and the caller must refuse rather than risk acting on the
+// wrong one.
+func repoIDRowCount(reg *registry.Registry, repoID string) int {
+	if reg == nil {
+		return 0
+	}
+	count := 0
+	for _, e := range reg.Entries {
+		if e.RepoID == repoID {
+			count++
+		}
+	}
+	return count
 }
 
 func duplicateSyncRepoCounts(plan []engine.SyncResult) map[string]int {

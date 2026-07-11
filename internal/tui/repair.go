@@ -15,9 +15,9 @@ type repairDoneMsg struct {
 	err    error
 }
 
-func repairUpstreamCmd(eng EngineAPI, repoID, cfgPath string) tea.Cmd {
+func repairUpstreamCmd(ctx context.Context, eng EngineAPI, repoID, cfgPath string) tea.Cmd {
 	return func() tea.Msg {
-		result, err := eng.RepairUpstream(context.Background(), repoID, cfgPath)
+		result, err := eng.RepairUpstream(ctx, repoID, cfgPath)
 		return repairDoneMsg{result: result, err: err}
 	}
 }
@@ -36,11 +36,8 @@ func resolveRepairTarget(m tuiModel) (repoID, targetUpstream string, err error) 
 	}
 
 	var entryBranch string
-	for _, e := range reg.Entries {
-		if e.RepoID == repo.RepoID {
-			entryBranch = e.Branch
-			break
-		}
+	if index := registryEntryIndexByIdentity(reg, repo.RepoID, repo.Path); index >= 0 {
+		entryBranch = reg.Entries[index].Branch
 	}
 
 	remote := strings.TrimSpace(repo.PrimaryRemote)

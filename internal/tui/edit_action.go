@@ -49,18 +49,11 @@ func prepareEditCmd(m tuiModel) tea.Cmd {
 			return editDoneMsg{err: fmt.Errorf("registry not available")}
 		}
 
-		var entry registry.Entry
-		entryIdx := -1
-		for i, e := range reg.Entries {
-			if e.RepoID == repo.RepoID {
-				entry = e
-				entryIdx = i
-				break
-			}
-		}
+		entryIdx := registryEntryIndexByIdentity(reg, repo.RepoID, repo.Path)
 		if entryIdx < 0 {
 			return editDoneMsg{err: fmt.Errorf("registry entry not found for %s", repo.RepoID)}
 		}
+		entry := reg.Entries[entryIdx]
 
 		editorParts, err := editor.ResolveEditorCommand()
 		if err != nil {
