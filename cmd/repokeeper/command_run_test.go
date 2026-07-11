@@ -599,12 +599,20 @@ func TestSyncRunEDryRunSkipsConfirmationPrompt(t *testing.T) {
 	defer syncCmd.SetErr(os.Stderr)
 	defer syncCmd.SetIn(nil)
 
+	// yes is a root persistent flag, not a local flag on syncCmd, so it must be
+	// set (and restored) on rootCmd.PersistentFlags(); setting it on
+	// syncCmd.Flags() silently fails and leaves the test at the mercy of a
+	// persistent --yes leaked by an earlier test. Force it off here so the
+	// confirmation path is active and this test genuinely proves --dry-run
+	// skips it.
+	prevYes, _ := rootCmd.PersistentFlags().GetBool("yes")
+	_ = rootCmd.PersistentFlags().Set("yes", "false")
 	_ = syncCmd.Flags().Set("only", "all")
 	_ = syncCmd.Flags().Set("dry-run", "true")
-	_ = syncCmd.Flags().Set("yes", "false")
 	_ = syncCmd.Flags().Set("checkout-missing", "true")
 	_ = syncCmd.Flags().Set("format", "json")
 	defer func() {
+		_ = rootCmd.PersistentFlags().Set("yes", boolToFlag(prevYes))
 		_ = syncCmd.Flags().Set("checkout-missing", "false")
 		_ = syncCmd.Flags().Set("dry-run", "false")
 	}()

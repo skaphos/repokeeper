@@ -98,6 +98,12 @@ var exportCmd = &cobra.Command{
 		}
 		// Bundle files can carry remote_url credentials (see the warning above),
 		// so write owner-only rather than the previous world-readable 0o644.
+		// os.WriteFile only applies the perm bits when it creates the file, so an
+		// existing (possibly 0o644) bundle would keep its old mode. Remove any
+		// existing file first to guarantee a fresh 0o600 create.
+		if err := os.Remove(outputPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 		if err := os.WriteFile(outputPath, data, 0o600); err != nil {
 			return err
 		}
