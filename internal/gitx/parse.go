@@ -46,6 +46,17 @@ type ForEachRefEntry struct {
 // ParseForEachRef parses the pipe-delimited output of:
 //
 //	git for-each-ref refs/heads --format="%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort)"
+//
+// KNOWN LIMITATION (deferred, see PR description): "|" is technically a
+// legal character in a git ref name (git-check-ref-format does not
+// disallow it), so a branch such as "feat|x" can be misparsed here. The
+// correct fix — switching the --format string to a NUL ("%00") delimiter,
+// which cannot appear in a ref name — was prototyped but reverted because
+// it changes the exact argv git is invoked with, which breaks
+// internal/engine's mock-runner test fixtures that hardcode the current
+// pipe-delimited format string. internal/engine is outside this change's
+// file scope, so that fix needs a coordinated follow-up that updates both
+// packages together.
 func ParseForEachRef(output string) []ForEachRefEntry {
 	if output == "" {
 		return nil
