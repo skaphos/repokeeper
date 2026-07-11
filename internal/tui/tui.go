@@ -28,7 +28,11 @@ func Run(ctx context.Context, cfg *config.Config, reg *registry.Registry, cfgPat
 func RunWithEngine(ctx context.Context, eng EngineAPI, reg *registry.Registry, cfgPath string) error {
 	m := newModel(ctx, eng, reg, cfgPath)
 	p := tea.NewProgram(m, tea.WithContext(ctx))
-	m.program = p
+	// m.program is a pointer shared by every value-copy of the model
+	// (including the one tea.NewProgram just captured), so storing into it
+	// here makes the running program visible to Update-goroutine Cmds such
+	// as executeSyncCmd without needing a pointer-receiver model.
+	m.program.Store(p)
 	_, err := p.Run()
 	return err
 }

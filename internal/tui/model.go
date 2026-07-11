@@ -3,6 +3,7 @@ package tui
 
 import (
 	"context"
+	"sync/atomic"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/skaphos/repokeeper/internal/engine"
@@ -35,7 +36,14 @@ type tuiModel struct {
 	engine  EngineAPI
 	cfgPath string
 	ctx     context.Context
-	program *tea.Program
+
+	// program is a shared, atomically-guarded reference to the running
+	// *tea.Program. bubbletea's Elm architecture copies tuiModel by value on
+	// every Update, so a plain *tea.Program field set only once after
+	// tea.NewProgram would never be visible to the model instance the
+	// program actually drives. All copies share this same pointer, so
+	// storing into it once at startup makes the value visible everywhere.
+	program *atomic.Pointer[tea.Program]
 
 	mode          viewMode
 	width, height int
@@ -55,7 +63,6 @@ type tuiModel struct {
 	selected map[string]bool
 
 	syncPlan     []engine.SyncResult
-	syncResults  []engine.SyncResult
 	syncProgress map[string]engine.SyncResult
 	syncDone     bool
 	syncErr      error
@@ -119,6 +126,7 @@ func newModel(ctx context.Context, eng EngineAPI, reg *registry.Registry, cfgPat
 		engine:             eng,
 		cfgPath:            cfgPath,
 		ctx:                ctx,
+		program:            new(atomic.Pointer[tea.Program]),
 		repos:              repos,
 		loading:            true,
 		mode:               viewList,
