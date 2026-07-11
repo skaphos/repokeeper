@@ -87,7 +87,12 @@ var _ = Describe("Discovery", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(results).To(HaveLen(1))
-		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(repo)))
+		// Following a symlinked root reports the resolved target path; resolve
+		// the expectation too so a symlinked ancestor (macOS /var ->
+		// /private/var) or path canonicalization does not spuriously fail.
+		resolvedRepo, evalErr := filepath.EvalSymlinks(repo)
+		Expect(evalErr).NotTo(HaveOccurred())
+		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(resolvedRepo)))
 	})
 
 	It("does not descend into a symlinked subdirectory when follow-symlinks is disabled", func() {
@@ -146,7 +151,12 @@ var _ = Describe("Discovery", func() {
 		Eventually(done, "5s").Should(BeClosed(), "scan did not terminate; likely stuck in a symlink cycle")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(results).To(HaveLen(1))
-		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(repo)))
+		// Following the symlink reports the resolved target path; resolve the
+		// expectation too so macOS /var -> /private/var (and Windows path
+		// canonicalization) do not spuriously fail.
+		resolvedRepo, evalErr := filepath.EvalSymlinks(repo)
+		Expect(evalErr).NotTo(HaveOccurred())
+		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(resolvedRepo)))
 	})
 
 	It("does not duplicate results when roots overlap", func() {
