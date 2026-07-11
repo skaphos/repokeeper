@@ -6,8 +6,10 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -41,10 +43,9 @@ func Scan(ctx context.Context, opts Options) ([]Result, error) {
 		opts.Adapter = vcs.NewGitAdapter(nil)
 	}
 
-	visited := make(map[string]struct{})
-	var results []Result
-	skipDirs := make(map[string]struct{})
+	warnInvalidExcludePatterns(opts.Exclude)
 
+	var absRoots []string
 	for _, root := range opts.Roots {
 		if root == "" {
 			continue
@@ -53,6 +54,25 @@ func Scan(ctx context.Context, opts Options) ([]Result, error) {
 		if err != nil {
 			return nil, err
 		}
+		absRoots = append(absRoots, absRoot)
+	}
+
+	// Sort lexically so a parent directory is always processed before any
+	// descendant, then skip roots already covered by a previously accepted
+	// (shorter) root. This prevents overlapping roots, e.g. ["/A", "/A/sub"],
+	// from being walked twice and producing duplicate results.
+	sort.Strings(absRoots)
+
+	visited := make(map[string]struct{})
+	skipDirs := make(map[string]struct{})
+	var acceptedRoots []string
+	var results []Result
+
+	for _, absRoot := range absRoots {
+		if rootCovered(absRoot, acceptedRoots) {
+			continue
+		}
+		acceptedRoots = append(acceptedRoots, absRoot)
 		if err := walkRoot(ctx, absRoot, opts, visited, skipDirs, &results); err != nil {
 			return nil, err
 		}
@@ -61,8 +81,45 @@ func Scan(ctx context.Context, opts Options) ([]Result, error) {
 	return results, nil
 }
 
+// rootCovered reports whether path is equal to, or nested under, any of the
+// already-accepted root directories.
+func rootCovered(path string, accepted []string) bool {
+	sep := string(filepath.Separator)
+	for _, root := range accepted {
+		if path == root {
+			return true
+		}
+		// A filesystem-root root (e.g. "/" on Unix or "C:\" on Windows) already
+		// ends in a separator; appending another would form "//" / "C:\\" and
+		// break the prefix check, so only add a separator when one is absent.
+		prefix := root
+		if !strings.HasSuffix(prefix, sep) {
+			prefix += sep
+		}
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// warnInvalidExcludePatterns logs a warning for every --exclude pattern that
+// fails to parse, so a typoed pattern does not silently disable the
+// exclusion it was meant to apply. Patterns are validated once up front,
+// rather than on every MatchesExclude call made during the walk, to avoid
+// repeating the same warning for every directory visited.
+func warnInvalidExcludePatterns(patterns []string) {
+	for _, pattern := range patterns {
+		if !doublestar.ValidatePattern(filepath.ToSlash(pattern)) {
+			slog.Warn("discovery: invalid exclude pattern, it will be ignored", "pattern", pattern)
+		}
+	}
+}
+
 // MatchesExclude checks whether a path matches any of the given exclude
-// glob patterns.
+// glob patterns. Patterns that fail to parse are skipped rather than
+// treated as a match; call warnInvalidExcludePatterns (or ValidatePattern)
+// ahead of time to surface malformed patterns.
 func MatchesExclude(path string, patterns []string) bool {
 	if len(patterns) == 0 {
 		return false
@@ -86,37 +143,80 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 	if resolved, err := filepath.EvalSymlinks(root); err == nil {
 		realRoot = resolved
 	}
-	// Track resolved roots so the same tree is not walked twice via different symlink paths.
+	// Track resolved roots so the same tree is not walked twice via different
+	// symlink paths, and so following symlinks below cannot recurse forever
+	// on a cycle.
 	if _, ok := visited[realRoot]; ok {
 		return nil
 	}
 	visited[realRoot] = struct{}{}
 
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	// Walk the root as the caller supplied it so discovered paths keep the
+	// caller's path form; a symlinked ancestor (e.g. macOS /var -> /private/var)
+	// must not rewrite every returned path. Only when the root's final component
+	// is itself a symlink do we walk the resolved target, because WalkDir lstats
+	// the root and would otherwise treat a symlinked directory as a
+	// non-directory and never descend into it.
+	walkTarget := root
+	if fi, err := os.Lstat(root); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		walkTarget = realRoot
+	}
+	return filepath.WalkDir(walkTarget, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if errors.Is(err, fs.ErrPermission) {
+			if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
+				// Transient per-directory failures (permission denied, or a
+				// directory removed mid-scan) should not abort the whole
+				// scan; skip just that subtree and keep going.
+				slog.Warn("discovery: skipping path after walk error", "path", path, "error", err)
 				return fs.SkipDir
 			}
 			return err
 		}
 
-		if d.Type()&os.ModeSymlink != 0 && d.IsDir() && !opts.FollowSymlinks {
-			return fs.SkipDir
+		if d.Type()&os.ModeSymlink != 0 {
+			// filepath.WalkDir never follows symlinks on its own: a symlinked
+			// directory is reported with Type()==ModeSymlink and
+			// IsDir()==false, so it must be detected and, when enabled,
+			// resolved and recursed into explicitly here.
+			if !opts.FollowSymlinks {
+				return nil
+			}
+			target, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return nil
+			}
+			info, err := os.Stat(target)
+			if err != nil || !info.IsDir() {
+				return nil
+			}
+			// If the symlink resolves back inside the tree WalkDir is already
+			// walking, descending it as a new root would visit that subtree
+			// twice and duplicate results. The visited set only tracks roots,
+			// not every directory WalkDir descends into, so guard explicitly.
+			if target == realRoot || strings.HasPrefix(target, realRoot+string(filepath.Separator)) {
+				return nil
+			}
+			// Recurse into the symlink target as its own root; the visited
+			// set above guards against symlink cycles. Returning nil (not
+			// SkipDir) is required here because a symlink is a non-directory
+			// entry from WalkDir's point of view, and SkipDir on a
+			// non-directory entry skips the remaining siblings too.
+			return walkRoot(ctx, target, opts, visited, skipDirs, results)
 		}
 
-		if d.IsDir() {
-			if _, ok := skipDirs[path]; ok {
-				return fs.SkipDir
-			}
-			if d.Name() == ".git" {
-				// Never recurse through git internals during root discovery.
-				return fs.SkipDir
-			}
-			if MatchesExclude(path, opts.Exclude) {
-				return fs.SkipDir
-			}
-		} else {
+		if !d.IsDir() {
 			return nil
+		}
+
+		if _, ok := skipDirs[path]; ok {
+			return fs.SkipDir
+		}
+		if d.Name() == ".git" {
+			// Never recurse through git internals during root discovery.
+			return fs.SkipDir
+		}
+		if MatchesExclude(path, opts.Exclude) {
+			return fs.SkipDir
 		}
 
 		isRepoRoot, bare, gitdir, err := detectRepo(ctx, opts.Adapter, path)
@@ -134,22 +234,6 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 				return err
 			}
 			*results = append(*results, result)
-			return fs.SkipDir
-		}
-
-		if d.Type()&os.ModeSymlink != 0 && d.IsDir() && opts.FollowSymlinks {
-			target, err := filepath.EvalSymlinks(path)
-			if err != nil {
-				return nil
-			}
-			info, err := os.Stat(target)
-			if err != nil || !info.IsDir() {
-				return nil
-			}
-			if err := walkRoot(ctx, target, opts, visited, skipDirs, results); err != nil {
-				return err
-			}
-			// The symlink target was scanned recursively; skip duplicate walk from the link.
 			return fs.SkipDir
 		}
 
