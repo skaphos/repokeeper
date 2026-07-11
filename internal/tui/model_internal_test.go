@@ -18,6 +18,16 @@ type mockEngine struct {
 	statusErr    error
 	reg          *registry.Registry
 	cfg          *config.Config
+
+	// lastXCtx records the context each write-side method most recently
+	// received, so tests can verify callers thread through the model's
+	// context (finding: several action Cmds used to hardcode
+	// context.Background(), so cancelling/quitting never stopped an
+	// in-flight clone/delete/reset/repair).
+	lastDeleteCtx context.Context
+	lastResetCtx  context.Context
+	lastRepairCtx context.Context
+	lastCloneCtx  context.Context
 }
 
 func (e *mockEngine) Status(ctx context.Context, opts engine.StatusOptions) (*model.StatusReport, error) {
@@ -43,13 +53,19 @@ func (e *mockEngine) InspectRepo(ctx context.Context, path string) (*model.RepoS
 }
 
 func (e *mockEngine) RepairUpstream(ctx context.Context, repoID, cfgPath string) (engine.RepairUpstreamResult, error) {
+	e.lastRepairCtx = ctx
 	return engine.RepairUpstreamResult{}, nil
 }
-func (e *mockEngine) ResetRepo(ctx context.Context, repoID, cfgPath string) error { return nil }
+func (e *mockEngine) ResetRepo(ctx context.Context, repoID, cfgPath string) error {
+	e.lastResetCtx = ctx
+	return nil
+}
 func (e *mockEngine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteFiles bool) error {
+	e.lastDeleteCtx = ctx
 	return nil
 }
 func (e *mockEngine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cfgPath string, mirror bool) error {
+	e.lastCloneCtx = ctx
 	return nil
 }
 
@@ -294,6 +310,33 @@ func TestEscInListClearsFilter(t *testing.T) {
 	next := nm.(tuiModel)
 	if next.filterText != "" {
 		t.Fatalf("expected filterText='', got %q", next.filterText)
+	}
+}
+
+func TestModelProgramRefVisibleAcrossValueCopies(t *testing.T) {
+	t.Parallel()
+
+	// bubbletea's Elm architecture stores/returns tuiModel by value: every
+	// Update call operates on (and returns) a copy. tea.NewProgram(m, ...)
+	// captures its own copy of m before RunWithEngine can set the program
+	// reference, so a plain *tea.Program field set only afterward would
+	// never be observed by the copy the running program actually drives.
+	// program must therefore be a shared pointer: storing through it from
+	// one copy must be visible from every other copy, including ones taken
+	// before the store.
+	ctx := context.Background()
+	m := newModel(ctx, &mockEngine{}, nil, "")
+
+	copyOfM := m // simulates tea.NewProgram's internal capture of the model
+	if got := copyOfM.program.Load(); got != nil {
+		t.Fatalf("expected no program stored yet, got %v", got)
+	}
+
+	p := tea.NewProgram(copyOfM, tea.WithContext(ctx))
+	m.program.Store(p)
+
+	if got := copyOfM.program.Load(); got != p {
+		t.Fatalf("expected the pre-existing model copy to observe the stored *tea.Program, got %v want %v", got, p)
 	}
 }
 

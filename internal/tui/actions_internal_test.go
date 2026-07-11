@@ -115,6 +115,9 @@ func TestHandleLabelEditSavePersistsConfig(t *testing.T) {
 	if nm.mode != viewDetail || nm.statusMsg != "updated labels for acme/a" || refresh == nil {
 		t.Fatalf("unexpected post-save state: %+v", nm)
 	}
+	if !nm.loading || nm.pendingInspections != 1 {
+		t.Fatalf("expected loading=true and pendingInspections=1 for the refresh stream, got loading=%v pendingInspections=%d", nm.loading, nm.pendingInspections)
+	}
 	loaded, err := config.Load(cfgPath)
 	if err != nil {
 		t.Fatalf("reload config: %v", err)
@@ -172,6 +175,9 @@ func TestHandleRepoMetadataEditSaveWritesRepoMetadata(t *testing.T) {
 	nm := next.(tuiModel)
 	if nm.mode != viewDetail || nm.statusMsg != "updated repo metadata for acme/a" || refresh == nil {
 		t.Fatalf("unexpected post-save state: %+v", nm)
+	}
+	if !nm.loading || nm.pendingInspections != 1 {
+		t.Fatalf("expected loading=true and pendingInspections=1 for the refresh stream, got loading=%v pendingInspections=%d", nm.loading, nm.pendingInspections)
 	}
 	_, metadata, err := repometa.Load(repoPath)
 	if err != nil {
@@ -522,6 +528,29 @@ func TestHandleDeleteConfirmKey(t *testing.T) {
 	}
 }
 
+func TestHandleDeleteConfirmKeyResetsOffset(t *testing.T) {
+	t.Parallel()
+
+	for _, modalCursor := range []int{1, 2} {
+		m := tuiModel{
+			mode:         viewDeleteConfirm,
+			deleteRepoID: "acme/a",
+			modalCursor:  modalCursor,
+			cursor:       9,
+			offset:       8,
+			engine:       &mockEngine{},
+		}
+		next, cmd := m.handleDeleteConfirmKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if cmd == nil {
+			t.Fatalf("expected delete command for modalCursor=%d", modalCursor)
+		}
+		nm := next.(tuiModel)
+		if nm.cursor != 0 || nm.offset != 0 {
+			t.Fatalf("expected cursor and offset reset to 0 for modalCursor=%d, got cursor=%d offset=%d", modalCursor, nm.cursor, nm.offset)
+		}
+	}
+}
+
 func TestHandleRepairConfirmKey(t *testing.T) {
 	t.Parallel()
 
@@ -867,6 +896,43 @@ func TestHelpersAndPathResolution(t *testing.T) {
 	}
 }
 
+func TestActionCmdsPropagateProvidedContext(t *testing.T) {
+	t.Parallel()
+
+	type ctxKey struct{}
+	ctx := context.WithValue(context.Background(), ctxKey{}, "marker")
+
+	eng := &mockEngine{}
+
+	if _, ok := deleteRepoCmd(ctx, eng, "acme/a", "/tmp/cfg.yaml", false)().(deleteDoneMsg); !ok {
+		t.Fatal("expected deleteDoneMsg")
+	}
+	if eng.lastDeleteCtx != ctx {
+		t.Fatal("expected deleteRepoCmd to call DeleteRepo with the provided context, not context.Background()")
+	}
+
+	if _, ok := resetRepoCmd(ctx, eng, "acme/a", "/tmp/cfg.yaml")().(resetDoneMsg); !ok {
+		t.Fatal("expected resetDoneMsg")
+	}
+	if eng.lastResetCtx != ctx {
+		t.Fatal("expected resetRepoCmd to call ResetRepo with the provided context, not context.Background()")
+	}
+
+	if _, ok := repairUpstreamCmd(ctx, eng, "acme/a", "/tmp/cfg.yaml")().(repairDoneMsg); !ok {
+		t.Fatal("expected repairDoneMsg")
+	}
+	if eng.lastRepairCtx != ctx {
+		t.Fatal("expected repairUpstreamCmd to call RepairUpstream with the provided context, not context.Background()")
+	}
+
+	if _, ok := cloneAndRegisterCmd(ctx, eng, "https://example.com/acme/a.git", "/tmp/a", "/tmp/cfg.yaml", false)().(addDoneMsg); !ok {
+		t.Fatal("expected addDoneMsg")
+	}
+	if eng.lastCloneCtx != ctx {
+		t.Fatal("expected cloneAndRegisterCmd to call CloneAndRegister with the provided context, not context.Background()")
+	}
+}
+
 func TestResolveRepairTarget(t *testing.T) {
 	t.Parallel()
 
@@ -900,6 +966,132 @@ func TestResolveRepairTarget(t *testing.T) {
 	}
 }
 
+func TestResolveRepairTargetUsesPathForDuplicateRepoID(t *testing.T) {
+	t.Parallel()
+
+	// Two checkouts share the same repo_id (e.g. hand-edited registry.yaml
+	// or a stale duplicate). Resolving by repo_id alone (first match) would
+	// use the wrong entry's branch; resolving by the selected row's path
+	// must use the checkout actually under the cursor.
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "acme/backend", Path: "/work/primary", Branch: "main", Status: registry.StatusPresent},
+		{RepoID: "acme/backend", Path: "/work/secondary", Branch: "feature", Status: registry.StatusPresent},
+	}}
+	eng := &mockEngine{reg: reg}
+	repos := []model.RepoStatus{{
+		RepoID: "acme/backend", Path: "/work/secondary", PrimaryRemote: "origin", Head: model.Head{Branch: "feature"},
+	}}
+
+	repoID, target, err := resolveRepairTarget(tuiModel{engine: eng, repos: repos, cursor: 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repoID != "acme/backend" || target != "origin/feature" {
+		t.Fatalf("expected target derived from the secondary checkout's own branch, got repoID=%q target=%q", repoID, target)
+	}
+}
+
+func TestPrepareEditCmdResolvesRowByPathWhenRepoIDDuplicated(t *testing.T) {
+	// t.Setenv is incompatible with t.Parallel.
+	t.Setenv("EDITOR", "true")
+	t.Setenv("VISUAL", "")
+
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "acme/backend", Path: "/work/primary", Branch: "main", Status: registry.StatusPresent},
+		{RepoID: "acme/backend", Path: "/work/secondary", Branch: "feature", Status: registry.StatusPresent},
+	}}
+	eng := &mockEngine{reg: reg}
+	repos := []model.RepoStatus{
+		{RepoID: "acme/backend", Path: "/work/primary"},
+		{RepoID: "acme/backend", Path: "/work/secondary"},
+	}
+	m := tuiModel{repos: repos, cursor: 1, engine: eng}
+
+	cmd := prepareEditCmd(m)
+	if cmd == nil {
+		t.Fatal("expected prepare edit cmd")
+	}
+	msg, ok := cmd().(editReadyMsg)
+	if !ok {
+		t.Fatalf("expected editReadyMsg, got %T", cmd())
+	}
+	defer os.Remove(msg.tmpPath)
+	if msg.originalEntry.Path != "/work/secondary" || msg.originalEntry.Branch != "feature" {
+		t.Fatalf("expected edit to target the row under the cursor (secondary checkout), got %+v", msg.originalEntry)
+	}
+}
+
+func TestStartDeleteBlocksAmbiguousRepoID(t *testing.T) {
+	t.Parallel()
+
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "acme/backend", Path: "/work/primary", Status: registry.StatusPresent},
+		{RepoID: "acme/backend", Path: "/work/secondary", Status: registry.StatusPresent},
+	}}
+	eng := &mockEngine{reg: reg}
+	repos := []model.RepoStatus{
+		{RepoID: "acme/backend", Path: "/work/primary"},
+		{RepoID: "acme/backend", Path: "/work/secondary"},
+	}
+	m := tuiModel{repos: repos, cursor: 1, engine: eng}
+
+	next, cmd := m.startDelete()
+	nm := next.(tuiModel)
+	if nm.mode == viewDeleteConfirm || cmd != nil {
+		t.Fatalf("expected ambiguous repo_id to block delete, got mode=%v cmd=%v", nm.mode, cmd)
+	}
+	if !nm.statusIsError || !strings.Contains(nm.statusMsg, "ambiguous") {
+		t.Fatalf("expected ambiguous status message, got %+v", nm)
+	}
+}
+
+func TestStartResetBlocksAmbiguousRepoID(t *testing.T) {
+	t.Parallel()
+
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "acme/backend", Path: "/work/primary", Status: registry.StatusPresent},
+		{RepoID: "acme/backend", Path: "/work/secondary", Status: registry.StatusPresent},
+	}}
+	eng := &mockEngine{reg: reg}
+	repos := []model.RepoStatus{
+		{RepoID: "acme/backend", Path: "/work/primary"},
+		{RepoID: "acme/backend", Path: "/work/secondary"},
+	}
+	m := tuiModel{repos: repos, cursor: 1, engine: eng}
+
+	next, cmd := m.startReset()
+	nm := next.(tuiModel)
+	if nm.mode == viewResetConfirm || cmd != nil {
+		t.Fatalf("expected ambiguous repo_id to block reset, got mode=%v cmd=%v", nm.mode, cmd)
+	}
+	if !nm.statusIsError || !strings.Contains(nm.statusMsg, "ambiguous") {
+		t.Fatalf("expected ambiguous status message, got %+v", nm)
+	}
+}
+
+func TestStartRepairBlocksAmbiguousRepoID(t *testing.T) {
+	t.Parallel()
+
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "acme/backend", Path: "/work/primary", Branch: "main", Status: registry.StatusPresent},
+		{RepoID: "acme/backend", Path: "/work/secondary", Branch: "feature", Status: registry.StatusPresent},
+	}}
+	eng := &mockEngine{reg: reg}
+	repos := []model.RepoStatus{{
+		RepoID: "acme/backend", Path: "/work/secondary", PrimaryRemote: "origin", Head: model.Head{Branch: "feature"},
+	}}
+	m := tuiModel{repos: repos, cursor: 0, engine: eng}
+
+	next, cmd := m.startRepair()
+	nm := next.(tuiModel)
+	if nm.mode == viewRepairConfirm || cmd != nil {
+		t.Fatalf("expected ambiguous repo_id to block repair, got mode=%v cmd=%v", nm.mode, cmd)
+	}
+	if !nm.statusIsError || !strings.Contains(nm.statusMsg, "ambiguous") {
+		t.Fatalf("expected ambiguous status message, got %+v", nm)
+	}
+}
+
 func TestModalHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -923,7 +1115,7 @@ func TestModalHelpers(t *testing.T) {
 	}
 
 	m := tuiModel{modalCursor: 0}
-	m = modalMoveLeft(m, 2)
+	m = modalMoveLeft(m)
 	if m.modalCursor != 0 {
 		t.Fatal("expected left clamp at 0")
 	}
@@ -1122,6 +1314,74 @@ func TestTUIUsesSharedAndLocalLabelsDistinctly(t *testing.T) {
 	}
 	if !strings.Contains(detail, "    role=service") {
 		t.Fatalf("expected shared label in repo metadata section, got %q", detail)
+	}
+}
+
+func TestSanitizeMetadataText(t *testing.T) {
+	t.Parallel()
+
+	if got := sanitizeMetadataText("plain text"); got != "plain text" {
+		t.Fatalf("expected unchanged plain text, got %q", got)
+	}
+	if got := sanitizeMetadataText("a\x1b[31mb\x07c\nd"); got != "abcd" {
+		t.Fatalf("expected control/escape characters stripped, got %q", got)
+	}
+	if got := sanitizeMetadataText(""); got != "" {
+		t.Fatalf("expected empty string unchanged, got %q", got)
+	}
+}
+
+func TestRenderDetailViewStripsControlCharactersFromRepoMetadata(t *testing.T) {
+	t.Parallel()
+
+	// RepoMetadata is loaded from a file inside the cloned repository
+	// (.repokeeper-repo.yaml), so a hostile or compromised upstream fully
+	// controls these strings. Rendering them raw would let it smuggle
+	// terminal escape sequences into the operator's terminal.
+	const escSeq = "\x1b[31mHACKED\x1b[0m"
+	repo := model.RepoStatus{
+		RepoID: "acme/backend",
+		Path:   "/work/backend",
+		RepoMetadata: &model.RepoMetadata{
+			Name:        escSeq,
+			RepoID:      "acme\x1b]0;pwned\x07/backend",
+			Labels:      map[string]string{"team": escSeq},
+			Entrypoints: map[string]string{"readme": "README.md" + escSeq},
+			Paths:       model.RepoMetadataPaths{Authoritative: []string{"docs" + escSeq}},
+			Provides:    []string{escSeq},
+			RelatedRepos: []model.RepoMetadataRelatedRepo{
+				{RepoID: escSeq, Relationship: escSeq},
+			},
+		},
+		RepoMetadataError: "repo metadata repo_id " + escSeq + " mismatch",
+	}
+
+	detail := renderDetailView(tuiModel{width: 100, repos: []model.RepoStatus{repo}, cursor: 0})
+
+	// Isolate the repo-metadata-derived body: the surrounding title/header/
+	// footer lines are legitimately styled by the app itself (lipgloss), so
+	// they contain their own, harmless ANSI codes. Only the bytes that came
+	// from RepoMetadata must be free of escape sequences. The metadata
+	// block ends at the blank line separating it from the next section
+	// (Last Sync, if any, or the footer).
+	start := strings.Index(detail, "Name:")
+	if start == -1 {
+		t.Fatalf("expected to locate the repo metadata body, got %q", detail)
+	}
+	blank := strings.Index(detail[start:], "\n\n")
+	if blank == -1 {
+		t.Fatalf("expected a blank line ending the repo metadata body, got %q", detail)
+	}
+	metadataBody := detail[start : start+blank]
+
+	if strings.ContainsAny(metadataBody, "\x1b\x07") {
+		t.Fatalf("expected injected escape/control bytes to be stripped from repo metadata, got %q", metadataBody)
+	}
+	if !strings.Contains(metadataBody, "HACKED") {
+		t.Fatalf("expected sanitized text content to remain, got %q", metadataBody)
+	}
+	if !strings.Contains(metadataBody, "Repo ID: acme/backend") {
+		t.Fatalf("expected the OSC-injected repo ID to sanitize down to the plain text, got %q", metadataBody)
 	}
 }
 

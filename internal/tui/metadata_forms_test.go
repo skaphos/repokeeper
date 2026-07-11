@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
 )
@@ -110,6 +112,104 @@ func TestRenderMetadataViewsAndHelpers(t *testing.T) {
 	}
 	if got := cloneMetadataStringMap(nil); got != nil {
 		t.Fatalf("expected nil map clone, got %+v", got)
+	}
+}
+
+// TestSaveLabelEditCmdDoesNotRaceWithConcurrentRegistryReads exercises the
+// concurrency fix directly: stream.go's inspect Cmds read the shared
+// *registry.Registry (via FindEntry) from goroutines that can still be in
+// flight while a label/metadata edit is being saved. Before the fix,
+// saveLabelEditCmd's returned Cmd wrote straight into reg.Entries and called
+// config.Save from inside that same goroutine, racing with concurrent
+// reads. Run with -race: this test fails against the pre-fix code and
+// passes against the fix, which confines the write to the Update-goroutine
+// handler (handleLabelEditDone) and keeps the Cmd goroutine registry-free.
+func TestSaveLabelEditCmdDoesNotRaceWithConcurrentRegistryReads(t *testing.T) {
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: "/tmp/a", Status: registry.StatusPresent}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	m := tuiModel{labelRepoID: "acme/a", labelRepoPath: "/tmp/a", labelInput: "team=platform", engine: eng}
+
+	cmd := saveLabelEditCmd(m)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = reg.FindEntry("acme/a", "/tmp/a")
+			}
+		}
+	}()
+
+	msg, ok := cmd().(labelEditDoneMsg)
+	close(stop)
+	wg.Wait()
+
+	if !ok {
+		t.Fatalf("expected labelEditDoneMsg, got %T", msg)
+	}
+	if msg.err != nil {
+		t.Fatalf("unexpected error: %v", msg.err)
+	}
+}
+
+// TestSaveRepoMetadataEditCmdDoesNotRaceWithConcurrentRegistryReads is the
+// analogous race test for saveRepoMetadataEditCmd; see
+// TestSaveLabelEditCmdDoesNotRaceWithConcurrentRegistryReads for details.
+func TestSaveRepoMetadataEditCmdDoesNotRaceWithConcurrentRegistryReads(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: repoPath, Status: registry.StatusPresent}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	m := tuiModel{
+		metadataRepoID:          "acme/a",
+		metadataRepoPath:        repoPath,
+		metadataField:           metadataFieldRelated,
+		metadataName:            "Repo A",
+		metadataRepoIDAssertion: "acme/a",
+		metadataLabelsInput:     "team=platform",
+		engine:                  eng,
+		cfgPath:                 filepath.Join(tmp, ".repokeeper.yaml"),
+	}
+
+	cmd := saveRepoMetadataEditCmd(m)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = reg.FindEntry("acme/a", repoPath)
+			}
+		}
+	}()
+
+	msg, ok := cmd().(repoMetadataEditDoneMsg)
+	close(stop)
+	wg.Wait()
+
+	if !ok {
+		t.Fatalf("expected repoMetadataEditDoneMsg, got %T", msg)
+	}
+	if msg.err != nil {
+		t.Fatalf("unexpected error: %v", msg.err)
 	}
 }
 

@@ -189,6 +189,50 @@ func TestHandleRepoStatusWritesRepoMetadataSnapshotBackToRegistry(t *testing.T) 
 	}
 }
 
+func TestHandleRepoStatusIgnoresStaleMessageForDeletedRepo(t *testing.T) {
+	t.Parallel()
+
+	// Simulate: "acme/gone" was deleted (removed from both m.repos, by
+	// handleDeleteDone, and from the registry, by engine.DeleteRepo) while
+	// its inspection from an earlier streamStatusCmd batch was still in
+	// flight. The late repoStatusMsg must not resurrect it as a ghost row.
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/keep", Path: "/work/keep", Status: registry.StatusPresent}}}
+	m := tuiModel{
+		repos:              []model.RepoStatus{{RepoID: "acme/keep", Path: "/work/keep"}},
+		loading:            true,
+		pendingInspections: 1,
+		engine:             &mockEngine{reg: reg},
+	}
+
+	nm, cmd := m.handleRepoStatus(repoStatusMsg{status: model.RepoStatus{RepoID: "acme/gone", Path: "/work/gone"}})
+	if cmd != nil {
+		t.Fatal("expected nil cmd")
+	}
+	next := nm.(tuiModel)
+	if len(next.repos) != 1 {
+		t.Fatalf("expected stale status for a deleted repo to be dropped, got %d rows: %+v", len(next.repos), next.repos)
+	}
+	if next.loading {
+		t.Fatal("expected loading=false after accounting for the dropped, last pending inspection")
+	}
+}
+
+func TestHandleRepoStatusAppendsRowStillInRegistry(t *testing.T) {
+	t.Parallel()
+
+	// A row absent from m.repos but present in the registry (e.g. the add
+	// flow, which streams status for every registry entry including the
+	// brand-new one) must still be appended normally.
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/new", Path: "/work/new", Status: registry.StatusPresent}}}
+	m := tuiModel{engine: &mockEngine{reg: reg}}
+
+	nm, _ := m.handleRepoStatus(repoStatusMsg{status: model.RepoStatus{RepoID: "acme/new", Path: "/work/new"}})
+	next := nm.(tuiModel)
+	if len(next.repos) != 1 {
+		t.Fatalf("expected newly tracked repo to be appended, got %d rows", len(next.repos))
+	}
+}
+
 func TestEmptyRegistryRenderNoRepos(t *testing.T) {
 	t.Parallel()
 
