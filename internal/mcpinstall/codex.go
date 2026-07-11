@@ -206,24 +206,24 @@ func refuseIfTOMLComments(path string) error {
 }
 
 // tomlHasComments reports whether raw contains a TOML comment (an unquoted
-// '#'). It skips over basic ("..."), literal ('...'), and multi-line
-// ("""...""" / '''...''') strings so a '#' inside a string value is not
+// '#'). It skips over basic ("...") and literal ('...') strings, both
+// single-line and triple-quoted, so a '#' inside a string value is not
 // mistaken for a comment. Malformed/unterminated strings cause the remainder
 // to be treated as string content; such input is rejected earlier by
 // readTOMLDoc's parse, so it never reaches a write.
 func tomlHasComments(raw []byte) bool {
 	s := string(raw)
 	for i := 0; i < len(s); {
-		switch {
-		case s[i] == '#':
+		switch s[i] {
+		case '#':
 			return true
-		case s[i] == '"':
+		case '"':
 			if strings.HasPrefix(s[i:], `"""`) {
 				i = skipTOMLDelim(s, i+3, `"""`)
 			} else {
 				i = skipTOMLSingleLine(s, i+1, '"', true)
 			}
-		case s[i] == '\'':
+		case '\'':
 			if strings.HasPrefix(s[i:], `'''`) {
 				i = skipTOMLDelim(s, i+3, `'''`)
 			} else {
