@@ -21,6 +21,11 @@ skip_pkg() {
 threshold_for_pkg() {
   local pkg="$1"
   case "$pkg" in
+    # pathutil.WriteFileAtomic has durability error paths (fsync/chmod/close
+    # failures) that cannot be exercised without filesystem fault injection, and
+    # CanonicalNormalize has a Windows-only branch; both are unreachable on the
+    # Linux coverage runner. Floor the package below the default accordingly.
+    github.com/skaphos/repokeeper/internal/pathutil) echo 70 ;;
     *) echo "$default_threshold" ;;
   esac
 }

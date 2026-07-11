@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/internal/registry"
 )
 
 var _ = Describe("Config", func() {
@@ -141,6 +142,48 @@ var _ = Describe("Config", func() {
 		_, err := config.Load(cfgPath)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("unsupported config apiVersion"))
+	})
+
+	It("writes the registry to the external registry_path instead of inlining it", func() {
+		dir := GinkgoT().TempDir()
+		cfgPath := filepath.Join(dir, "config.yaml")
+
+		cfg := config.DefaultConfig()
+		cfg.RegistryPath = "registry.yaml"
+		cfg.Registry = &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "github.com/acme/repo", Path: filepath.Join(dir, "repo"), Status: registry.StatusPresent},
+			},
+		}
+
+		Expect(config.Save(&cfg, cfgPath)).To(Succeed())
+
+		// The external registry file must exist and hold the entry.
+		externalPath := filepath.Join(dir, "registry.yaml")
+		externalBytes, err := os.ReadFile(externalPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(externalBytes)).To(ContainSubstring("github.com/acme/repo"))
+
+		// config.yaml must NOT inline the registry document.
+		configBytes, err := os.ReadFile(cfgPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(configBytes)).NotTo(ContainSubstring("github.com/acme/repo"))
+		Expect(string(configBytes)).To(ContainSubstring("registry_path: registry.yaml"))
+
+		// Round-trip: Load must hydrate the registry from the external file.
+		loaded, err := config.Load(cfgPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(loaded.Registry).NotTo(BeNil())
+		Expect(loaded.Registry.Entries).To(HaveLen(1))
+		Expect(loaded.Registry.Entries[0].RepoID).To(Equal("github.com/acme/repo"))
+
+		// Re-saving the loaded config keeps the external file authoritative
+		// (the round-trip is stable and the external file is not orphaned).
+		Expect(config.Save(loaded, cfgPath)).To(Succeed())
+		reloaded, err := config.Load(cfgPath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reloaded.Registry).NotTo(BeNil())
+		Expect(reloaded.Registry.Entries).To(HaveLen(1))
 	})
 
 	It("loads registry_path relative to config file directory", func() {

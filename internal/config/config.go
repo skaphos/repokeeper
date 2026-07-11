@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
+	"github.com/skaphos/repokeeper/internal/pathutil"
 	"github.com/skaphos/repokeeper/internal/registry"
 	"go.yaml.in/yaml/v3"
 )
@@ -62,10 +64,10 @@ func DefaultConfig() Config {
 	}
 }
 
-// ConfigDir returns the platform-appropriate config directory path.
+// configDir returns the platform-appropriate config directory path.
 // It checks, in order: the override parameter, REPOKEEPER_CONFIG env var,
 // and finally os.UserConfigDir()/repokeeper.
-func ConfigDir(override string) (string, error) {
+func configDir(override string) (string, error) {
 	if override != "" {
 		if isConfigFilePath(override) {
 			return filepath.Dir(override), nil
@@ -103,7 +105,7 @@ func ConfigPath(override string) (string, error) {
 		return filepath.Join(env, "config.yaml"), nil
 	}
 
-	dir, err := ConfigDir("")
+	dir, err := configDir("")
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +145,7 @@ func ResolveConfigPath(override, cwd string) (string, error) {
 		}
 	}
 
-	localPath, err := FindNearestConfigPath(cwd)
+	localPath, err := findNearestConfigPath(cwd)
 	if err != nil {
 		return "", err
 	}
@@ -154,9 +156,17 @@ func ResolveConfigPath(override, cwd string) (string, error) {
 	return ConfigPath("")
 }
 
-// FindNearestConfigPath searches cwd and each parent directory for .repokeeper.yaml.
-// It returns an empty string when no local config file is found.
-func FindNearestConfigPath(cwd string) (string, error) {
+// findNearestConfigPath searches cwd and each parent directory for a
+// .repokeeper.yaml regular file. It returns an empty string when none is found.
+//
+// The upward walk is bounded so an attacker cannot plant a config in a shared
+// ancestor (e.g. /tmp/.repokeeper.yaml) and have it silently adopted:
+//   - the walk stops at the user's home directory (inclusive); and
+//   - it never ascends into a world-writable or sticky directory such as /tmp.
+//
+// The candidate must be a regular file; a directory named .repokeeper.yaml is
+// ignored.
+func findNearestConfigPath(cwd string) (string, error) {
 	info, err := os.Stat(cwd)
 	if err != nil {
 		return "", err
@@ -165,21 +175,59 @@ func FindNearestConfigPath(cwd string) (string, error) {
 		return "", fmt.Errorf("cwd is not a directory: %s", cwd)
 	}
 
+	home, _ := os.UserHomeDir()
+
 	dir := cwd
 	for {
 		candidate := filepath.Join(dir, LocalConfigFilename)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		} else if err != nil && !os.IsNotExist(err) {
+		if fi, err := os.Lstat(candidate); err == nil {
+			if fi.Mode().IsRegular() {
+				return candidate, nil
+			}
+			// A non-regular match (directory, symlink, socket) is not a config
+			// file; ignore it and keep walking upward.
+		} else if !os.IsNotExist(err) {
 			return "", err
+		}
+
+		// Boundary: never search above the user's home directory.
+		if home != "" && sameDirPath(dir, home) {
+			return "", nil
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
+			return "", nil // reached the filesystem root
+		}
+		// Do not ascend into a shared/world-writable directory (e.g. /tmp),
+		// where a config file could be planted by another user.
+		if isSharedDir(parent) {
 			return "", nil
 		}
 		dir = parent
 	}
+}
+
+// sameDirPath reports whether two directory paths refer to the same location
+// after cleaning (and case-folding on Windows).
+func sameDirPath(a, b string) bool {
+	left := filepath.Clean(a)
+	right := filepath.Clean(b)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
+}
+
+// isSharedDir reports whether dir is world-writable or sticky, which marks it
+// as a shared location (like /tmp) that config discovery must not walk into.
+func isSharedDir(dir string) bool {
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return false
+	}
+	mode := fi.Mode()
+	return mode.Perm()&0o002 != 0 || mode&os.ModeSticky != 0
 }
 
 // Load reads the config file from the given path.
@@ -256,6 +304,11 @@ func EffectiveRoot(configPath string) string {
 }
 
 // Save writes the config to the given path.
+//
+// When RegistryPath is set, the registry is persisted to that external file
+// rather than being inlined into the config document. Inlining it would
+// duplicate the registry into config.yaml and orphan the external file that
+// Load reads back from, so the round-trip would not be stable.
 func Save(cfg *Config, path string) error {
 	if cfg == nil {
 		return errors.New("config is nil")
@@ -268,11 +321,29 @@ func Save(cfg *Config, path string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	data, err := yaml.Marshal(cfg)
+
+	// Marshal a shallow copy so the caller's Config is never mutated, and so the
+	// external registry is not embedded into config.yaml.
+	toWrite := *cfg
+	if strings.TrimSpace(cfg.RegistryPath) != "" {
+		if cfg.Registry != nil {
+			regPath := ResolveRegistryPath(path, cfg.RegistryPath)
+			if regPath == "" {
+				return fmt.Errorf("registry_path %q resolved to empty path", cfg.RegistryPath)
+			}
+			if err := registry.Save(cfg.Registry, regPath); err != nil {
+				return err
+			}
+		}
+		toWrite.Registry = nil
+	}
+
+	data, err := yaml.Marshal(&toWrite)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	// Atomic write so a crash mid-write cannot destroy the sole-copy config.
+	return pathutil.WriteFileAtomic(path, data, 0o644)
 }
 
 func isConfigFilePath(path string) bool {

@@ -3,6 +3,7 @@ package repometa
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -53,6 +54,100 @@ func TestLoadRejectsTraversingPaths(t *testing.T) {
 	_, _, err := Load(repo)
 	if err == nil || !strings.Contains(err.Error(), "must stay within the repository root") {
 		t.Fatalf("expected traversal validation error, got %v", err)
+	}
+}
+
+func TestLoadRefusesSymlinkedMetadata(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics differ on Windows")
+	}
+	repo := t.TempDir()
+	// A secret file the hostile repo wants to exfiltrate.
+	secret := filepath.Join(t.TempDir(), "secret.yaml")
+	if err := os.WriteFile(secret, []byte("name: Secret\n"), 0o600); err != nil {
+		t.Fatalf("write secret: %v", err)
+	}
+	link := filepath.Join(repo, PreferredFilename)
+	if err := os.Symlink(secret, link); err != nil {
+		t.Fatalf("symlink metadata: %v", err)
+	}
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("expected symlink refusal, got %v", err)
+	}
+}
+
+func TestLoadTreatsDanglingSymlinkAsAbsent(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics differ on Windows")
+	}
+	repo := t.TempDir()
+	link := filepath.Join(repo, PreferredFilename)
+	if err := os.Symlink(filepath.Join(repo, "does-not-exist"), link); err != nil {
+		t.Fatalf("symlink metadata: %v", err)
+	}
+
+	// A dangling symlink is never followed and leaks nothing; discovery simply
+	// reports no metadata file (the write-through vector is handled in Save).
+	_, _, err := Load(repo)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for dangling symlink, got %v", err)
+	}
+}
+
+func TestLoadRejectsOversizedMetadata(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	path := filepath.Join(repo, PreferredFilename)
+	big := make([]byte, maxMetadataFileSize+1)
+	for i := range big {
+		big[i] = 'a'
+	}
+	if err := os.WriteFile(path, big, 0o644); err != nil {
+		t.Fatalf("write oversized metadata: %v", err)
+	}
+
+	_, _, err := Load(repo)
+	if err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Fatalf("expected oversize rejection, got %v", err)
+	}
+}
+
+func TestSaveReplacesSymlinkTargetInsteadOfWritingThrough(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink semantics differ on Windows")
+	}
+	repo := t.TempDir()
+	// An arbitrary file outside the repo that a dangling/redirecting symlink
+	// would otherwise cause Save to clobber.
+	outside := filepath.Join(t.TempDir(), "outside.yaml")
+	if err := os.WriteFile(outside, []byte("keep me\n"), 0o644); err != nil {
+		t.Fatalf("write outside file: %v", err)
+	}
+	link := filepath.Join(repo, PreferredFilename)
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatalf("symlink metadata: %v", err)
+	}
+
+	if _, err := Save(repo, &model.RepoMetadata{Name: "Repo", Labels: map[string]string{"role": "docs"}}, true); err != nil {
+		t.Fatalf("force save metadata: %v", err)
+	}
+
+	// The outside target must be untouched.
+	if got, _ := os.ReadFile(outside); string(got) != "keep me\n" {
+		t.Fatalf("symlink target was written through: %q", got)
+	}
+	// The metadata path must now be a regular file, not a symlink.
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatalf("lstat metadata: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("expected metadata symlink to be replaced by a regular file")
 	}
 }
 
@@ -171,7 +266,7 @@ func TestValidateRejectsInvalidMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := Validate(tt.metadata)
+			err := validate(tt.metadata)
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("expected error containing %q, got %v", tt.wantErr, err)
 			}

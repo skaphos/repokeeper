@@ -4,12 +4,14 @@ package repometa
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/pathutil"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -18,6 +20,11 @@ const (
 	LegacyFilename    = "repokeeper.yaml"
 	APIVersion        = "repokeeper/v1"
 	Kind              = "RepoMetadata"
+
+	// maxMetadataFileSize caps how much of a repo metadata file we will read.
+	// These files are tiny by design; the cap protects against a hostile repo
+	// shipping a huge file to exhaust memory.
+	maxMetadataFileSize = 1 << 20 // 1 MiB
 )
 
 var ErrNotFound = errors.New("repo metadata file not found")
@@ -27,7 +34,7 @@ func Load(repoRoot string) (string, *model.RepoMetadata, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := readMetadataFile(path)
 	if err != nil {
 		return path, nil, err
 	}
@@ -36,10 +43,43 @@ func Load(repoRoot string) (string, *model.RepoMetadata, error) {
 		return path, nil, fmt.Errorf("parse %s: %w", filepath.Base(path), err)
 	}
 	metadata = normalize(metadata)
-	if err := Validate(&metadata); err != nil {
+	if err := validate(&metadata); err != nil {
 		return path, nil, err
 	}
 	return path, &metadata, nil
+}
+
+// readMetadataFile reads a repo metadata file safely. It refuses to follow a
+// symlink (which a hostile repo could use to leak an arbitrary user-readable
+// file into status/registry, or to redirect writes) and caps the read size to
+// guard against memory exhaustion.
+func readMetadataFile(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("refusing to read symlinked repo metadata file %q", path)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("repo metadata file %q is not a regular file", path)
+	}
+	if info.Size() > maxMetadataFileSize {
+		return nil, fmt.Errorf("repo metadata file %q is too large (%d bytes, limit %d)", path, info.Size(), maxMetadataFileSize)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, maxMetadataFileSize+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxMetadataFileSize {
+		return nil, fmt.Errorf("repo metadata file %q is too large (limit %d bytes)", path, maxMetadataFileSize)
+	}
+	return data, nil
 }
 
 // canonicalize returns the normalized metadata with apiVersion/kind defaults
@@ -72,7 +112,7 @@ func Save(repoRoot string, metadata *model.RepoMetadata, force bool) (string, er
 		return "", fmt.Errorf("repo metadata is required")
 	}
 	normalized := canonicalize(*metadata)
-	if err := Validate(&normalized); err != nil {
+	if err := validate(&normalized); err != nil {
 		return "", err
 	}
 	target, cleanupPaths, err := savePath(repoRoot, force)
@@ -90,7 +130,9 @@ func Save(repoRoot string, metadata *model.RepoMetadata, force bool) (string, er
 	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(target, data, 0o644); err != nil {
+	// Atomic write so a crash mid-write cannot destroy the file, and so an
+	// existing symlink at target is replaced rather than written through.
+	if err := pathutil.WriteFileAtomic(target, data, 0o644); err != nil {
 		return "", err
 	}
 	for _, cleanupPath := range cleanupPaths {
@@ -306,7 +348,7 @@ func fileExists(path string) (bool, error) {
 	return true, nil
 }
 
-func Validate(metadata *model.RepoMetadata) error {
+func validate(metadata *model.RepoMetadata) error {
 	if metadata == nil {
 		return fmt.Errorf("repo metadata is required")
 	}
