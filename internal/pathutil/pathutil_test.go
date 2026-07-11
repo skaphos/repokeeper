@@ -2,6 +2,7 @@
 package pathutil
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -230,4 +231,114 @@ func canonicalExpected(p string) string {
 		key = strings.ToLower(key)
 	}
 	return key
+}
+
+func TestWriteFileAtomic(t *testing.T) {
+	t.Run("creates a new file with the requested mode", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "new.yaml")
+		if err := WriteFileAtomic(path, []byte("hello\n"), 0o640); err != nil {
+			t.Fatalf("WriteFileAtomic: %v", err)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read back: %v", err)
+		}
+		if string(got) != "hello\n" {
+			t.Fatalf("content = %q, want %q", got, "hello\n")
+		}
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatalf("stat: %v", err)
+			}
+			if info.Mode().Perm() != 0o640 {
+				t.Fatalf("mode = %v, want 0640", info.Mode().Perm())
+			}
+		}
+	})
+
+	t.Run("overwrites and preserves the existing file mode", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "existing.yaml")
+		if err := os.WriteFile(path, []byte("old"), 0o600); err != nil {
+			t.Fatalf("seed file: %v", err)
+		}
+		// perm arg differs from the on-disk mode; the on-disk mode must win.
+		if err := WriteFileAtomic(path, []byte("new-content"), 0o644); err != nil {
+			t.Fatalf("WriteFileAtomic: %v", err)
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read back: %v", err)
+		}
+		if string(got) != "new-content" {
+			t.Fatalf("content = %q, want %q", got, "new-content")
+		}
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatalf("stat: %v", err)
+			}
+			if info.Mode().Perm() != 0o600 {
+				t.Fatalf("mode = %v, want preserved 0600", info.Mode().Perm())
+			}
+		}
+	})
+
+	t.Run("does not leave temp files behind", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "clean.yaml")
+		if err := WriteFileAtomic(path, []byte("x"), 0o644); err != nil {
+			t.Fatalf("WriteFileAtomic: %v", err)
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read dir: %v", err)
+		}
+		if len(entries) != 1 || entries[0].Name() != "clean.yaml" {
+			t.Fatalf("expected only the destination file, got %v", entries)
+		}
+	})
+
+	t.Run("replaces a symlink instead of writing through it", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink semantics differ on Windows")
+		}
+		dir := t.TempDir()
+		outside := filepath.Join(dir, "outside.txt")
+		if err := os.WriteFile(outside, []byte("secret"), 0o644); err != nil {
+			t.Fatalf("seed outside file: %v", err)
+		}
+		link := filepath.Join(dir, "link.yaml")
+		if err := os.Symlink(outside, link); err != nil {
+			t.Fatalf("symlink: %v", err)
+		}
+		if err := WriteFileAtomic(link, []byte("payload"), 0o644); err != nil {
+			t.Fatalf("WriteFileAtomic: %v", err)
+		}
+		// The symlink target must be untouched.
+		if got, _ := os.ReadFile(outside); string(got) != "secret" {
+			t.Fatalf("symlink target was modified: %q", got)
+		}
+		// link.yaml must now be a regular file holding the payload.
+		info, err := os.Lstat(link)
+		if err != nil {
+			t.Fatalf("lstat link: %v", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			t.Fatal("expected link to be replaced by a regular file")
+		}
+		if got, _ := os.ReadFile(link); string(got) != "payload" {
+			t.Fatalf("link content = %q, want payload", got)
+		}
+	})
+
+	t.Run("errors when the parent directory is missing", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "missing-subdir", "file.yaml")
+		if err := WriteFileAtomic(path, []byte("x"), 0o644); err == nil {
+			t.Fatal("expected error writing into a non-existent directory")
+		}
+	})
 }
