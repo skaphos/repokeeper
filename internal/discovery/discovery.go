@@ -140,10 +140,17 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 	}
 	visited[realRoot] = struct{}{}
 
-	// Walk the resolved root rather than the possibly-symlinked path: WalkDir
-	// lstats the root itself, and a root that is a symlink to a directory
-	// would otherwise be treated as a non-directory and never descended into.
-	return filepath.WalkDir(realRoot, func(path string, d fs.DirEntry, err error) error {
+	// Walk the root as the caller supplied it so discovered paths keep the
+	// caller's path form; a symlinked ancestor (e.g. macOS /var -> /private/var)
+	// must not rewrite every returned path. Only when the root's final component
+	// is itself a symlink do we walk the resolved target, because WalkDir lstats
+	// the root and would otherwise treat a symlinked directory as a
+	// non-directory and never descend into it.
+	walkTarget := root
+	if fi, err := os.Lstat(root); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		walkTarget = realRoot
+	}
+	return filepath.WalkDir(walkTarget, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist) {
 				// Transient per-directory failures (permission denied, or a
