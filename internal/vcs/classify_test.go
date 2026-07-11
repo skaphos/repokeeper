@@ -24,26 +24,6 @@ func TestGitErrorClassifier(t *testing.T) {
 			expected: "",
 		},
 		{
-			name:     "auth failure",
-			err:      gitx.ErrAuthFailure,
-			expected: "auth",
-		},
-		{
-			name:     "network failure",
-			err:      gitx.ErrNetworkFailure,
-			expected: "network",
-		},
-		{
-			name:     "corrupt repo",
-			err:      gitx.ErrCorruptRepo,
-			expected: "corrupt",
-		},
-		{
-			name:     "missing remote ref",
-			err:      gitx.ErrMissingRemoteRef,
-			expected: "missing_remote",
-		},
-		{
 			name:     "context deadline exceeded",
 			err:      context.DeadlineExceeded,
 			expected: "timeout",
@@ -95,10 +75,6 @@ func TestGitErrorClassifierMatchesGitx(t *testing.T) {
 
 	testErrors := []error{
 		nil,
-		gitx.ErrAuthFailure,
-		gitx.ErrNetworkFailure,
-		gitx.ErrCorruptRepo,
-		gitx.ErrMissingRemoteRef,
 		context.DeadlineExceeded,
 		context.Canceled,
 		errors.New("permission denied"),

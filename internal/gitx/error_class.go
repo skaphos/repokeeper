@@ -7,36 +7,19 @@ import (
 	"strings"
 )
 
-var (
-	// ErrAuthFailure marks authentication/authorization failures.
-	ErrAuthFailure = errors.New("git auth error")
-	// ErrNetworkFailure marks network/transport failures.
-	ErrNetworkFailure = errors.New("git network error")
-	// ErrCorruptRepo marks corrupt or invalid-repository failures.
-	ErrCorruptRepo = errors.New("git corrupt repository")
-	// ErrMissingRemoteRef marks missing upstream/ref/remote failures.
-	ErrMissingRemoteRef = errors.New("git missing remote")
-)
-
 // ClassifyError maps git/process errors into broad actionable categories.
+//
+// In production, git failures surface as *exec.ExitError (or a wrapped
+// error from GitRunner.Run carrying git's stderr text), never as a
+// sentinel error value, so classification is done entirely by matching
+// text in err.Error(). See GitRunner.Run for why that text is forced to
+// the C locale before it reaches here.
 func ClassifyError(err error) string {
 	if err == nil {
 		return ""
 	}
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return "timeout"
-	}
-	if errors.Is(err, ErrAuthFailure) {
-		return "auth"
-	}
-	if errors.Is(err, ErrNetworkFailure) {
-		return "network"
-	}
-	if errors.Is(err, ErrCorruptRepo) {
-		return "corrupt"
-	}
-	if errors.Is(err, ErrMissingRemoteRef) {
-		return "missing_remote"
 	}
 
 	msg := strings.ToLower(err.Error())
