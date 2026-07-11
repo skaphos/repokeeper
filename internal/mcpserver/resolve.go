@@ -22,10 +22,13 @@ func resolveRepo(reg *registry.Registry, repo string) (*registry.Entry, error) {
 		return nil, fmt.Errorf("registry not loaded")
 	}
 
-	// An absolute path identifies exactly one checkout.
+	// An absolute path identifies exactly one checkout. Normalize both sides
+	// with filepath.Clean so equivalent-but-non-canonical forms (e.g. a
+	// trailing slash, or "." / ".." segments) still match the stored path.
 	if filepath.IsAbs(repo) {
+		want := filepath.Clean(repo)
 		for i := range reg.Entries {
-			if reg.Entries[i].Path == repo {
+			if filepath.Clean(reg.Entries[i].Path) == want {
 				return &reg.Entries[i], nil
 			}
 		}
