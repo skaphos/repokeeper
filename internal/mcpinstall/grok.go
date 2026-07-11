@@ -115,6 +115,9 @@ func (a *grokAdapter) ReadEntry(path string) (Entry, bool, error) {
 }
 
 func (a *grokAdapter) WriteEntry(path string, e Entry) error {
+	if err := refuseIfTOMLComments(path); err != nil {
+		return err
+	}
 	doc, err := readTOMLDoc(path)
 	if err != nil {
 		return err
@@ -132,7 +135,7 @@ func (a *grokAdapter) WriteEntry(path string, e Entry) error {
 		Enabled: e.Enabled,
 	}
 	doc["mcp_servers"] = servers
-	return writeTOMLDoc(path, doc, 0o644)
+	return writeTOMLDoc(path, doc, newConfigFileMode)
 }
 
 func (a *grokAdapter) RemoveEntry(path string) (bool, error) {
@@ -150,9 +153,14 @@ func (a *grokAdapter) RemoveEntry(path string) (bool, error) {
 	if _, ok := servers[repokeeperKey]; !ok {
 		return false, nil
 	}
+	// An entry exists and will be rewritten out; guard comments only now,
+	// since a no-op remove (handled above) never rewrites the file.
+	if err := refuseIfTOMLComments(path); err != nil {
+		return false, err
+	}
 	delete(servers, repokeeperKey)
 	doc["mcp_servers"] = servers
-	return true, writeTOMLDoc(path, doc, 0o644)
+	return true, writeTOMLDoc(path, doc, newConfigFileMode)
 }
 
 // grokServersMap returns the mcp_servers table from doc, or nil if

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -19,7 +20,6 @@ import (
 	"github.com/skaphos/repokeeper/internal/mcpserver"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/vcs"
 )
 
 // --- mock engine ---
@@ -102,10 +102,6 @@ func (e *mockEngine) InspectRepo(_ context.Context, path string) (*model.RepoSta
 		},
 	}, nil
 }
-func (e *mockEngine) RepairUpstream(_ context.Context, _, _ string) (engine.RepairUpstreamResult, error) {
-	return engine.RepairUpstreamResult{}, nil
-}
-func (e *mockEngine) ResetRepo(_ context.Context, _, _ string) error { return nil }
 func (e *mockEngine) DeleteRepo(_ context.Context, _, _ string, _ bool) error {
 	e.deleteRepoCalled = true
 	return e.deleteRepoErr
@@ -125,7 +121,6 @@ func (e *mockEngine) Scan(_ context.Context, _ engine.ScanOptions) ([]model.Repo
 }
 func (e *mockEngine) Registry() *registry.Registry { return e.reg }
 func (e *mockEngine) Config() *config.Config       { return e.cfg }
-func (e *mockEngine) Adapter() vcs.Adapter         { return nil }
 
 var _ mcpserver.EngineAPI = (*mockEngine)(nil)
 
@@ -1059,6 +1054,17 @@ var _ = Describe("MCPServer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
 		})
+
+		// Finding 2: an unknown/typo filter must be rejected in the handler,
+		// not passed to the engine (where it fails open and syncs ALL repos).
+		It("rejects an unknown filter", func() {
+			result, err := callTool(srv, "plan_sync", map[string]any{
+				"filter": "drity",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+			Expect(string(resultJSON(result))).To(ContainSubstring("invalid filter"))
+		})
 	})
 
 	Describe("execute_sync", func() {
@@ -1141,6 +1147,20 @@ var _ = Describe("MCPServer", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
+		})
+
+		// Finding 2: execute_sync{filter:"drity",force:true,push_local:true}
+		// must be rejected rather than force-push every repo.
+		It("rejects an unknown filter even with confirm=true", func() {
+			result, err := callTool(srv, "execute_sync", map[string]any{
+				"confirm":    true,
+				"filter":     "drity",
+				"force":      true,
+				"push_local": true,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+			Expect(string(resultJSON(result))).To(ContainSubstring("invalid filter"))
 		})
 	})
 
@@ -1289,6 +1309,89 @@ var _ = Describe("MCPServer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
 		})
+
+		// Finding 5: schema advertises "repo_id or absolute path"; removal
+		// must route through resolveRepo so an absolute checkout path works.
+		It("removes a repo by absolute path", func() {
+			result, err := callTool(srv, "remove_repository", map[string]any{
+				"repo": "/home/user/repos/beta",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+			Expect(eng.deleteRepoCalled).To(BeTrue())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			Expect(resp["repo_id"]).To(Equal("github.com/example/beta"))
+		})
+
+		It("returns error for an unknown repo before touching the engine", func() {
+			result, err := callTool(srv, "remove_repository", map[string]any{
+				"repo": "/home/user/repos/does-not-exist",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeTrue())
+			Expect(eng.deleteRepoCalled).To(BeFalse())
+		})
+
+		// Finding 1: delete_files performs permanent working-tree deletion and
+		// must be gated behind a strict-bool confirm=true, mirroring execute_sync.
+		Describe("delete_files safety gate", func() {
+			It("rejects delete_files=true without confirm", func() {
+				result, err := callTool(srv, "remove_repository", map[string]any{
+					"repo":         "github.com/example/alpha",
+					"delete_files": true,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.IsError).To(BeTrue())
+				Expect(eng.deleteRepoCalled).To(BeFalse())
+				Expect(string(resultJSON(result))).To(ContainSubstring(`required argument "confirm" not found`))
+			})
+
+			It("rejects delete_files=true with confirm=false", func() {
+				result, err := callTool(srv, "remove_repository", map[string]any{
+					"repo":         "github.com/example/alpha",
+					"delete_files": true,
+					"confirm":      false,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.IsError).To(BeTrue())
+				Expect(eng.deleteRepoCalled).To(BeFalse())
+				Expect(string(resultJSON(result))).To(ContainSubstring("safety gate"))
+			})
+
+			It("rejects a non-boolean confirm", func() {
+				result, err := callTool(srv, "remove_repository", map[string]any{
+					"repo":         "github.com/example/alpha",
+					"delete_files": true,
+					"confirm":      "true",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.IsError).To(BeTrue())
+				Expect(eng.deleteRepoCalled).To(BeFalse())
+				Expect(string(resultJSON(result))).To(ContainSubstring(`argument "confirm" must be a boolean`))
+			})
+
+			It("proceeds with delete_files=true and confirm=true", func() {
+				result, err := callTool(srv, "remove_repository", map[string]any{
+					"repo":         "github.com/example/alpha",
+					"delete_files": true,
+					"confirm":      true,
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.IsError).To(BeFalse())
+				Expect(eng.deleteRepoCalled).To(BeTrue())
+			})
+
+			It("does not require confirm for tracking-only removal", func() {
+				result, err := callTool(srv, "remove_repository", map[string]any{
+					"repo": "github.com/example/alpha",
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.IsError).To(BeFalse())
+				Expect(eng.deleteRepoCalled).To(BeTrue())
+			})
+		})
 	})
 })
 
@@ -1315,6 +1418,118 @@ var _ = Describe("resolveRepo", Ordered, func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.IsError).To(BeFalse())
+	})
+})
+
+// registryWithDuplicateRepoID returns a registry where one repo_id maps to two
+// distinct local checkouts — the ambiguity case from finding 4.
+func registryWithDuplicateRepoID() *registry.Registry {
+	return &registry.Registry{
+		UpdatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+		Entries: []registry.Entry{
+			{
+				RepoID:   "github.com/example/dup",
+				Path:     "/home/user/repos/dup-a",
+				Type:     "checkout",
+				Status:   registry.StatusPresent,
+				LastSeen: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+			},
+			{
+				RepoID:   "github.com/example/dup",
+				Path:     "/home/user/repos/dup-b",
+				Type:     "checkout",
+				Status:   registry.StatusPresent,
+				LastSeen: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+			},
+		},
+	}
+}
+
+// Finding 4: resolveRepo must reject an ambiguous repo_id rather than silently
+// act on an arbitrary checkout; an absolute path still disambiguates.
+var _ = Describe("resolveRepo ambiguity", func() {
+	var (
+		eng *mockEngine
+		srv *mcpserver.MCPServer
+	)
+
+	BeforeEach(func() {
+		eng = &mockEngine{cfg: newTestConfig(), reg: registryWithDuplicateRepoID()}
+		srv = mcpserver.New(eng, "/tmp/ambiguous.yaml", "0.1.0-test", nil)
+	})
+
+	It("errors on set_labels for an ambiguous repo_id", func() {
+		result, err := callTool(srv, "set_labels", map[string]any{
+			"repo": "github.com/example/dup",
+			"set":  map[string]any{"tier": "critical"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeTrue())
+		Expect(string(resultJSON(result))).To(ContainSubstring("ambiguous"))
+	})
+
+	It("errors on get_repository_context for an ambiguous repo_id", func() {
+		result, err := callTool(srv, "get_repository_context", map[string]any{
+			"repo": "github.com/example/dup",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeTrue())
+		Expect(string(resultJSON(result))).To(ContainSubstring("ambiguous"))
+	})
+
+	It("disambiguates via absolute path", func() {
+		result, err := callTool(srv, "set_labels", map[string]any{
+			"repo": "/home/user/repos/dup-b",
+			"set":  map[string]any{"tier": "critical"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+		Expect(eng.reg.Entries[1].Labels).To(HaveKeyWithValue("tier", "critical"))
+		Expect(eng.reg.Entries[0].Labels).To(BeNil())
+	})
+})
+
+// Finding 3: ServeStdio dispatches tool calls on a concurrent worker pool and
+// handlers mutate/iterate the shared registry lock-free. Without the
+// server-level mutex two overlapping calls trigger a fatal concurrent
+// map/slice access. This spec drives many overlapping handlers and must pass
+// cleanly under `go test -race`; before the serialization fix it faults.
+var _ = Describe("concurrent tool access", func() {
+	It("serializes overlapping registry mutations and reads", func() {
+		eng := &mockEngine{cfg: newTestConfig(), reg: newTestRegistry()}
+		eng.scanResult = []model.RepoStatus{
+			{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha"},
+		}
+		srv := mcpserver.New(eng, "/tmp/concurrent.yaml", "0.1.0-test", nil)
+
+		const workers = 8
+		const iterations = 25
+		var wg sync.WaitGroup
+		wg.Add(workers)
+		for w := 0; w < workers; w++ {
+			go func(w int) {
+				defer GinkgoRecover()
+				defer wg.Done()
+				for i := 0; i < iterations; i++ {
+					switch w % 4 {
+					case 0:
+						_, _ = callTool(srv, "set_labels", map[string]any{
+							"repo": "github.com/example/alpha",
+							"set":  map[string]any{"k": fmt.Sprintf("%d-%d", w, i)},
+						})
+					case 1:
+						_, _ = callTool(srv, "list_repositories", nil)
+					case 2:
+						_, _ = callTool(srv, "scan_workspace", nil)
+					default:
+						_, _ = callTool(srv, "get_repository_context", map[string]any{
+							"repo": "github.com/example/beta",
+						})
+					}
+				}
+			}(w)
+		}
+		wg.Wait()
 	})
 })
 

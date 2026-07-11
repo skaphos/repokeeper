@@ -15,6 +15,12 @@ import (
 // adapters use the same name.
 const repokeeperKey = "repokeeper"
 
+// newConfigFileMode is the permission mode used when creating a config file
+// that does not yet exist. These files can hold MCP server env/secrets, so
+// they are created owner-only (0o600) rather than world-readable. Existing
+// files keep their own mode — WriteAtomic preserves it.
+const newConfigFileMode fs.FileMode = 0o600
+
 type claudeAdapter struct{}
 
 func init() {
@@ -125,7 +131,7 @@ func (a *claudeAdapter) WriteEntry(path string, e Entry) error {
 	}
 	servers[repokeeperKey] = claudeServer{Command: e.Command, Args: e.Args}
 	doc["mcpServers"] = servers
-	return writeJSONDoc(path, doc, 0o644)
+	return writeJSONDoc(path, doc, newConfigFileMode)
 }
 
 func (a *claudeAdapter) RemoveEntry(path string) (bool, error) {
@@ -149,7 +155,7 @@ func (a *claudeAdapter) RemoveEntry(path string) (bool, error) {
 	}
 	delete(servers, repokeeperKey)
 	doc["mcpServers"] = servers
-	return true, writeJSONDoc(path, doc, 0o644)
+	return true, writeJSONDoc(path, doc, newConfigFileMode)
 }
 
 // readJSONDoc parses the file at path as a top-level JSON object. A

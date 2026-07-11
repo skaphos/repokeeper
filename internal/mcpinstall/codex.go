@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -92,6 +93,10 @@ func (a *codexAdapter) ReadEntry(path string) (Entry, bool, error) {
 }
 
 func (a *codexAdapter) WriteEntry(path string, e Entry) error {
+	// Guard before any rewrite so a commented config is never clobbered.
+	if err := refuseIfTOMLComments(path); err != nil {
+		return err
+	}
 	doc, err := readTOMLDoc(path)
 	if err != nil {
 		return err
@@ -106,7 +111,7 @@ func (a *codexAdapter) WriteEntry(path string, e Entry) error {
 	// Use a typed struct so TOML serializes the table in a canonical form.
 	servers[repokeeperKey] = codexServer{Command: e.Command, Args: e.Args}
 	doc["mcp_servers"] = servers
-	return writeTOMLDoc(path, doc, 0o644)
+	return writeTOMLDoc(path, doc, newConfigFileMode)
 }
 
 func (a *codexAdapter) RemoveEntry(path string) (bool, error) {
@@ -124,9 +129,14 @@ func (a *codexAdapter) RemoveEntry(path string) (bool, error) {
 	if _, ok := servers[repokeeperKey]; !ok {
 		return false, nil
 	}
+	// An entry exists and will be rewritten out; guard comments only now,
+	// since a no-op remove (handled above) never rewrites the file.
+	if err := refuseIfTOMLComments(path); err != nil {
+		return false, err
+	}
 	delete(servers, repokeeperKey)
 	doc["mcp_servers"] = servers
-	return true, writeTOMLDoc(path, doc, 0o644)
+	return true, writeTOMLDoc(path, doc, newConfigFileMode)
 }
 
 // codexServersMap returns the mcp_servers table from doc, or nil if
@@ -166,6 +176,95 @@ func readTOMLDoc(path string) (map[string]any, error) {
 		doc = map[string]any{}
 	}
 	return doc, nil
+}
+
+// refuseIfTOMLComments returns an error if the TOML file at path contains
+// comments.
+//
+// Design note (data-loss avoidance): these adapters edit config by reading the
+// file into a bare map[string]any, mutating it, and re-marshaling. go-toml/v2
+// has no comment trivia on that map, so every round-trip erases ALL comments
+// in the user's hand-maintained Codex/Grok config.toml. A lossless in-place
+// TOML edit that preserves comments is not feasible with the current library
+// within this change's scope, so we take the conservative fail-safe path:
+// detect any comment and refuse to rewrite the file, directing the user to
+// edit it manually. Non-existent/empty files (and files with no comments) are
+// written normally. tomlHasComments biases toward detection, so at worst we
+// refuse a safe write — we never silently destroy comments.
+func refuseIfTOMLComments(path string) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if tomlHasComments(raw) {
+		return fmt.Errorf("refusing to rewrite %q: it contains comments this installer cannot preserve; add or remove the [mcp_servers.%s] entry manually", path, repokeeperKey)
+	}
+	return nil
+}
+
+// tomlHasComments reports whether raw contains a TOML comment (an unquoted
+// '#'). It skips over basic ("...") and literal ('...') strings, both
+// single-line and triple-quoted, so a '#' inside a string value is not
+// mistaken for a comment. Malformed/unterminated strings cause the remainder
+// to be treated as string content; such input is rejected earlier by
+// readTOMLDoc's parse, so it never reaches a write.
+func tomlHasComments(raw []byte) bool {
+	s := string(raw)
+	for i := 0; i < len(s); {
+		switch s[i] {
+		case '#':
+			return true
+		case '"':
+			if strings.HasPrefix(s[i:], `"""`) {
+				i = skipTOMLDelim(s, i+3, `"""`)
+			} else {
+				i = skipTOMLSingleLine(s, i+1, '"', true)
+			}
+		case '\'':
+			if strings.HasPrefix(s[i:], `'''`) {
+				i = skipTOMLDelim(s, i+3, `'''`)
+			} else {
+				i = skipTOMLSingleLine(s, i+1, '\'', false)
+			}
+		default:
+			i++
+		}
+	}
+	return false
+}
+
+// skipTOMLSingleLine advances past a single-line string body starting at i
+// (just after the opening quote) and returns the index after the closing
+// quote. A single-line string never spans a newline; if one is reached the
+// string is treated as ended there. When escapes is true (basic strings), a
+// backslash escapes the next byte.
+func skipTOMLSingleLine(s string, i int, quote byte, escapes bool) int {
+	for i < len(s) {
+		switch {
+		case escapes && s[i] == '\\':
+			i += 2
+		case s[i] == '\n':
+			return i
+		case s[i] == quote:
+			return i + 1
+		default:
+			i++
+		}
+	}
+	return i
+}
+
+// skipTOMLDelim returns the index just past the next occurrence of delim at or
+// after i, or len(s) if delim does not occur again (unterminated multi-line
+// string).
+func skipTOMLDelim(s string, i int, delim string) int {
+	if idx := strings.Index(s[i:], delim); idx >= 0 {
+		return i + idx + len(delim)
+	}
+	return len(s)
 }
 
 // writeTOMLDoc marshals doc as TOML and writes atomically, creating

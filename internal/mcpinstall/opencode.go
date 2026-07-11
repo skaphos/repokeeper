@@ -154,7 +154,7 @@ func (a *opencodeAdapter) WriteEntry(path string, e Entry) error {
 	argv := append([]string{e.Command}, e.Args...)
 	servers[repokeeperKey] = opencodeServer{Type: "local", Command: argv, Enabled: e.Enabled}
 	doc["mcp"] = servers
-	return writeJSONDoc(path, doc, 0o644)
+	return writeJSONDoc(path, doc, newConfigFileMode)
 }
 
 func (a *opencodeAdapter) RemoveEntry(path string) (bool, error) {
@@ -177,7 +177,7 @@ func (a *opencodeAdapter) RemoveEntry(path string) (bool, error) {
 	}
 	delete(servers, repokeeperKey)
 	doc["mcp"] = servers
-	return true, writeJSONDoc(path, doc, 0o644)
+	return true, writeJSONDoc(path, doc, newConfigFileMode)
 }
 
 // opencodeServersMap returns the mcp object from doc, or nil if no mcp

@@ -2,7 +2,9 @@
 package mcpserver
 
 import (
+	"context"
 	"sort"
+	"sync"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -16,6 +18,16 @@ type MCPServer struct {
 	cfgPath string
 	logger  obs.Logger
 	inner   *server.MCPServer
+
+	// mu serializes every tool and resource handler. ServeStdio dispatches
+	// tool calls on a concurrent worker pool, and handlers read, mutate,
+	// sort, and prune the shared *registry.Registry lock-free. Without this
+	// gate two overlapping calls trigger a fatal concurrent map/slice
+	// read-write that the SDK cannot recover from, killing the server. A
+	// single server-level lock is the conservative fix: registry operations
+	// are cheap relative to the git I/O they gate, so full serialization
+	// costs little and removes the race entirely.
+	mu sync.Mutex
 }
 
 // New creates and configures an MCPServer with all tools and resources registered.
@@ -65,29 +77,54 @@ func ReadOnlyToolNames() []string {
 func (s *MCPServer) registerTools() {
 	s.inner.AddTools(
 		// Phase 1: core read tools
-		server.ServerTool{Tool: listRepositoriesTool(), Handler: s.handleListRepositories},
-		server.ServerTool{Tool: getRepositoryContextTool(), Handler: s.handleGetRepositoryContext},
-		server.ServerTool{Tool: getWorkspaceConfigTool(), Handler: s.handleGetWorkspaceConfig},
+		server.ServerTool{Tool: listRepositoriesTool(), Handler: s.serializeTool(s.handleListRepositories)},
+		server.ServerTool{Tool: getRepositoryContextTool(), Handler: s.serializeTool(s.handleGetRepositoryContext)},
+		server.ServerTool{Tool: getWorkspaceConfigTool(), Handler: s.serializeTool(s.handleGetWorkspaceConfig)},
 		// Phase 2: full read surface
-		server.ServerTool{Tool: buildWorkspaceInventoryTool(), Handler: s.handleBuildWorkspaceInventory},
-		server.ServerTool{Tool: selectRepositoriesTool(), Handler: s.handleSelectRepositories},
-		server.ServerTool{Tool: getRepoMetadataTool(), Handler: s.handleGetRepoMetadata},
-		server.ServerTool{Tool: getAuthoritativePathsTool(), Handler: s.handleGetAuthoritativePaths},
-		server.ServerTool{Tool: getRelatedRepositoriesTool(), Handler: s.handleGetRelatedRepositories},
+		server.ServerTool{Tool: buildWorkspaceInventoryTool(), Handler: s.serializeTool(s.handleBuildWorkspaceInventory)},
+		server.ServerTool{Tool: selectRepositoriesTool(), Handler: s.serializeTool(s.handleSelectRepositories)},
+		server.ServerTool{Tool: getRepoMetadataTool(), Handler: s.serializeTool(s.handleGetRepoMetadata)},
+		server.ServerTool{Tool: getAuthoritativePathsTool(), Handler: s.serializeTool(s.handleGetAuthoritativePaths)},
+		server.ServerTool{Tool: getRelatedRepositoriesTool(), Handler: s.serializeTool(s.handleGetRelatedRepositories)},
 		// Phase 3: mutation tools
-		server.ServerTool{Tool: scanWorkspaceTool(), Handler: s.handleScanWorkspace},
-		server.ServerTool{Tool: planSyncTool(), Handler: s.handlePlanSync},
-		server.ServerTool{Tool: executeSyncTool(), Handler: s.handleExecuteSync},
-		server.ServerTool{Tool: setLabelsTool(), Handler: s.handleSetLabels},
-		server.ServerTool{Tool: addRepositoryTool(), Handler: s.handleAddRepository},
-		server.ServerTool{Tool: removeRepositoryTool(), Handler: s.handleRemoveRepository},
+		server.ServerTool{Tool: scanWorkspaceTool(), Handler: s.serializeTool(s.handleScanWorkspace)},
+		server.ServerTool{Tool: planSyncTool(), Handler: s.serializeTool(s.handlePlanSync)},
+		server.ServerTool{Tool: executeSyncTool(), Handler: s.serializeTool(s.handleExecuteSync)},
+		server.ServerTool{Tool: setLabelsTool(), Handler: s.serializeTool(s.handleSetLabels)},
+		server.ServerTool{Tool: addRepositoryTool(), Handler: s.serializeTool(s.handleAddRepository)},
+		server.ServerTool{Tool: removeRepositoryTool(), Handler: s.serializeTool(s.handleRemoveRepository)},
 	)
 }
 
 func (s *MCPServer) registerResources() {
-	s.inner.AddResource(configResource(), s.handleConfigResource)
-	s.inner.AddResource(registryResource(), s.handleRegistryResource)
-	s.inner.AddResourceTemplate(repoTemplate(), s.handleRepoResource)
+	s.inner.AddResource(configResource(), s.serializeResource(s.handleConfigResource))
+	s.inner.AddResource(registryResource(), s.serializeResource(s.handleRegistryResource))
+	s.inner.AddResourceTemplate(repoTemplate(), s.serializeResource(s.handleRepoResource))
+}
+
+// serializeTool wraps a tool handler so it holds the server-level mutex for
+// the duration of the call, serializing all registry access. See MCPServer.mu.
+func (s *MCPServer) serializeTool(h server.ToolHandlerFunc) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return h(ctx, req)
+	}
+}
+
+// serializeResource wraps a resource handler under the same server-level mutex
+// as tool handlers, so a resource read cannot race a concurrent tool mutation.
+// Unnamed func types are used so the result is assignable to both
+// server.ResourceHandlerFunc (AddResource) and
+// server.ResourceTemplateHandlerFunc (AddResourceTemplate).
+func (s *MCPServer) serializeResource(
+	h func(context.Context, mcp.ReadResourceRequest) ([]mcp.ResourceContents, error),
+) func(context.Context, mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	return func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return h(ctx, req)
+	}
 }
 
 // --- Tool definitions ---
@@ -326,6 +363,9 @@ func removeRepositoryTool() mcp.Tool {
 		),
 		mcp.WithBoolean("delete_files",
 			mcp.Description("Also delete files on disk (default: false)"),
+		),
+		mcp.WithBoolean("confirm",
+			mcp.Description("Required (must be true) when delete_files=true. Safety gate for permanent working-tree deletion."),
 		),
 	)
 }
