@@ -341,4 +341,52 @@ func TestWriteFileAtomic(t *testing.T) {
 			t.Fatal("expected error writing into a non-existent directory")
 		}
 	})
+
+	t.Run("rejects an empty path", func(t *testing.T) {
+		if err := WriteFileAtomic("", []byte("x"), 0o644); err == nil {
+			t.Fatal("expected an error for an empty path")
+		}
+	})
+
+	t.Run("returns the rename error when the destination is a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		target := filepath.Join(dir, "adir")
+		if err := os.Mkdir(target, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := WriteFileAtomic(target, []byte("x"), 0o644); err == nil {
+			t.Fatal("expected an error writing over an existing directory")
+		}
+		// The failed rename must not leave a temp file behind next to the target.
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read dir: %v", err)
+		}
+		if len(entries) != 1 || entries[0].Name() != "adir" {
+			t.Fatalf("expected no leftover temp file, got %v", entries)
+		}
+	})
+
+	t.Run("returns a stat error when the parent is not a directory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("ENOTDIR path semantics differ on Windows")
+		}
+		dir := t.TempDir()
+		fileParent := filepath.Join(dir, "afile")
+		if err := os.WriteFile(fileParent, []byte("x"), 0o644); err != nil {
+			t.Fatalf("seed file: %v", err)
+		}
+		// Treating a regular file as a parent directory makes the initial Lstat
+		// fail with a non-NotExist error, which WriteFileAtomic must return.
+		if err := WriteFileAtomic(filepath.Join(fileParent, "child.yaml"), []byte("x"), 0o644); err == nil {
+			t.Fatal("expected an error when the parent path is a file")
+		}
+	})
+}
+
+func TestSyncDirIgnoresUnopenableDir(t *testing.T) {
+	// syncDir is best-effort: a directory that cannot be opened (here, one that
+	// does not exist) must be a silent no-op rather than a panic or error, since
+	// there is nothing to fsync.
+	syncDir(filepath.Join(t.TempDir(), "does-not-exist"))
 }
