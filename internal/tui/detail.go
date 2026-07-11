@@ -73,47 +73,49 @@ func renderDetailView(m tuiModel) string {
 		}
 		if r.RepoMetadata != nil {
 			if r.RepoMetadata.Name != "" {
-				fmt.Fprintf(&b, "  Name: %s\n", r.RepoMetadata.Name)
+				fmt.Fprintf(&b, "  Name: %s\n", sanitizeMetadataText(r.RepoMetadata.Name))
 			}
 			if r.RepoMetadata.RepoID != "" {
-				fmt.Fprintf(&b, "  Repo ID: %s\n", r.RepoMetadata.RepoID)
+				fmt.Fprintf(&b, "  Repo ID: %s\n", sanitizeMetadataText(r.RepoMetadata.RepoID))
 			}
 			if len(r.RepoMetadata.Labels) > 0 {
 				b.WriteString("  Shared Labels:\n")
 				for _, k := range sortedKeys(r.RepoMetadata.Labels) {
 					v := r.RepoMetadata.Labels[k]
-					fmt.Fprintf(&b, "    %s=%s\n", k, v)
+					fmt.Fprintf(&b, "    %s=%s\n", sanitizeMetadataText(k), sanitizeMetadataText(v))
 				}
 			}
 			if len(r.RepoMetadata.Entrypoints) > 0 {
 				b.WriteString("  Entrypoints:\n")
 				for _, k := range sortedKeys(r.RepoMetadata.Entrypoints) {
 					v := r.RepoMetadata.Entrypoints[k]
-					fmt.Fprintf(&b, "    %s=%s\n", k, v)
+					fmt.Fprintf(&b, "    %s=%s\n", sanitizeMetadataText(k), sanitizeMetadataText(v))
 				}
 			}
 			if len(r.RepoMetadata.Paths.Authoritative) > 0 {
-				fmt.Fprintf(&b, "  Authoritative: %s\n", strings.Join(r.RepoMetadata.Paths.Authoritative, ", "))
+				fmt.Fprintf(&b, "  Authoritative: %s\n", strings.Join(sanitizeMetadataSlice(r.RepoMetadata.Paths.Authoritative), ", "))
 			}
 			if len(r.RepoMetadata.Paths.LowValue) > 0 {
-				fmt.Fprintf(&b, "  Low value: %s\n", strings.Join(r.RepoMetadata.Paths.LowValue, ", "))
+				fmt.Fprintf(&b, "  Low value: %s\n", strings.Join(sanitizeMetadataSlice(r.RepoMetadata.Paths.LowValue), ", "))
 			}
 			if len(r.RepoMetadata.Provides) > 0 {
-				fmt.Fprintf(&b, "  Provides: %s\n", strings.Join(r.RepoMetadata.Provides, ", "))
+				fmt.Fprintf(&b, "  Provides: %s\n", strings.Join(sanitizeMetadataSlice(r.RepoMetadata.Provides), ", "))
 			}
 			if len(r.RepoMetadata.RelatedRepos) > 0 {
 				b.WriteString("  Related repos:\n")
 				for _, related := range r.RepoMetadata.RelatedRepos {
-					if related.Relationship == "" {
-						fmt.Fprintf(&b, "    %s\n", related.RepoID)
+					repoID := sanitizeMetadataText(related.RepoID)
+					relationship := sanitizeMetadataText(related.Relationship)
+					if relationship == "" {
+						fmt.Fprintf(&b, "    %s\n", repoID)
 						continue
 					}
-					fmt.Fprintf(&b, "    %s (%s)\n", related.RepoID, related.Relationship)
+					fmt.Fprintf(&b, "    %s (%s)\n", repoID, relationship)
 				}
 			}
 		}
 		if r.RepoMetadataError != "" {
-			fmt.Fprintf(&b, "  Error: %s\n", r.RepoMetadataError)
+			fmt.Fprintf(&b, "  Error: %s\n", sanitizeMetadataText(r.RepoMetadataError))
 		}
 		b.WriteByte('\n')
 	}
@@ -134,6 +136,81 @@ func renderDetailView(m tuiModel) string {
 
 	b.WriteString(statusBarStyle.Render("esc/q: back  l: edit labels  i: repo metadata"))
 	return b.String()
+}
+
+// sanitizeMetadataText strips control characters and whole ANSI/terminal
+// escape sequences from repo-controlled metadata before it is written to
+// the terminal. RepoMetadata is loaded from a file inside the cloned
+// repository (repometa.Load), so a hostile or compromised upstream could
+// otherwise smuggle escape sequences into the operator's terminal via Name,
+// labels, entrypoints, and similar fields. Bare stripping of control runes
+// is not enough: everything after the leading ESC byte in an escape
+// sequence (e.g. "[31m") is ordinary printable text, so the sequence's
+// effect survives unless the whole thing is dropped.
+func sanitizeMetadataText(s string) string {
+	if s == "" {
+		return s
+	}
+	src := []byte(s)
+	var out strings.Builder
+	out.Grow(len(src))
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		switch {
+		case c == 0x1b: // ESC: drop the entire escape sequence
+			i = skipEscapeSequence(src, i)
+		case c < 0x20 || c == 0x7f: // bare C0 control byte / DEL
+			continue
+		default:
+			out.WriteByte(c)
+		}
+	}
+	return out.String()
+}
+
+// skipEscapeSequence returns the index of the last byte belonging to the
+// escape sequence that starts with ESC at src[start], so the caller can
+// resume scanning right after it. It recognizes CSI sequences (ESC '['
+// parameter/intermediate bytes, final byte) and OSC sequences (ESC ']' ...
+// terminated by BEL or ESC '\'); any other byte following ESC is treated as
+// a minimal two-byte sequence.
+func skipEscapeSequence(src []byte, start int) int {
+	if start+1 >= len(src) {
+		return start
+	}
+	switch src[start+1] {
+	case '[':
+		j := start + 2
+		for j < len(src) && src[j] >= 0x20 && src[j] <= 0x3f {
+			j++
+		}
+		if j < len(src) {
+			return j
+		}
+		return j - 1
+	case ']':
+		j := start + 2
+		for j < len(src) {
+			if src[j] == 0x07 {
+				return j
+			}
+			if src[j] == 0x1b && j+1 < len(src) && src[j+1] == '\\' {
+				return j + 1
+			}
+			j++
+		}
+		return j - 1
+	default:
+		return start + 1
+	}
+}
+
+func sanitizeMetadataSlice(values []string) []string {
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = sanitizeMetadataText(v)
+	}
+	return out
 }
 
 func sortedKeys(values map[string]string) []string {
