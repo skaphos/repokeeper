@@ -121,7 +121,10 @@ type syncPlanEntry struct {
 }
 
 func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	opts := parseSyncOptions(req)
+	opts, err := parseSyncOptions(req)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	opts.DryRun = true // plan_sync is always dry-run
 
 	results, err := s.engine.Sync(ctx, opts)
@@ -165,7 +168,10 @@ func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolReque
 		return mcp.NewToolResultError("safety gate: execute_sync requires confirm=true"), nil
 	}
 
-	opts := parseSyncOptions(req)
+	opts, err := parseSyncOptions(req)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	opts.DryRun = false
 	opts.ContinueOnError = true
 
@@ -311,26 +317,70 @@ func (s *MCPServer) handleRemoveRepository(_ context.Context, req mcp.CallToolRe
 	}
 	deleteFiles := req.GetBool("delete_files", false)
 
-	if err := s.engine.DeleteRepo(context.Background(), repoArg, s.cfgPath, deleteFiles); err != nil {
+	// Deleting files permanently removes the working tree via os.RemoveAll.
+	// Gate it behind an explicit strict-bool confirm=true, mirroring the
+	// execute_sync safety gate. Tracking-only removal (the default) is not
+	// destructive on disk and needs no confirmation.
+	if deleteFiles {
+		confirm, err := requireStrictBoolArg(req, "confirm")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		if !confirm {
+			return mcp.NewToolResultError("safety gate: remove_repository with delete_files=true requires confirm=true"), nil
+		}
+	}
+
+	// Resolve through resolveRepo so an absolute checkout path works (the
+	// schema advertises "repo_id or absolute path"). DeleteRepo itself only
+	// matches by repo_id, so we hand it the resolved entry's RepoID.
+	entry, err := resolveRepo(s.engine.Registry(), repoArg)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	if err := s.engine.DeleteRepo(context.Background(), entry.RepoID, s.cfgPath, deleteFiles); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	return mcp.NewToolResultJSON(removeRepoResponse{
-		RepoID:  repoArg,
+		RepoID:  entry.RepoID,
 		Removed: true,
 	})
 }
 
 // --- shared helpers ---
 
-func parseSyncOptions(req mcp.CallToolRequest) engine.SyncOptions {
+// validSyncFilters is the set of health filters accepted by plan_sync and
+// execute_sync. It mirrors engine.FilterKind's known values. It is kept as a
+// local list (not derived from an engine symbol) so this package validates
+// input independently: an unknown/typo filter must be rejected here rather
+// than fail open in the engine and silently sync ALL repos.
+var validSyncFilters = map[string]struct{}{
+	"all":             {},
+	"errors":          {},
+	"dirty":           {},
+	"clean":           {},
+	"gone":            {},
+	"diverged":        {},
+	"behind":          {},
+	"ahead":           {},
+	"equal":           {},
+	"remote-mismatch": {},
+	"missing":         {},
+}
+
+func parseSyncOptions(req mcp.CallToolRequest) (engine.SyncOptions, error) {
 	filterRaw := strings.ToLower(strings.TrimSpace(req.GetString("filter", "all")))
+	if _, ok := validSyncFilters[filterRaw]; !ok {
+		return engine.SyncOptions{}, fmt.Errorf("invalid filter %q: must be one of all, errors, dirty, clean, gone, diverged, behind, ahead, equal, remote-mismatch, missing", filterRaw)
+	}
 	return engine.SyncOptions{
 		Filter:      engine.FilterKind(filterRaw),
 		UpdateLocal: req.GetBool("update_local", false),
 		PushLocal:   req.GetBool("push_local", false),
 		Force:       req.GetBool("force", false),
-	}
+	}, nil
 }
 
 func optionalStringSliceArg(req mcp.CallToolRequest, name string) ([]string, error) {
