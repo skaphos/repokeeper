@@ -159,6 +159,30 @@ var _ = Describe("Discovery", func() {
 		Expect(filepath.Clean(results[0].Path)).To(Equal(filepath.Clean(resolvedRepo)))
 	})
 
+	It("does not duplicate results when a followed symlink points inside the walked tree", func() {
+		root := GinkgoT().TempDir()
+		sub := filepath.Join(root, "sub")
+		repo := filepath.Join(sub, "repo")
+		link := filepath.Join(root, "link")
+
+		Expect(os.MkdirAll(repo, 0o755)).To(Succeed())
+		Expect(exec.Command("git", "init", repo).Run()).To(Succeed())
+		if err := os.Symlink(sub, link); err != nil {
+			Skip("symlinks not supported on this platform: " + err.Error())
+		}
+
+		// root/sub/repo is a real repo and root/link -> root/sub. With
+		// FollowSymlinks the symlink resolves back into the tree WalkDir already
+		// covers, so the repo must appear exactly once, not twice.
+		results, err := discovery.Scan(context.Background(), discovery.Options{
+			Roots:          []string{root},
+			FollowSymlinks: true,
+			Adapter:        vcs.NewGitAdapter(nil),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+	})
+
 	It("does not duplicate results when roots overlap", func() {
 		root := GinkgoT().TempDir()
 		repoA := filepath.Join(root, "repoA")

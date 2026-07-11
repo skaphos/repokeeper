@@ -281,6 +281,9 @@ func TestRootCovered(t *testing.T) {
 		{"unrelated-path-not-covered", "/B", []string{"/A"}, false},
 		{"no-accepted-roots", "/A", nil, false},
 		{"covered-by-second-of-several", "/C/sub", []string{"/A", "/C"}, true},
+		// A filesystem-root root already ends in a separator; the overlap check
+		// must not append a second one (which would form "//" and never match).
+		{"filesystem-root-covers-nested", filepath.Join(string(filepath.Separator), "foo"), []string{string(filepath.Separator)}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

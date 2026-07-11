@@ -84,8 +84,19 @@ func Scan(ctx context.Context, opts Options) ([]Result, error) {
 // rootCovered reports whether path is equal to, or nested under, any of the
 // already-accepted root directories.
 func rootCovered(path string, accepted []string) bool {
+	sep := string(filepath.Separator)
 	for _, root := range accepted {
-		if path == root || strings.HasPrefix(path, root+string(filepath.Separator)) {
+		if path == root {
+			return true
+		}
+		// A filesystem-root root (e.g. "/" on Unix or "C:\" on Windows) already
+		// ends in a separator; appending another would form "//" / "C:\\" and
+		// break the prefix check, so only add a separator when one is absent.
+		prefix := root
+		if !strings.HasSuffix(prefix, sep) {
+			prefix += sep
+		}
+		if strings.HasPrefix(path, prefix) {
 			return true
 		}
 	}
@@ -176,6 +187,13 @@ func walkRoot(ctx context.Context, root string, opts Options, visited map[string
 			}
 			info, err := os.Stat(target)
 			if err != nil || !info.IsDir() {
+				return nil
+			}
+			// If the symlink resolves back inside the tree WalkDir is already
+			// walking, descending it as a new root would visit that subtree
+			// twice and duplicate results. The visited set only tracks roots,
+			// not every directory WalkDir descends into, so guard explicitly.
+			if target == realRoot || strings.HasPrefix(target, realRoot+string(filepath.Separator)) {
 				return nil
 			}
 			// Recurse into the symlink target as its own root; the visited
