@@ -86,6 +86,14 @@ func TestUpdateLocalStillFetchesDirtySkip(t *testing.T) {
 	if executed.SkipReason != SyncReasonDirtyWorkingTree {
 		t.Fatalf("expected executed skip reason preserved, got %q", executed.SkipReason)
 	}
+	// The user-facing skip message/class must survive plan execution so the sync
+	// table's ERROR/ERROR_CLASS columns still report the reason after the fetch.
+	if executed.ErrorClass != "skipped" {
+		t.Fatalf("expected executed skip to keep ErrorClass \"skipped\", got %q", executed.ErrorClass)
+	}
+	if executed.Error == "" || executed.Error != plan.Error {
+		t.Fatalf("expected executed skip to keep the planner skip message %q, got %q", plan.Error, executed.Error)
+	}
 }
 
 // Finding 2: an hg fetch step must actually pull. The adapter reports local

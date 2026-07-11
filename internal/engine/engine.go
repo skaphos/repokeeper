@@ -663,7 +663,17 @@ func (e *Engine) executePlannedSyncItem(ctx context.Context, item SyncResult) Sy
 	if item.steps[0] == syncStepClone {
 		return e.executePlannedClone(ctx, executed)
 	}
-	return e.executePlannedNonClone(ctx, executed)
+	result := e.executePlannedNonClone(ctx, executed)
+	// A successfully executed skip-local-update item is still a skip: its fetch
+	// step ran, but no local update was applied. Restore the planner's
+	// user-facing skip message/class that we cleared above so the sync table's
+	// ERROR/ERROR_CLASS columns keep reporting the skip reason rather than going
+	// blank after plan execution.
+	if result.OK && result.Outcome == SyncOutcomeSkippedLocalUpdate {
+		result.Error = item.Error
+		result.ErrorClass = item.ErrorClass
+	}
+	return result
 }
 
 func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) SyncResult {
