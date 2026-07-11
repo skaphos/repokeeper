@@ -22,7 +22,9 @@ type MockResponse struct {
 }
 
 func (m *MockRunner) Run(_ context.Context, dir string, args ...string) (string, error) {
-	m.LastArgs = args
+	// Copy args so LastArgs doesn't alias the caller's backing array; a caller
+	// that reuses/mutates its slice after Run returns must not change LastArgs.
+	m.LastArgs = append([]string(nil), args...)
 	key := dir + ":" + strings.Join(args, " ")
 	if resp, ok := m.Responses[key]; ok {
 		return resp.Output, resp.Err

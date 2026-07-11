@@ -144,11 +144,10 @@ var _ = Describe("ParseForEachRef", func() {
 		Expect(entries).To(BeEmpty())
 	})
 
-	// KNOWN LIMITATION (see ParseForEachRef doc comment and PR
-	// description): "|" is technically legal in a git ref name, so a
-	// branch named "feat|x" is misparsed today. This is documented rather
-	// than fixed in this change because the correct fix (a NUL-delimited
-	// --format string) changes the exact git argv and breaks
+	// KNOWN LIMITATION (see ParseForEachRef doc comment): "|" is technically
+	// legal in a git ref name, so a branch named "feat|x" is misparsed today.
+	// This is documented rather than fixed in this change because the correct
+	// fix (a NUL-delimited --format string) changes the exact git argv and breaks
 	// internal/engine's mock-runner fixtures, which are outside this
 	// change's file scope.
 	It("documents that a literal pipe in a branch name is currently misparsed", func() {

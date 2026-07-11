@@ -47,7 +47,7 @@ type ForEachRefEntry struct {
 //
 //	git for-each-ref refs/heads --format="%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort)"
 //
-// KNOWN LIMITATION (deferred, see PR description): "|" is technically a
+// KNOWN LIMITATION (deferred): "|" is technically a
 // legal character in a git ref name (git-check-ref-format does not
 // disallow it), so a branch such as "feat|x" can be misparsed here. The
 // correct fix — switching the --format string to a NUL ("%00") delimiter,
