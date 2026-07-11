@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,27 @@ import (
 	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/repometa"
 )
+
+// metadataProposalUnchanged reports whether the proposal renders to exactly the
+// same canonical metadata already persisted at repoPath. It returns false when
+// the existing file can't be loaded or either side can't be rendered, so an
+// indeterminate comparison falls through to a normal (forced) save rather than
+// silently skipping a real change.
+func metadataProposalUnchanged(repoPath string, proposal *model.RepoMetadata) bool {
+	_, current, err := repometa.Load(repoPath)
+	if err != nil || current == nil {
+		return false
+	}
+	currentBytes, err := repometa.Render(current)
+	if err != nil {
+		return false
+	}
+	proposalBytes, err := repometa.Render(proposal)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(currentBytes, proposalBytes)
+}
 
 const (
 	metadataFieldName = iota
@@ -250,6 +272,15 @@ func saveRepoMetadataEditCmd(m tuiModel) tea.Cmd {
 		}
 		if proposal.RepoID != "" && proposal.RepoID != entry.RepoID {
 			return repoMetadataEditDoneMsg{repoID: repoID, err: fmt.Errorf("repo metadata repo_id %q must match tracked repo_id %q", proposal.RepoID, entry.RepoID)}
+		}
+		// When a metadata file already exists, only rewrite it if the canonical
+		// content actually changes. An unchanged edit should not rewrite the
+		// repo-controlled file (which would dirty the repo's working tree), and
+		// this keeps the "no repo metadata changes" path reachable. If the
+		// existing file can't be loaded/rendered, fall through to the normal
+		// forced save.
+		if force && metadataProposalUnchanged(entry.Path, proposal) {
+			return repoMetadataEditDoneMsg{repoID: repoID, repoPath: repoPath, saved: false}
 		}
 		if _, err := repometa.Save(entry.Path, proposal, force); err != nil {
 			return repoMetadataEditDoneMsg{repoID: repoID, err: err}

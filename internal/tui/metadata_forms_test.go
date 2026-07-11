@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 )
 
 func TestRenderMetadataViewsAndHelpers(t *testing.T) {
@@ -275,5 +277,81 @@ func TestEditKeyHandlersAndMetadataFieldMutationHelpers(t *testing.T) {
 	nm = next.(tuiModel)
 	if nm.mode != viewDetail || nm.metadataRepoID != "" || nm.metadataLabelsInput != "" || nm.statusMsg != "" || nm.statusIsError {
 		t.Fatalf("expected escaped metadata editor reset, got %+v", nm)
+	}
+}
+
+// saveRepoMetadataEditCmd must not rewrite an existing metadata file when the
+// proposed metadata is unchanged: an unchanged edit should report saved=false
+// (so the "no repo metadata changes" path is reachable) and leave the
+// repo-controlled file byte-for-byte identical rather than dirtying the tree.
+func TestSaveRepoMetadataEditCmdSkipsUnchangedMetadata(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: repoPath, Status: registry.StatusPresent}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	base := tuiModel{
+		metadataRepoID:          "acme/a",
+		metadataRepoPath:        repoPath,
+		metadataField:           metadataFieldRelated,
+		metadataName:            "Repo A",
+		metadataRepoIDAssertion: "acme/a",
+		metadataLabelsInput:     "team=platform",
+		engine:                  eng,
+		cfgPath:                 filepath.Join(tmp, ".repokeeper.yaml"),
+	}
+
+	// First save creates the file (no existing file, so force=false).
+	first := base
+	first.metadataExists = false
+	msg1, ok := saveRepoMetadataEditCmd(first)().(repoMetadataEditDoneMsg)
+	if !ok || msg1.err != nil {
+		t.Fatalf("first save: ok=%v err=%v", ok, msg1.err)
+	}
+	if !msg1.saved {
+		t.Fatal("expected first save to persist (saved=true)")
+	}
+
+	metaPath, _, err := repometa.Load(repoPath)
+	if err != nil {
+		t.Fatalf("load after first save: %v", err)
+	}
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read metadata: %v", err)
+	}
+
+	// Re-saving identical metadata must be a no-op that does not rewrite the file.
+	second := base
+	second.metadataExists = true
+	msg2, ok := saveRepoMetadataEditCmd(second)().(repoMetadataEditDoneMsg)
+	if !ok || msg2.err != nil {
+		t.Fatalf("second save: ok=%v err=%v", ok, msg2.err)
+	}
+	if msg2.saved {
+		t.Fatal("expected unchanged re-save to be a no-op (saved=false)")
+	}
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read metadata after: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("metadata file was rewritten despite no change:\nbefore=%q\nafter=%q", before, after)
+	}
+
+	// A genuine change must still persist.
+	third := base
+	third.metadataExists = true
+	third.metadataName = "Repo A Renamed"
+	msg3, ok := saveRepoMetadataEditCmd(third)().(repoMetadataEditDoneMsg)
+	if !ok || msg3.err != nil {
+		t.Fatalf("third save: ok=%v err=%v", ok, msg3.err)
+	}
+	if !msg3.saved {
+		t.Fatal("expected a changed re-save to persist (saved=true)")
 	}
 }
