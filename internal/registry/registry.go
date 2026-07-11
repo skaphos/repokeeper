@@ -147,8 +147,8 @@ func (r *Registry) ensureCheckoutIDs() {
 // is gone, it is treated as a move and the basename is reused so the entry is
 // re-homed rather than duplicated.
 func (r *Registry) resolveCheckoutID(entry Entry) string {
-	if strings.TrimSpace(entry.CheckoutID) != "" {
-		return entry.CheckoutID
+	if id := strings.TrimSpace(entry.CheckoutID); id != "" {
+		return id
 	}
 	base := defaultCheckoutIDFromPath(entry.Path)
 	if base == "" {
