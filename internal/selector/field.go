@@ -9,6 +9,24 @@ import (
 	"github.com/skaphos/repokeeper/internal/strutil"
 )
 
+// knownOnlyFilterKinds is the closed set of values accepted by --only. Keep in
+// sync with repoFilterUsage in cmd/repokeeper/flags.go and the engine.FilterKind
+// constants: an unrecognized value must be rejected rather than silently
+// falling through to "match everything".
+var knownOnlyFilterKinds = map[engine.FilterKind]struct{}{
+	engine.FilterAll:            {},
+	engine.FilterErrors:         {},
+	engine.FilterDirty:          {},
+	engine.FilterClean:          {},
+	engine.FilterGone:           {},
+	engine.FilterDiverged:       {},
+	engine.FilterBehind:         {},
+	engine.FilterAhead:          {},
+	engine.FilterEqual:          {},
+	engine.FilterRemoteMismatch: {},
+	engine.FilterMissing:        {},
+}
+
 // ResolveRepoFilter combines --only and --field-selector into a single FilterKind.
 // If fieldSelector is non-empty, only must be "all" (or empty).
 func ResolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
@@ -22,7 +40,11 @@ func ResolveRepoFilter(only, fieldSelector string) (engine.FilterKind, error) {
 		if fieldSelector != "" {
 			return "", fmt.Errorf("--field-selector cannot be blank")
 		}
-		return engine.FilterKind(onlyTrimmed), nil
+		kind := engine.FilterKind(onlyTrimmed)
+		if _, ok := knownOnlyFilterKinds[kind]; !ok {
+			return "", fmt.Errorf("unsupported --only value %q (expected one of: all, errors, dirty, clean, gone, diverged, behind, ahead, equal, remote-mismatch, missing)", only)
+		}
+		return kind, nil
 	}
 	if len(strutil.SplitCSV(fieldSelector)) == 0 {
 		return "", fmt.Errorf("--field-selector cannot be blank")
