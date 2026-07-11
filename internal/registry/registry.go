@@ -5,6 +5,8 @@ package registry
 
 import (
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/pathutil"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -58,6 +61,9 @@ func Load(path string) (*Registry, error) {
 	if err := yaml.Unmarshal(data, &reg); err != nil {
 		return nil, err
 	}
+	// Assign checkout_id eagerly at load time so lookups stay read-only and
+	// therefore safe to call concurrently.
+	reg.ensureCheckoutIDs()
 	return &reg, nil
 }
 
@@ -74,17 +80,20 @@ func Save(reg *Registry, path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	// Atomic write so a crash mid-write cannot destroy the sole-copy registry.
+	return pathutil.WriteFileAtomic(path, data, 0o644)
 }
 
 // Upsert adds or updates an entry in the registry by repo_id + checkout_id.
 // If the repo_id + checkout_id already exists, it updates path, last_seen, and status.
 // If new, it appends the entry.
 func (r *Registry) Upsert(entry Entry) {
-	entry.CheckoutID = checkoutIDFromEntry(entry)
+	// Backfill any legacy entries first so the loops below can compare
+	// checkout_id fields directly without mutating during iteration.
+	r.ensureCheckoutIDs()
+	entry.CheckoutID = r.resolveCheckoutID(entry)
 
 	for i := range r.Entries {
-		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == entry.RepoID && r.Entries[i].CheckoutID == entry.CheckoutID {
 			merged := mergeRegistryEntry(r.Entries[i], entry)
 			if !sameRegistryPath(r.Entries[i].Path, entry.Path) {
@@ -97,7 +106,6 @@ func (r *Registry) Upsert(entry Entry) {
 	}
 
 	for i := range r.Entries {
-		r.backfillCheckoutID(i)
 		if sameRegistryPath(r.Entries[i].Path, entry.Path) {
 			r.Entries[i] = mergeRegistryEntry(r.Entries[i], entry)
 			r.collapseDuplicatePaths(i)
@@ -110,11 +118,61 @@ func (r *Registry) Upsert(entry Entry) {
 	r.Entries = append(r.Entries, entry)
 }
 
-func (r *Registry) backfillCheckoutID(index int) {
-	if r == nil || index < 0 || index >= len(r.Entries) {
+// ensureCheckoutIDs assigns a derived checkout_id to any entry that lacks one.
+// It is called at load and upsert time so that read-only lookups never have to
+// mutate the entry slice (which previously caused a data race when lookups ran
+// concurrently from status-worker goroutines).
+func (r *Registry) ensureCheckoutIDs() {
+	if r == nil {
 		return
 	}
-	r.Entries[index].CheckoutID = checkoutIDFromEntry(r.Entries[index])
+	for i := range r.Entries {
+		if r.Entries[i].CheckoutID == "" {
+			r.Entries[i].CheckoutID = defaultCheckoutIDFromPath(r.Entries[i].Path)
+		}
+	}
+}
+
+// resolveCheckoutID determines the checkout_id for an incoming entry.
+//
+// An explicit checkout_id always wins and is stable across moves (this is what
+// keeps genuine move-detection working for imported/cloned checkouts).
+//
+// For entries relying on the path-basename default, two checkouts of the same
+// repo that share a directory basename (e.g. ~/work/proj and ~/scratch/proj)
+// would otherwise collide and overwrite each other. When such a same-basename
+// entry already exists at a DIFFERENT path that still exists on disk, the two
+// are genuinely coexisting checkouts (not a move), so the newcomer is given a
+// path-derived suffix to keep the identities distinct. When the existing path
+// is gone, it is treated as a move and the basename is reused so the entry is
+// re-homed rather than duplicated.
+func (r *Registry) resolveCheckoutID(entry Entry) string {
+	if strings.TrimSpace(entry.CheckoutID) != "" {
+		return entry.CheckoutID
+	}
+	base := defaultCheckoutIDFromPath(entry.Path)
+	if base == "" {
+		return ""
+	}
+	if r == nil || !pathExists(entry.Path) {
+		return base
+	}
+	for i := range r.Entries {
+		if r.Entries[i].RepoID != entry.RepoID {
+			continue
+		}
+		if r.Entries[i].CheckoutID != base {
+			continue
+		}
+		if sameRegistryPath(r.Entries[i].Path, entry.Path) {
+			continue // same checkout being updated in place
+		}
+		if pathExists(r.Entries[i].Path) {
+			// Both checkouts are live: disambiguate the newcomer.
+			return base + "-" + shortPathHash(entry.Path)
+		}
+	}
+	return base
 }
 
 func checkoutIDFromEntry(entry Entry) string {
@@ -133,6 +191,27 @@ func defaultCheckoutIDFromPath(path string) string {
 		return ""
 	}
 	return base
+}
+
+// shortPathHash returns a short, stable hex digest of a checkout path, used to
+// disambiguate coexisting checkouts that share a directory basename.
+func shortPathHash(path string) string {
+	key := filepath.Clean(strings.TrimSpace(path))
+	if runtime.GOOS == "windows" {
+		key = strings.ToLower(key)
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return fmt.Sprintf("%08x", h.Sum32())
+}
+
+// pathExists reports whether path currently resolves to something on disk.
+func pathExists(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func cloneStringMap(in map[string]string) map[string]string {
@@ -310,7 +389,6 @@ func (r *Registry) PruneStale(olderThan time.Duration) int {
 // FindByRepoID returns the entry matching the given repo_id, or nil.
 func (r *Registry) FindByRepoID(repoID string) *Entry {
 	for i := range r.Entries {
-		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == repoID {
 			return &r.Entries[i]
 		}
@@ -325,9 +403,12 @@ func (r *Registry) FindEntriesByRepoID(repoID string) []Entry {
 	}
 	entries := make([]Entry, 0)
 	for i := range r.Entries {
-		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == repoID {
-			entries = append(entries, r.Entries[i])
+			// Return a copy with a derived checkout_id so callers see a stable
+			// identity even for legacy entries, without mutating the registry.
+			match := r.Entries[i]
+			match.CheckoutID = checkoutIDFromEntry(match)
+			entries = append(entries, match)
 		}
 	}
 	if len(entries) == 0 {
@@ -340,8 +421,7 @@ func (r *Registry) FindEntriesByRepoID(repoID string) []Entry {
 // or nil if not found.
 func (r *Registry) FindByRepoIDAndCheckoutID(repoID, checkoutID string) *Entry {
 	for i := range r.Entries {
-		r.backfillCheckoutID(i)
-		if r.Entries[i].RepoID == repoID && r.Entries[i].CheckoutID == checkoutID {
+		if r.Entries[i].RepoID == repoID && checkoutIDFromEntry(r.Entries[i]) == checkoutID {
 			return &r.Entries[i]
 		}
 	}
@@ -362,13 +442,11 @@ func (r *Registry) FindEntry(repoID, path string) *Entry {
 // (exact match first, then repoID-only fallback), or -1 if not found.
 func (r *Registry) FindEntryIndex(repoID, path string) int {
 	for i := range r.Entries {
-		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == repoID && r.Entries[i].Path == path {
 			return i
 		}
 	}
 	for i := range r.Entries {
-		r.backfillCheckoutID(i)
 		if r.Entries[i].RepoID == repoID {
 			return i
 		}
