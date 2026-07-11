@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -361,5 +362,99 @@ func TestExportCommandRunEWritesFile(t *testing.T) {
 	}
 	if _, err := os.Stat(outputFile); err != nil {
 		t.Fatalf("expected export file at %s: %v", outputFile, err)
+	}
+}
+
+func TestExportCommandRunEWritesFileOwnerOnlyPermissions(t *testing.T) {
+	// Regression test: exported bundles can carry remote_url credentials
+	// (see TestExportCommandRunEWarnsOnEmbeddedCredentials), so the bundle
+	// file must not be world/group-readable.
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX file mode bits are not meaningful on windows")
+	}
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	outputFile := filepath.Join(t.TempDir(), "bundle.yaml")
+	exportCmd.SetContext(context.Background())
+	_ = exportCmd.Flags().Set("include-registry", "false")
+	_ = exportCmd.Flags().Set("output", "-")
+
+	if err := exportCmd.RunE(exportCmd, []string{outputFile}); err != nil {
+		t.Fatalf("export run failed: %v", err)
+	}
+	info, err := os.Stat(outputFile)
+	if err != nil {
+		t.Fatalf("stat export file: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("expected owner-only file mode 0600, got %#o", got)
+	}
+}
+
+func TestExportCommandRunEWarnsOnEmbeddedCredentials(t *testing.T) {
+	cfgPath := writeEmptyConfig(t)
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Registry = &registry.Registry{
+		Entries: []registry.Entry{
+			{
+				RepoID:    "github.com/org/repo-creds",
+				Path:      filepath.Join(t.TempDir(), "repo-creds"),
+				RemoteURL: "https://user:token@github.com/org/repo-creds.git",
+				Status:    registry.StatusPresent,
+			},
+		},
+	}
+	if err := config.Save(cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	errOut := &bytes.Buffer{}
+	out := &bytes.Buffer{}
+	exportCmd.SetOut(out)
+	exportCmd.SetErr(errOut)
+	exportCmd.SetContext(context.Background())
+	defer exportCmd.SetOut(os.Stdout)
+	defer exportCmd.SetErr(os.Stderr)
+
+	_ = exportCmd.Flags().Set("include-registry", "true")
+	_ = exportCmd.Flags().Set("output", "-")
+
+	if err := exportCmd.RunE(exportCmd, nil); err != nil {
+		t.Fatalf("export run failed: %v", err)
+	}
+
+	if !strings.Contains(errOut.String(), "embeds credentials") || !strings.Contains(errOut.String(), "github.com/org/repo-creds") {
+		t.Fatalf("expected embedded-credentials warning naming the repo, got: %q", errOut.String())
+	}
+	// remote_url must stay usable for import/reconcile, so it is not redacted
+	// in the bundle itself.
+	if !strings.Contains(out.String(), "user:token@github.com") {
+		t.Fatalf("expected remote_url to remain usable (not redacted) in bundle output, got: %q", out.String())
+	}
+}
+
+func TestExportEntriesWithEmbeddedCredentials(t *testing.T) {
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: "a", RemoteURL: "https://user:token@github.com/org/a.git"},
+			{RepoID: "b", RemoteURL: "https://github.com/org/b.git"},
+			{RepoID: "c", RemoteURL: "git@github.com:org/c.git"},
+			{RepoID: "d", RemoteURL: ""},
+		},
+	}
+	got := exportEntriesWithEmbeddedCredentials(reg)
+	if len(got) != 1 || got[0] != "a" {
+		t.Fatalf("expected only repo %q flagged, got %#v", "a", got)
+	}
+	if got := exportEntriesWithEmbeddedCredentials(nil); got != nil {
+		t.Fatalf("expected nil result for nil registry, got %#v", got)
 	}
 }
