@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.1](https://github.com/skaphos/repokeeper/compare/v1.3.0...v1.3.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* **cli:** repair get reconcile flags, scan JSON, --only validation, and status display safety ([#263](https://github.com/skaphos/repokeeper/issues/263)) ([055e605](https://github.com/skaphos/repokeeper/commit/055e6054ffbbbc0bfa206016b9eba163ba1cf13e))
+* **discovery:** fix symlink walking, root overlap, walk errors, bad excludes ([#264](https://github.com/skaphos/repokeeper/issues/264)) ([9e86cc6](https://github.com/skaphos/repokeeper/commit/9e86cc60e86d1561953214cadcc07f7a20445257))
+* **engine:** structured sync plan steps + filter/adapter correctness ([#269](https://github.com/skaphos/repokeeper/issues/269)) ([cc954d3](https://github.com/skaphos/repokeeper/commit/cc954d3ff29e767613a525f922d7fa99b2ad4d84))
+* **gitx:** harden git/hg exec boundary (stdout/stderr, locale, flag injection) ([#266](https://github.com/skaphos/repokeeper/issues/266)) ([004884e](https://github.com/skaphos/repokeeper/commit/004884e8b2274380d157c433d0c0614677eab59b))
+* **mcp:** registry locking, mutation safety gates, and config-install data-loss fixes ([#267](https://github.com/skaphos/repokeeper/issues/267)) ([1fa5ba5](https://github.com/skaphos/repokeeper/commit/1fa5ba5ec1476da4bcba35e9ca3ab8109241987e))
+* **persistence:** atomic writes, race-free registry lookups, and safer config/metadata loading ([#265](https://github.com/skaphos/repokeeper/issues/265)) ([b7f4daf](https://github.com/skaphos/repokeeper/commit/b7f4daf91e331d5a183e5b03164f1655ffe377d0))
+* **tui:** program-reference race, unsynchronized registry writes, ghost rows, and 6 other TUI findings ([#270](https://github.com/skaphos/repokeeper/issues/270)) ([890c472](https://github.com/skaphos/repokeeper/commit/890c472fee329d154ce38a373fdde97a00cbabb4))
+
 ## [1.3.0](https://github.com/skaphos/repokeeper/compare/v1.2.0...v1.3.0) (2026-06-22)
 
 
