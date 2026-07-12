@@ -99,13 +99,13 @@ func Classify(b model.LocalBranch, p Policy, now time.Time) (model.PruneCategory
 	} else {
 		// Patch-equivalence is trusted as a secondary signal (opt-in), so a
 		// squash/rebase merge can be surfaced as review-required probably_safe.
-		if b.PatchEquivalentToBase != nil && *b.PatchEquivalentToBase {
-			return model.PruneProbablySafe, []model.PruneReason{model.ReasonPatchEquivalentToBase}
-		}
-		// With patch-equivalence in play, an unknown signal cannot establish the
-		// branch's state: be conservative.
+		// With patch-equivalence in play, an unknown integration signal cannot
+		// establish the branch's state: be conservative.
 		if b.MergedIntoBase == nil || b.PatchEquivalentToBase == nil {
 			return model.PruneNeedsReview, []model.PruneReason{model.ReasonSignalUnavailable}
+		}
+		if *b.PatchEquivalentToBase {
+			return model.PruneProbablySafe, []model.PruneReason{model.ReasonPatchEquivalentToBase}
 		}
 	}
 
