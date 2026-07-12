@@ -31,7 +31,7 @@ func TestGitAdapterInspectLocalBranches(t *testing.T) {
 		"/repo:cherry origin/main feature":                                             {out: "- abc123\n"},
 	}}
 
-	sigs, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "origin/main")
+	sigs, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "origin/main", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestGitAdapterInspectLocalBranchesNoBase(t *testing.T) {
 	enum := enumLine("main", "", "", "", "2026-07-11T00:00:00Z", "") + "\n"
 	r := &runnerStub{responses: map[string]stubResp{"/repo:" + localFmtArgs: {out: enum}}}
 
-	sigs, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "")
+	sigs, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestGitAdapterInspectLocalBranchesMergedCheckFails(t *testing.T) {
 		"/repo:cherry origin/main feature":                                             {out: "+ abc123\n"},
 	}}
 
-	sigs, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "origin/main")
+	sigs, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "origin/main", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +93,28 @@ func TestGitAdapterInspectLocalBranchesMergedCheckFails(t *testing.T) {
 
 func TestGitAdapterInspectLocalBranchesEnumError(t *testing.T) {
 	r := &runnerStub{responses: map[string]stubResp{"/repo:" + localFmtArgs: {err: errors.New("boom")}}}
-	if _, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "origin/main"); err == nil {
+	if _, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "origin/main", true); err == nil {
 		t.Errorf("expected error when enumeration fails")
+	}
+}
+
+func TestGitAdapterInspectLocalBranchesSkipsPatchWhenDisabled(t *testing.T) {
+	enum := enumLine("feature", "origin/feature", "[gone]", "", "2026-07-11T00:00:00Z", "") + "\n"
+	r := &runnerStub{responses: map[string]stubResp{
+		"/repo:" + localFmtArgs: {out: enum},
+		"/repo:for-each-ref --merged=origin/main --format=%(refname:short) refs/heads": {out: ""},           // feature not merged
+		"/repo:cherry origin/main feature":                                             {out: "- abc123\n"}, // would be patch-equivalent IF called
+	}}
+	// patchEquivalence=false: cherry must not run, so PatchEquivalentToBase stays nil
+	// even though the response above would set it to true.
+	sigs, err := vcs.NewGitAdapter(r).InspectLocalBranches(context.Background(), "/repo", "origin/main", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sigs[0].MergedIntoBase == nil || *sigs[0].MergedIntoBase {
+		t.Errorf("feature MergedIntoBase should be false")
+	}
+	if sigs[0].PatchEquivalentToBase != nil {
+		t.Errorf("patch-equivalence must be skipped when disabled, got %v", sigs[0].PatchEquivalentToBase)
 	}
 }

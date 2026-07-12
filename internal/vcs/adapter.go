@@ -61,10 +61,13 @@ type LocalBranchSignal struct {
 
 // LocalBranchInspector is an optional adapter capability that enumerates local
 // branches and computes prune-safety signals against base. When base is empty,
-// integration signals are left nil (unknown). Non-Git adapters need not
+// integration signals are left nil (unknown). patchEquivalence enables the
+// per-branch (and therefore O(N)) patch-equivalence check; callers that do not
+// need it — e.g. under require_merged, where only reachability is trusted —
+// should pass false to keep inspection cheap. Non-Git adapters need not
 // implement it.
 type LocalBranchInspector interface {
-	InspectLocalBranches(ctx context.Context, dir, base string) ([]LocalBranchSignal, error)
+	InspectLocalBranches(ctx context.Context, dir, base string, patchEquivalence bool) ([]LocalBranchSignal, error)
 }
 
 // GitAdapter implements Adapter using the git CLI via gitx.
@@ -116,12 +119,13 @@ func (g *GitAdapter) StaleRemoteTrackingRefs(ctx context.Context, dir string, re
 	return gitx.StaleRemoteTrackingRefs(ctx, g.Runner, dir, remoteNames)
 }
 
-// InspectLocalBranches enumerates local branches and computes reachability and
-// (for non-reachable branches) patch-equivalence against base. A failed merged
-// check leaves MergedIntoBase nil so the classifier treats it as unknown rather
-// than "not merged". Patch-equivalence is only computed for branches that are
-// not reachability-merged, since reachability already yields safe_to_prune.
-func (g *GitAdapter) InspectLocalBranches(ctx context.Context, dir, base string) ([]LocalBranchSignal, error) {
+// InspectLocalBranches enumerates local branches and computes reachability and,
+// when patchEquivalence is set, per-branch patch-equivalence against base. A
+// failed merged check leaves MergedIntoBase nil so the classifier treats it as
+// unknown rather than "not merged". Patch-equivalence — an O(N) `git cherry` per
+// branch — is only run when requested, and only for branches that are not
+// reachability-merged (reachability already yields safe_to_prune).
+func (g *GitAdapter) InspectLocalBranches(ctx context.Context, dir, base string, patchEquivalence bool) ([]LocalBranchSignal, error) {
 	infos, err := gitx.LocalBranches(ctx, g.Runner, dir)
 	if err != nil {
 		return nil, err
@@ -148,11 +152,11 @@ func (g *GitAdapter) InspectLocalBranches(ctx context.Context, dir, base string)
 			WorktreePath:  info.WorktreePath,
 		}
 		if base != "" {
-			needPatch := true
+			needPatch := patchEquivalence
 			if mergedAvailable {
 				isMerged := merged[info.Name]
 				sig.MergedIntoBase = &isMerged
-				needPatch = !isMerged // reachable branches already yield safe_to_prune
+				needPatch = needPatch && !isMerged // reachable branches already yield safe_to_prune
 			}
 			if needPatch {
 				if eq, eqErr := gitx.PatchEquivalentToBase(ctx, g.Runner, dir, base, info.Name); eqErr == nil {

@@ -65,11 +65,13 @@ func TestClassify(t *testing.T) {
 		},
 		// --- patch-equivalence gated by RequireMerged ---
 		{
-			name:        "patch-equivalent under RequireMerged is needs_review",
+			// Under RequireMerged, patch-equivalence is not consulted (the engine
+			// skips computing it); the branch is classified by reachability + upstream.
+			name:        "under RequireMerged patch-equivalence is ignored",
 			branch:      model.LocalBranch{Name: "feature", UpstreamStatus: model.TrackingGone, MergedIntoBase: boolPtr(false), PatchEquivalentToBase: boolPtr(true)},
 			policy:      prune.Policy{BaseBranch: "main", RequireMerged: true},
 			wantCat:     model.PruneNeedsReview,
-			wantReasons: []model.PruneReason{model.ReasonPatchEquivalentToBase},
+			wantReasons: []model.PruneReason{model.ReasonUnmergedLocalWork},
 		},
 		{
 			name:        "patch-equivalent with RequireMerged=false is probably_safe",
@@ -77,6 +79,13 @@ func TestClassify(t *testing.T) {
 			policy:      prune.Policy{BaseBranch: "main", RequireMerged: false},
 			wantCat:     model.PruneProbablySafe,
 			wantReasons: []model.PruneReason{model.ReasonPatchEquivalentToBase},
+		},
+		{
+			name:        "RequireMerged=false, not integrated, gone upstream is unmerged_local_work",
+			branch:      model.LocalBranch{Name: "feature", UpstreamStatus: model.TrackingGone, MergedIntoBase: boolPtr(false), PatchEquivalentToBase: boolPtr(false), LastCommitAt: timePtr(recent)},
+			policy:      prune.Policy{BaseBranch: "main", RequireMerged: false},
+			wantCat:     model.PruneNeedsReview,
+			wantReasons: []model.PruneReason{model.ReasonUnmergedLocalWork},
 		},
 		// --- the closed data-loss hole: upstream gone, no integration evidence ---
 		{
@@ -95,9 +104,9 @@ func TestClassify(t *testing.T) {
 			wantReasons: []model.PruneReason{model.ReasonSignalUnavailable},
 		},
 		{
-			name:        "merged known-false but patch unknown is needs_review (can't rule out squash)",
+			name:        "RequireMerged=false with patch unknown is needs_review (can't rule out squash)",
 			branch:      model.LocalBranch{Name: "feature", UpstreamStatus: model.TrackingGone, MergedIntoBase: boolPtr(false)},
-			policy:      base,
+			policy:      prune.Policy{BaseBranch: "main", RequireMerged: false},
 			wantCat:     model.PruneNeedsReview,
 			wantReasons: []model.PruneReason{model.ReasonSignalUnavailable},
 		},

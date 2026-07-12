@@ -34,6 +34,16 @@ func (e *Engine) inspectLocalBranches(ctx context.Context, path, primary, repoID
 	// ("origin/origin/main").
 	baseName := e.resolveBaseBranchName(repoID, path, tracking)
 	primaryRemote := strings.TrimSpace(primary)
+	if primaryRemote == "" {
+		// Fall back to the remote implied by the upstream (e.g. "origin/main" ->
+		// "origin") so a remote-qualified base override still normalizes when the
+		// adapter reports no primary remote.
+		if up := strings.TrimSpace(tracking.Upstream); up != "" {
+			if i := strings.Index(up, "/"); i > 0 {
+				primaryRemote = up[:i]
+			}
+		}
+	}
 	localBase, queryBase := baseName, baseName
 	if primaryRemote != "" && baseName != "" {
 		if strings.HasPrefix(baseName, primaryRemote+"/") {
@@ -43,7 +53,11 @@ func (e *Engine) inspectLocalBranches(ctx context.Context, path, primary, repoID
 		}
 	}
 
-	signals, err := inspector.InspectLocalBranches(ctx, path, queryBase)
+	policy := e.branchPolicy(localBase)
+	// Patch-equivalence is a per-branch git cherry; it only changes
+	// classification when require_merged is disabled, so skip it otherwise to
+	// keep default inspection to a single reachability query per repo.
+	signals, err := inspector.InspectLocalBranches(ctx, path, queryBase, !policy.RequireMerged)
 	if err != nil {
 		if e.logger != nil {
 			e.logger.Warnf("local branch inspection failed for %s: %v", path, err)
@@ -51,7 +65,6 @@ func (e *Engine) inspectLocalBranches(ctx context.Context, path, primary, repoID
 		return model.LocalBranchStatus{InspectionError: err.Error()}
 	}
 
-	policy := e.branchPolicy(localBase)
 	now := time.Now()
 	branches := make([]model.LocalBranch, 0, len(signals))
 	for _, s := range signals {

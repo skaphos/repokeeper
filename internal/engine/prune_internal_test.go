@@ -17,14 +17,18 @@ import (
 // inspection capability, which is all inspectLocalBranches calls.
 type stubLBAdapter struct {
 	vcs.Adapter
-	signals  []vcs.LocalBranchSignal
-	err      error
-	baseSeen *string // when non-nil, records the base ref the inspector was called with
+	signals   []vcs.LocalBranchSignal
+	err       error
+	baseSeen  *string // when non-nil, records the base ref the inspector was called with
+	patchSeen *bool   // when non-nil, records the patchEquivalence flag passed
 }
 
-func (s stubLBAdapter) InspectLocalBranches(_ context.Context, _, base string) ([]vcs.LocalBranchSignal, error) {
+func (s stubLBAdapter) InspectLocalBranches(_ context.Context, _, base string, patchEquivalence bool) ([]vcs.LocalBranchSignal, error) {
 	if s.baseSeen != nil {
 		*s.baseSeen = base
+	}
+	if s.patchSeen != nil {
+		*s.patchSeen = patchEquivalence
 	}
 	return s.signals, s.err
 }
@@ -112,6 +116,31 @@ func TestInspectLocalBranchesRemoteQualifiedBaseOverride(t *testing.T) {
 	}
 	if b := byName["feature/x"]; b.Category != model.PruneSafeToPrune {
 		t.Errorf("feature/x = %s, want safe_to_prune", b.Category)
+	}
+}
+
+func TestInspectLocalBranchesPatchEquivalenceGatedByRequireMerged(t *testing.T) {
+	tru := true
+	sig := []vcs.LocalBranchSignal{{Name: "feature/x", MergedIntoBase: &tru}}
+
+	// Default (require_merged: true) must NOT request patch-equivalence.
+	var patchDefault bool
+	def := stubLBAdapter{signals: sig, patchSeen: &patchDefault}
+	newEngineWith(config.DefaultConfig(), def).inspectLocalBranches(
+		context.Background(), "/repo", "origin", "id", model.Head{Branch: "main"}, model.Tracking{}, false)
+	if patchDefault {
+		t.Errorf("default (require_merged=true) should skip patch-equivalence")
+	}
+
+	// require_merged: false must request patch-equivalence.
+	var patchOptIn bool
+	cfg := config.DefaultConfig()
+	cfg.BranchPolicy.RequireMerged = false
+	optIn := stubLBAdapter{signals: sig, patchSeen: &patchOptIn}
+	newEngineWith(cfg, optIn).inspectLocalBranches(
+		context.Background(), "/repo", "origin", "id", model.Head{Branch: "main"}, model.Tracking{}, false)
+	if !patchOptIn {
+		t.Errorf("require_merged=false should request patch-equivalence")
 	}
 }
 

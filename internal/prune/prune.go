@@ -80,29 +80,33 @@ func Classify(b model.LocalBranch, p Policy, now time.Time) (model.PruneCategory
 		return model.PruneKeep, []model.PruneReason{model.ReasonProtectedPattern}
 	}
 
-	reachable := b.MergedIntoBase != nil && *b.MergedIntoBase
-	patchEquivalent := b.PatchEquivalentToBase != nil && *b.PatchEquivalentToBase
-
 	// 2. safe_to_prune: reachable from base (fully merged). The only
 	// auto-prune-eligible verdict.
+	reachable := b.MergedIntoBase != nil && *b.MergedIntoBase
 	if reachable {
 		return model.PruneSafeToPrune, []model.PruneReason{model.ReasonMergedIntoBase}
 	}
 
-	// 3. patch-equivalent (squash/rebase merge) but not reachable. Review-required
-	// evidence; under RequireMerged it is surfaced as needs_review rather than a
-	// prune candidate, so the conservative default never emits probably_safe.
-	if patchEquivalent {
-		if p.RequireMerged {
-			return model.PruneNeedsReview, []model.PruneReason{model.ReasonPatchEquivalentToBase}
+	// 3. Beyond reachability, integration handling depends on policy.
+	if p.RequireMerged {
+		// Only reachability is trusted as merge proof; patch-equivalence is not
+		// consulted (and the engine skips computing it, which keeps default
+		// inspections cheap). An unknown reachability signal is conservative
+		// review; a known-false one is simply not integrated (fall through).
+		if b.MergedIntoBase == nil {
+			return model.PruneNeedsReview, []model.PruneReason{model.ReasonSignalUnavailable}
 		}
-		return model.PruneProbablySafe, []model.PruneReason{model.ReasonPatchEquivalentToBase}
-	}
-
-	// 4. Integration state could not be fully established (a check was
-	// unavailable): be conservative, never infer "not merged" from a nil signal.
-	if b.MergedIntoBase == nil || b.PatchEquivalentToBase == nil {
-		return model.PruneNeedsReview, []model.PruneReason{model.ReasonSignalUnavailable}
+	} else {
+		// Patch-equivalence is trusted as a secondary signal (opt-in), so a
+		// squash/rebase merge can be surfaced as review-required probably_safe.
+		if b.PatchEquivalentToBase != nil && *b.PatchEquivalentToBase {
+			return model.PruneProbablySafe, []model.PruneReason{model.ReasonPatchEquivalentToBase}
+		}
+		// With patch-equivalence in play, an unknown signal cannot establish the
+		// branch's state: be conservative.
+		if b.MergedIntoBase == nil || b.PatchEquivalentToBase == nil {
+			return model.PruneNeedsReview, []model.PruneReason{model.ReasonSignalUnavailable}
+		}
 	}
 
 	// 5. Definitively not integrated. Classify by upstream state and staleness.
