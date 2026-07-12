@@ -6,80 +6,92 @@
 
 ## Context
 
-[ADR-0014](0014-local-branch-prune-safety-classification.md) defines a prune-safety classifier whose verdicts depend on which branches are protected, what counts as the base branch, and how old an unmerged branch may get before it is worth surfacing. Those inputs are policy, and ADR-0014 deliberately keeps the classifier free of any configuration dependency: it consumes a `Policy` value that something else must supply.
+[ADR-0014](0014-local-branch-prune-safety-classification.md) defines a prune-safety classifier whose verdicts depend on which branches are protected, what the base branch is (so reachability and patch-equivalence can be computed), and how old an unintegrated branch may get before it is worth surfacing. Those inputs are policy, and ADR-0014 keeps the classifier free of any configuration dependency: it consumes a `Policy` value that something else must supply.
 
-Today RepoKeeper has no branch-retention policy of any kind. The only related knob is the CLI-only `--protected-branches` flag (`cmd/repokeeper/sync.go:61`, `kubectl_aliases.go:81`), a per-invocation CSV of globs threaded into `SyncOptions.ProtectedBranches` and matched by `matchesProtectedBranch` (`internal/engine/engine.go:1438`). There is **no** `protected_branches` field in `config.Config`; the persistent baseline is empty. The only branch-ish default is `Defaults.MainBranch: "main"` (`internal/config/config.go:60`).
+Today RepoKeeper has no branch-retention policy. The only related knob is the CLI `--protected-branches` flag (`cmd/repokeeper/sync.go:229`), a per-invocation CSV of globs threaded into `SyncOptions.ProtectedBranches` and matched by `matchesProtectedBranch` (`internal/engine/engine.go:1438`). Two facts about it matter (both verified in review):
 
-[ADR-0003](0003-sync-policy-and-execution-modes.md) and [ADR-0005](0005-config-vs-repo-metadata-ownership.md) already decided that machine-local execution and safety policy — explicitly including "future machine-local sync / prune / safety policy" — belongs in `.repokeeper.yaml`, not in source-controlled `.repokeeper-repo.yaml`. This ADR decides the concrete shape of that policy and how it reaches the classifier.
+- It is a **rebase**-protection knob: it gates auto-rebase during `--update-local` (`engine.go:1411`), nothing else.
+- It already ships a per-invocation **narrowing** escape hatch, `--allow-protected-rebase` (`engine.go:1411`, `sync.go:230`).
+
+`config.Config` (`internal/config/config.go:40`) has no branch policy of any kind. Crucially, **per-repo default-branch data already exists** — `registry.Entry.Branch` (`internal/registry/registry.go:37`) — and the resolution pattern is already written: `repairResolveTargetBranch` (`internal/engine/repair.go:125-142`) prefers `entry.Branch`, then the upstream-derived branch, then `Defaults.MainBranch`. `Load` also backfills persisted zero-values as "unset" (`config.go:261-273`), an idiom that interacts badly with boolean defaults.
+
+[ADR-0005](0005-config-vs-repo-metadata-ownership.md) places machine-local execution and safety policy — explicitly "future machine-local prune / safety policy" — in `.repokeeper.yaml`.
 
 ## Decision
 
-RepoKeeper adds a **branch retention and protection policy** as a new nested struct on `config.Config`, sourced from `.repokeeper.yaml`, with conservative defaults.
+RepoKeeper adds a **branch retention and protection policy** as a new nested struct on `config.Config`, sourced from `.repokeeper.yaml`, with conservative defaults and **per-repo base resolution**.
 
 ### Schema
 
 ```yaml
 branch_policy:
-  protected_patterns: ["main", "master", "release/*"] # globs, path.Match semantics
-  base_branch: ""      # merge-into-base reference; empty => defaults.main_branch
-  stale_days: 0        # 0 = disabled; N>0 escalates unmerged branches older than N days to needs_review
-  require_merged: true # forbid a safe_to_prune verdict without positive merge evidence
+  protected_patterns: ["main", "master", "release/*"] # PRUNE protection; path.Match globs
+  base_branch: ""      # optional GLOBAL override; empty => per-repo auto-resolution
+  stale_days: 0        # 0 = disabled; N>0 escalates unintegrated branches older than N days to needs_review
+  require_merged: true # forbid safe_to_prune without reachability evidence
 ```
 
-- `protected_patterns` reuses `matchesProtectedBranch`'s `path.Match` glob semantics verbatim.
-- `base_branch` defaults to `Defaults.MainBranch` when empty, so existing configs need no edit.
-- Defaults are conservative: `require_merged: true`, `stale_days: 0` (staleness escalation off until opted in), and `protected_patterns` seeded with the base branch and common protected names.
+### Per-repo base resolution
 
-The engine maps `config.BranchPolicy` into the classifier's `prune.Policy` input (defined in the `internal/prune` package per ADR-0014), keeping the classifier config-free and avoiding a config→prune import.
+`base_branch` is **not** a workspace-global default. When empty, base is resolved **per repo**, mirroring `repairResolveTargetBranch`: `registry.Entry.Branch` → upstream-derived branch → `Defaults.MainBranch`. A non-empty `base_branch` is only a last-resort explicit global override. The classifier computes reachability and patch-equivalence against the **remote-tracking form** of the resolved base (e.g. `origin/main`), never the possibly-stale local base, and if the base ref cannot be resolved for a repo the branches classify as `needs_review` with a specific "base unresolved" reason — never as prunable. This prevents the systematic misclassification a single global `main` would cause across a workspace mixing `main`/`master`/`develop`.
 
-### Relationship to the CLI flag
+### Protection is prune-scoped and independent of rebase protection
 
-`branch_policy.protected_patterns` becomes the persistent protection baseline. When `--protected-branches` is also supplied, the effective protected set is the **union** of config patterns and flag patterns for that invocation. A flag can widen protection but cannot narrow what config protects.
+`branch_policy.protected_patterns` governs **prune** protection only. It is a **separate set** from the existing `--protected-branches` rebase knob; adding a pattern here does **not** change rebase behavior, and the two are reconciled only if a future ADR unifies them. Prune protection gets its own per-invocation narrowing escape hatch, `--allow-protected-prune`, mirroring the existing `--allow-protected-rebase` so the established "narrow for one run" UX is preserved rather than regressed. Protected patterns reuse `matchesProtectedBranch`'s `path.Match` semantics.
+
+### Validation fails closed
+
+RepoKeeper today has only GVK validation. This adds semantic validation at load, and **protection fails closed**: a config that cannot be validated is rejected rather than silently degraded. Specifically — reject a negative `stale_days`; reject any `protected_patterns` glob that does not compile under `path.Match` (rather than silently matching nothing, which would unprotect a branch); reject a `base_branch` override that is a glob or otherwise cannot be a ref; and reject an empty/`*`-only `protected_patterns` unless explicitly intended, since either disables or over-applies protection.
+
+### Defaults must survive the zero-value backfill idiom
+
+`require_merged` defaults to `true` and `protected_patterns` to a non-empty list. Because Go's zero values are `false` and `nil`, and `Load` treats persisted zero-values as "unset," defaulting **must** be done by seeding `DefaultConfig()` and letting YAML overwrite — **not** by a post-unmarshal backfill — or an explicit `require_merged: false` / `protected_patterns: []` would be silently reverted. This constraint is called out because the existing `Load` idiom (`config.go:261-273`) pushes implementers toward the broken version.
 
 ### Boundary
 
-Policy affects **classification and planning only**, never execution, echoing [ADR-0003](0003-sync-policy-and-execution-modes.md) and [ADR-0004](0004-prune-workflow-boundaries.md): configuring a policy changes which branches are proposed and how, but never causes a branch to be deleted without the separate plan → confirm → execute path.
+Policy affects **classification and planning only**, never execution ([ADR-0003](0003-sync-policy-and-execution-modes.md), [ADR-0004](0004-prune-workflow-boundaries.md)). Configuring a policy changes which branches are proposed and how, but never deletes a branch without the separate plan → confirm → execute path — and per ADR-0014, only `safe_to_prune` is auto-prune-eligible regardless of policy.
 
 ## Consequences
 
 ### Positive
 
-- The classifier's protection, base, and staleness inputs are configurable per workspace rather than hard-coded, satisfying SKA-222's "policy-driven, not hard-coded" requirement.
-- Protected-branch intent becomes persistent and reviewable in `.repokeeper.yaml` instead of living only in shell history and aliases.
-- Conservative defaults mean an un-migrated workspace behaves safely: nothing is newly proposed for deletion by default.
+- Base resolution is correct for heterogeneous workspaces, reusing per-repo data (`Entry.Branch`) and the existing resolution pattern instead of a global literal.
+- Prune protection is persistent and reviewable, keeps its own escape hatch, and cannot silently alter rebase behavior.
+- Fail-closed validation means a malformed protection pattern is an error, not a silent unprotection of a branch the operator believes is safe.
 
 ### Negative
 
-- Two sources of protection (config baseline + CLI flag) exist. The union rule is safe but means a flag cannot un-protect a config-protected branch; narrowing requires editing config.
-- A new config surface must be validated and documented; RepoKeeper currently has only GVK validation, so semantic validation (e.g. rejecting a negative `stale_days`) is net-new.
-- Per-repo policy overrides are intentionally out of scope here, so workspaces needing divergent per-repo rules are not yet served.
+- Two protected-branch sets now exist (prune vs rebase). They are intentionally independent, which is more surface to document and a future unification candidate.
+- Semantic validation and the seed-not-backfill defaulting rule are net-new and must be implemented carefully against an existing idiom that pushes the other way.
+- Per-repo base resolution adds a resolution step and a dependency on `Entry.Branch` being populated; repos with no registry branch and no upstream fall back to `Defaults.MainBranch`, which can still be wrong for an unusual trunk name (surfaced as `needs_review`, not a bad prune).
 
 ### Neutral
 
-- `stale_days: 0` defaulting to "disabled" means the recency signal is computed but does not affect verdicts until a workspace opts in.
-- `base_branch` is workspace-global; multi-base repos (e.g. maintenance branches) are a future refinement, not this decision.
+- `stale_days: 0` meaning "disabled" overloads the literal "0 days," consistent with the existing `RegistryStaleDays` precedent; documented rather than changed.
+- `protected_patterns` stays machine-local per ADR-0005; a repo-contributed, source-controlled protected *floor* (unioned in) is a plausible future refinement but deliberately out of scope here.
 
 ## Alternatives Considered
 
-### 1. Keep protected branches CLI-only
+### 1. Workspace-global `base_branch` (empty ⇒ `Defaults.MainBranch`)
 
-**Rejected because:** SKA-222 requires policy-driven classification, and a per-invocation flag cannot express a persistent, reviewable protection baseline. It also leaves the classifier with no principled default protected set.
+**Rejected because:** RepoKeeper manages many repos and real workspaces mix default branches. A global base computes reachability against the wrong base for every off-default repo — inert at best, and destructive if a stale `main` ref exists in a `master` repo. Per-repo data already exists to do this correctly.
 
-### 2. Store branch policy in `.repokeeper-repo.yaml`
+### 2. Reuse `--protected-branches` for prune and union it in
 
-**Rejected because:** ADR-0005 places execution and safety policy in machine-local workspace config. Prune safety is an operator decision about a local checkout, not portable source-controlled repository metadata.
+**Rejected because:** that flag is rebase-scoped and already has a narrowing counterpart. A union-only reuse both couples prune protection to rebase behavior and contradicts the existing `--allow-protected-rebase` UX. Prune gets its own set and its own `--allow-protected-prune`.
 
-### 3. Make the CLI flag override (replace) config rather than union
+### 3. Store branch policy in `.repokeeper-repo.yaml`
 
-**Rejected because:** replacement lets a narrow flag silently unprotect branches the workspace deliberately protected. Union fails safe — the direction that matters for a destructive workflow.
+**Rejected because:** ADR-0005 places execution/safety policy in machine-local config. A future source-controlled protected *floor* may union in, but base/stale/require-merged are operator-local decisions about a local checkout.
 
 ### 4. Define the policy type inside the classifier and have config embed it
 
-**Rejected because:** it couples `internal/config` to `internal/prune`. Instead the classifier owns a minimal `Policy` input type and the engine maps config into it, keeping both packages independently testable.
+**Rejected because:** it couples `internal/config` to `internal/prune`. The classifier owns a minimal `Policy` input type and the engine maps config into it (per ADR-0014's enum/layering decision), keeping both packages independently testable.
 
 ## Links
 
 - Required by: [ADR-0014: Local Branch Prune-Safety Classification Model](0014-local-branch-prune-safety-classification.md)
 - Config ownership: [ADR-0005: Workspace Config vs Repo-Local Metadata Ownership](0005-config-vs-repo-metadata-ownership.md)
-- Execution/confirmation model: [ADR-0003: Sync Policy and Execution Modes](0003-sync-policy-and-execution-modes.md), [ADR-0004: Prune Workflow Boundaries and Safety Model](0004-prune-workflow-boundaries.md)
+- Execution/confirmation model: [ADR-0003](0003-sync-policy-and-execution-modes.md), [ADR-0004](0004-prune-workflow-boundaries.md)
+- Reuses: `repairResolveTargetBranch` (`internal/engine/repair.go:125-142`), `matchesProtectedBranch` (`internal/engine/engine.go:1438`)
 - Implements: SKA-222
