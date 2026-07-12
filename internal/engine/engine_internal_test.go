@@ -279,26 +279,26 @@ func TestPrepareSyncEntryBranches(t *testing.T) {
 		Status:    registry.StatusPresent,
 	}
 
-	queue, immediate := eng.prepareSyncEntry(context.Background(), present, SyncOptions{}, 0)
+	queue, _, immediate := eng.prepareSyncEntry(context.Background(), present, SyncOptions{}, 0)
 	if !queue || immediate != nil {
 		t.Fatalf("expected queued present repo, got queue=%v immediate=%+v", queue, immediate)
 	}
 
-	queue, immediate = eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterMissing}, 0)
+	queue, _, immediate = eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterMissing}, 0)
 	if queue || immediate != nil {
 		t.Fatalf("expected missing-filter skip, got queue=%v immediate=%+v", queue, immediate)
 	}
 
 	missing := present
 	missing.Status = registry.StatusMissing
-	queue, immediate = eng.prepareSyncEntry(context.Background(), missing, SyncOptions{CheckoutMissing: false}, 0)
+	queue, _, immediate = eng.prepareSyncEntry(context.Background(), missing, SyncOptions{CheckoutMissing: false}, 0)
 	if queue || immediate == nil || immediate.Error != SyncErrorMissing {
 		t.Fatalf("expected missing immediate result, got queue=%v immediate=%+v", queue, immediate)
 	}
 
 	noUpstream := present
 	noUpstream.RemoteURL = ""
-	queue, immediate = eng.prepareSyncEntry(context.Background(), noUpstream, SyncOptions{}, 0)
+	queue, _, immediate = eng.prepareSyncEntry(context.Background(), noUpstream, SyncOptions{}, 0)
 	if queue || immediate == nil || immediate.Error != SyncErrorSkippedNoUpstream || !immediate.OK {
 		t.Fatalf("expected skipped_no_upstream immediate result, got queue=%v immediate=%+v", queue, immediate)
 	}
@@ -312,7 +312,7 @@ func TestSyncEntryMatchesInspectFilterFailure(t *testing.T) {
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil, nil)
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent}
 
-	match, failure := eng.syncEntryMatchesInspectFilter(context.Background(), entry, SyncOptions{Filter: FilterDirty})
+	match, _, failure := eng.syncEntryMatchesInspectFilter(context.Background(), entry, SyncOptions{Filter: FilterDirty})
 	if match || failure == nil {
 		t.Fatalf("expected inspect failure, got match=%v failure=%+v", match, failure)
 	}
@@ -388,7 +388,7 @@ func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil, nil)
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", RemoteURL: "git@github.com:org/repo.git", Status: registry.StatusPresent}
 
-	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true, PushLocal: true})
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true, PushLocal: true}, nil)
 	if dry.Outcome != "planned_push" || dry.Error != SyncErrorDryRun || !strings.Contains(dry.Action, "git push") {
 		t.Fatalf("unexpected dry-run push plan: %+v", dry)
 	}
@@ -396,7 +396,7 @@ func TestRunSyncDryRunAndApplyHelpers(t *testing.T) {
 		t.Fatalf("expected dry-run push plan to set Planned=true: %+v", dry)
 	}
 
-	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: false})
+	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: false}, nil)
 	if !applied.OK || applied.Outcome != "fetched" {
 		t.Fatalf("unexpected apply fetch result: %+v", applied)
 	}
@@ -643,7 +643,7 @@ func TestRunSyncHelperEdgeBranches(t *testing.T) {
 		"/repo:remote":                         {err: errors.New("permission denied")},
 	}}
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(inspectFailRunner), nil, nil, nil)
-	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true})
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true}, nil)
 	if dry.Outcome != "failed_inspect" || dry.ErrorClass != "auth" {
 		t.Fatalf("expected inspect failure dry-run result, got %+v", dry)
 	}
@@ -661,7 +661,7 @@ func TestRunSyncHelperEdgeBranches(t *testing.T) {
 		"/repo:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
 	}}
 	eng = New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(filterGoneRunner), nil, nil, nil)
-	gone := eng.runSyncApply(context.Background(), entry, SyncOptions{Filter: FilterGone})
+	gone := eng.runSyncApply(context.Background(), entry, SyncOptions{Filter: FilterGone}, nil)
 	if !gone.OK || gone.Outcome != "skipped" || gone.Error != SyncErrorSkipped {
 		t.Fatalf("expected filter-gone skip result, got %+v", gone)
 	}
@@ -691,7 +691,7 @@ func TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(t *testing.T) {
 	}
 	entry := registry.Entry{RepoID: "repo", Path: "/repo", Status: registry.StatusPresent}
 
-	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true})
+	dry := eng.runSyncDryRun(context.Background(), entry, SyncOptions{UpdateLocal: true}, nil)
 	if dry.Outcome != SyncOutcomeSkippedLocalUpdate || !dry.OK {
 		t.Fatalf("unexpected dry-run result: %+v", dry)
 	}
@@ -702,7 +702,7 @@ func TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(t *testing.T) {
 		t.Fatalf("unexpected dry-run action: %q", dry.Action)
 	}
 
-	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: true})
+	applied := eng.runSyncApply(context.Background(), entry, SyncOptions{UpdateLocal: true}, nil)
 	if applied.Outcome != SyncOutcomeSkippedLocalUpdate || !applied.OK {
 		t.Fatalf("unexpected apply result: %+v", applied)
 	}

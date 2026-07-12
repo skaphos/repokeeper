@@ -343,9 +343,9 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 	if showDirty {
 		headers += "\tDIRTY"
 	}
-	headers += "\tTRACKING"
+	headers += "\tTRACKING\tSTALE_REFS"
 	if wide {
-		headers = "PATH\tBRANCH\tDIRTY\tTRACKING\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
+		headers = "PATH\tBRANCH\tDIRTY\tTRACKING\tSTALE_REFS\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
 	}
 	if err := tableutil.PrintHeaders(w, noHeaders, headers); err != nil {
 		return err
@@ -373,6 +373,7 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			}
 		}
 		tracking := displayTrackingStatus(colorEnabled, repo.Tracking.Status)
+		staleRefs := remoteTrackingRefCountDisplay(repo.RemoteTrackingRefs)
 		if repo.Type == "mirror" {
 			tracking = termstyle.Colorize(colorEnabled, "mirror", termstyle.Info)
 		}
@@ -384,7 +385,7 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			if showDirty {
 				row = append(row, dirty)
 			}
-			row = append(row, tracking)
+			row = append(row, tracking, staleRefs)
 			if _, err := fmt.Fprintf(w, "%s\n", strings.Join(row, "\t")); err != nil {
 				return err
 			}
@@ -400,11 +401,12 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		}
 		if _, err := fmt.Fprintf(
 			w,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
 			branch,
 			dirty,
 			tracking,
+			staleRefs,
 			repo.PrimaryRemote,
 			repo.Tracking.Upstream,
 			ahead,
@@ -415,6 +417,13 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		}
 	}
 	return w.Flush()
+}
+
+func remoteTrackingRefCountDisplay(status model.RemoteTrackingRefStatus) string {
+	if status.InspectionError != "" {
+		return "?"
+	}
+	return fmt.Sprintf("%d", status.StaleCount)
 }
 
 func writeRepairUpstreamHint(cmd *cobra.Command, report *model.StatusReport) error {
@@ -706,6 +715,19 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 	}
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "UPSTREAM: %s\n", repo.Tracking.Upstream); err != nil {
 		return err
+	}
+	if repo.RemoteTrackingRefs.StaleCount > 0 || repo.RemoteTrackingRefs.InspectionError != "" {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "STALE_REMOTE_TRACKING_REF_COUNT: %s\n", remoteTrackingRefCountDisplay(repo.RemoteTrackingRefs)); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "STALE_REMOTE_TRACKING_REFS: %s\n", metadataListString(repo.RemoteTrackingRefs.Stale)); err != nil {
+			return err
+		}
+		if repo.RemoteTrackingRefs.InspectionError != "" {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REMOTE_TRACKING_REF_INSPECTION_ERROR: %s\n", sanitizeForDisplay(repo.RemoteTrackingRefs.InspectionError)); err != nil {
+				return err
+			}
+		}
 	}
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "LABELS: %s\n", metadataMapString(repo.Labels)); err != nil {
 		return err

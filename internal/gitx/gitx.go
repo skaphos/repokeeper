@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/skaphos/repokeeper/internal/model"
@@ -214,6 +215,25 @@ func TrackingStatus(ctx context.Context, r Runner, dir string) (model.Tracking, 
 	}
 
 	return model.Tracking{Status: model.TrackingNone}, nil
+}
+
+// StaleRemoteTrackingRefs reports remote-tracking refs that git would remove
+// during a prune. The dry-run queries each remote without modifying local refs.
+func StaleRemoteTrackingRefs(ctx context.Context, r Runner, dir string, remoteNames []string) ([]string, error) {
+	stale := make([]string, 0)
+	for _, remote := range remoteNames {
+		remote = strings.TrimSpace(remote)
+		if remote == "" {
+			continue
+		}
+		out, err := r.Run(ctx, dir, "remote", "prune", "--dry-run", "--", remote)
+		if err != nil {
+			return nil, fmt.Errorf("git remote prune --dry-run %q: %w", remote, err)
+		}
+		stale = append(stale, ParseRemotePruneDryRun(out)...)
+	}
+	slices.Sort(stale)
+	return slices.Compact(stale), nil
 }
 
 func trackingFromShort(e ForEachRefEntry) model.Tracking {

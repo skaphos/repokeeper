@@ -62,6 +62,16 @@ type Submodules struct {
 	HasSubmodules bool `json:"has_submodules" yaml:"has_submodules"`
 }
 
+// RemoteTrackingRefStatus describes remote-tracking refs that no longer exist
+// on their configured remotes. InspectionError is non-empty when the remote
+// could not be queried, so callers can distinguish an unavailable signal from
+// a repository with no stale refs.
+type RemoteTrackingRefStatus struct {
+	StaleCount      int      `json:"stale_count" yaml:"stale_count"`
+	Stale           []string `json:"stale,omitempty" yaml:"stale,omitempty"`
+	InspectionError string   `json:"inspection_error,omitempty" yaml:"inspection_error,omitempty"`
+}
+
 // SyncResult records the outcome of the last sync operation.
 type SyncResult struct {
 	// OK is true when the last sync completed successfully.
@@ -146,6 +156,8 @@ type RepoStatus struct {
 	Tracking Tracking `json:"tracking" yaml:"tracking"`
 	// Submodules indicates whether the repository contains submodules.
 	Submodules Submodules `json:"submodules" yaml:"submodules"`
+	// RemoteTrackingRefs describes refs that a fetch with prune would remove.
+	RemoteTrackingRefs RemoteTrackingRefStatus `json:"remote_tracking_refs" yaml:"remote_tracking_refs"`
 	// LastSync is the latest sync outcome metadata when available.
 	LastSync *SyncResult `json:"last_sync,omitempty" yaml:"last_sync,omitempty"`
 	// Error holds repository-specific inspect or sync error text.

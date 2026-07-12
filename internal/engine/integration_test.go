@@ -147,11 +147,20 @@ var _ = Describe("Engine integration", func() {
 			},
 		}
 		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 5, Concurrency: 1}}, reg, vcs.NewGitAdapter(nil), nil, nil, nil)
-		_, err := eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 5})
+		status, err := eng.InspectRepo(context.Background(), work)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(status.RemoteTrackingRefs.StaleCount).To(Equal(1))
+		Expect(status.RemoteTrackingRefs.Stale).To(Equal([]string{"origin/feature"}))
+		Expect(strings.TrimSpace(runGit(work, "for-each-ref", "refs/remotes/origin/feature"))).To(ContainSubstring("origin/feature"), "inspection must not prune local refs")
+
+		_, err = eng.Sync(context.Background(), engine.SyncOptions{Concurrency: 1, Timeout: 5})
 		Expect(err).NotTo(HaveOccurred())
 
 		out := strings.TrimSpace(runGit(work, "for-each-ref", "refs/remotes/origin/feature"))
 		Expect(out).To(BeEmpty())
+		status, err = eng.InspectRepo(context.Background(), work)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(status.RemoteTrackingRefs.StaleCount).To(BeZero())
 	})
 
 	It("reports tracking gone after upstream branch is deleted", func() {

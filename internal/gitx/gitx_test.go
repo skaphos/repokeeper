@@ -314,6 +314,33 @@ var _ = Describe("TrackingStatus", func() {
 	})
 })
 
+var _ = Describe("StaleRemoteTrackingRefs", func() {
+	It("returns sorted, deduplicated refs that a remote prune would remove", func() {
+		mock := &MockRunner{Responses: map[string]MockResponse{
+			"/repo:remote prune --dry-run -- origin": {
+				Output: "Pruning origin\nURL: git@example.com:org/repo.git\n * [would prune] origin/zeta\n * [would prune] origin/alpha",
+			},
+			"/repo:remote prune --dry-run -- upstream": {
+				Output: "Pruning upstream\n * [would prune] origin/alpha\n * [would prune] upstream/old",
+			},
+		}}
+
+		refs, err := gitx.StaleRemoteTrackingRefs(context.Background(), mock, "/repo", []string{"origin", "upstream"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(refs).To(Equal([]string{"origin/alpha", "origin/zeta", "upstream/old"}))
+	})
+
+	It("returns contextual errors without partial results", func() {
+		mock := &MockRunner{Responses: map[string]MockResponse{
+			"/repo:remote prune --dry-run -- origin": {Err: errors.New("network unavailable")},
+		}}
+
+		refs, err := gitx.StaleRemoteTrackingRefs(context.Background(), mock, "/repo", []string{"origin"})
+		Expect(err).To(MatchError(ContainSubstring(`git remote prune --dry-run "origin"`)))
+		Expect(refs).To(BeNil())
+	})
+})
+
 var _ = Describe("HasSubmodules", func() {
 	It("returns true when submodules exist", func() {
 		mock := &MockRunner{Responses: map[string]MockResponse{

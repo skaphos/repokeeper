@@ -34,6 +34,12 @@ type Adapter interface {
 	PrimaryRemote(remoteNames []string) string
 }
 
+// RemoteTrackingRefInspector is an optional adapter capability for detecting
+// refs that no longer exist upstream. Non-Git adapters need not implement it.
+type RemoteTrackingRefInspector interface {
+	StaleRemoteTrackingRefs(ctx context.Context, dir string, remoteNames []string) ([]string, error)
+}
+
 // GitAdapter implements Adapter using the git CLI via gitx.
 type GitAdapter struct {
 	Runner gitx.Runner
@@ -77,6 +83,10 @@ func (g *GitAdapter) WorktreeStatus(ctx context.Context, dir string) (*model.Wor
 
 func (g *GitAdapter) TrackingStatus(ctx context.Context, dir string) (model.Tracking, error) {
 	return gitx.TrackingStatus(ctx, g.Runner, dir)
+}
+
+func (g *GitAdapter) StaleRemoteTrackingRefs(ctx context.Context, dir string, remoteNames []string) ([]string, error) {
+	return gitx.StaleRemoteTrackingRefs(ctx, g.Runner, dir, remoteNames)
 }
 
 func (g *GitAdapter) HasSubmodules(ctx context.Context, dir string) (bool, error) {

@@ -54,6 +54,7 @@ type multiStubAdapter struct {
 	localUpdateOK    bool
 	localUpdateWhy   string
 	fetchActionLabel string
+	staleRefs        []string
 }
 
 func (m *multiStubAdapter) Name() string { return m.name }
@@ -113,6 +114,9 @@ func (m *multiStubAdapter) FetchAction(context.Context, string) (string, error) 
 	}
 	return m.fetchActionLabel, nil
 }
+func (m *multiStubAdapter) StaleRemoteTrackingRefs(context.Context, string, []string) ([]string, error) {
+	return m.staleRefs, nil
+}
 
 func TestMultiAdapterRoutesByPath(t *testing.T) {
 	gitAdapter := &multiStubAdapter{name: "git", repoPaths: map[string]bool{"/git-repo": true}, localUpdateOK: true}
@@ -149,6 +153,7 @@ func TestMultiAdapterRoutesCapabilityMethodsByPath(t *testing.T) {
 		repoPaths:        map[string]bool{"/git-repo": true},
 		localUpdateOK:    true,
 		fetchActionLabel: "git fetch --all --prune --prune-tags --no-recurse-submodules",
+		staleRefs:        []string{"origin/merged"},
 	}
 	hgAdapter := &multiStubAdapter{
 		name:             "hg",
@@ -179,6 +184,14 @@ func TestMultiAdapterRoutesCapabilityMethodsByPath(t *testing.T) {
 	}
 	if action != "hg pull" {
 		t.Fatalf("unexpected fetch action: %q", action)
+	}
+
+	refs, err := multi.StaleRemoteTrackingRefs(context.Background(), "/git-repo", []string{"origin"})
+	if err != nil {
+		t.Fatalf("stale remote refs returned error: %v", err)
+	}
+	if len(refs) != 1 || refs[0] != "origin/merged" {
+		t.Fatalf("unexpected stale remote refs: %#v", refs)
 	}
 }
 

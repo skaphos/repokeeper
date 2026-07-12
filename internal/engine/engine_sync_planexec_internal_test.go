@@ -44,7 +44,7 @@ func (e *Engine) planAndExecute(t *testing.T, entry registry.Entry, opts SyncOpt
 	t.Helper()
 	planOpts := opts
 	planOpts.DryRun = true
-	plan := e.runSyncDryRun(context.Background(), entry, planOpts)
+	plan := e.runSyncDryRun(context.Background(), entry, planOpts, nil)
 	execOpts := opts
 	execOpts.DryRun = false
 	execOpts.ContinueOnError = true
@@ -214,13 +214,13 @@ func TestPrepareSyncEntryUnknownFilterFailsClosed(t *testing.T) {
 	eng := newPlanExecEngine(&planAdapter{})
 	present := registry.Entry{RepoID: "repo", Path: "/repo", RemoteURL: "git@github.com:org/repo.git", Status: registry.StatusPresent}
 
-	queue, immediate := eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterKind("bogus")}, 0)
+	queue, _, immediate := eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterKind("bogus")}, 0)
 	if queue || immediate != nil {
 		t.Fatalf("expected unknown filter to fail closed (no queue, no result), got queue=%v immediate=%v", queue, immediate)
 	}
 
 	// A known non-inspect filter (all) still matches.
-	queue, immediate = eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterAll}, 0)
+	queue, _, immediate = eng.prepareSyncEntry(context.Background(), present, SyncOptions{Filter: FilterAll}, 0)
 	if !queue || immediate != nil {
 		t.Fatalf("expected FilterAll to queue the entry, got queue=%v immediate=%v", queue, immediate)
 	}

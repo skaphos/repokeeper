@@ -368,10 +368,10 @@ func TestStatusTableHeaderSnapshotsAcrossWidths(t *testing.T) {
 		width      int
 		wantHeader string
 	}{
-		{width: 80, wantHeader: "PATH|BRANCH|TRACKING"},
-		{width: 100, wantHeader: "PATH|BRANCH|DIRTY|TRACKING"},
-		{width: 120, wantHeader: "PATH|BRANCH|DIRTY|TRACKING"},
-		{width: 160, wantHeader: "PATH|BRANCH|DIRTY|TRACKING"},
+		{width: 80, wantHeader: "PATH|BRANCH|TRACKING|STALE_REFS"},
+		{width: 100, wantHeader: "PATH|BRANCH|DIRTY|TRACKING|STALE_REFS"},
+		{width: 120, wantHeader: "PATH|BRANCH|DIRTY|TRACKING|STALE_REFS"},
+		{width: 160, wantHeader: "PATH|BRANCH|DIRTY|TRACKING|STALE_REFS"},
 	}
 
 	for _, tc := range cases {
@@ -391,9 +391,9 @@ func TestSyncTableHeaderSnapshotsAcrossWidths(t *testing.T) {
 		wantHeader string
 	}{
 		{width: 80, wantHeader: "PATH|ACTION|OK|ERROR|REPO"},
-		{width: 100, wantHeader: "PATH|ACTION|BRANCH|DIRTY|TRACKING|OK|ERROR_CLASS|ERROR|REPO"},
-		{width: 120, wantHeader: "PATH|ACTION|BRANCH|DIRTY|TRACKING|OK|ERROR_CLASS|ERROR|REPO"},
-		{width: 160, wantHeader: "PATH|ACTION|BRANCH|DIRTY|TRACKING|OK|ERROR_CLASS|ERROR|REPO"},
+		{width: 100, wantHeader: "PATH|ACTION|BRANCH|DIRTY|TRACKING|STALE_REFS|OK|ERROR_CLASS|ERROR|REPO"},
+		{width: 120, wantHeader: "PATH|ACTION|BRANCH|DIRTY|TRACKING|STALE_REFS|OK|ERROR_CLASS|ERROR|REPO"},
+		{width: 160, wantHeader: "PATH|ACTION|BRANCH|DIRTY|TRACKING|STALE_REFS|OK|ERROR_CLASS|ERROR|REPO"},
 	}
 
 	for _, tc := range cases {
