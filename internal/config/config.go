@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -36,6 +37,26 @@ type Defaults struct {
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
 
+// BranchPolicy configures branch retention and protection for prune-safety
+// classification. It is machine-local operator policy (ADR-0005, ADR-0015) and
+// affects classification/planning only, never execution.
+type BranchPolicy struct {
+	// ProtectedPatterns are glob patterns (path.Match) for branches that must
+	// never be prune candidates. This is a distinct set from the rebase
+	// --protected-branches knob.
+	ProtectedPatterns []string `yaml:"protected_patterns"`
+	// BaseBranch, when non-empty, is a global override for the merge-into-base
+	// reference. Empty means the base is resolved per repository.
+	BaseBranch string `yaml:"base_branch,omitempty"`
+	// StaleDays escalates an unintegrated branch older than this many days to
+	// needs_review. 0 disables staleness escalation.
+	StaleDays int `yaml:"stale_days"`
+	// RequireMerged, when true, trusts only reachability as merge proof, so a
+	// patch-equivalent-only branch is surfaced for review rather than as a
+	// probably_safe prune candidate.
+	RequireMerged bool `yaml:"require_merged"`
+}
+
 // Config represents the machine-level RepoKeeper configuration.
 type Config struct {
 	APIVersion        string             `yaml:"apiVersion"`
@@ -46,6 +67,7 @@ type Config struct {
 	Registry          *registry.Registry `yaml:"registry,omitempty"`
 	RegistryStaleDays int                `yaml:"registry_stale_days"`
 	Defaults          Defaults           `yaml:"defaults"`
+	BranchPolicy      BranchPolicy       `yaml:"branch_policy"`
 }
 
 // DefaultConfig returns a Config with sensible defaults applied.
@@ -60,6 +82,11 @@ func DefaultConfig() Config {
 			MainBranch:     "main",
 			Concurrency:    8,
 			TimeoutSeconds: 60,
+		},
+		BranchPolicy: BranchPolicy{
+			ProtectedPatterns: []string{"main", "master", "release/*"},
+			StaleDays:         0,
+			RequireMerged:     true,
 		},
 	}
 }
@@ -246,6 +273,9 @@ func Load(path string) (*Config, error) {
 	if err := validateLoadedConfigGVK(&cfg); err != nil {
 		return nil, err
 	}
+	if err := validateBranchPolicy(&cfg); err != nil {
+		return nil, err
+	}
 
 	if cfg.Registry == nil && cfg.RegistryPath != "" {
 		// A missing registry file is not fatal for first-run/new-config flows.
@@ -315,6 +345,9 @@ func Save(cfg *Config, path string) error {
 	}
 	upgradeConfigGVK(cfg)
 	if err := validateSavedConfigGVK(cfg); err != nil {
+		return err
+	}
+	if err := validateBranchPolicy(cfg); err != nil {
 		return err
 	}
 	dir := filepath.Dir(path)
@@ -413,6 +446,35 @@ func validateSavedConfigGVK(cfg *Config) error {
 	}
 	if cfg.Kind != ConfigKind {
 		return fmt.Errorf("unsupported config kind %q (expected %q)", cfg.Kind, ConfigKind)
+	}
+	return nil
+}
+
+// validateBranchPolicy fails closed on branch-policy inputs that would silently
+// weaken prune protection: malformed protected globs, an over-broad "*" pattern,
+// a glob-shaped base branch, or a negative stale window.
+func validateBranchPolicy(cfg *Config) error {
+	if cfg == nil {
+		return errors.New("config is nil")
+	}
+	bp := cfg.BranchPolicy
+	if bp.StaleDays < 0 {
+		return fmt.Errorf("branch_policy.stale_days must not be negative, got %d", bp.StaleDays)
+	}
+	for _, pattern := range bp.ProtectedPatterns {
+		p := strings.TrimSpace(pattern)
+		if p == "" {
+			continue
+		}
+		if p == "*" {
+			return fmt.Errorf("branch_policy.protected_patterns must not contain %q (it matches every branch)", pattern)
+		}
+		if _, err := path.Match(p, "example"); err != nil {
+			return fmt.Errorf("branch_policy.protected_patterns has invalid glob %q: %w", pattern, err)
+		}
+	}
+	if base := strings.TrimSpace(bp.BaseBranch); base != "" && strings.ContainsAny(base, "*?[") {
+		return fmt.Errorf("branch_policy.base_branch %q must be a branch name, not a glob", base)
 	}
 	return nil
 }
