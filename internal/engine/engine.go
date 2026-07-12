@@ -1522,6 +1522,8 @@ func (e *Engine) inspectRepoCore(ctx context.Context, path string) (*model.RepoS
 		e.logger.Warnf("HasSubmodules check failed for %s: %v", path, subErr)
 	}
 
+	localBranches := e.inspectLocalBranches(ctx, path, primary, repoID, head, tracking, bare)
+
 	status := &model.RepoStatus{
 		RepoID:             repoID,
 		Path:               path,
@@ -1533,6 +1535,7 @@ func (e *Engine) inspectRepoCore(ctx context.Context, path string) (*model.RepoS
 		Tracking:           tracking,
 		Submodules:         model.Submodules{HasSubmodules: hasSubmodules},
 		RemoteTrackingRefs: remoteTrackingRefs,
+		LocalBranches:      localBranches,
 	}
 	return status, nil
 }

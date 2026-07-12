@@ -514,13 +514,27 @@ registry:
   repos: []
 defaults:
   remote_name: "origin"
+  main_branch: "main"
   concurrency: 8
   timeout_seconds: 60
+branch_policy:
+  protected_patterns: ["main", "master", "release/*"]  # never prune candidates (path.Match globs)
+  base_branch: ""        # empty => base resolved per repo
+  stale_days: 0          # 0 disables staleness escalation
+  require_merged: true   # trust only reachability as merge proof
 ```
 
 The effective default root is the directory containing the active config file.
 
 This file is the home for machine-local policy and execution defaults. It is not the source-controlled metadata surface for shared repository context.
+
+`branch_policy` is machine-local retention and protection policy for local-branch
+prune-safety classification (see ADR-0014/ADR-0015). `protected_patterns` is a
+distinct set from the `--protected-branches` rebase knob and never alters rebase
+behavior. `base_branch` is resolved per repository when empty (registry branch →
+upstream-derived → `defaults.main_branch`). Malformed globs, an over-broad `*`, a
+glob-shaped `base_branch`, or a negative `stale_days` are rejected at load
+(fail-closed). Policy affects classification only; it never deletes a branch.
 
 #### 6.2.2 Registry (embedded in machine config by default)
 
@@ -588,6 +602,25 @@ Top-level:
         "stale_count": 2,
         "stale": ["origin/merged-pr", "upstream/old-topic"]
       },
+      "local_branches": {
+        "branches": [
+          {
+            "name": "feature/done",
+            "is_current": false,
+            "checked_out_elsewhere": false,
+            "protected": false,
+            "upstream": "origin/feature/done",
+            "upstream_status": "gone",
+            "ahead": null,
+            "behind": null,
+            "merged_into_base": true,
+            "patch_equivalent_to_base": null,
+            "last_commit_at": "…",
+            "category": "safe_to_prune",
+            "reasons": ["merged_into_base"]
+          }
+        ]
+      },
       "repair_upstream_suggestion": true,
       "submodules": { "has_submodules": true },
       "last_sync": { "ok": true, "at": "…", "error": "" }
@@ -604,6 +637,7 @@ Field notes:
 * **`tracking.ahead`** / **`tracking.behind`** — integer counts. Both `0` when `status` is `"equal"`. Both `null` when `status` is `"gone"` or `"none"` (no upstream to compare against).
 * **`repair_upstream_suggestion`** — optional boolean emitted on repos with `tracking.status == "gone"`, indicating that `repokeeper repair upstream` is the suggested inspection and repair path.
 * **`remote_tracking_refs`** — a read-only hygiene signal produced with `git remote prune --dry-run`. `stale_count` and `stale` describe refs a later fetch/prune would remove. When a remote cannot be queried, `inspection_error` is populated and the repository inspection continues.
+* **`local_branches`** — a read-only prune-safety classification of every local branch (see ADR-0014). Each branch carries a `category` (`keep` / `safe_to_prune` / `probably_safe` / `needs_review`) and machine-readable `reasons`. A positive integration signal — reachability (`merged_into_base`) or, when policy permits, patch-equivalence (`patch_equivalent_to_base`) — is required for any prune category; only `safe_to_prune` is auto-prune-eligible, and `probably_safe` is review-required. Tri-state signals are `null` when a check was unavailable. When enumeration fails, `inspection_error` is populated. This is a read-only signal: no branch is deleted. The `category`/`reasons` vocabulary is part of this `v1beta1` contract.
 * **`apiVersion`** — identifies the schema of this JSON contract (see the stability policy below). When filtered to `diverged`, the top-level object additionally carries a `diverged` advice array; `apiVersion` is unchanged by that filter.
 
 #### JSON output schema stability policy

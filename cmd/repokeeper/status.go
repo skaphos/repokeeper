@@ -666,6 +666,45 @@ func skipANSIEscape(runes []rune, start int) int {
 	}
 }
 
+// localBranchDetailCategories lists the actionable prune categories surfaced in
+// the describe view, in reporting order. keep is intentionally omitted from the
+// per-name listing (it is the common, non-actionable case).
+var localBranchDetailCategories = []struct {
+	cat   model.PruneCategory
+	label string
+}{
+	{model.PruneSafeToPrune, "PRUNE_SAFE_TO_PRUNE"},
+	{model.PruneProbablySafe, "PRUNE_PROBABLY_SAFE"},
+	{model.PruneNeedsReview, "PRUNE_NEEDS_REVIEW"},
+}
+
+// localBranchNamesByCategory returns the names of branches with the given
+// classification, preserving enumeration order.
+func localBranchNamesByCategory(branches []model.LocalBranch, cat model.PruneCategory) []string {
+	var names []string
+	for _, b := range branches {
+		if b.Category == cat {
+			names = append(names, b.Name)
+		}
+	}
+	return names
+}
+
+// localBranchPruneSummary renders the per-category counts, or "?" when branch
+// inspection failed (mirroring remoteTrackingRefCountDisplay).
+func localBranchPruneSummary(lb model.LocalBranchStatus) string {
+	if lb.InspectionError != "" {
+		return "?"
+	}
+	counts := map[model.PruneCategory]int{}
+	for _, b := range lb.Branches {
+		counts[b.Category]++
+	}
+	return fmt.Sprintf("safe_to_prune=%d probably_safe=%d needs_review=%d keep=%d",
+		counts[model.PruneSafeToPrune], counts[model.PruneProbablySafe],
+		counts[model.PruneNeedsReview], counts[model.PruneKeep])
+}
+
 func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, roots []string) error {
 	// Detail output is intentionally color-free and key/value stable for scripting.
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "PATH: %s\n", displayRepoPath(repo.Path, cwd, roots)); err != nil {
@@ -725,6 +764,25 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 		}
 		if repo.RemoteTrackingRefs.InspectionError != "" {
 			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "REMOTE_TRACKING_REF_INSPECTION_ERROR: %s\n", sanitizeForDisplay(repo.RemoteTrackingRefs.InspectionError)); err != nil {
+				return err
+			}
+		}
+	}
+	if lb := repo.LocalBranches; len(lb.Branches) > 0 || lb.InspectionError != "" {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "LOCAL_BRANCH_PRUNE: %s\n", localBranchPruneSummary(lb)); err != nil {
+			return err
+		}
+		if lb.InspectionError != "" {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "LOCAL_BRANCH_INSPECTION_ERROR: %s\n", sanitizeForDisplay(lb.InspectionError)); err != nil {
+				return err
+			}
+		}
+		for _, cl := range localBranchDetailCategories {
+			names := localBranchNamesByCategory(lb.Branches, cl.cat)
+			if len(names) == 0 {
+				continue
+			}
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", cl.label, metadataListString(names)); err != nil {
 				return err
 			}
 		}
