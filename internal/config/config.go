@@ -467,7 +467,7 @@ func validateBranchPolicy(cfg *Config) error {
 			continue
 		}
 		if p == "*" {
-			return fmt.Errorf("branch_policy.protected_patterns must not contain %q (it matches every branch)", pattern)
+			return fmt.Errorf("branch_policy.protected_patterns must not contain %q (it is overly broad: path.Match %q protects all top-level branches; list them explicitly instead)", pattern, "*")
 		}
 		if _, err := path.Match(p, "example"); err != nil {
 			return fmt.Errorf("branch_policy.protected_patterns has invalid glob %q: %w", pattern, err)

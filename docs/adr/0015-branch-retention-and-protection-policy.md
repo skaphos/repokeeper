@@ -41,7 +41,7 @@ branch_policy:
 
 ### Validation fails closed
 
-RepoKeeper today has only GVK validation. This adds semantic validation at load, and **protection fails closed**: a config that cannot be validated is rejected rather than silently degraded. Specifically — reject a negative `stale_days`; reject any `protected_patterns` glob that does not compile under `path.Match` (rather than silently matching nothing, which would unprotect a branch); reject a `base_branch` override that is a glob or otherwise cannot be a ref; and reject an empty/`*`-only `protected_patterns` unless explicitly intended, since either disables or over-applies protection.
+RepoKeeper today has only GVK validation. This adds semantic validation at load, and **protection fails closed**: a config that cannot be validated is rejected rather than silently degraded. Specifically — reject a negative `stale_days`; reject any `protected_patterns` glob that does not compile under `path.Match` (rather than silently matching nothing, which would unprotect a branch); reject a `base_branch` override that is a glob or otherwise cannot be a ref; and reject a `*`-only `protected_patterns` as overly broad (under `path.Match` it silently protects all top-level branches). An **empty** `protected_patterns` is deliberately **allowed** — it is the explicit way to disable pattern-based protection, with `require_merged` remaining the backstop — so it must survive load rather than being re-seeded (see below).
 
 ### Defaults must survive the zero-value backfill idiom
 
