@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/registry"
 )
 
 func TestToggleSelectionAddAndRemove(t *testing.T) {
@@ -239,5 +240,27 @@ func TestHandleSyncProgressKey_WhenDoneReturnsToList(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Fatal("expected refresh cmd after returning to list")
+	}
+}
+
+func TestHandleSyncProgressKey_WhenDoneSetsPendingInspections(t *testing.T) {
+	t.Parallel()
+
+	// Without pendingInspections tracking the number of repoStatusMsg
+	// deliveries streamStatusCmd will produce, handleRepoStatus clears
+	// loading after the first of N streamed messages instead of the last.
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "a", Path: "/tmp/a", Status: registry.StatusPresent},
+		{RepoID: "b", Path: "/tmp/b", Status: registry.StatusPresent},
+	}}
+	eng := &mockEngine{reg: reg}
+	m := tuiModel{mode: viewProgress, syncDone: true, engine: eng}
+	nm, cmd := m.handleSyncProgressKey(tea.KeyPressMsg{Code: 'q'})
+	next := nm.(tuiModel)
+	if cmd == nil {
+		t.Fatal("expected refresh cmd after returning to list")
+	}
+	if !next.loading || next.pendingInspections != 2 {
+		t.Fatalf("expected loading=true and pendingInspections=2, got loading=%v pendingInspections=%d", next.loading, next.pendingInspections)
 	}
 }

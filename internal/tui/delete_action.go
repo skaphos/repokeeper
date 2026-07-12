@@ -14,9 +14,9 @@ type deleteDoneMsg struct {
 	err    error
 }
 
-func deleteRepoCmd(eng EngineAPI, repoID, cfgPath string, deleteFiles bool) tea.Cmd {
+func deleteRepoCmd(ctx context.Context, eng EngineAPI, repoID, cfgPath string, deleteFiles bool) tea.Cmd {
 	return func() tea.Msg {
-		err := eng.DeleteRepo(context.Background(), repoID, cfgPath, deleteFiles)
+		err := eng.DeleteRepo(ctx, repoID, cfgPath, deleteFiles)
 		return deleteDoneMsg{repoID: repoID, err: err}
 	}
 }

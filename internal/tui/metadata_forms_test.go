@@ -2,14 +2,18 @@
 package tui
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/internal/repometa"
 )
 
 func TestRenderMetadataViewsAndHelpers(t *testing.T) {
@@ -113,6 +117,104 @@ func TestRenderMetadataViewsAndHelpers(t *testing.T) {
 	}
 }
 
+// TestSaveLabelEditCmdDoesNotRaceWithConcurrentRegistryReads exercises the
+// concurrency fix directly: stream.go's inspect Cmds read the shared
+// *registry.Registry (via FindEntry) from goroutines that can still be in
+// flight while a label/metadata edit is being saved. Before the fix,
+// saveLabelEditCmd's returned Cmd wrote straight into reg.Entries and called
+// config.Save from inside that same goroutine, racing with concurrent
+// reads. Run with -race: this test fails against the pre-fix code and
+// passes against the fix, which confines the write to the Update-goroutine
+// handler (handleLabelEditDone) and keeps the Cmd goroutine registry-free.
+func TestSaveLabelEditCmdDoesNotRaceWithConcurrentRegistryReads(t *testing.T) {
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: "/tmp/a", Status: registry.StatusPresent}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	m := tuiModel{labelRepoID: "acme/a", labelRepoPath: "/tmp/a", labelInput: "team=platform", engine: eng}
+
+	cmd := saveLabelEditCmd(m)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = reg.FindEntry("acme/a", "/tmp/a")
+			}
+		}
+	}()
+
+	msg, ok := cmd().(labelEditDoneMsg)
+	close(stop)
+	wg.Wait()
+
+	if !ok {
+		t.Fatalf("expected labelEditDoneMsg, got %T", msg)
+	}
+	if msg.err != nil {
+		t.Fatalf("unexpected error: %v", msg.err)
+	}
+}
+
+// TestSaveRepoMetadataEditCmdDoesNotRaceWithConcurrentRegistryReads is the
+// analogous race test for saveRepoMetadataEditCmd; see
+// TestSaveLabelEditCmdDoesNotRaceWithConcurrentRegistryReads for details.
+func TestSaveRepoMetadataEditCmdDoesNotRaceWithConcurrentRegistryReads(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: repoPath, Status: registry.StatusPresent}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	m := tuiModel{
+		metadataRepoID:          "acme/a",
+		metadataRepoPath:        repoPath,
+		metadataField:           metadataFieldRelated,
+		metadataName:            "Repo A",
+		metadataRepoIDAssertion: "acme/a",
+		metadataLabelsInput:     "team=platform",
+		engine:                  eng,
+		cfgPath:                 filepath.Join(tmp, ".repokeeper.yaml"),
+	}
+
+	cmd := saveRepoMetadataEditCmd(m)
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				_ = reg.FindEntry("acme/a", repoPath)
+			}
+		}
+	}()
+
+	msg, ok := cmd().(repoMetadataEditDoneMsg)
+	close(stop)
+	wg.Wait()
+
+	if !ok {
+		t.Fatalf("expected repoMetadataEditDoneMsg, got %T", msg)
+	}
+	if msg.err != nil {
+		t.Fatalf("unexpected error: %v", msg.err)
+	}
+}
+
 func TestEditKeyHandlersAndMetadataFieldMutationHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -175,5 +277,81 @@ func TestEditKeyHandlersAndMetadataFieldMutationHelpers(t *testing.T) {
 	nm = next.(tuiModel)
 	if nm.mode != viewDetail || nm.metadataRepoID != "" || nm.metadataLabelsInput != "" || nm.statusMsg != "" || nm.statusIsError {
 		t.Fatalf("expected escaped metadata editor reset, got %+v", nm)
+	}
+}
+
+// saveRepoMetadataEditCmd must not rewrite an existing metadata file when the
+// proposed metadata is unchanged: an unchanged edit should report saved=false
+// (so the "no repo metadata changes" path is reachable) and leave the
+// repo-controlled file byte-for-byte identical rather than dirtying the tree.
+func TestSaveRepoMetadataEditCmdSkipsUnchangedMetadata(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-a")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	reg := &registry.Registry{Entries: []registry.Entry{{RepoID: "acme/a", Path: repoPath, Status: registry.StatusPresent}}}
+	cfg := config.DefaultConfig()
+	cfg.Registry = reg
+	eng := &mockEngine{reg: reg, cfg: &cfg}
+	base := tuiModel{
+		metadataRepoID:          "acme/a",
+		metadataRepoPath:        repoPath,
+		metadataField:           metadataFieldRelated,
+		metadataName:            "Repo A",
+		metadataRepoIDAssertion: "acme/a",
+		metadataLabelsInput:     "team=platform",
+		engine:                  eng,
+		cfgPath:                 filepath.Join(tmp, ".repokeeper.yaml"),
+	}
+
+	// First save creates the file (no existing file, so force=false).
+	first := base
+	first.metadataExists = false
+	msg1, ok := saveRepoMetadataEditCmd(first)().(repoMetadataEditDoneMsg)
+	if !ok || msg1.err != nil {
+		t.Fatalf("first save: ok=%v err=%v", ok, msg1.err)
+	}
+	if !msg1.saved {
+		t.Fatal("expected first save to persist (saved=true)")
+	}
+
+	metaPath, _, err := repometa.Load(repoPath)
+	if err != nil {
+		t.Fatalf("load after first save: %v", err)
+	}
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read metadata: %v", err)
+	}
+
+	// Re-saving identical metadata must be a no-op that does not rewrite the file.
+	second := base
+	second.metadataExists = true
+	msg2, ok := saveRepoMetadataEditCmd(second)().(repoMetadataEditDoneMsg)
+	if !ok || msg2.err != nil {
+		t.Fatalf("second save: ok=%v err=%v", ok, msg2.err)
+	}
+	if msg2.saved {
+		t.Fatal("expected unchanged re-save to be a no-op (saved=false)")
+	}
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read metadata after: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("metadata file was rewritten despite no change:\nbefore=%q\nafter=%q", before, after)
+	}
+
+	// A genuine change must still persist.
+	third := base
+	third.metadataExists = true
+	third.metadataName = "Repo A Renamed"
+	msg3, ok := saveRepoMetadataEditCmd(third)().(repoMetadataEditDoneMsg)
+	if !ok || msg3.err != nil {
+		t.Fatalf("third save: ok=%v err=%v", ok, msg3.err)
+	}
+	if !msg3.saved {
+		t.Fatal("expected a changed re-save to persist (saved=true)")
 	}
 }

@@ -14,9 +14,9 @@ type resetDoneMsg struct {
 	err    error
 }
 
-func resetRepoCmd(eng EngineAPI, repoID, cfgPath string) tea.Cmd {
+func resetRepoCmd(ctx context.Context, eng EngineAPI, repoID, cfgPath string) tea.Cmd {
 	return func() tea.Msg {
-		err := eng.ResetRepo(context.Background(), repoID, cfgPath)
+		err := eng.ResetRepo(ctx, repoID, cfgPath)
 		return resetDoneMsg{repoID: repoID, err: err}
 	}
 }
