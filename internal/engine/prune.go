@@ -25,15 +25,25 @@ func (e *Engine) inspectLocalBranches(ctx context.Context, path, primary, repoID
 		return model.LocalBranchStatus{}
 	}
 
+	// baseName is normally an unqualified local branch name, but the
+	// branch_policy.base_branch override may be remote-qualified (e.g.
+	// "origin/main"). Separate the local name — used for classification, so the
+	// base branch is recognized by isBaseBranch — from the remote-tracking ref
+	// used for git reachability/patch queries, so a stale local base does not
+	// yield false "not merged" (ADR-0015) and we never double-prefix
+	// ("origin/origin/main").
 	baseName := e.resolveBaseBranchName(repoID, path, tracking)
-	// Compare against the remote-tracking base so a stale local base branch does
-	// not produce false "not merged" results (ADR-0015).
-	base := baseName
-	if p := strings.TrimSpace(primary); p != "" && baseName != "" {
-		base = p + "/" + baseName
+	primaryRemote := strings.TrimSpace(primary)
+	localBase, queryBase := baseName, baseName
+	if primaryRemote != "" && baseName != "" {
+		if strings.HasPrefix(baseName, primaryRemote+"/") {
+			localBase = strings.TrimPrefix(baseName, primaryRemote+"/")
+		} else {
+			queryBase = primaryRemote + "/" + baseName
+		}
 	}
 
-	signals, err := inspector.InspectLocalBranches(ctx, path, base)
+	signals, err := inspector.InspectLocalBranches(ctx, path, queryBase)
 	if err != nil {
 		if e.logger != nil {
 			e.logger.Warnf("local branch inspection failed for %s: %v", path, err)
@@ -41,7 +51,7 @@ func (e *Engine) inspectLocalBranches(ctx context.Context, path, primary, repoID
 		return model.LocalBranchStatus{InspectionError: err.Error()}
 	}
 
-	policy := e.branchPolicy(baseName)
+	policy := e.branchPolicy(localBase)
 	now := time.Now()
 	branches := make([]model.LocalBranch, 0, len(signals))
 	for _, s := range signals {
@@ -61,7 +71,7 @@ func (e *Engine) inspectLocalBranches(ctx context.Context, path, primary, repoID
 		if protected, perr := prune.MatchesProtected(s.Name, policy.ProtectedPatterns); perr == nil {
 			lb.Protected = protected
 		}
-		if baseName == "" {
+		if localBase == "" {
 			// No base could be resolved for this repo: surface for review rather
 			// than ever proposing a prune.
 			lb.Category = model.PruneNeedsReview

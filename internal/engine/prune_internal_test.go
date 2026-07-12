@@ -17,11 +17,15 @@ import (
 // inspection capability, which is all inspectLocalBranches calls.
 type stubLBAdapter struct {
 	vcs.Adapter
-	signals []vcs.LocalBranchSignal
-	err     error
+	signals  []vcs.LocalBranchSignal
+	err      error
+	baseSeen *string // when non-nil, records the base ref the inspector was called with
 }
 
-func (s stubLBAdapter) InspectLocalBranches(context.Context, string, string) ([]vcs.LocalBranchSignal, error) {
+func (s stubLBAdapter) InspectLocalBranches(_ context.Context, _, base string) ([]vcs.LocalBranchSignal, error) {
+	if s.baseSeen != nil {
+		*s.baseSeen = base
+	}
 	return s.signals, s.err
 }
 
@@ -74,6 +78,40 @@ func TestInspectLocalBranchesBaseUnresolved(t *testing.T) {
 		model.Head{Branch: "other"}, model.Tracking{}, false)
 	if b := got.Branches[0]; b.Category != model.PruneNeedsReview || b.Reasons[0] != model.ReasonBaseUnresolved {
 		t.Errorf("unresolved base = %s %v, want needs_review/base_unresolved", b.Category, b.Reasons)
+	}
+}
+
+func TestInspectLocalBranchesRemoteQualifiedBaseOverride(t *testing.T) {
+	tru := true
+	var seen string
+	cfg := config.DefaultConfig()
+	cfg.BranchPolicy.BaseBranch = "origin/main" // remote-qualified override
+	adapter := stubLBAdapter{
+		baseSeen: &seen,
+		signals: []vcs.LocalBranchSignal{
+			{Name: "main", MergedIntoBase: &tru},      // the base branch itself
+			{Name: "feature/x", MergedIntoBase: &tru}, // a merged topic branch
+		},
+	}
+	e := newEngineWith(cfg, adapter)
+
+	got := e.inspectLocalBranches(context.Background(), "/repo", "origin", "id",
+		model.Head{Branch: "other"}, model.Tracking{}, false)
+
+	// The git query base must be the qualified ref, not double-prefixed.
+	if seen != "origin/main" {
+		t.Errorf("query base = %q, want origin/main (no double prefix)", seen)
+	}
+	byName := map[string]model.LocalBranch{}
+	for _, b := range got.Branches {
+		byName[b.Name] = b
+	}
+	// The base branch must be recognized despite the qualified override.
+	if b := byName["main"]; b.Category != model.PruneKeep || b.Reasons[0] != model.ReasonBaseBranch {
+		t.Errorf("main = %s %v, want keep/base_branch", b.Category, b.Reasons)
+	}
+	if b := byName["feature/x"]; b.Category != model.PruneSafeToPrune {
+		t.Errorf("feature/x = %s, want safe_to_prune", b.Category)
 	}
 }
 
