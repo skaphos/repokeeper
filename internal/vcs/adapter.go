@@ -3,6 +3,8 @@ package vcs
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/skaphos/repokeeper/internal/gitx"
 	"github.com/skaphos/repokeeper/internal/model"
@@ -38,6 +40,31 @@ type Adapter interface {
 // refs that no longer exist upstream. Non-Git adapters need not implement it.
 type RemoteTrackingRefInspector interface {
 	StaleRemoteTrackingRefs(ctx context.Context, dir string, remoteNames []string) ([]string, error)
+}
+
+// LocalBranchSignal is the raw per-branch prune-safety signal set produced by an
+// inspector: enumeration data plus tri-state integration results against a base
+// ref. The engine maps this into model.LocalBranch and classifies it; the
+// classification (Category/Reasons) is deliberately not computed here, so the
+// inspector never returns a half-built domain object.
+type LocalBranchSignal struct {
+	Name                  string
+	Upstream              string
+	Track                 string
+	TrackShort            string
+	LastCommit            time.Time
+	HasLastCommit         bool
+	WorktreePath          string
+	MergedIntoBase        *bool // nil when the reachability check was unavailable
+	PatchEquivalentToBase *bool // nil when not computed or unavailable
+}
+
+// LocalBranchInspector is an optional adapter capability that enumerates local
+// branches and computes prune-safety signals against base. When base is empty,
+// integration signals are left nil (unknown). Non-Git adapters need not
+// implement it.
+type LocalBranchInspector interface {
+	InspectLocalBranches(ctx context.Context, dir, base string) ([]LocalBranchSignal, error)
 }
 
 // GitAdapter implements Adapter using the git CLI via gitx.
@@ -87,6 +114,55 @@ func (g *GitAdapter) TrackingStatus(ctx context.Context, dir string) (model.Trac
 
 func (g *GitAdapter) StaleRemoteTrackingRefs(ctx context.Context, dir string, remoteNames []string) ([]string, error) {
 	return gitx.StaleRemoteTrackingRefs(ctx, g.Runner, dir, remoteNames)
+}
+
+// InspectLocalBranches enumerates local branches and computes reachability and
+// (for non-reachable branches) patch-equivalence against base. A failed merged
+// check leaves MergedIntoBase nil so the classifier treats it as unknown rather
+// than "not merged". Patch-equivalence is only computed for branches that are
+// not reachability-merged, since reachability already yields safe_to_prune.
+func (g *GitAdapter) InspectLocalBranches(ctx context.Context, dir, base string) ([]LocalBranchSignal, error) {
+	infos, err := gitx.LocalBranches(ctx, g.Runner, dir)
+	if err != nil {
+		return nil, err
+	}
+	base = strings.TrimSpace(base)
+
+	var merged map[string]bool
+	mergedAvailable := false
+	if base != "" {
+		if m, mErr := gitx.MergedBranches(ctx, g.Runner, dir, base); mErr == nil {
+			merged, mergedAvailable = m, true
+		}
+	}
+
+	signals := make([]LocalBranchSignal, 0, len(infos))
+	for _, info := range infos {
+		sig := LocalBranchSignal{
+			Name:          info.Name,
+			Upstream:      info.Upstream,
+			Track:         info.Track,
+			TrackShort:    info.TrackShort,
+			LastCommit:    info.LastCommit,
+			HasLastCommit: info.HasLastCommit,
+			WorktreePath:  info.WorktreePath,
+		}
+		if base != "" {
+			needPatch := true
+			if mergedAvailable {
+				isMerged := merged[info.Name]
+				sig.MergedIntoBase = &isMerged
+				needPatch = !isMerged // reachable branches already yield safe_to_prune
+			}
+			if needPatch {
+				if eq, eqErr := gitx.PatchEquivalentToBase(ctx, g.Runner, dir, base, info.Name); eqErr == nil {
+					sig.PatchEquivalentToBase = &eq
+				}
+			}
+		}
+		signals = append(signals, sig)
+	}
+	return signals, nil
 }
 
 func (g *GitAdapter) HasSubmodules(ctx context.Context, dir string) (bool, error) {

@@ -135,6 +135,20 @@ func (m *MultiAdapter) StaleRemoteTrackingRefs(ctx context.Context, dir string, 
 	return inspector.StaleRemoteTrackingRefs(ctx, dir, remoteNames)
 }
 
+// InspectLocalBranches delegates the optional local-branch inspection capability
+// to the backend selected for dir. Unsupported backends report no branches.
+func (m *MultiAdapter) InspectLocalBranches(ctx context.Context, dir, base string) ([]LocalBranchSignal, error) {
+	adapter, err := m.adapterForPath(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	inspector, ok := adapter.(LocalBranchInspector)
+	if !ok {
+		return nil, nil
+	}
+	return inspector.InspectLocalBranches(ctx, dir, base)
+}
+
 func (m *MultiAdapter) HasSubmodules(ctx context.Context, dir string) (bool, error) {
 	adapter, err := m.adapterForPath(ctx, dir)
 	if err != nil {
