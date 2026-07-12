@@ -751,6 +751,39 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 			t.Fatalf("expected local fallback repo id entry, got %+v", localEntry)
 		}
 	})
+
+	t.Run("CloneAndRegister trims the remote URL before clone, normalize, and store", func(t *testing.T) {
+		tmp := t.TempDir()
+		cfgPath := filepath.Join(tmp, "config.yaml")
+		target := filepath.Join(tmp, "checkout")
+
+		// Only the trimmed clone command is registered: if CloneAndRegister passed
+		// the padded URL straight to adapter.Clone, the runner would not match and
+		// the clone would fail. Success here proves the URL is trimmed before it
+		// reaches the adapter.
+		runner := &testRunner{responses: map[string]testResponse{
+			":" + strings.Join([]string{"clone", "git@github.com:org/repo.git", target}, " "): {out: ""},
+		}}
+		eng := &Engine{
+			cfg:        &config.Config{},
+			registry:   &registry.Registry{},
+			adapter:    vcs.NewGitAdapter(runner),
+			classifier: vcs.NewGitErrorClassifier(),
+		}
+
+		if err := eng.CloneAndRegister(context.Background(), "  git@github.com:org/repo.git\n", target, cfgPath, false); err != nil {
+			t.Fatalf("expected a padded URL to be trimmed and clone to succeed, got %v", err)
+		}
+		// Normalization also ran on the trimmed URL, so the entry resolves under
+		// the normalized repo_id and stores the trimmed remote.
+		entry := eng.registry.FindByRepoID("github.com/org/repo")
+		if entry == nil {
+			t.Fatal("expected entry under the normalized repo id from the trimmed URL")
+		}
+		if entry.RemoteURL != "git@github.com:org/repo.git" {
+			t.Fatalf("expected stored RemoteURL trimmed, got %q", entry.RemoteURL)
+		}
+	})
 }
 
 func TestRemoteMismatchWrapperFunctions(t *testing.T) {
