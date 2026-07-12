@@ -147,6 +147,12 @@ func renderDetailView(m tuiModel) string {
 // is not enough: everything after the leading ESC byte in an escape
 // sequence (e.g. "[31m") is ordinary printable text, so the sequence's
 // effect survives unless the whole thing is dropped.
+//
+// This also covers the C1 controls (U+0080..U+009F). In UTF-8 those encode as
+// 0xC2 followed by 0x80..0x9F, whose bytes are both >= 0x20 and so would
+// otherwise pass straight through — yet many terminals honor them as control
+// codes (U+009B is a single-byte CSI introducer, U+009D an OSC introducer), so
+// they are just as dangerous as their ESC-prefixed C0 equivalents.
 func sanitizeMetadataText(s string) string {
 	if s == "" {
 		return s
@@ -159,6 +165,10 @@ func sanitizeMetadataText(s string) string {
 		switch {
 		case c == 0x1b: // ESC: drop the entire escape sequence
 			i = skipEscapeSequence(src, i)
+		case c == 0xc2 && i+1 < len(src) && src[i+1] >= 0x80 && src[i+1] <= 0x9f:
+			// UTF-8-encoded C1 control: drop it, and for the CSI/OSC introducers
+			// the whole sequence they start.
+			i = skipC1Sequence(src, i)
 		case c < 0x20 || c == 0x7f: // bare C0 control byte / DEL
 			continue
 		default:
@@ -166,6 +176,43 @@ func sanitizeMetadataText(s string) string {
 		}
 	}
 	return out.String()
+}
+
+// skipC1Sequence returns the index of the last byte belonging to a UTF-8
+// encoded C1 control that starts at src[start] (0xC2, with the C1 byte at
+// start+1). U+009B (CSI) and U+009D (OSC) introduce full control sequences,
+// handled like their ESC '[' / ESC ']' equivalents (OSC may be terminated by a
+// C1 ST, U+009C, as well as BEL or ESC '\'); any other C1 control is just the
+// two-byte encoding itself.
+func skipC1Sequence(src []byte, start int) int {
+	switch src[start+1] {
+	case 0x9b: // CSI
+		j := start + 2
+		for j < len(src) && src[j] >= 0x20 && src[j] <= 0x3f {
+			j++
+		}
+		if j < len(src) {
+			return j
+		}
+		return j - 1
+	case 0x9d: // OSC
+		j := start + 2
+		for j < len(src) {
+			if src[j] == 0x07 {
+				return j
+			}
+			if src[j] == 0x1b && j+1 < len(src) && src[j+1] == '\\' {
+				return j + 1
+			}
+			if src[j] == 0xc2 && j+1 < len(src) && src[j+1] == 0x9c { // C1 ST
+				return j + 1
+			}
+			j++
+		}
+		return j - 1
+	default:
+		return start + 1
+	}
 }
 
 // skipEscapeSequence returns the index of the last byte belonging to the

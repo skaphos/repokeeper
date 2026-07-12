@@ -1329,6 +1329,22 @@ func TestSanitizeMetadataText(t *testing.T) {
 	if got := sanitizeMetadataText(""); got != "" {
 		t.Fatalf("expected empty string unchanged, got %q", got)
 	}
+	// UTF-8-encoded C1 controls (0xC2 0x80..0x9F): a single-byte CSI (U+009B) or
+	// OSC (U+009D) introducer, and a bare C1 control, must all be stripped along
+	// with any sequence they introduce.
+	if got := sanitizeMetadataText("a\u009b31mb"); got != "ab" {
+		t.Fatalf("expected C1 CSI sequence stripped, got %q", got)
+	}
+	if got := sanitizeMetadataText("a\u009d0;title\u009cb"); got != "ab" {
+		t.Fatalf("expected C1 OSC sequence stripped, got %q", got)
+	}
+	if got := sanitizeMetadataText("a\u0085b"); got != "ab" {
+		t.Fatalf("expected bare C1 control stripped, got %q", got)
+	}
+	// A legitimate two-byte UTF-8 rune that is not a C1 control must survive.
+	if got := sanitizeMetadataText("café"); got != "café" {
+		t.Fatalf("expected non-C1 multibyte rune preserved, got %q", got)
+	}
 }
 
 func TestRenderDetailViewStripsControlCharactersFromRepoMetadata(t *testing.T) {
