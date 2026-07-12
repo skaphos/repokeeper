@@ -28,7 +28,7 @@ branch_policy:
   protected_patterns: ["main", "master", "release/*"] # PRUNE protection; path.Match globs
   base_branch: ""      # optional GLOBAL override; empty => per-repo auto-resolution
   stale_days: 0        # 0 = disabled; N>0 escalates unintegrated branches older than N days to needs_review
-  require_merged: true # forbid safe_to_prune without reachability evidence
+  require_merged: true # trust only reachability as merge proof; patch-equivalent-only -> needs_review (never probably_safe)
 ```
 
 ### Per-repo base resolution

@@ -2,7 +2,11 @@
 // Package model defines the core data types used throughout RepoKeeper.
 package model
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // Remote represents a single git remote.
 type Remote struct {
@@ -70,6 +74,109 @@ type RemoteTrackingRefStatus struct {
 	StaleCount      int      `json:"stale_count" yaml:"stale_count"`
 	Stale           []string `json:"stale,omitempty" yaml:"stale,omitempty"`
 	InspectionError string   `json:"inspection_error,omitempty" yaml:"inspection_error,omitempty"`
+}
+
+// PruneCategory classifies a local branch by how safe it is to prune. Only
+// PruneSafeToPrune is eligible for automated/batch prune; PruneProbablySafe
+// carries positive evidence but is review-required and never auto-pruned.
+type PruneCategory string
+
+const (
+	PruneKeep         PruneCategory = "keep"
+	PruneSafeToPrune  PruneCategory = "safe_to_prune"
+	PruneProbablySafe PruneCategory = "probably_safe"
+	PruneNeedsReview  PruneCategory = "needs_review"
+)
+
+// ParsePruneCategory validates and parses a prune category value.
+func ParsePruneCategory(raw string) (PruneCategory, error) {
+	c := PruneCategory(strings.ToLower(strings.TrimSpace(raw)))
+	switch c {
+	case PruneKeep, PruneSafeToPrune, PruneProbablySafe, PruneNeedsReview:
+		return c, nil
+	default:
+		return "", fmt.Errorf("unsupported prune category %q (expected one of: keep, safe_to_prune, probably_safe, needs_review)", raw)
+	}
+}
+
+// PruneReason is a machine-readable code explaining a PruneCategory verdict.
+type PruneReason string
+
+const (
+	ReasonCurrentBranch         PruneReason = "current_branch"
+	ReasonCheckedOutElsewhere   PruneReason = "checked_out_elsewhere"
+	ReasonBaseBranch            PruneReason = "base_branch"
+	ReasonProtectedPattern      PruneReason = "protected_pattern"
+	ReasonActiveUnmerged        PruneReason = "active_unmerged"
+	ReasonSignalUnavailable     PruneReason = "signal_unavailable"
+	ReasonUnmergedLocalWork     PruneReason = "unmerged_local_work"
+	ReasonDivergedUnmerged      PruneReason = "diverged_unmerged"
+	ReasonStaleUnmerged         PruneReason = "stale_unmerged"
+	ReasonMergedIntoBase        PruneReason = "merged_into_base"
+	ReasonPatchEquivalentToBase PruneReason = "patch_equivalent_to_base"
+	ReasonBaseUnresolved        PruneReason = "base_unresolved"
+)
+
+// pruneReasonHints maps prune reason codes to operator-facing explanations.
+var pruneReasonHints = map[PruneReason]string{
+	ReasonCurrentBranch:         "branch is checked out in this worktree",
+	ReasonCheckedOutElsewhere:   "branch is checked out in another worktree",
+	ReasonBaseBranch:            "branch is the repository base branch",
+	ReasonProtectedPattern:      "branch matches a protected pattern",
+	ReasonActiveUnmerged:        "active branch not yet integrated into base",
+	ReasonSignalUnavailable:     "integration status could not be determined",
+	ReasonUnmergedLocalWork:     "branch has local commits not integrated into base",
+	ReasonDivergedUnmerged:      "branch has diverged from its upstream and is not integrated",
+	ReasonStaleUnmerged:         "branch is unintegrated and older than the stale threshold",
+	ReasonMergedIntoBase:        "branch is reachable from base (fully merged)",
+	ReasonPatchEquivalentToBase: "branch commits are patch-equivalent to base (likely squash/rebase merged)",
+	ReasonBaseUnresolved:        "base branch could not be resolved for this repository",
+}
+
+// HintForReason returns operator-facing text for a prune reason, or empty string.
+func HintForReason(r PruneReason) string {
+	return pruneReasonHints[r]
+}
+
+// LocalBranch is a single local branch with its raw prune-safety signals and
+// computed classification. Tri-state signals (*bool / *time.Time) are nil when
+// the underlying check could not be run, so a failed check is never a silent
+// false; the classifier maps unknown integration state to needs_review.
+type LocalBranch struct {
+	// Name is the short branch name (for example, "feature/x").
+	Name string `json:"name" yaml:"name"`
+	// IsCurrent reports whether the branch is checked out in this worktree.
+	IsCurrent bool `json:"is_current" yaml:"is_current"`
+	// CheckedOutElsewhere reports whether the branch is checked out in another linked worktree.
+	CheckedOutElsewhere bool `json:"checked_out_elsewhere" yaml:"checked_out_elsewhere"`
+	// Protected reports whether the branch matches a configured protected pattern.
+	Protected bool `json:"protected" yaml:"protected"`
+	// Upstream is the tracked upstream ref, if any (for example, "origin/feature/x").
+	Upstream string `json:"upstream,omitempty" yaml:"upstream,omitempty"`
+	// UpstreamStatus is the high-level relationship to the upstream branch.
+	UpstreamStatus TrackingStatus `json:"upstream_status" yaml:"upstream_status"`
+	// Ahead is the commit count ahead of upstream. Nil when unknown/not applicable.
+	Ahead *int `json:"ahead" yaml:"ahead"`
+	// Behind is the commit count behind upstream. Nil when unknown/not applicable.
+	Behind *int `json:"behind" yaml:"behind"`
+	// MergedIntoBase reports reachability from the base branch. Nil when the check was unavailable.
+	MergedIntoBase *bool `json:"merged_into_base" yaml:"merged_into_base"`
+	// PatchEquivalentToBase reports patch-equivalence to base (squash/rebase merges). Nil when unavailable.
+	PatchEquivalentToBase *bool `json:"patch_equivalent_to_base" yaml:"patch_equivalent_to_base"`
+	// LastCommitAt is the branch tip committer date. Nil when unavailable.
+	LastCommitAt *time.Time `json:"last_commit_at" yaml:"last_commit_at"`
+	// Category is the computed prune-safety classification.
+	Category PruneCategory `json:"category" yaml:"category"`
+	// Reasons are the machine-readable codes explaining Category.
+	Reasons []PruneReason `json:"reasons,omitempty" yaml:"reasons,omitempty"`
+}
+
+// LocalBranchStatus is the set of classified local branches for a repository.
+// InspectionError is non-empty when branch enumeration failed, so callers can
+// distinguish an unavailable signal from a repository with no local branches.
+type LocalBranchStatus struct {
+	Branches        []LocalBranch `json:"branches,omitempty" yaml:"branches,omitempty"`
+	InspectionError string        `json:"inspection_error,omitempty" yaml:"inspection_error,omitempty"`
 }
 
 // SyncResult records the outcome of the last sync operation.
@@ -158,6 +265,8 @@ type RepoStatus struct {
 	Submodules Submodules `json:"submodules" yaml:"submodules"`
 	// RemoteTrackingRefs describes refs that a fetch with prune would remove.
 	RemoteTrackingRefs RemoteTrackingRefStatus `json:"remote_tracking_refs" yaml:"remote_tracking_refs"`
+	// LocalBranches describes local branches classified by prune safety.
+	LocalBranches LocalBranchStatus `json:"local_branches" yaml:"local_branches"`
 	// LastSync is the latest sync outcome metadata when available.
 	LastSync *SyncResult `json:"last_sync,omitempty" yaml:"last_sync,omitempty"`
 	// Error holds repository-specific inspect or sync error text.
