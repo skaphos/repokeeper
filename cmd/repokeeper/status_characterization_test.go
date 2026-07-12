@@ -171,6 +171,19 @@ var _ = Describe("writeStatusDetails", func() {
 			Expect(out.String()).To(ContainSubstring("STALE_REMOTE_TRACKING_REF_COUNT: 2\n"))
 			Expect(out.String()).To(ContainSubstring("STALE_REMOTE_TRACKING_REFS: origin/merged,upstream/old\n"))
 		})
+
+		It("renders an unknown marker instead of a real zero when inspection failed", func() {
+			repo := model.RepoStatus{
+				Path: "/repos/testrepo",
+				RemoteTrackingRefs: model.RemoteTrackingRefStatus{
+					InspectionError: "network unavailable",
+				},
+			}
+			Expect(writeStatusDetails(cmd, repo, "/repos", nil)).To(Succeed())
+			Expect(out.String()).To(ContainSubstring("STALE_REMOTE_TRACKING_REF_COUNT: ?\n"))
+			Expect(out.String()).NotTo(ContainSubstring("STALE_REMOTE_TRACKING_REF_COUNT: 0\n"))
+			Expect(out.String()).To(ContainSubstring("REMOTE_TRACKING_REF_INSPECTION_ERROR: network unavailable\n"))
+		})
 	})
 
 	Context("full repo snapshot — all fields populated", func() {

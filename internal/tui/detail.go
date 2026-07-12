@@ -48,7 +48,14 @@ func renderDetailView(m tuiModel) string {
 	if r.RemoteTrackingRefs.StaleCount > 0 || r.RemoteTrackingRefs.InspectionError != "" {
 		b.WriteString(headerStyle.Render("Remote-tracking refs"))
 		b.WriteByte('\n')
-		fmt.Fprintf(&b, "  Stale: %d\n", r.RemoteTrackingRefs.StaleCount)
+		staleDisplay := fmt.Sprintf("%d", r.RemoteTrackingRefs.StaleCount)
+		if r.RemoteTrackingRefs.InspectionError != "" {
+			// Inspection failed, so StaleCount is an unreliable zero: render an
+			// unknown marker to match the "?" the status table shows, so
+			// operators don't read "couldn't inspect" as "no stale refs".
+			staleDisplay = "?"
+		}
+		fmt.Fprintf(&b, "  Stale: %s\n", staleDisplay)
 		for _, ref := range r.RemoteTrackingRefs.Stale {
 			fmt.Fprintf(&b, "  - %s\n", sanitizeMetadataText(ref))
 		}

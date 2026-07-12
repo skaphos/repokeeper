@@ -717,7 +717,7 @@ func writeStatusDetails(cmd *cobra.Command, repo model.RepoStatus, cwd string, r
 		return err
 	}
 	if repo.RemoteTrackingRefs.StaleCount > 0 || repo.RemoteTrackingRefs.InspectionError != "" {
-		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "STALE_REMOTE_TRACKING_REF_COUNT: %d\n", repo.RemoteTrackingRefs.StaleCount); err != nil {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "STALE_REMOTE_TRACKING_REF_COUNT: %s\n", remoteTrackingRefCountDisplay(repo.RemoteTrackingRefs)); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "STALE_REMOTE_TRACKING_REFS: %s\n", metadataListString(repo.RemoteTrackingRefs.Stale)); err != nil {

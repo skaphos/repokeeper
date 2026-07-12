@@ -1135,6 +1135,32 @@ func TestModalHelpers(t *testing.T) {
 	}
 }
 
+func TestDetailViewRendersUnknownStaleMarkerOnInspectionError(t *testing.T) {
+	t.Parallel()
+
+	repo := model.RepoStatus{
+		RepoID:   "acme/backend",
+		Path:     "/work/backend",
+		Type:     "checkout",
+		Head:     model.Head{Branch: "main"},
+		Tracking: model.Tracking{Status: model.TrackingEqual, Upstream: "origin/main"},
+		// Inspection failed, so StaleCount is an unreliable zero and must render
+		// as the same "?" marker the status table uses, not as "Stale: 0".
+		RemoteTrackingRefs: model.RemoteTrackingRefStatus{InspectionError: "network unavailable"},
+	}
+
+	detail := renderDetailView(tuiModel{repos: []model.RepoStatus{repo}, cursor: 0, width: 100})
+	if !strings.Contains(detail, "Stale: ?") {
+		t.Fatalf("expected unknown stale marker %q, got:\n%s", "Stale: ?", detail)
+	}
+	if strings.Contains(detail, "Stale: 0") {
+		t.Fatalf("inspection error must not render as a real zero count, got:\n%s", detail)
+	}
+	if !strings.Contains(detail, "network unavailable") {
+		t.Fatalf("expected inspection error text in detail view, got:\n%s", detail)
+	}
+}
+
 func TestViewsAndRendering(t *testing.T) {
 	t.Parallel()
 

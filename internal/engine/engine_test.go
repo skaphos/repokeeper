@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -44,6 +45,35 @@ func joinArgs(args []string) string {
 		out += arg
 	}
 	return out
+}
+
+// countingRunner behaves like mockRunner but records how many times each git
+// invocation is issued, so tests can assert that a command (e.g. the network-
+// touching `git remote prune --dry-run`) is not run more than once per repo.
+type countingRunner struct {
+	responses map[string]mockResponse
+	mu        sync.Mutex
+	counts    map[string]int
+}
+
+func (c *countingRunner) Run(_ context.Context, dir string, args ...string) (string, error) {
+	key := dir + ":" + joinArgs(args)
+	c.mu.Lock()
+	if c.counts == nil {
+		c.counts = map[string]int{}
+	}
+	c.counts[key]++
+	c.mu.Unlock()
+	if resp, ok := c.responses[key]; ok {
+		return resp.out, resp.err
+	}
+	return "", errors.New("unexpected call")
+}
+
+func (c *countingRunner) count(key string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.counts[key]
 }
 
 type blockingRunner struct {
@@ -105,6 +135,35 @@ var _ = Describe("Engine", func() {
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].RemoteTrackingRefs.StaleCount).To(Equal(1))
 		Expect(results[0].RemoteTrackingRefs.Stale).To(Equal([]string{"origin/merged"}))
+	})
+
+	It("reuses the inspect-filter inspection instead of re-pruning during dry-run planning", func() {
+		runner := &countingRunner{responses: map[string]mockResponse{
+			"/repo:rev-parse --is-bare-repository":    {out: "false"},
+			"/repo:remote":                            {out: "origin"},
+			"/repo:remote get-url origin":             {out: "git@github.com:org/repo.git"},
+			"/repo:remote prune --dry-run -- origin":  {out: "Pruning origin\n * [would prune] origin/merged"},
+			"/repo:symbolic-ref --quiet --short HEAD": {out: "main"},
+			"/repo:status --porcelain=v1":             {out: "M  file.go\n"},
+			"/repo:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+				out: "main|origin/main||=",
+			},
+			"/repo:rev-list --left-right --count main...origin/main": {out: "0\t0"},
+			"/repo:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
+		}}
+		reg := &registry.Registry{Entries: []registry.Entry{{
+			RepoID: "repo", Path: "/repo", RemoteURL: "git@github.com:org/repo.git", Status: registry.StatusPresent,
+		}}}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil, nil)
+
+		// The dirty filter forces a live inspection (which prunes once as a dry
+		// run); the planner must reuse that data rather than pruning again.
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{Filter: engine.FilterDirty, DryRun: true, Concurrency: 1, Timeout: 1})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].RemoteTrackingRefs.StaleCount).To(Equal(1))
+		Expect(results[0].RemoteTrackingRefs.Stale).To(Equal([]string{"origin/merged"}))
+		Expect(runner.count("/repo:remote prune --dry-run -- origin")).To(Equal(1))
 	})
 
 	It("keeps inspection usable when a remote cannot be queried", func() {
