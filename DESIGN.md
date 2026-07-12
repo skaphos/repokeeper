@@ -584,6 +584,10 @@ Top-level:
         "ahead": 2,
         "behind": 0
       },
+      "remote_tracking_refs": {
+        "stale_count": 2,
+        "stale": ["origin/merged-pr", "upstream/old-topic"]
+      },
       "repair_upstream_suggestion": true,
       "submodules": { "has_submodules": true },
       "last_sync": { "ok": true, "at": "…", "error": "" }
@@ -599,6 +603,7 @@ Field notes:
 * **`primary_remote`** — preference order: `origin` > first alphabetically. Used for repo identity and tracking status.
 * **`tracking.ahead`** / **`tracking.behind`** — integer counts. Both `0` when `status` is `"equal"`. Both `null` when `status` is `"gone"` or `"none"` (no upstream to compare against).
 * **`repair_upstream_suggestion`** — optional boolean emitted on repos with `tracking.status == "gone"`, indicating that `repokeeper repair upstream` is the suggested inspection and repair path.
+* **`remote_tracking_refs`** — a read-only hygiene signal produced with `git remote prune --dry-run`. `stale_count` and `stale` describe refs a later fetch/prune would remove. When a remote cannot be queried, `inspection_error` is populated and the repository inspection continues.
 * **`apiVersion`** — identifies the schema of this JSON contract (see the stability policy below). When filtered to `diverged`, the top-level object additionally carries a `diverged` advice array; `apiVersion` is unchanged by that filter.
 
 #### JSON output schema stability policy
@@ -621,7 +626,11 @@ The `get` / `status -o json` output is a contractual surface (§"adapter contrac
     "path": "/home/user/work/org/repo",
     "action": "git fetch --all --prune",
     "outcome": "fetched",
-    "ok": true
+    "ok": true,
+    "remote_tracking_refs": {
+      "stale_count": 1,
+      "stale": ["origin/merged-pr"]
+    }
   },
   {
     "repo_id": "github.com/org/no-upstream",
@@ -639,6 +648,7 @@ Field notes:
 * **`outcome`** — the typed `OutcomeKind` (`fetched`, `rebased`, `pushed`, `skipped_no_upstream`, `skipped_missing`, `failed_fetch`, etc.). With `--dry-run` the planned variants are emitted (`planned_fetch`, `planned_push`, `planned_checkout_missing`) and **`planned`** is `true`.
 * **`ok`** — `false` only for operational failures (and `skipped_missing`); intentional skips report `ok: true` with a populated **`error`** reason. Exit-code behavior is independent of this field and unchanged by `-o json`.
 * **`error`** / **`skip_reason`** — omitted when empty.
+* **`remote_tracking_refs`** — included in dry-run plans so callers can see which refs the planned fetch/prune would remove. Detection failures are reported as `inspection_error` without turning an otherwise valid fetch plan into a failure.
 * The shape is a stable adapter surface: additive fields are non-breaking; renaming/removing a field or changing a value's meaning is a break. The DTO lives in `cmd/repokeeper` (`syncResultJSON`).
 
 ## 7. Git Operations (Engine Contract)
@@ -681,6 +691,7 @@ RepoKeeper is **Git-first**, but the architecture should stay adapter-friendly s
 * **Determine git dir:** `git rev-parse --git-dir`
 * **List all remotes:** `git remote` — enumerate all configured remotes.
 * **Remote URL (per remote):** `git remote get-url <name>` — called for each remote. Primary remote selection: prefer `origin`, fall back to first remote alphabetically.
+* **Stale remote-tracking refs (per remote):** `git remote prune --dry-run -- <name>` — queries the remote and parses only `* [would prune] <ref>` records. The dry-run does not update local refs. Remote names follow `--` to prevent option injection.
 * **Dirty state:** `git status --porcelain=v1` — **skip for bare repos** (no working tree).
 * **Current branch:** `git symbolic-ref --quiet --short HEAD` (if fails → detached) — **skip for bare repos**.
 * **Submodule presence** (no recursion):

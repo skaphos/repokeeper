@@ -158,6 +158,21 @@ var _ = Describe("writeStatusDetails", func() {
 		})
 	})
 
+	Context("stale remote-tracking refs", func() {
+		It("prints the count and ref names", func() {
+			repo := model.RepoStatus{
+				Path: "/repos/testrepo",
+				RemoteTrackingRefs: model.RemoteTrackingRefStatus{
+					StaleCount: 2,
+					Stale:      []string{"origin/merged", "upstream/old"},
+				},
+			}
+			Expect(writeStatusDetails(cmd, repo, "/repos", nil)).To(Succeed())
+			Expect(out.String()).To(ContainSubstring("STALE_REMOTE_TRACKING_REF_COUNT: 2\n"))
+			Expect(out.String()).To(ContainSubstring("STALE_REMOTE_TRACKING_REFS: origin/merged,upstream/old\n"))
+		})
+	})
+
 	Context("full repo snapshot — all fields populated", func() {
 		It("matches complete expected output exactly", func() {
 			repo := model.RepoStatus{

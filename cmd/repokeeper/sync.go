@@ -243,14 +243,15 @@ func init() {
 // MCP consumers parse the same fields. Adding a field is non-breaking; renaming
 // or removing one, or changing a value's meaning, is a contract break.
 type syncResultJSON struct {
-	RepoID     string `json:"repo_id"`
-	Path       string `json:"path"`
-	Action     string `json:"action"`
-	Outcome    string `json:"outcome"`
-	OK         bool   `json:"ok"`
-	Planned    bool   `json:"planned,omitempty"`
-	Error      string `json:"error,omitempty"`
-	SkipReason string `json:"skip_reason,omitempty"`
+	RepoID             string                        `json:"repo_id"`
+	Path               string                        `json:"path"`
+	Action             string                        `json:"action"`
+	Outcome            string                        `json:"outcome"`
+	OK                 bool                          `json:"ok"`
+	Planned            bool                          `json:"planned,omitempty"`
+	Error              string                        `json:"error,omitempty"`
+	SkipReason         string                        `json:"skip_reason,omitempty"`
+	RemoteTrackingRefs model.RemoteTrackingRefStatus `json:"remote_tracking_refs"`
 }
 
 func toSyncResultJSON(res engine.SyncResult) syncResultJSON {
@@ -269,14 +270,15 @@ func toSyncResultJSON(res engine.SyncResult) syncResultJSON {
 	}
 
 	return syncResultJSON{
-		RepoID:     res.RepoID,
-		Path:       res.Path,
-		Action:     res.Action,
-		Outcome:    string(res.Outcome),
-		OK:         res.OK,
-		Planned:    planned,
-		Error:      errText,
-		SkipReason: res.SkipReason,
+		RepoID:             res.RepoID,
+		Path:               res.Path,
+		Action:             res.Action,
+		Outcome:            string(res.Outcome),
+		OK:                 res.OK,
+		Planned:            planned,
+		Error:              errText,
+		SkipReason:         res.SkipReason,
+		RemoteTrackingRefs: res.RemoteTrackingRefs,
 	}
 }
 
@@ -556,7 +558,7 @@ func syncTableModeFor(cmd *cobra.Command, wide bool) syncTableMode {
 }
 
 func syncTableHeaders(mode syncTableMode, wide bool) string {
-	headers := "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tOK\tERROR_CLASS\tERROR\tREPO"
+	headers := "PATH\tACTION\tBRANCH\tDIRTY\tTRACKING\tSTALE_REFS\tOK\tERROR_CLASS\tERROR\tREPO"
 	if mode == syncTableModeCompact {
 		headers = "PATH\tACTION\tOK\tERROR\tREPO"
 	}
@@ -646,12 +648,13 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 				continue
 			default:
 			}
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 				path,
 				action,
 				branch,
 				dirty,
 				tracking,
+				remoteTrackingRefCountDisplay(res.RemoteTrackingRefs),
 				ok,
 				res.ErrorClass,
 				formatCell(res.Error, wrap, 36),
@@ -675,12 +678,13 @@ func writeSyncTable(cmd *cobra.Command, results []engine.SyncResult, report *mod
 			primaryRemote = repo.PrimaryRemote
 			upstream = repo.Tracking.Upstream
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			path,
 			action,
 			branch,
 			dirty,
 			tracking,
+			remoteTrackingRefCountDisplay(res.RemoteTrackingRefs),
 			ok,
 			res.ErrorClass,
 			formatCell(res.Error, wrap, 36),

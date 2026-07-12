@@ -8,6 +8,27 @@ import (
 	"github.com/skaphos/repokeeper/internal/model"
 )
 
+const wouldPrunePrefix = "* [would prune] "
+
+// ParseRemotePruneDryRun extracts the ref names from git remote prune
+// --dry-run output. Header lines such as "Pruning origin" and "URL:" are
+// intentionally ignored.
+func ParseRemotePruneDryRun(output string) []string {
+	var refs []string
+	for line := range strings.SplitSeq(output, "\n") {
+		line = strings.TrimSpace(line)
+		ref, ok := strings.CutPrefix(line, wouldPrunePrefix)
+		if !ok {
+			continue
+		}
+		ref = strings.TrimSpace(ref)
+		if ref != "" {
+			refs = append(refs, ref)
+		}
+	}
+	return refs
+}
+
 // ParsePorcelainStatus parses the output of `git status --porcelain=v1`
 // into a Worktree struct.
 func ParsePorcelainStatus(output string) *model.Worktree {

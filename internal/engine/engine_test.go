@@ -70,6 +70,7 @@ var _ = Describe("Engine", func() {
 			"/repo:rev-parse --is-bare-repository":    {out: "false"},
 			"/repo:remote":                            {out: "origin"},
 			"/repo:remote get-url origin":             {out: "git@github.com:org/repo.git"},
+			"/repo:remote prune --dry-run -- origin":  {out: "Pruning origin\n * [would prune] origin/merged"},
 			"/repo:symbolic-ref --quiet --short HEAD": {out: "main"},
 			"/repo:status --porcelain=v1":             {out: "M  file.go\n"},
 			"/repo:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
@@ -84,6 +85,48 @@ var _ = Describe("Engine", func() {
 		Expect(status.RepoID).To(Equal("github.com/org/repo"))
 		Expect(status.Worktree).NotTo(BeNil())
 		Expect(status.Worktree.Dirty).To(BeTrue())
+		Expect(status.RemoteTrackingRefs.StaleCount).To(Equal(1))
+		Expect(status.RemoteTrackingRefs.Stale).To(Equal([]string{"origin/merged"}))
+	})
+
+	It("includes stale remote-tracking refs in a dry-run sync plan", func() {
+		runner := &mockRunner{responses: map[string]mockResponse{
+			"/repo1:remote":                           {out: "origin"},
+			"/repo1:remote get-url origin":            {out: "git@github.com:org/repo1.git"},
+			"/repo1:remote prune --dry-run -- origin": {out: "Pruning origin\n * [would prune] origin/merged"},
+		}}
+		reg := &registry.Registry{Entries: []registry.Entry{{
+			RepoID: "repo1", Path: "/repo1", RemoteURL: "git@github.com:org/repo1.git", Status: registry.StatusPresent,
+		}}}
+		eng := engine.New(&config.Config{Defaults: config.Defaults{TimeoutSeconds: 1, Concurrency: 1}}, reg, vcs.NewGitAdapter(runner), nil, nil, nil)
+
+		results, err := eng.Sync(context.Background(), engine.SyncOptions{DryRun: true, Concurrency: 1, Timeout: 1})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+		Expect(results[0].RemoteTrackingRefs.StaleCount).To(Equal(1))
+		Expect(results[0].RemoteTrackingRefs.Stale).To(Equal([]string{"origin/merged"}))
+	})
+
+	It("keeps inspection usable when a remote cannot be queried", func() {
+		runner := &mockRunner{responses: map[string]mockResponse{
+			"/repo:rev-parse --is-bare-repository":    {out: "false"},
+			"/repo:remote":                            {out: "origin"},
+			"/repo:remote get-url origin":             {out: "git@github.com:org/repo.git"},
+			"/repo:remote prune --dry-run -- origin":  {err: errors.New("network unavailable")},
+			"/repo:symbolic-ref --quiet --short HEAD": {out: "main"},
+			"/repo:status --porcelain=v1":             {out: ""},
+			"/repo:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {
+				out: "main|origin/main||=",
+			},
+			"/repo:rev-list --left-right --count main...origin/main": {out: "0\t0"},
+			"/repo:config --file .gitmodules --get-regexp submodule": {err: errors.New("none")},
+		}}
+		eng := engine.New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(runner), nil, nil, nil)
+
+		status, err := eng.InspectRepo(context.Background(), "/repo")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(status.RemoteTrackingRefs.StaleCount).To(BeZero())
+		Expect(status.RemoteTrackingRefs.InspectionError).To(ContainSubstring("network unavailable"))
 	})
 
 	It("syncs repositories with dry-run", func() {

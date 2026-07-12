@@ -316,7 +316,7 @@ func TestStatusJSONOutputFlagsGoneRepairSuggestion(t *testing.T) {
 	report := &model.StatusReport{
 		GeneratedAt: time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC),
 		Repos: []model.RepoStatus{
-			{RepoID: "github.com/org/gone", Path: "/repos/gone", Tracking: model.Tracking{Status: model.TrackingGone}},
+			{RepoID: "github.com/org/gone", Path: "/repos/gone", Tracking: model.Tracking{Status: model.TrackingGone}, RemoteTrackingRefs: model.RemoteTrackingRefStatus{StaleCount: 1, Stale: []string{"origin/merged"}}},
 			{RepoID: "github.com/org/clean", Path: "/repos/clean", Tracking: model.Tracking{Status: model.TrackingEqual}},
 		},
 	}
@@ -327,8 +327,9 @@ func TestStatusJSONOutputFlagsGoneRepairSuggestion(t *testing.T) {
 	}
 	var doc struct {
 		Repos []struct {
-			RepoID                   string `json:"repo_id"`
-			RepairUpstreamSuggestion bool   `json:"repair_upstream_suggestion"`
+			RepoID                   string                        `json:"repo_id"`
+			RepairUpstreamSuggestion bool                          `json:"repair_upstream_suggestion"`
+			RemoteTrackingRefs       model.RemoteTrackingRefStatus `json:"remote_tracking_refs"`
 		} `json:"repos"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -339,6 +340,9 @@ func TestStatusJSONOutputFlagsGoneRepairSuggestion(t *testing.T) {
 	}
 	if !doc.Repos[0].RepairUpstreamSuggestion {
 		t.Fatalf("expected gone repo to carry repair_upstream_suggestion: %s", raw)
+	}
+	if doc.Repos[0].RemoteTrackingRefs.StaleCount != 1 || len(doc.Repos[0].RemoteTrackingRefs.Stale) != 1 {
+		t.Fatalf("expected machine-readable stale ref status: %s", raw)
 	}
 	if doc.Repos[1].RepairUpstreamSuggestion {
 		t.Fatalf("did not expect clean repo to carry repair_upstream_suggestion: %s", raw)

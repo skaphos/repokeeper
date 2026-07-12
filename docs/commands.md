@@ -35,6 +35,7 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 - Supports `--only`, `--field-selector`, and label selector `-l, --selector`.
 - Label selector supports `key` and `key=value`, comma-separated AND.
 - Use `-o wide` for additional `PRIMARY_REMOTE`, `UPSTREAM`, `AHEAD`, `BEHIND`, and `ERROR_CLASS`.
+- Table output includes `STALE_REFS`, the number of remote-tracking refs a prune would remove. JSON and `describe` include the ref names and any non-fatal remote inspection error.
 - JSON output includes repo-local metadata when `.repokeeper-repo.yaml` or `repokeeper.yaml` is present.
 
 ### `repokeeper describe`
@@ -71,6 +72,7 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 ### `repokeeper reconcile`
 
 - Shows a preflight plan before execution.
+- Dry-run plans include stale remote-tracking ref count/list data for the fetch/prune step.
 - Sync is fetch/prune-first; `--update-local` is the explicit path for local branch update behavior.
 - Prompts only when mutating actions are planned (rebase/stash/checkout-missing clone), unless `--yes`.
 - Supports `--checkout-missing` to clone entries marked missing.

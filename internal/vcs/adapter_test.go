@@ -39,6 +39,7 @@ func TestGitAdapterMethods(t *testing.T) {
 		"/repo:rev-parse --is-bare-repository":    {out: "false"},
 		"/repo:remote":                            {out: "origin"},
 		"/repo:remote get-url origin":             {out: "git@github.com:Org/Repo.git"},
+		"/repo:remote prune --dry-run -- origin":  {out: "Pruning origin\n * [would prune] origin/merged"},
 		"/repo:symbolic-ref --quiet --short HEAD": {out: "main"},
 		"/repo:status --porcelain=v1":             {out: "M  file.go"},
 		"/repo:for-each-ref --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(upstream:trackshort) refs/heads": {out: "main|origin/main||="},
@@ -74,6 +75,9 @@ func TestGitAdapterMethods(t *testing.T) {
 	}
 	if tr, err := a.TrackingStatus(context.Background(), "/repo"); err != nil || tr.Status == "" {
 		t.Fatalf("unexpected tracking: %v %#v", err, tr)
+	}
+	if refs, err := a.StaleRemoteTrackingRefs(context.Background(), "/repo", []string{"origin"}); err != nil || len(refs) != 1 || refs[0] != "origin/merged" {
+		t.Fatalf("unexpected stale refs: %v %#v", err, refs)
 	}
 	if has, err := a.HasSubmodules(context.Background(), "/repo"); err != nil || !has {
 		t.Fatalf("unexpected submodules: %v %v", err, has)

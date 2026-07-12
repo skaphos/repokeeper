@@ -118,6 +118,7 @@ CLI and TUI remain the preferred operator interfaces for execution-heavy workflo
 Argument notes:
 
 - `plan_sync` remains side-effect-free even when it previews local update candidates.
+- `plan_sync` entries include `remote_tracking_refs` with `stale_count`, the stale ref list, and a non-fatal `inspection_error` when a remote cannot be queried.
 - `scan_workspace.roots` is a string array of absolute or otherwise valid filesystem roots.
 - If `scan_workspace.roots` is omitted, RepoKeeper falls back to the effective workspace root resolved from the active config path.
 - `set_labels.set` is an object whose values must be strings.

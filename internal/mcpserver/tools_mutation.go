@@ -11,6 +11,7 @@ import (
 
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/model"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 )
 
@@ -112,12 +113,13 @@ func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolReq
 // --- plan_sync ---
 
 type syncPlanEntry struct {
-	RepoID     string `json:"repo_id"`
-	Path       string `json:"path"`
-	Action     string `json:"action"`
-	Outcome    string `json:"outcome"`
-	Planned    bool   `json:"planned"`
-	SkipReason string `json:"skip_reason,omitempty"`
+	RepoID             string                        `json:"repo_id"`
+	Path               string                        `json:"path"`
+	Action             string                        `json:"action"`
+	Outcome            string                        `json:"outcome"`
+	Planned            bool                          `json:"planned"`
+	SkipReason         string                        `json:"skip_reason,omitempty"`
+	RemoteTrackingRefs model.RemoteTrackingRefStatus `json:"remote_tracking_refs"`
 }
 
 func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -135,12 +137,13 @@ func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest)
 	entries := make([]syncPlanEntry, 0, len(results))
 	for _, r := range results {
 		entries = append(entries, syncPlanEntry{
-			RepoID:     r.RepoID,
-			Path:       r.Path,
-			Action:     r.Action,
-			Outcome:    string(r.Outcome),
-			Planned:    true,
-			SkipReason: r.SkipReason,
+			RepoID:             r.RepoID,
+			Path:               r.Path,
+			Action:             r.Action,
+			Outcome:            string(r.Outcome),
+			Planned:            true,
+			SkipReason:         r.SkipReason,
+			RemoteTrackingRefs: r.RemoteTrackingRefs,
 		})
 	}
 
@@ -150,13 +153,14 @@ func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest)
 // --- execute_sync ---
 
 type syncResultEntry struct {
-	RepoID     string `json:"repo_id"`
-	Path       string `json:"path"`
-	Action     string `json:"action"`
-	Outcome    string `json:"outcome"`
-	OK         bool   `json:"ok"`
-	Error      string `json:"error,omitempty"`
-	SkipReason string `json:"skip_reason,omitempty"`
+	RepoID             string                        `json:"repo_id"`
+	Path               string                        `json:"path"`
+	Action             string                        `json:"action"`
+	Outcome            string                        `json:"outcome"`
+	OK                 bool                          `json:"ok"`
+	Error              string                        `json:"error,omitempty"`
+	SkipReason         string                        `json:"skip_reason,omitempty"`
+	RemoteTrackingRefs model.RemoteTrackingRefStatus `json:"remote_tracking_refs"`
 }
 
 func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -191,13 +195,14 @@ func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolReque
 	entries := make([]syncResultEntry, 0, len(results))
 	for _, r := range results {
 		entries = append(entries, syncResultEntry{
-			RepoID:     r.RepoID,
-			Path:       r.Path,
-			Action:     r.Action,
-			Outcome:    string(r.Outcome),
-			OK:         r.OK,
-			Error:      r.Error,
-			SkipReason: r.SkipReason,
+			RepoID:             r.RepoID,
+			Path:               r.Path,
+			Action:             r.Action,
+			Outcome:            string(r.Outcome),
+			OK:                 r.OK,
+			Error:              r.Error,
+			SkipReason:         r.SkipReason,
+			RemoteTrackingRefs: r.RemoteTrackingRefs,
 		})
 	}
 

@@ -461,6 +461,8 @@ type SyncResult struct {
 	Planned bool
 	// SkipReason carries typed skip rationale for outcomes that intentionally skip work.
 	SkipReason string
+	// RemoteTrackingRefs describes refs that the planned fetch would prune.
+	RemoteTrackingRefs model.RemoteTrackingRefStatus
 	// steps is the ordered list of typed VCS operations an executor performs for
 	// this planned item. Execution dispatches on these steps rather than parsing
 	// the human-readable Action string, so non-git backends and skip-with-fetch
@@ -1101,13 +1103,21 @@ func (e *Engine) runSyncEntry(ctx context.Context, entry registry.Entry, opts Sy
 
 func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts SyncOptions) SyncResult {
 	fetchAction := syncFetchAction(ctx, e.adapter, entry.Path)
+	remoteTrackingRefs := model.RemoteTrackingRefStatus{}
+	if !opts.UpdateLocal {
+		remoteTrackingRefs = e.inspectRemoteTrackingRefs(ctx, entry.Path, nil)
+	}
+	withRemoteTrackingRefs := func(result SyncResult) SyncResult {
+		result.RemoteTrackingRefs = remoteTrackingRefs
+		return result
+	}
 
 	// skippedLocalUpdate builds a plan that still fetches but intentionally skips
 	// the local update. The fetch step is retained (and Planned=true) so that
 	// --update-local never fetches fewer repos than a plain sync, while the
 	// reported outcome preserves the typed skip reason.
 	skippedLocalUpdate := func(reason string) SyncResult {
-		return SyncResult{
+		return withRemoteTrackingRefs(SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
 			Outcome:    SyncOutcomeSkippedLocalUpdate,
@@ -1118,11 +1128,11 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 			SkipReason: reason,
 			Planned:    true,
 			steps:      []syncStep{syncStepFetch},
-		}
+		})
 	}
 
 	if !opts.UpdateLocal {
-		return SyncResult{
+		return withRemoteTrackingRefs(SyncResult{
 			RepoID:  entry.RepoID,
 			Path:    entry.Path,
 			Outcome: SyncOutcomePlannedFetch,
@@ -1131,7 +1141,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 			Action:  fetchAction,
 			Planned: true,
 			steps:   []syncStep{syncStepFetch},
-		}
+		})
 	}
 
 	supported, reason, err := supportsLocalUpdate(ctx, e.adapter, entry.Path)
@@ -1147,8 +1157,9 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 	if err != nil {
 		return inspectFailureResult(entry, err, e.classifier)
 	}
+	remoteTrackingRefs = status.RemoteTrackingRefs
 	if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
-		return SyncResult{
+		return withRemoteTrackingRefs(SyncResult{
 			RepoID:  entry.RepoID,
 			Path:    entry.Path,
 			Outcome: SyncOutcomePlannedPush,
@@ -1157,7 +1168,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 			Action:  fetchAction + " && git push",
 			Planned: true,
 			steps:   []syncStep{syncStepFetch, syncStepPush},
-		}
+		})
 	}
 	if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
 		RebaseDirty:          opts.RebaseDirty,
@@ -1185,7 +1196,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 		steps = append(steps, syncStepStashPop)
 		action += " && git stash pop"
 	}
-	return SyncResult{
+	return withRemoteTrackingRefs(SyncResult{
 		RepoID:  entry.RepoID,
 		Path:    entry.Path,
 		Outcome: SyncOutcomePlannedFetch,
@@ -1194,7 +1205,7 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 		Action:  action,
 		Planned: true,
 		steps:   steps,
-	}
+	})
 }
 
 func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts SyncOptions) SyncResult {
@@ -1446,6 +1457,7 @@ func (e *Engine) inspectRepoCore(ctx context.Context, path string) (*model.RepoS
 	for _, r := range remotes {
 		remoteNames = append(remoteNames, r.Name)
 	}
+	remoteTrackingRefs := e.inspectRemoteTrackingRefs(ctx, path, remoteNames)
 	primary := e.adapter.PrimaryRemote(remoteNames)
 	var remoteURL string
 	for _, r := range remotes {
@@ -1483,17 +1495,43 @@ func (e *Engine) inspectRepoCore(ctx context.Context, path string) (*model.RepoS
 	}
 
 	status := &model.RepoStatus{
-		RepoID:        repoID,
-		Path:          path,
-		Bare:          bare,
-		Remotes:       remotes,
-		PrimaryRemote: primary,
-		Head:          head,
-		Worktree:      worktree,
-		Tracking:      tracking,
-		Submodules:    model.Submodules{HasSubmodules: hasSubmodules},
+		RepoID:             repoID,
+		Path:               path,
+		Bare:               bare,
+		Remotes:            remotes,
+		PrimaryRemote:      primary,
+		Head:               head,
+		Worktree:           worktree,
+		Tracking:           tracking,
+		Submodules:         model.Submodules{HasSubmodules: hasSubmodules},
+		RemoteTrackingRefs: remoteTrackingRefs,
 	}
 	return status, nil
+}
+
+func (e *Engine) inspectRemoteTrackingRefs(ctx context.Context, path string, remoteNames []string) model.RemoteTrackingRefStatus {
+	inspector, ok := e.adapter.(vcs.RemoteTrackingRefInspector)
+	if !ok {
+		return model.RemoteTrackingRefStatus{}
+	}
+	if remoteNames == nil {
+		remotes, err := e.adapter.Remotes(ctx, path)
+		if err != nil {
+			return model.RemoteTrackingRefStatus{InspectionError: err.Error()}
+		}
+		remoteNames = make([]string, 0, len(remotes))
+		for _, remote := range remotes {
+			remoteNames = append(remoteNames, remote.Name)
+		}
+	}
+	refs, err := inspector.StaleRemoteTrackingRefs(ctx, path, remoteNames)
+	if err != nil {
+		if e.logger != nil {
+			e.logger.Warnf("stale remote-tracking ref inspection failed for %s: %v", path, err)
+		}
+		return model.RemoteTrackingRefStatus{InspectionError: err.Error()}
+	}
+	return model.RemoteTrackingRefStatus{StaleCount: len(refs), Stale: refs}
 }
 
 func (e *Engine) upsertRegistryEntry(entry registry.Entry) {

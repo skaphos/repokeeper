@@ -1013,7 +1013,7 @@ var _ = Describe("MCPServer", func() {
 	Describe("plan_sync", func() {
 		BeforeEach(func() {
 			eng.syncResult = []engine.SyncResult{
-				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
+				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true, RemoteTrackingRefs: model.RemoteTrackingRefStatus{StaleCount: 1, Stale: []string{"origin/merged"}}},
 			}
 		})
 
@@ -1031,6 +1031,8 @@ var _ = Describe("MCPServer", func() {
 			Expect(entries).To(HaveLen(1))
 			Expect(entries[0]["planned"]).To(BeTrue())
 			Expect(entries[0]["repo_id"]).To(Equal("github.com/example/alpha"))
+			refs := entries[0]["remote_tracking_refs"].(map[string]any)
+			Expect(refs["stale_count"]).To(BeNumerically("==", 1))
 		})
 
 		It("returns empty wrapped plan when there are no sync actions", func() {

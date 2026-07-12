@@ -11,6 +11,7 @@ RepoKeeper inventories your repositories, reports drift and broken tracking, and
 - **Sync** safely with fetch/prune-first behavior; optional `--update-local` uses `pull --rebase` under explicit conditions
 - **Registry** is stored in `.repokeeper.yaml` with staleness detection
 - **Repo-local metadata** can be read from `.repokeeper-repo.yaml` or `repokeeper.yaml` and surfaced in JSON, describe output, and the TUI detail view
+- **Remote-ref hygiene** reports stale remote-tracking refs in status, sync plans, JSON/MCP output, and the TUI without pruning them during inspection
 - **CLI-first** with tabular (`table`/`wide`) and JSON output formats
 - **Cross-platform** — macOS, Windows, Linux (incl. WSL)
 

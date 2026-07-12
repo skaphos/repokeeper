@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/internal/model"
 )
 
 // These specs lock the stable `reconcile` / `sync -o json` contract (SKA-207):
@@ -88,6 +89,24 @@ var _ = Describe("sync -o json result shape", func() {
 		Expect(obj).To(HaveKeyWithValue("planned", true))
 		Expect(obj).To(HaveKeyWithValue("outcome", "planned_fetch"))
 		Expect(obj).NotTo(HaveKey("error"))
+	})
+
+	It("includes machine-readable stale remote-tracking refs", func() {
+		obj := marshalOne(engine.SyncResult{
+			RepoID:  "github.com/org/repo",
+			Path:    "/work/org/repo",
+			Outcome: engine.SyncOutcomePlannedFetch,
+			OK:      true,
+			RemoteTrackingRefs: model.RemoteTrackingRefStatus{
+				StaleCount: 2,
+				Stale:      []string{"origin/one", "origin/two"},
+			},
+		})
+
+		refs, ok := obj["remote_tracking_refs"].(map[string]any)
+		Expect(ok).To(BeTrue())
+		Expect(refs).To(HaveKeyWithValue("stale_count", BeNumerically("==", 2)))
+		Expect(refs["stale"]).To(ConsistOf("origin/one", "origin/two"))
 	})
 
 	It("does not report executed results as planned", func() {

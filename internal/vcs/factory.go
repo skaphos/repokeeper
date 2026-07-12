@@ -121,6 +121,20 @@ func (m *MultiAdapter) TrackingStatus(ctx context.Context, dir string) (model.Tr
 	return adapter.TrackingStatus(ctx, dir)
 }
 
+// StaleRemoteTrackingRefs delegates the optional ref-inspection capability to
+// the backend selected for dir. Unsupported backends report no stale refs.
+func (m *MultiAdapter) StaleRemoteTrackingRefs(ctx context.Context, dir string, remoteNames []string) ([]string, error) {
+	adapter, err := m.adapterForPath(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	inspector, ok := adapter.(RemoteTrackingRefInspector)
+	if !ok {
+		return nil, nil
+	}
+	return inspector.StaleRemoteTrackingRefs(ctx, dir, remoteNames)
+}
+
 func (m *MultiAdapter) HasSubmodules(ctx context.Context, dir string) (bool, error) {
 	adapter, err := m.adapterForPath(ctx, dir)
 	if err != nil {

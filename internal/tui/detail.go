@@ -45,6 +45,19 @@ func renderDetailView(m tuiModel) string {
 		b.WriteByte('\n')
 	}
 
+	if r.RemoteTrackingRefs.StaleCount > 0 || r.RemoteTrackingRefs.InspectionError != "" {
+		b.WriteString(headerStyle.Render("Remote-tracking refs"))
+		b.WriteByte('\n')
+		fmt.Fprintf(&b, "  Stale: %d\n", r.RemoteTrackingRefs.StaleCount)
+		for _, ref := range r.RemoteTrackingRefs.Stale {
+			fmt.Fprintf(&b, "  - %s\n", sanitizeMetadataText(ref))
+		}
+		if r.RemoteTrackingRefs.InspectionError != "" {
+			fmt.Fprintf(&b, "  Error: %s\n", sanitizeMetadataText(r.RemoteTrackingRefs.InspectionError))
+		}
+		b.WriteByte('\n')
+	}
+
 	if len(r.Labels) > 0 {
 		b.WriteString(headerStyle.Render("Local Labels"))
 		b.WriteByte('\n')

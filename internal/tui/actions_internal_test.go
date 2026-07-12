@@ -1139,17 +1139,18 @@ func TestViewsAndRendering(t *testing.T) {
 	t.Parallel()
 
 	baseRepo := model.RepoStatus{
-		RepoID:           "acme/backend",
-		Path:             "/work/backend",
-		Type:             "checkout",
-		PrimaryRemote:    "origin",
-		Head:             model.Head{Branch: "main"},
-		Tracking:         model.Tracking{Status: model.TrackingEqual, Upstream: "origin/main"},
-		Worktree:         &model.Worktree{Dirty: true, Staged: 1, Unstaged: 2, Untracked: 3},
-		Remotes:          []model.Remote{{Name: "origin", URL: "git@github.com:acme/backend.git"}},
-		Labels:           map[string]string{"team": "platform", "tier": "backend"},
-		Annotations:      map[string]string{"owner": "devx", "runbook": "docs/runbook.md"},
-		RepoMetadataFile: "/work/backend/.repokeeper-repo.yaml",
+		RepoID:             "acme/backend",
+		Path:               "/work/backend",
+		Type:               "checkout",
+		PrimaryRemote:      "origin",
+		Head:               model.Head{Branch: "main"},
+		Tracking:           model.Tracking{Status: model.TrackingEqual, Upstream: "origin/main"},
+		Worktree:           &model.Worktree{Dirty: true, Staged: 1, Unstaged: 2, Untracked: 3},
+		Remotes:            []model.Remote{{Name: "origin", URL: "git@github.com:acme/backend.git"}},
+		RemoteTrackingRefs: model.RemoteTrackingRefStatus{StaleCount: 1, Stale: []string{"origin/merged"}},
+		Labels:             map[string]string{"team": "platform", "tier": "backend"},
+		Annotations:        map[string]string{"owner": "devx", "runbook": "docs/runbook.md"},
+		RepoMetadataFile:   "/work/backend/.repokeeper-repo.yaml",
 		RepoMetadata: &model.RepoMetadata{
 			Name:        "Backend",
 			Labels:      map[string]string{"domain": "platform", "role": "service"},
@@ -1165,7 +1166,7 @@ func TestViewsAndRendering(t *testing.T) {
 	}
 
 	detail := renderDetailView(tuiModel{repos: []model.RepoStatus{baseRepo}, cursor: 0, width: 100})
-	for _, want := range []string{"Repository: acme/backend", "Path:", "/work/backend", "Remotes", "Labels", "Annotations", "Repo Metadata", "README.md", "api", "Last Sync", "Error:"} {
+	for _, want := range []string{"Repository: acme/backend", "Path:", "/work/backend", "Remotes", "Remote-tracking refs", "origin/merged", "Labels", "Annotations", "Repo Metadata", "README.md", "api", "Last Sync", "Error:"} {
 		if !strings.Contains(detail, want) {
 			t.Fatalf("detail view missing %q", want)
 		}
