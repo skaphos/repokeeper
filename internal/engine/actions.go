@@ -115,6 +115,11 @@ func safeRemoveAll(path string) error {
 }
 
 func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cfgPath string, mirror bool) error {
+	// Trim once up front and reuse: clone, normalization, and the stored entry
+	// must all see the same URL, or a whitespace-padded input (e.g. from the
+	// TUI/MCP server) could clone/normalize one value while the registry records
+	// another.
+	remoteURL = strings.TrimSpace(remoteURL)
 	if err := e.adapter.Clone(ctx, remoteURL, targetPath, "", mirror); err != nil {
 		return fmt.Errorf("git clone: %w", err)
 	}
@@ -130,11 +135,12 @@ func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cf
 	}
 
 	entry := registry.Entry{
-		RepoID:   repoID,
-		Path:     targetPath,
-		Type:     repoType,
-		Status:   registry.StatusPresent,
-		LastSeen: time.Now(),
+		RepoID:    repoID,
+		Path:      targetPath,
+		Type:      repoType,
+		RemoteURL: remoteURL,
+		Status:    registry.StatusPresent,
+		LastSeen:  time.Now(),
 	}
 	if !mirror {
 		entry.Branch = repoDefaultBranch(ctx, e.adapter, targetPath)

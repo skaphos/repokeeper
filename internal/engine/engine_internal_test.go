@@ -439,7 +439,7 @@ func TestEngineGuardErrors(t *testing.T) {
 	if _, err := eng.Status(context.Background(), StatusOptions{}); err == nil {
 		t.Fatal("expected status registry not loaded error")
 	}
-	if _, err := eng.ExecuteSyncPlan(context.Background(), nil, SyncOptions{}); err == nil {
+	if _, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), nil, SyncOptions{}, nil, nil); err == nil {
 		t.Fatal("expected execute sync plan registry not loaded error")
 	}
 }
@@ -464,8 +464,9 @@ func TestExecuteSyncPlanAppliesActions(t *testing.T) {
 		Outcome: "planned_fetch",
 		Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules && git stash push -u -m \"repokeeper: pre-rebase stash\" && git pull --rebase --no-recurse-submodules && git stash pop && git push",
 		Planned: true,
+		steps:   []syncStep{syncStepFetch, syncStepStashPush, syncStepPullRebase, syncStepStashPop, syncStepPush},
 	}}
-	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
+	results, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), plan, SyncOptions{ContinueOnError: true}, nil, nil)
 	if err != nil {
 		t.Fatalf("execute sync plan failed: %v", err)
 	}
@@ -485,10 +486,10 @@ func TestExecuteSyncPlanStopsOnFailure(t *testing.T) {
 	}}, vcs.NewGitAdapter(runner), nil, nil, nil)
 
 	plan := []SyncResult{
-		{RepoID: "repo1", Path: "/repo1", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
-		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
+		{RepoID: "repo1", Path: "/repo1", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true, steps: []syncStep{syncStepFetch}},
+		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true, steps: []syncStep{syncStepFetch}},
 	}
-	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
+	results, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), plan, SyncOptions{ContinueOnError: false}, nil, nil)
 	if err != nil {
 		t.Fatalf("execute sync plan failed: %v", err)
 	}
@@ -504,9 +505,9 @@ func TestExecuteSyncPlanStopsOnNonDryRunFailure(t *testing.T) {
 	eng := New(&config.Config{}, &registry.Registry{}, vcs.NewGitAdapter(nil), nil, nil, nil)
 	plan := []SyncResult{
 		{RepoID: "repo1", Path: "/repo1", OK: false, Error: "boom", Outcome: "failed_fetch"},
-		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true},
+		{RepoID: "repo2", Path: "/repo2", OK: true, Error: SyncErrorDryRun, Outcome: "planned_fetch", Action: "git fetch --all --prune --prune-tags --no-recurse-submodules", Planned: true, steps: []syncStep{syncStepFetch}},
 	}
-	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: false})
+	results, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), plan, SyncOptions{ContinueOnError: false}, nil, nil)
 	if err != nil {
 		t.Fatalf("execute sync plan failed: %v", err)
 	}
@@ -538,8 +539,9 @@ func TestExecuteSyncPlanCloneAction(t *testing.T) {
 		Outcome: "planned_checkout_missing",
 		Action:  "git clone --branch main --single-branch git@github.com:org/missing.git /missing",
 		Planned: true,
+		steps:   []syncStep{syncStepClone},
 	}}
-	results, err := eng.ExecuteSyncPlan(context.Background(), plan, SyncOptions{ContinueOnError: true})
+	results, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), plan, SyncOptions{ContinueOnError: true}, nil, nil)
 	if err != nil {
 		t.Fatalf("execute clone plan failed: %v", err)
 	}
@@ -567,10 +569,11 @@ func TestExecuteSyncPlanWithCallbackInvokesPerResult(t *testing.T) {
 		Outcome: SyncOutcomePlannedFetch,
 		Action:  "git fetch --all --prune --prune-tags --no-recurse-submodules",
 		Planned: true,
+		steps:   []syncStep{syncStepFetch},
 	}}
 
 	seen := 0
-	results, err := eng.ExecuteSyncPlanWithCallback(context.Background(), plan, SyncOptions{ContinueOnError: true}, func(res SyncResult) {
+	results, err := eng.ExecuteSyncPlanWithCallbacks(context.Background(), plan, SyncOptions{ContinueOnError: true}, nil, func(res SyncResult) {
 		seen++
 		if res.Path != "/repo" {
 			t.Fatalf("unexpected callback result path: %q", res.Path)
@@ -594,8 +597,8 @@ func TestFilterAndLookupEdgeBranches(t *testing.T) {
 	if filterStatus(FilterRemoteMismatch, model.RepoStatus{RepoID: "r1"}, nil) {
 		t.Fatal("expected remote mismatch false without registry")
 	}
-	if !filterStatus(FilterKind("unknown"), model.RepoStatus{}, nil) {
-		t.Fatal("expected unknown filter default true")
+	if filterStatus(FilterKind("unknown"), model.RepoStatus{}, nil) {
+		t.Fatal("expected unknown filter to fail closed (match nothing)")
 	}
 
 	if findRegistryEntryForStatus(nil, model.RepoStatus{}) != nil {
