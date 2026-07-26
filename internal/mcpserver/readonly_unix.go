@@ -9,14 +9,14 @@ import (
 	"syscall"
 )
 
-// isReadOnlyFS reports whether err was caused by writing to a read-only
+// isReadOnlyErrno reports whether err was caused by writing to a read-only
 // filesystem.
 //
-// EROFS is matched structurally rather than by string. internal/gitx already
-// forces LC_ALL=C on every git invocation precisely because it string-matches
-// stderr, and that comment is the standing argument against adding another
-// locale-sensitive check: errors.Is is stable across locales, git versions and
-// wrapping.
-func isReadOnlyFS(err error) bool {
+// This covers the direct-write path only -- the registry writers, which fail
+// with a real errno. It cannot see a git subprocess failure: git reports
+// through *exec.ExitError and stderr text, so EROFS never appears in the error
+// chain. That case is handled by the text match in readonly.go, which is safe
+// because GitRunner.Run pins the locale.
+func isReadOnlyErrno(err error) bool {
 	return errors.Is(err, syscall.EROFS)
 }

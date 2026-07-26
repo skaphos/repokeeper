@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // serverJSON is the checked-in MCP registry entry. These tests guard against it
@@ -195,12 +196,18 @@ func TestServerJSONDescriptionSignalsWriteSurface(t *testing.T) {
 // TestServerJSONDescriptionWithinSchemaLimit guards the constraint that is
 // easiest to trip when editing prose: the registry schema caps the description
 // at 100 characters, and exceeding it fails at publish time rather than here.
+//
+// Counted in runes, not bytes. JSON Schema defines maxLength over Unicode code
+// points, so len() would reject a description the registry accepts as soon as
+// it contains any non-ASCII character -- an em dash is three bytes and one
+// code point. The current text is ASCII, which is exactly why a byte count
+// would pass unnoticed until someone edited it.
 func TestServerJSONDescriptionWithinSchemaLimit(t *testing.T) {
 	doc := loadServerJSON(t)
 
 	const maxLen = 100
-	if n := len(doc.Description); n > maxLen {
-		t.Errorf("description is %d characters; the MCP registry schema allows %d", n, maxLen)
+	if n := utf8.RuneCountInString(doc.Description); n > maxLen {
+		t.Errorf("description is %d code points; the MCP registry schema allows %d", n, maxLen)
 	}
 	if doc.Description == "" {
 		t.Error("description is required and must not be empty")
@@ -271,5 +278,26 @@ func TestServerJSONDeclaresTheContainerWorkspaceContract(t *testing.T) {
 	// silently drops the image's CMD and starts the wrong thing.
 	if _, ok := findArgument(pkg.PackageArguments, "mcp"); !ok {
 		t.Error("the mcp subcommand is not declared in packageArguments; a client supplying arguments would override CMD")
+	}
+}
+
+// TestDescriptionLimitCountsCodePoints proves the limit check measures what the
+// schema measures. A byte count silently rejects valid non-ASCII descriptions,
+// and the current all-ASCII text would never have surfaced the difference.
+func TestDescriptionLimitCountsCodePoints(t *testing.T) {
+	t.Parallel()
+
+	// 100 code points, 300 bytes: valid per schema, rejected by len().
+	valid := strings.Repeat("é", 100)
+
+	if utf8.RuneCountInString(valid) != 100 {
+		t.Fatalf("fixture is not 100 code points: %d", utf8.RuneCountInString(valid))
+	}
+	if len(valid) <= 100 {
+		t.Fatalf("fixture does not exceed 100 bytes: %d", len(valid))
+	}
+	// The assertion the real test makes must accept this input.
+	if utf8.RuneCountInString(valid) > 100 {
+		t.Errorf("a schema-valid 100-code-point description was rejected")
 	}
 }

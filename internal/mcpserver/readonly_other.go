@@ -4,11 +4,15 @@
 
 package mcpserver
 
-// isReadOnlyFS always reports false off unix.
+// isReadOnlyErrno always reports false off unix.
 //
-// The read-only workspace contract is a property of the container image, which
-// is Linux-only: there is no read-only bind mount to detect here. Returning
-// false means explainReadOnly passes every error through untouched, which is
-// the correct behavior -- inventing a read-only diagnosis on a platform that
-// cannot produce one would be worse than saying nothing.
-func isReadOnlyFS(error) bool { return false }
+// EROFS is a POSIX errno; there is no portable equivalent to test for here, and
+// the read-only workspace contract belongs to the container image, which is
+// Linux-only. Inventing a read-only diagnosis on a platform that cannot produce
+// one would be worse than saying nothing.
+//
+// This does not disable the explanation entirely on these platforms: isReadOnly
+// also matches git's stderr text, which is platform-independent. A Windows user
+// running against a genuinely read-only volume still gets the translation if git
+// reports it; they simply do not get the errno shortcut.
+func isReadOnlyErrno(error) bool { return false }

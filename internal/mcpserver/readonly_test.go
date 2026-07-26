@@ -234,3 +234,64 @@ func TestNewToolErrorHandlesNil(t *testing.T) {
 		t.Error("nil error produced an empty message")
 	}
 }
+
+// TestExplainReadOnlyRecognisesGitSubprocessFailures is the case a structural
+// EROFS check cannot reach.
+//
+// execute_sync runs git as a subprocess. As gitx.ClassifyError documents, git
+// failures arrive as *exec.ExitError wrapped with stderr text, never as a
+// sentinel errno -- so errors.Is(err, syscall.EROFS) is blind to them, and the
+// most consequential mutating tool would have gone unexplained. The text is
+// matchable because GitRunner.Run pins LC_ALL=C.
+func TestExplainReadOnlyRecognisesGitSubprocessFailures(t *testing.T) {
+	t.Parallel()
+
+	// Shapes gitx.wrapRunError produces: "op: <git stderr>: <exit error>".
+	gitFailures := []string{
+		"fetch: error: cannot open '.git/FETCH_HEAD': Read-only file system: exit status 128",
+		"fetch: fatal: Unable to create '/w/demo/.git/index.lock': Read-only file system: exit status 128",
+		"config: error: could not lock config file .git/config: Read-only file system: exit status 255",
+	}
+
+	for _, raw := range gitFailures {
+		t.Run(raw[:20], func(t *testing.T) {
+			t.Parallel()
+			got := explainReadOnly(errors.New(raw))
+			if got == nil {
+				t.Fatal("nil for a git read-only failure")
+			}
+			if !strings.Contains(got.Error(), "remount") {
+				t.Errorf("git read-only failure was not translated: %q", got.Error())
+			}
+		})
+	}
+}
+
+// TestExplainReadOnlyDoesNotMisdiagnoseOtherGitFailures: the broader markers
+// ("unable to create", "could not lock config file") describe failures with
+// entirely different remedies. Translating those into "remount read-write"
+// would send the user to fix the wrong thing -- the same defect this
+// translation exists to prevent, pointed in a new direction.
+func TestExplainReadOnlyDoesNotMisdiagnoseOtherGitFailures(t *testing.T) {
+	t.Parallel()
+
+	unrelated := []string{
+		"fetch: fatal: Unable to create '/w/demo/.git/index.lock': File exists: exit status 128",
+		"config: error: could not lock config file .git/config: Permission denied: exit status 255",
+		"fetch: fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+		"clone: fatal: repository not found: exit status 128",
+	}
+
+	for _, raw := range unrelated {
+		t.Run(raw[:20], func(t *testing.T) {
+			t.Parallel()
+			got := explainReadOnly(errors.New(raw))
+			if strings.Contains(got.Error(), "remount") {
+				t.Errorf("unrelated git failure misdiagnosed as a read-only mount: %q", got.Error())
+			}
+			if got.Error() != raw {
+				t.Errorf("unrelated failure was altered: got %q want %q", got.Error(), raw)
+			}
+		})
+	}
+}
