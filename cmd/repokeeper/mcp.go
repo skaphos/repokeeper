@@ -44,7 +44,7 @@ var mcpCmd = &cobra.Command{
 		}
 
 		eng := newMCPEngine(cfg, logger)
-		srv := mcpserver.New(eng, cfgPath, Version, logger)
+		srv := mcpserver.New(eng, cfgPath, advertisedVersion(), logger)
 
 		logger.Infof("MCP server starting (config=%s, repos=%d)", cfgPath, len(cfg.Registry.Entries))
 		return server.ServeStdio(srv.Inner(), server.WithErrorLogger(log.New(os.Stderr, "mcp: ", log.LstdFlags)))

@@ -62,17 +62,56 @@ When the Release Please PR merges:
 
 - Release Please updates `CHANGELOG.md` and `.release-please-manifest.json`.
 - `release-please.yml` creates the annotated `vX.Y.Z` tag for the release commit.
-- The tag push triggers `release.yml`, which runs GoReleaser to:
+- The tag push triggers `release.yml`, which **first verifies the Homebrew tap credential and fails
+  the release if it is missing or cannot reach the tap**, then runs GoReleaser to:
   - Create and publish the GitHub release.
   - Build release binaries for `{linux,darwin,windows}/{amd64,arm64}`.
-  - Generate SPDX-JSON SBOMs per archive via `syft`.
+  - Build `.deb` and `.rpm` packages for `linux/{amd64,arm64}` from those same binaries.
+  - Generate SPDX-JSON SBOMs per archive **and per package** via `syft`.
+  - Build and push the multi-arch container image to `ghcr.io/skaphos/repokeeper`.
   - Sign `checksums.txt` with a keyless Sigstore bundle (`checksums.txt.sigstore.json`).
-  - Publish the Homebrew cask to `github.com/skaphos/homebrew-tools` when the Homebrew GitHub App token is reachable.
+  - Publish the Homebrew cask to `github.com/skaphos/homebrew-tools`.
   - Publish GitHub artifact attestations for the release binaries and metadata assets.
+- After GoReleaser, the workflow publishes the MCP registry entry (`io.skaphos/repokeeper`).
+- A separate `verify` job then confirms each channel actually **serves** the new version.
 
 No manual GoReleaser invocation or manual tag creation is required for normal releases.
 
+### Credentials fail the release; they never skip a channel
+
+A missing or unusable credential fails the release rather than silently dropping the channel it
+belongs to. This replaced a step that emitted `--skip=homebrew` with a warning and then completed
+green — which is exactly the failure [ADR-0007](docs/adr/0007-release-binaries-and-homebrew.md)
+records, where the cask sat pinned at `0.6.0` across two releases because a run finished
+"successfully" while a channel quietly did not publish.
+
+| Credential | Failure mode |
+| --- | --- |
+| `RELEASE_BOT_CLIENT_ID` / `RELEASE_BOT_PRIVATE_KEY` | Pre-flight error, release fails before GoReleaser runs |
+| GHCR (`github.token`) | Login step fails, release fails |
+| `MCP_REGISTRY_KEY` | Warning only — the registry is the one exempt channel |
+| `MACOS_*` | Pre-existing behavior: GoReleaser auto-skips notarization when unset (known gap, separate follow-up) |
+
+### Channel verification
+
+The `verify` job queries each channel rather than trusting the publishing step's own report. The
+proposition being tested is not "did the release job succeed" — that is already visible. It is
+"does each channel now serve the released version". Reachability is not the test: a cask pinned to
+the previous release responds perfectly well, and that is the failure being guarded against.
+
+| Channel | Blocking | Confirmed by |
+| --- | --- | --- |
+| Release assets | yes | GitHub release asset list, including `.deb`/`.rpm` and their SBOMs |
+| Homebrew cask | yes | raw `Casks/repokeeper.rb`, matched on version |
+| Container image | yes | `docker buildx imagetools inspect`, both architectures present |
+| MCP registry | **no** | registry search API — reported, never blocking |
+
+Each check retries with increasing backoff so a third-party outage is distinguishable from a channel
+that genuinely did not publish.
+
 ## 5. Verify the release
+
+The `verify` job does this automatically; the steps below remain useful when diagnosing a failure.
 
 After workflow completion:
 

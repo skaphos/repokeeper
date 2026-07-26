@@ -55,3 +55,7 @@ graphify-out/*
 !graphify-out/.graphify_labels.json
 # Local, machine-specific interpreter marker.
 /.graphify_*
+
+# Go build/test output
+*.out
+vendor/

@@ -126,9 +126,11 @@ The checked-in `server.json`. Registry identity `io.skaphos/repokeeper`.
 - The described tool surface must agree with `mcpserver.ReadOnlyToolNames()`, which derives from live
   `ReadOnlyHint` annotations and therefore cannot drift from what is registered.
 - **RepoKeeper diverges from sting here.** sting asserts every tool is read-only. RepoKeeper has both
-  kinds — 8 read-only, 6 mutating — so the entry must represent a *mixed* surface honestly. Claiming
-  read-only would misrepresent `execute_sync`, `add_repository`, `remove_repository`, `set_labels`,
-  `scan_workspace` and `plan_sync`.
+  kinds — 9 read-only, 5 mutating — so the entry must represent a *mixed* surface honestly. Claiming
+  read-only would misrepresent `execute_sync`, `add_repository`, `remove_repository`, `set_labels`
+  and `scan_workspace`. Note that `plan_sync` is annotated read-only despite being grouped under
+  "mutation tools" in `registerTools`: it plans without executing. The annotation is authoritative,
+  which is why the drift test reads `ReadOnlyToolNames()` rather than the registration comments.
 - The entry must state that the container serves one explicitly named workspace root (FR-026), since
   the registry is where a prospective user first learns how the server is configured.
 
@@ -164,8 +166,8 @@ create a second interpretation of the same file.
 
 | Class | Count | Behavior |
 | --- | --- | --- |
-| Read-only (`ReadOnlyHint: true`) | 8 | Function identically to native |
-| Mutating | 6 | Refuse, naming the read-only mount and the remedy |
+| Read-only (`ReadOnlyHint: true`) | 9 | Function identically to native |
+| Mutating | 5 | Refuse, naming the read-only mount and the remedy |
 
 Mutating tools stay **advertised**. Hiding them would be a silently reduced surface; FR-025 requires
 a refusal that explains itself (Principles VI and VII).

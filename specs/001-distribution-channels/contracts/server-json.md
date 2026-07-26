@@ -47,8 +47,8 @@ for RepoKeeper**, which exposes both kinds:
 
 | Class | Count | Examples |
 | --- | --- | --- |
-| Read-only (`ReadOnlyHint: true`) | 8 | `list_repositories`, `get_repository_context`, `build_workspace_inventory` |
-| Mutating | 6 | `scan_workspace`, `plan_sync`, `execute_sync`, `set_labels`, `add_repository`, `remove_repository` |
+| Read-only (`ReadOnlyHint: true`) | 9 | `list_repositories`, `get_repository_context`, `build_workspace_inventory`, `plan_sync` |
+| Mutating | 5 | `scan_workspace`, `execute_sync`, `set_labels`, `add_repository`, `remove_repository` |
 
 The description must represent this honestly. Claiming a read-only server would misrepresent the
 mutation surface to every client that reads the registry — the same class of defect as an entry

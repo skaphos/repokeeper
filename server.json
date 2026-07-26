@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.skaphos/repokeeper",
+  "description": "Inventory, drift reporting and sync planning for a multi-repo Git workspace. Read and write tools.",
+  "repository": {
+    "url": "https://github.com/skaphos/repokeeper",
+    "source": "github"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/skaphos/repokeeper",
+      "version": "0.0.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
