@@ -10,14 +10,28 @@ Thanks for contributing to RepoKeeper.
 
 ## Graphify
 
-- Graphify hooks in this repository are local-only. They live under `.git/hooks` and are not tracked in git.
+The canonical code graph is **committed and shared** so contributors and agents get it on clone without a rebuild. Three artifacts under `graphify-out/` are tracked:
+
+- `graph.json` — the graph itself (what `graphify query`/`path`/`explain`/`affected` and cross-repo `merge-graphs` consume).
+- `GRAPH_REPORT.md` — the human-readable report.
+- `.graphify_labels.json` — community labels.
+
+Everything else under `graphify-out/` is local build state and stays untracked (`.gitignore`): the extraction `cache/`, the incremental `manifest.json` (per-machine file mtimes), the regenerable `graph.html` viz, and dated snapshot directories.
+
+Local setup (per machine, not tracked):
+
 - Install `graphify` into a Python environment you control.
 - Record the interpreter that can import `graphify`:
   - `python3 -c "import sys; open('.graphify_python', 'w').write(sys.executable)"`
-- Install or refresh the local hooks:
+- Install or refresh the local git hooks **and the `graphify` merge driver**:
   - `graphify hook install`
-- The hooks read `.graphify_python` first, then fall back to `python3`.
-- The checkout hook only rebuilds after `graphify-out/` already exists, so create an initial graph once with your normal graphify workflow before relying on automatic rebuilds.
+- The hooks live under `.git/hooks` and are not tracked. They read `.graphify_python` first, then fall back to `python3`.
+- `graphify hook install` also registers the `graphify` merge driver referenced by `.gitattributes`, which union-merges `graph.json` so parallel rebuilds do not conflict. Without it, git falls back to a normal merge for that file.
+
+Notes:
+
+- The post-commit hook rebuilds the graph after each commit, which stamps `graph.json` with the new `built_at_commit` and leaves it modified in your working tree; commit that refresh (or let the next change carry it). The committed graph therefore trails HEAD by one commit.
+- The checkout hook only rebuilds after `graphify-out/` already exists — which it now does on a fresh clone, since the graph is committed.
 
 ## Branching and Commits
 

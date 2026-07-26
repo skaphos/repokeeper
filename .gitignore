@@ -45,6 +45,13 @@ Thumbs.db
 perf/runs/
 .sisyphus/
 
-# Graphify
-graphify-out/
-.graphify_*
+# Graphify — the canonical code graph, its report, and community labels are
+# committed and shared. Everything else under graphify-out/ is local build
+# state (extraction cache, incremental manifest, the regenerable HTML viz, and
+# dated snapshots) and stays out of git.
+graphify-out/*
+!graphify-out/graph.json
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/.graphify_labels.json
+# Local, machine-specific interpreter marker.
+/.graphify_*
