@@ -34,6 +34,26 @@
 Two clarifications were resolved in session 2026-07-26 and are recorded in the spec's
 Clarifications section; both originated as `[NEEDS CLARIFICATION]` markers and neither remains.
 
+**Revalidated after `/speckit-plan` (2026-07-26).** Phase 0 research produced three changes to the
+spec, all of which keep every checklist item passing:
+
+1. **A third clarification** — how a containerized server selects its workspace root — was raised and
+   resolved during planning rather than specification. RepoKeeper's registry discovery walks upward
+   from the working directory, which lets several purpose-specific roots self-select by position; a
+   container cannot reproduce that, so it serves one explicitly named root per configured entry.
+   Added as FR-026 – FR-029, a Key Entity, three edge cases, and SC-006.
+2. **FR-037 corrected.** It previously asserted version identity was "the one change to compiled
+   code". The read-only-mount refusal (FR-025) is a second. Both are stdlib-only, so the normative
+   requirement — no new dependencies — was never affected; the parenthetical was inaccurate.
+3. **Requirements renumbered** to FR-001 – FR-037 and SC-001 – SC-012. All cross-references were
+   re-audited mechanically; none dangle.
+
+Two Phase 0 findings are worth carrying into review because they have no counterpart in the sting
+implementation this spec adopts from: `internal/gitx` shells out to the `git` binary (so the
+container cannot use a distroless base), and a bind-mounted workspace triggers git's
+dubious-ownership refusal on every call unless `safe.directory` is set. The second was measured, not
+assumed — see `research.md` R3.
+
 **On "no implementation details".** This specification names more concrete artifacts than a
 typical feature spec — `.deb`/`.rpm`, a container image, `server.json`, the `io.skaphos` namespace,
 a DNS TXT record. These are not implementation choices leaking into the spec; they *are* the

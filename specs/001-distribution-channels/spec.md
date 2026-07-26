@@ -294,6 +294,16 @@ recorded in `.repokeeper.yaml` resolves unchanged — no remapping, and no secon
 the registry file. It is read-only by default: inspection works in full, and the tools that would
 write refuse and say why.
 
+The workspace is also named explicitly, and each configured entry serves exactly one root. This is
+the sharpest difference from the native CLI, and it is a property of containers rather than a
+shortcoming of the image: RepoKeeper normally finds its registry by walking upward from wherever it
+was invoked, which is what lets a developer keep several purpose-specific roots and have the right
+one selected by position. A container's working directory and mounts are fixed before the MCP client
+ever calls a tool, so there is no "wherever it was invoked" to be relative to. A developer with
+several roots configures one entry per root; a developer who wants position-sensitive behavior uses
+the native binary. The documentation says this outright rather than letting a user discover it by
+being served the wrong workspace.
+
 **Independent Test**: Pull the published image on both architectures and drive the containerized
 server with an MCP client over stdio, confirming a workspace inventory query returns the expected
 repositories from a workspace mounted read-only at its host path, and that a mutating tool refuses
@@ -313,12 +323,17 @@ with the read-only mount named.
    refuses, names the read-only mount as the cause, and states that a read-write mount and supplied
    credentials would enable it — and the inspection tools continue to work unaffected.
 5. **Given** the image started with no workspace at the expected path, **When** a client calls an
-   inventory tool, **Then** the response states that a workspace must be supplied and how, rather
-   than reporting an empty inventory as a successful scan.
-6. **Given** that image, **When** it is inspected, **Then** it runs as an unprivileged user,
+   inventory tool, **Then** the response names the path that was searched, states that discovery
+   walks upward from the working directory, and states how to supply a workspace — rather than
+   reporting an empty inventory as a successful scan.
+6. **Given** a developer with several purpose-specific workspace roots, **When** they read the
+   container documentation, **Then** it states that one configured entry serves one root, shows how
+   to configure several entries, and identifies the native binary as the better path for a
+   position-sensitive multi-root workflow.
+7. **Given** that image, **When** it is inspected, **Then** it runs as an unprivileged user,
    contains no credentials or user-specific configuration, and carries the same SBOM, signature and
    provenance guarantees as the release archives.
-7. **Given** the documentation, **When** a user reaches the MCP setup section, **Then** a
+8. **Given** the documentation, **When** a user reaches the MCP setup section, **Then** a
    container-based client configuration is shown alongside the existing local-binary one, the
    identical-path mount is shown explicitly, and the read-only default and what lifting it requires
    are stated plainly.
@@ -362,6 +377,17 @@ with the read-only mount named.
   reason, not collapsed into a whole-workspace failure or silently dropped from the inventory.
 - **A workspace path that exists but is empty.** Distinguishable from "no workspace mounted" only by
   checking for the registry file; both must produce a message naming which condition was found.
+- **A container serving a workspace the user did not mean.** The likeliest container failure and the
+  most dangerous, because nothing errors. A user with roots at `~/work/skaphos` and `~/work/alaska`
+  configures one entry, forgets it is pinned, and asks about the other root — receiving a complete,
+  confident inventory of the wrong workspace. Mitigated by requiring the workspace to be named
+  explicitly rather than discovered (FR-026), and by tools reporting which registry they answered
+  from, so the answer carries its own scope.
+- **An upward crawl that escapes the mount.** Discovery walks toward the filesystem root, so with the
+  workspace mounted at a deep path and no registry inside it, the search continues into container
+  directories that are not the user's. It must not adopt a `.repokeeper.yaml` found outside the
+  mounted workspace — the same guard the native CLI already applies against picking up a stray
+  registry from an unrelated ancestor.
 - **Self-update inside a container.** RepoKeeper ships no update command (FR-007), so this cannot
   arise — but it is the reason it ships none: a binary replaced inside a container's ephemeral
   writable layer appears to update and reverts on the next run.
@@ -479,47 +505,61 @@ with the read-only mount named.
   with a message naming the read-only mount as the cause and stating what would enable it — a
   read-write mount and explicitly supplied credentials. Refusing without a reason, or silently
   omitting the mutating tools from the advertised surface, is a defect (Principles VI and VII).
-- **FR-026**: When a container starts with no workspace available at the expected path, RepoKeeper
-  MUST report that a workspace must be supplied and how to supply it. It MUST NOT report an empty
-  inventory as a successful scan.
-- **FR-027**: The image MUST carry an SBOM, a signature and a build-provenance attestation
+- **FR-026**: A containerized server MUST be pointed at its workspace explicitly, and each configured
+  server entry serves exactly one workspace root. RepoKeeper's registry discovery walks upward from
+  the working directory to find the nearest `.repokeeper.yaml`, which is what lets the native CLI
+  serve several purpose-specific roots by position; a container's working directory and mounts are
+  fixed before any tool call, so that behavior cannot be reproduced and MUST NOT be implied. The
+  image MUST NOT ship a default workspace location — not a fixed path, and not one anchored to a home
+  directory — because a default that is correct for single-root users and silently wrong for
+  multi-root users is worse than requiring the workspace to be named.
+- **FR-027**: When no workspace is available, RepoKeeper MUST report the path it searched, state that
+  discovery walks upward from the working directory, and state how to supply a workspace. It MUST NOT
+  report an empty inventory as a successful scan, and it MUST NOT serve a different workspace than
+  the one the user intended without saying which one it found.
+- **FR-028**: The image MUST carry an SBOM, a signature and a build-provenance attestation
   equivalent to those on the release archives.
-- **FR-028**: Documentation MUST show a container-based MCP client configuration alongside the
-  existing local-binary configuration, MUST show the identical-path mount form explicitly, and MUST
-  state which parts of the tool surface are available under the read-only default and what enabling
-  the rest requires.
+- **FR-029**: Documentation MUST show a container-based MCP client configuration alongside the
+  existing local-binary configuration, and MUST state each of the following plainly: the
+  identical-path mount form; which parts of the tool surface are available under the read-only
+  default and what enabling the rest requires; that one configured entry serves one workspace root,
+  so a multi-root workflow needs one entry per root and the native binary remains the better path for
+  it; and that the container supports Git only, Mercurial being unavailable in it. The container is a
+  portability and discovery channel, and presenting it as equivalent to the native CLI would
+  misrepresent it (Principle IX).
 
 **Pipeline coherence and scope discipline**
 
-- **FR-029**: Every channel except the MCP registry MUST be produced by the single release
+- **FR-030**: Every channel except the MCP registry MUST be produced by the single release
   invocation — archives, Linux packages, the Homebrew cask and the container image alike — so a
   failure in any one of them fails the release as a unit rather than half-landing it. The MCP
   registry is the only permitted exception, for the reason stated in FR-019; no further channel may
   be carved out without a recorded justification, because each carve-out reinstates the
   half-landed-release failure mode this requirement exists to prevent.
-- **FR-030**: A missing or unusable credential MUST fail the release rather than silently skipping
+- **FR-031**: A missing or unusable credential MUST fail the release rather than silently skipping
   the channel it belongs to. A channel that quietly drops out of a release that then reports success
   is the ADR-0007 failure mode.
-- **FR-031**: After a release publishes, an independent verification step MUST confirm that each
+- **FR-032**: After a release publishes, an independent verification step MUST confirm that each
   channel actually landed at the released version — release assets present and checksummed, the
   Homebrew cask updated in `skaphos/homebrew-tools`, the container image resolvable on both
   architectures, and the registry entry at the released version. Confirmation MUST be obtained by
   querying the channel, never by trusting the publishing step's own report of what it did.
-- **FR-032**: Verification MUST fail the release workflow when any channel other than the MCP
+- **FR-033**: Verification MUST fail the release workflow when any channel other than the MCP
   registry is missing or stale. A missing or stale registry entry MUST be surfaced as a distinct,
   visible, non-blocking failure, consistent with FR-019.
-- **FR-033**: Verification MUST distinguish a channel that genuinely did not publish from a
+- **FR-034**: Verification MUST distinguish a channel that genuinely did not publish from a
   transient failure to reach it, retrying before declaring a channel missing.
-- **FR-034**: No requirement in this feature may introduce a code path that mutates a user's working
+- **FR-035**: No requirement in this feature may introduce a code path that mutates a user's working
   tree outside RepoKeeper's existing, explicitly opt-in sync flows. Principle X's safe-by-default
   guarantee and the read-only MCP tool classification are unchanged by this feature.
-- **FR-035**: Installation and upgrade documentation MUST be updated for every channel this feature
+- **FR-036**: Installation and upgrade documentation MUST be updated for every channel this feature
   adds, and MUST make clear which upgrade path applies to which install path.
-- **FR-036**: This feature MUST NOT add a dependency to RepoKeeper's module graph. Every channel it
-  delivers is release-pipeline configuration, packaging metadata or documentation; the one change to
-  compiled code — version identity — uses only the standard library. Any proposal that breaches this
-  requires the same written justification the constitution demands of dependency growth, and the
-  measurement under Prior Art is the standard it is judged against.
+- **FR-037**: This feature MUST NOT add a dependency to RepoKeeper's module graph. Most of what it
+  delivers is release-pipeline configuration, packaging metadata or documentation; the two changes to
+  compiled code — version identity (FR-001 – FR-006) and the read-only-mount refusal (FR-025) — MUST
+  use only the standard library. Any proposal that breaches this requires the same written
+  justification the constitution demands of dependency growth, and the measurement under Prior Art is
+  the standard it is judged against.
 
 ### Key Entities
 
@@ -532,8 +572,13 @@ with the read-only mount named.
 - **Server description**: the checked-in declaration of RepoKeeper's MCP identity, tool surface,
   runtime and configuration, published to the registry and kept in step with the released version.
 - **Container workspace contract**: how a containerized RepoKeeper is given access to the
-  repositories it reports on, and what that access permits — an identical-path mount, read-only by
-  default, defined by FR-024 through FR-026.
+  repositories it reports on, what that access permits, and which single workspace root it serves —
+  an identical-path mount, read-only by default, named explicitly rather than discovered. Defined by
+  FR-024 through FR-027.
+- **Workspace root**: the directory holding a `.repokeeper.yaml` registry. The native CLI selects one
+  by walking upward from the working directory, so several purpose-specific roots coexist and
+  self-select by position. A container serves exactly one per configured entry, fixed before any tool
+  call — the distinction FR-026 exists to keep honest.
 - **Install provenance**: which channel placed the running binary — Homebrew prefix, system package
   database, language toolchain, hand-placed archive, or container layer. RepoKeeper does not detect
   this in code (FR-007); the concept survives as the axis along which `README.md`'s upgrade table is
@@ -557,22 +602,26 @@ with the read-only mount named.
   results identical to a natively installed binary for 100% of read-only inspection tools; and 100%
   of mutating tools refuse with the read-only mount named. Zero tools fail in a way that does not
   state its cause.
-- **SC-006**: Every artifact in a release carries provenance appropriate to its form — archives and
+- **SC-006**: Zero container configurations serve a workspace silently: every one either answers from
+  the root it was explicitly given, or reports that no workspace was found and which path it
+  searched. A user with multiple workspace roots can determine from the documentation alone how many
+  entries they need, without running the container to find out.
+- **SC-007**: Every artifact in a release carries provenance appropriate to its form — archives and
   Linux packages listed in the signed checksum manifest, the container image signed and attested in
   the registry it is published to. Zero unsigned or unattested artifacts ship.
-- **SC-007**: Every published release is followed by an independent per-channel confirmation
+- **SC-008**: Every published release is followed by an independent per-channel confirmation
   obtained by querying each channel. A release in which a required channel did not land is marked
   failed by that check rather than discovered by a user; zero releases complete as apparently
   successful while a channel is missing.
-- **SC-008**: A user reading the installation documentation can identify the correct upgrade command
+- **SC-009**: A user reading the installation documentation can identify the correct upgrade command
   for their install path without consulting any other source, for every one of the six channels
   RepoKeeper ships on.
-- **SC-009**: Zero required channels are absent from both the shipped implementation and the ADR
+- **SC-010**: Zero required channels are absent from both the shipped implementation and the ADR
   record — every gap is either closed or documented. Specifically, self-update is absent from the
   implementation and present in ADR-0016.
-- **SC-010**: This feature adds zero entries to `go.mod` and `go.sum`; the binary size delta
+- **SC-011**: This feature adds zero entries to `go.mod` and `go.sum`; the binary size delta
   attributable to it is under 1%, against a measured +128.7% for the alternative that was declined.
-- **SC-011**: RepoKeeper's existing behavior is unchanged by this feature: the MCP tool surface, the
+- **SC-012**: RepoKeeper's existing behavior is unchanged by this feature: the MCP tool surface, the
   read-only tool classification, sync's opt-in mutation gating, and registry file formats behave
   identically before and after.
 
@@ -671,17 +720,17 @@ with the read-only mount named.
 - **VI. Explainable Reconciliation, Evidence-Grade Audit** — a build that cannot state its version
   says so rather than guessing; a mutating tool under a read-only mount names the mount as the
   reason; a container with no workspace says so instead of reporting an empty scan; a channel that
-  did not publish is named (FR-004, FR-019, FR-025, FR-026, FR-031).
+  did not publish is named (FR-004, FR-019, FR-025, FR-027, FR-032).
 - **VII. Read-Only Degradation Over Blindness** — the container's read-only default is this principle
   made concrete: full inspection always, mutation refused with a reason and a stated remedy, never a
   silently reduced surface (FR-025).
 - **IX. Technical Precision, Honest Scope** — the documentation must state that shipping a `.deb` is
   not an apt repository, that Windows binaries remain unsigned, which tools work under the read-only
-  container default, and that RepoKeeper ships no self-updater and why (FR-009, FR-015, FR-028,
-  FR-035, and ADR-0016).
+  container default, that the container serves one workspace root per entry, and that RepoKeeper
+  ships no self-updater and why (FR-009, FR-015, FR-029, FR-036, and ADR-0016).
 - **X. Safe-by-Default VCS Operations** — nothing here adds a path that mutates a working tree
   outside the existing opt-in sync flows, and the container defaults to a mount that cannot
-  (FR-025, FR-034).
+  (FR-025, FR-035).
 - **XII. CLI-First With Machine-Readable Output** — version information is available in both
   human-readable and machine-readable form, and the Linux packages exist because Linux and WSL are
   first-class platforms, not courtesies (FR-006, FR-011).
@@ -689,14 +738,15 @@ with the read-only mount named.
   prior art for four channels and is adopted rather than re-derived. Its self-update verdict was
   *re-measured* rather than inherited on faith, because the constitution requires a documented reason
   when prior art is departed from, and the same standard should apply to accepting it.
-- **Engineering Constraints — dependencies minimized** — FR-036 makes zero dependency growth a
+- **Engineering Constraints — dependencies minimized** — FR-037 makes zero dependency growth a
   requirement of this feature rather than an outcome, and the Prior Art measurement is the evidence
   behind it.
-- **Attribution** — because FR-036 holds, `third_party_licenses/` and `THIRD_PARTY_NOTICES.md` need
+- **Attribution** — because FR-037 holds, `third_party_licenses/` and `THIRD_PARTY_NOTICES.md` need
   no regeneration. Had the self-updater shipped, +162 `go.sum` entries would have made that a
   substantial review, which is itself part of the cost recorded in ADR-0016.
 - **Testing (non-negotiable)** — new behavior ships with meaningful tests in the same change, tests
   do not touch the network, and tests that touch the filesystem isolate `HOME` and `USERPROFILE`.
-  The per-package coverage gate applies. Version identity (FR-001 – FR-006) is the only compiled
-  behavior this feature adds and carries direct unit coverage for each of its four resolution
-  outcomes.
+  The per-package coverage gate applies. This feature adds two pieces of compiled behavior — version
+  identity (FR-001 – FR-006), covered for each of its four resolution outcomes, and the
+  read-only-mount refusal (FR-025), covered for both the refusal message and the unaffected
+  inspection path.
