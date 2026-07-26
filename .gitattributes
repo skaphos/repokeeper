@@ -6,3 +6,10 @@
 *.md text eol=lf
 *.sh text eol=lf
 *.ps1 text eol=crlf
+
+# Graphify committed artifacts: union-merge the graph so parallel rebuilds do
+# not conflict (the `graphify` merge driver is registered by `graphify hook
+# install`), and mark generated files so GitHub collapses them in diffs.
+graphify-out/graph.json merge=graphify linguist-generated=true
+graphify-out/.graphify_labels.json linguist-generated=true
+graphify-out/GRAPH_REPORT.md linguist-generated=true
