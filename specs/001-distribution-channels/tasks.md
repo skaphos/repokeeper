@@ -65,7 +65,7 @@ unchanged from today.
 ### Implementation for User Story 1
 
 - [X] T007 [US1] Create `internal/buildinfo/buildinfo.go` with `Info`, `Source` (`SourceUnknown`/`SourceBuildInfo`/`SourceLDFlags`), `Known()`, exported `Resolve(ldVersion, ldCommit, ldDate string) Info`, and an unexported injectable core taking `(*debug.BuildInfo, bool)` so tests can supply fixtures — `debug.ReadBuildInfo()` reads the running test binary and cannot be faked. Stdlib only: `runtime/debug` (FR-001 – FR-005)
-- [X] T008 [US1] Rewrite `cmd/repokeeper/version.go` to delegate to `buildinfo.Resolve`, add `--output json` (FR-006), and render each tier per contracts/cli-version.md. **Keep `Version`, `Commit`, `Date` exported at `github.com/skaphos/repokeeper/cmd/repokeeper`** — `.goreleaser.yaml` references them by full path in `-X` flags and moving them breaks release stamping silently
+- [X] T008 [US1] Rewrite `cmd/repokeeper/version.go` to delegate to `buildinfo.Resolve`, add JSON output (FR-006) — *task text originally said `--output json`; shipped as the repo's shared `--format`/`-o`, see Execution Notes* — and render each tier per contracts/cli-version.md. **Keep `Version`, `Commit`, `Date` exported at `github.com/skaphos/repokeeper/cmd/repokeeper`** — `.goreleaser.yaml` references them by full path in `-X` flags and moving them breaks release stamping silently
 - [X] T009 [US1] Resolve the version once and pass the resolved value into `mcpserver.New(eng, cfgPath, version, logger)` in `cmd/repokeeper/mcp.go`, so the MCP handshake and the version command cannot disagree (FR-005)
 
 **Checkpoint**: `go test ./internal/buildinfo/... ./cmd/repokeeper/... -race` passes; quickstart
@@ -250,10 +250,12 @@ silently absorbed.
   RepoKeeper has no ADR index file. Creating one would be scope beyond this feature, so ADR-0016 is
   linked from `README.md`'s upgrade section and `RELEASE.md` instead, where a reader actually
   encounters the decision.
-- **T008 — flag name.** The contract specified `--output json`. RepoKeeper's convention is
+- **T008 — flag name.** The contract originally specified `--output json`. RepoKeeper's convention is
   `--format`/`-o` with `table|wide|json` (`addFormatFlag` in `cmd/repokeeper/flags.go`); `--output`
-  already means a *file path* on `export`. Implemented as `--format` to match the surrounding code;
-  `contracts/cli-version.md` describes the intent, not the flag spelling.
+  already means a *file path* on `export`, so reusing it for a format would collide with an
+  established meaning. Implemented as `--format` to match the surrounding code, and
+  `contracts/cli-version.md` has since been corrected to describe the shipped flag — a contract that
+  documents intent rather than behavior is a contract nobody can check against.
 - **T016 — widened.** Beyond `check-jsonschema`, `.tool-versions` now also pins `syft`, `cosign` and
   `pipx:reuse`, matching sting's file exactly so every tool this repo's gate needs resolves from the
   repo rather than a developer's global mise config.

@@ -9,11 +9,17 @@ may not.
 ## Invocation
 
 ```
-repokeeper version [--output json]
+repokeeper version [--format table|wide|json]
+repokeeper version [-o json]
 ```
 
-`--output json` follows the existing convention (Principle XII). If the root command already supplies
-an output flag, reuse it rather than adding a command-local one.
+Uses the repository's shared `--format`/`-o` flag, registered through `addFormatFlag` in
+`cmd/repokeeper/flags.go` (Principle XII). Not `--output`: on this CLI that name already means a
+*file path* — see `export --output` — so reusing it for a format would collide with an established
+meaning.
+
+`wide` is accepted and renders as `table`; `version` has no extra columns to widen into, but
+rejecting it would make this the one command where the shared flag behaves differently.
 
 ## Human-readable output
 

@@ -29,8 +29,10 @@ are running, cannot upgrade, or cannot find the tool at all:
 2. **Anyone who installs the way the module path implies gets a binary that does not know its own
    version.** `cmd/repokeeper/version.go:13` defaults `Version` to `"dev"` (and `Commit`/`Date` to
    `"none"`/`"unknown"`) with no build-metadata fallback, so
-   `go install github.com/skaphos/repokeeper/cmd/repokeeper@latest` followed by
-   `repokeeper version` prints `repokeeper dev`. Release-time ldflags are the only source of
+   `go install github.com/skaphos/repokeeper@latest` followed by `repokeeper version` prints
+   `repokeeper dev`. (Verified against the published v1.3.1. Note the module root, not
+   `cmd/repokeeper` — that path is `package repokeeper`, a library, and `go install` rejects it with
+   "not a main package".) Release-time ldflags are the only source of
    version information. A user cannot tell what they are running, and neither can a bug report.
 3. **There is no upgrade path the tool itself can offer.** Every upgrade runs through whichever
    channel the user originally installed from, and RepoKeeper cannot tell them which one that was.

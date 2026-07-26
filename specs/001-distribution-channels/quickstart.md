@@ -41,7 +41,7 @@ go build -ldflags "-X github.com/skaphos/repokeeper/cmd/repokeeper.Version=v9.9.
   -o /tmp/rk-stamped . && /tmp/rk-stamped version
 
 # Module install — expect a real version from the proxy
-go install github.com/skaphos/repokeeper/cmd/repokeeper@latest && repokeeper version
+go install github.com/skaphos/repokeeper@latest && repokeeper version
 
 # Modified tree — expect the dirty marker
 touch README.md && go build -o /tmp/rk-dirty . && /tmp/rk-dirty version
@@ -51,7 +51,7 @@ touch README.md && go build -o /tmp/rk-dirty . && /tmp/rk-dirty version
 stamped build prints exactly what it prints today. The dirty build says so.
 
 ```bash
-/tmp/rk-local version --output json | jq -e '.version != "dev" and .source != null'
+/tmp/rk-local version -o json | jq -e '.version != "dev" and .source != null'
 ```
 
 ## 2. Unit tests
