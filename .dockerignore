@@ -1,0 +1,52 @@
+# The image is assembled by GoReleaser's dockers_v2 block from binaries it has
+# already built. The build context therefore needs the per-platform binary
+# layout GoReleaser prepares and nothing else -- there is no compilation step
+# here, so no source, no module cache, no tooling.
+
+# Version control and CI
+.git/
+.github/
+.gitignore
+.dockerignore
+
+# Build and release output
+dist/
+coverage.out
+coverage.html
+*.out
+*.test
+*.exe
+
+# Source and tooling -- not needed, because nothing is compiled in the image
+tools/
+scripts/
+internal/
+cmd/
+perf/
+*.go
+go.mod
+go.sum
+
+# Specifications, docs and generated knowledge graph
+specs/
+docs/
+graphify-out/
+*.md
+!THIRD_PARTY_NOTICES.md
+
+# Agent and editor state
+.claude/
+.specify/
+.sisyphus/
+.vscode/
+.idea/
+
+# Local config that must never enter an image
+.env
+.env.*
+.repokeeper.yaml
+.tool-versions
+
+# OS junk
+.DS_Store
+Thumbs.db

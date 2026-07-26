@@ -1,0 +1,59 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.skaphos/repokeeper",
+  "description": "Inventory, drift reporting and sync planning for a multi-repo Git workspace. Read and write tools.",
+  "repository": {
+    "url": "https://github.com/skaphos/repokeeper",
+    "source": "github"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/skaphos/repokeeper",
+      "version": "0.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "docker",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "-i",
+          "description": "Keep stdin open. The server speaks MCP over stdio, so the container must not detach.",
+          "isRequired": true
+        },
+        {
+          "type": "named",
+          "name": "--rm",
+          "description": "Remove the container on exit. The server holds no state of its own; the workspace on the host is the state.",
+          "isRequired": true
+        },
+        {
+          "type": "named",
+          "name": "-v",
+          "description": "Bind-mount the workspace at its IDENTICAL host path, read-only by default -- for example /home/me/work/skaphos:/home/me/work/skaphos:ro. RepoKeeper's registry records absolute host paths, so a mount at any other path makes every entry miss and the inventory reports every repository as missing. There is no path remapping. Drop the :ro suffix to enable the write tools, and add --user \"$(id -u):$(id -g)\" so files are created with your ownership.",
+          "isRequired": true,
+          "format": "string",
+          "placeholder": "/abs/path/to/workspace:/abs/path/to/workspace:ro"
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "valueHint": "subcommand",
+          "value": "mcp",
+          "description": "Start the MCP server over stdio."
+        },
+        {
+          "type": "named",
+          "name": "--config",
+          "description": "Absolute path to the workspace's .repokeeper.yaml, inside the mount and therefore identical to its host path. Required: one configured server entry serves exactly one workspace root. The CLI finds its registry by walking upward from the working directory, which lets several purpose-specific roots self-select by position, but a container's working directory is fixed before any tool call and cannot reproduce that. Configure one entry per workspace root; for a position-sensitive multi-root workflow, use the native binary instead.",
+          "isRequired": true,
+          "format": "filepath",
+          "placeholder": "/abs/path/to/workspace/.repokeeper.yaml"
+        }
+      ]
+    }
+  ]
+}

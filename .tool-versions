@@ -1,3 +1,7 @@
 golang        1.26.5
 golangci-lint 2.12.2
 goreleaser    2.17.0
+syft          1.49.0
+cosign        3.1.2
+pipx:reuse    6.1.2
+pipx:check-jsonschema 0.35.0

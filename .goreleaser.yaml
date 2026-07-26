@@ -60,11 +60,52 @@ archives:
       - THIRD_PARTY_NOTICES.md
       - third_party_licenses/**
 
+# Linux OS packages. Required for Shape 2 by skaphos-resources DECISIONS/0001,
+# built from the same binaries as the archives and attached to the same release,
+# so they are covered by the same checksum manifest, signature and provenance.
+#
+# There is deliberately no hosted apt/yum repository -- that is explicitly out of
+# scope in the ADR and is stated plainly in INSTALL.md, because users reasonably
+# read "we ship a .deb" as "there is an apt repo".
+nfpms:
+  - id: repokeeper
+    ids:
+      - repokeeper
+    package_name: repokeeper
+    formats:
+      - deb
+      - rpm
+    maintainer: "Skaphos <shawn@skaphos.io>"
+    homepage: "https://github.com/skaphos/repokeeper"
+    description: "Multi-repo workspace hygiene: inventory, drift reporting and safe sync, as a CLI or MCP server"
+    license: "MIT"
+    vendor: "Skaphos"
+    section: "utils"
+    bindir: /usr/bin
+    # Conventional per-format naming: repokeeper_1.2.0_amd64.deb and
+    # repokeeper-1.2.0-1.x86_64.rpm, rather than one shape forced onto both.
+    file_name_template: "{{ .ConventionalFileName }}"
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/repokeeper/LICENSE
+      - src: THIRD_PARTY_NOTICES.md
+        dst: /usr/share/doc/repokeeper/THIRD_PARTY_NOTICES.md
+      - src: third_party_licenses
+        dst: /usr/share/doc/repokeeper/third_party_licenses
+
 checksum:
   name_template: "checksums.txt"
 
 sboms:
-  - artifacts: archive
+  - id: archives
+    artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.sbom.json"
+  # Packages do not inherit the archive SBOM: they are separate artifacts and
+  # need their own, or the .deb/.rpm ship without one. An archives-only config
+  # looks complete and is not.
+  - id: packages
+    artifacts: package
     documents:
       - "{{ .ArtifactName }}.sbom.json"
 
@@ -77,6 +118,35 @@ signs:
       - --bundle=${signature}
       - ${artifact}
       - --yes
+
+# Multi-arch container image. Required for Shape 3 (MCP server) by
+# skaphos-resources DECISIONS/0001, so `repokeeper mcp` can be run from a
+# docker-based MCP client configuration.
+#
+# dockers_v2 builds a buildx manifest from the binaries GoReleaser has already
+# built, rather than compiling inside the Dockerfile. That is what keeps the
+# image part of the single release invocation: it fails as a unit with every
+# other channel, and it ships the same signed bytes as the archives.
+dockers_v2:
+  - id: repokeeper
+    ids:
+      - repokeeper
+    images:
+      - ghcr.io/skaphos/repokeeper
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    labels:
+      org.opencontainers.image.title: "repokeeper"
+      org.opencontainers.image.description: "Multi-repo workspace hygiene: inventory, drift reporting and safe sync, as a CLI or MCP server"
+      org.opencontainers.image.url: "https://github.com/skaphos/repokeeper"
+      org.opencontainers.image.source: "https://github.com/skaphos/repokeeper"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: "MIT"
 
 changelog:
   disable: true

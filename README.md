@@ -40,6 +40,20 @@ brew tap skaphos/tools
 brew install --cask skaphos/tools/repokeeper
 ```
 
+### Linux packages
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i repokeeper_<version>_amd64.deb
+
+# Fedora/RHEL
+sudo rpm -i repokeeper-<version>-1.x86_64.rpm
+```
+
+Download from the [Releases](https://github.com/skaphos/repokeeper/releases) page. **There is no
+hosted apt or yum repository** — a `.deb` on a release page is not an implied apt repo. Upgrading
+means downloading the next release's package.
+
 ### From release binaries
 
 Download the latest release from the [Releases](https://github.com/skaphos/repokeeper/releases) page.
@@ -49,6 +63,35 @@ Download the latest release from the [Releases](https://github.com/skaphos/repok
 ```bash
 go install github.com/skaphos/repokeeper@latest
 ```
+
+### Container (MCP server)
+
+```bash
+docker pull ghcr.io/skaphos/repokeeper:latest
+```
+
+See [MCP Server](#mcp-server-agent-integration) for the client configuration and its workspace
+contract.
+
+## Upgrading
+
+RepoKeeper ships **no `update` subcommand**. Upgrade through the channel you installed from — the
+table below is the complete list. The reasoning is recorded in
+[ADR-0016](docs/adr/0016-no-self-update-subcommand.md): a self-updater that cannot be skipped must
+verify in-process, and the dependency that makes that possible more than doubles the binary for
+every user on every channel to serve one install path.
+
+| Installed via | Upgrade with |
+| --- | --- |
+| Homebrew cask | `brew upgrade --cask skaphos/tools/repokeeper` |
+| `.deb` | Download the next release's `.deb`, then `sudo dpkg -i repokeeper_<version>_amd64.deb` |
+| `.rpm` | Download the next release's `.rpm`, then `sudo rpm -U repokeeper-<version>-1.x86_64.rpm` |
+| `go install` | `go install github.com/skaphos/repokeeper@latest` |
+| Release archive | Download the next archive and replace the binary on your `PATH` |
+| Container image | `docker pull ghcr.io/skaphos/repokeeper:latest` |
+
+Not sure which you have? `repokeeper version` reports whether the binary was produced by the release
+pipeline or installed from source, which narrows it.
 
 ## Quick Start
 
@@ -121,6 +164,46 @@ repokeeper uninstall          # remove entries (prompts unless --yes)
 For runtimes without a flat-file MCP config RepoKeeper can adapter (Cursor, Windsurf), `repokeeper install --manual` prints the snippet you paste into their settings UI. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime paths, the full `install`/`uninstall` flag reference, and the MCP tool catalog.
 
 The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI/TUI counterparts, so agents and users should treat them as execution surfaces when enabled.
+
+RepoKeeper is published to the MCP registry as `io.skaphos/repokeeper`.
+
+#### Running the MCP server from a container
+
+```jsonc
+{
+  "mcpServers": {
+    "repokeeper": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-v", "/home/me/work/skaphos:/home/me/work/skaphos:ro",
+        "ghcr.io/skaphos/repokeeper:latest",
+        "mcp", "--config", "/home/me/work/skaphos/.repokeeper.yaml"
+      ]
+    }
+  }
+}
+```
+
+Four things about this configuration are deliberate, and each is a constraint rather than a
+preference:
+
+- **The workspace is mounted at its identical host path.** `.repokeeper.yaml` records absolute
+  paths, so mounting anywhere else makes every registry entry miss and the inventory reports every
+  repository as missing. There is no path remapping — the registry means the same thing inside and
+  outside the container.
+- **The mount is read-only by default.** All nine inspection tools work normally. The five mutating
+  tools (`scan_workspace`, `execute_sync`, `set_labels`, `add_repository`, `remove_repository`)
+  refuse and name the read-only mount as the reason. They stay advertised rather than disappearing,
+  so a refusal is explainable rather than a silently missing capability. For read-write use, drop
+  the `:ro` suffix, add `--user "$(id -u):$(id -g)"` so files land with your ownership, and supply
+  git credentials.
+- **One configured entry serves exactly one workspace root.** The CLI finds its registry by walking
+  upward from the current directory, which is what lets several purpose-specific roots self-select
+  by where you are. A container's working directory and mounts are fixed before any tool call, so
+  that cannot be reproduced. If you keep several roots, add one server entry per root — and for a
+  position-sensitive multi-root workflow, the native binary remains the better path.
+- **The container supports Git only.** Mercurial is not installed in the image.
 
 ### Repo-local metadata
 

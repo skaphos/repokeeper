@@ -108,7 +108,11 @@ func (s *MCPServer) serializeTool(h server.ToolHandlerFunc) server.ToolHandlerFu
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		return h(ctx, req)
+		res, err := h(ctx, req)
+		// Translating here rather than per-handler covers every mutating
+		// tool at one point. Read-only tools never produce EROFS, so the
+		// wrapper is inert for them.
+		return res, explainReadOnly(err)
 	}
 }
 
