@@ -223,26 +223,60 @@ jobs:
           assets="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
           echo "$assets"
 
-          missing=0
+          failed=0
+
+          # Every platform is named individually. Matching a bare extension
+          # would pass on a release that built one architecture and dropped the
+          # rest -- which is the half-landed release this job exists to catch,
+          # not something it should wave through.
           require() {
             if ! echo "$assets" | grep -qE "$1"; then
               echo "::error title=Release assets::No asset matching /$1/ in $TAG."
-              missing=1
+              failed=1
             fi
           }
-          require '\.tar\.gz$'
-          require '\.zip$'
+
+          # Counts are asserted as well as presence. A missing SBOM leaves its
+          # artifact silently unattested, and presence alone cannot detect that
+          # when nine of ten were uploaded.
+          require_count() {
+            actual="$(echo "$assets" | grep -cE "$1" || true)"
+            if [ "$actual" -ne "$2" ]; then
+              echo "::error title=Release assets::Expected $2 assets matching /$1/, found $actual."
+              failed=1
+            fi
+          }
+
+          # Archives: 4 tar.gz (linux, darwin x amd64, arm64) + 2 zip (windows).
+          for platform in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+            require "_${platform}\.tar\.gz$"
+          done
+          for platform in windows_amd64 windows_arm64; do
+            require "_${platform}\.zip$"
+          done
+          require_count '\.tar\.gz$' 4
+          require_count '\.zip$' 2
+
+          # Linux packages: one .deb and one .rpm per architecture.
           require '_amd64\.deb$'
           require '_arm64\.deb$'
           require 'x86_64\.rpm$'
           require 'aarch64\.rpm$'
-          require '^checksums\.txt$'
-          require '\.deb\.sbom\.json$'
-          require '\.rpm\.sbom\.json$'
-          require 'checksums\.txt\.sigstore\.json$'
+          require_count '\.deb$' 2
+          require_count '\.rpm$' 2
 
-          [ "$missing" -eq 0 ] || exit 1
-          echo "All required release assets are present."
+          # SBOMs: one per archive (6) and one per package (4). The package
+          # SBOMs come from a separate `sboms` entry in .goreleaser.yaml --
+          # packages do not inherit the archive one, and the omission is silent.
+          require_count '\.(tar\.gz|zip)\.sbom\.json$' 6
+          require_count '\.(deb|rpm)\.sbom\.json$' 4
+
+          # Checksum manifest and its signature.
+          require '^checksums\.txt$'
+          require '^checksums\.txt\.sigstore\.json$'
+
+          [ "$failed" -eq 0 ] || exit 1
+          echo "All required release assets are present, in the expected counts."
 
       - name: Verify the Homebrew cask serves this version
         env:

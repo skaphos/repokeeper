@@ -37,6 +37,34 @@ type serverPackage struct {
 	Transport    struct {
 		Type string `json:"type"`
 	} `json:"transport"`
+	RuntimeHint      string           `json:"runtimeHint"`
+	RuntimeArguments []serverArgument `json:"runtimeArguments"`
+	PackageArguments []serverArgument `json:"packageArguments"`
+}
+
+// serverArgument is one declared command-line argument. The container's
+// workspace contract is expressed through these rather than in prose: the
+// registry schema caps `description` at 100 characters, which cannot hold it,
+// and a declared required argument is something a client can actually act on.
+type serverArgument struct {
+	Type        string `json:"type"`
+	Name        string `json:"name"`
+	Value       string `json:"value"`
+	ValueHint   string `json:"valueHint"`
+	Description string `json:"description"`
+	IsRequired  bool   `json:"isRequired"`
+	Placeholder string `json:"placeholder"`
+}
+
+// findArgument returns the argument with the given flag name or positional
+// value, and whether it was present.
+func findArgument(args []serverArgument, nameOrValue string) (serverArgument, bool) {
+	for _, a := range args {
+		if a.Name == nameOrValue || a.Value == nameOrValue {
+			return a, true
+		}
+	}
+	return serverArgument{}, false
 }
 
 func loadServerJSON(t *testing.T) serverJSON {
@@ -191,4 +219,57 @@ func TestServerJSONHandlesMalformedInput(t *testing.T) {
 	}
 	// packageEntry would t.Fatal here rather than panicking, which is the
 	// behavior under test; asserting the guard's precondition is enough.
+}
+
+// TestServerJSONDeclaresTheContainerWorkspaceContract is the drift guard for the
+// constraint a registry reader most needs and is least likely to guess.
+//
+// The container's workspace contract cannot live in `description`: the registry
+// schema caps that field at 100 characters. It is declared instead as required
+// runtime and package arguments, which a client can act on rather than merely
+// read. Without these assertions server.json could drop the contract entirely
+// and every other test here would still pass.
+func TestServerJSONDeclaresTheContainerWorkspaceContract(t *testing.T) {
+	pkg := packageEntry(t, loadServerJSON(t))
+
+	if pkg.RuntimeHint != "docker" {
+		t.Errorf("runtimeHint: got %q want %q -- runtimeArguments are meaningless without it", pkg.RuntimeHint, "docker")
+	}
+
+	mount, ok := findArgument(pkg.RuntimeArguments, "-v")
+	if !ok {
+		t.Fatal("no -v runtime argument: a registry reader learns nothing about the workspace mount")
+	}
+	if !mount.IsRequired {
+		t.Error("the workspace mount must be declared required; the server cannot see a workspace without it")
+	}
+	// The identical-path rule is the whole point. Mounted anywhere else,
+	// every absolute path in the registry misses and the inventory reports
+	// every repository as missing -- a confidently wrong answer.
+	lowered := strings.ToLower(mount.Description)
+	if !strings.Contains(lowered, "identical") {
+		t.Errorf("the -v description does not state the identical-host-path rule: %q", mount.Description)
+	}
+	if !strings.Contains(lowered, ":ro") && !strings.Contains(lowered, "read-only") {
+		t.Errorf("the -v description does not state the read-only default: %q", mount.Description)
+	}
+
+	cfg, ok := findArgument(pkg.PackageArguments, "--config")
+	if !ok {
+		t.Fatal("no --config package argument: the workspace root must be named explicitly, not discovered")
+	}
+	if !cfg.IsRequired {
+		t.Error("--config must be declared required; the image ships no default workspace location")
+	}
+	// One entry serves one root. This is the surprising part of the
+	// contract for anyone who knows the CLI's upward search.
+	if !strings.Contains(strings.ToLower(cfg.Description), "one workspace root") {
+		t.Errorf("the --config description does not state that one entry serves one workspace root: %q", cfg.Description)
+	}
+
+	// The subcommand must be declared, or a client overriding packageArguments
+	// silently drops the image's CMD and starts the wrong thing.
+	if _, ok := findArgument(pkg.PackageArguments, "mcp"); !ok {
+		t.Error("the mcp subcommand is not declared in packageArguments; a client supplying arguments would override CMD")
+	}
 }
