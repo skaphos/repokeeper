@@ -20,9 +20,16 @@ import "fmt"
 
 // readOnlyAdvice is appended to a translated failure. It names the cause and the
 // remedy, in the terms the user configured: the ":ro" suffix on the bind mount.
+//
+// Credentials are stated as conditional rather than required. Most mutating
+// tools here only rewrite the registry or a working tree -- add_repository,
+// remove_repository and set_labels need nothing but a writable mount. Telling
+// every caller to supply git credentials would send them looking for a second
+// problem they do not have, which is its own kind of unhelpful error.
 const readOnlyAdvice = "the workspace is mounted read-only, so this tool cannot write to it; " +
-	"remount it read-write (drop the \":ro\" suffix from the bind mount) and supply git credentials " +
-	"to enable this tool -- read-only inspection tools are unaffected"
+	"remount it read-write (drop the \":ro\" suffix from the bind mount) to enable it, " +
+	"and additionally supply git credentials if the tool reaches a remote, as sync execution does " +
+	"-- read-only inspection tools are unaffected"
 
 // explainReadOnly translates a write failure caused by a read-only filesystem
 // into a refusal that names the cause and the remedy. Any other error is

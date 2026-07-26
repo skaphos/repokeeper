@@ -70,6 +70,13 @@ func TestExplainReadOnlyNamesCauseAndRemedy(t *testing.T) {
 	if !strings.Contains(msg, "inspection tools are unaffected") {
 		t.Errorf("refusal does not say inspection is unaffected: %q", msg)
 	}
+	// Credentials are conditional, not part of the remedy for every tool.
+	// add_repository, remove_repository and set_labels only rewrite the
+	// registry: sending their callers to hunt for git credentials would
+	// point at a second problem they do not have.
+	if !strings.Contains(msg, "if the tool reaches a remote") {
+		t.Errorf("refusal presents git credentials as unconditionally required: %q", msg)
+	}
 	// The original cause must remain unwrappable for callers and tests.
 	if !errors.Is(got, underlying) {
 		t.Errorf("original error was not wrapped: %v", got)

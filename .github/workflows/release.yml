@@ -129,8 +129,22 @@ jobs:
           set -euo pipefail
           version="${TAG#v}"
           tmp="$(mktemp)"
-          jq --arg v "$version" \
-            '.version = $v | .packages[].version = $v' server.json > "$tmp"
+
+          # Fail loudly on a server.json with no packages rather than stamping
+          # around it. `.packages[].version = $v` is unsafe two ways: a missing
+          # key makes jq abort mid-write, and an empty array succeeds while
+          # silently leaving every package version unstamped -- publishing an
+          # entry whose package points at a tag that was never built.
+          jq --exit-status --arg v "$version" '
+            if ((.packages // []) | length) == 0 then
+              error("server.json declares no packages; refusing to stamp an entry MCP clients cannot run")
+            else
+              .version = $v | .packages |= map(.version = $v)
+            end
+          ' server.json > "$tmp"
+
+          # Only replace the checked-in file once a complete document exists.
+          [ -s "$tmp" ] || { echo "::error title=MCP registry::stamping produced an empty server.json"; exit 1; }
           mv "$tmp" server.json
           echo "server.json stamped to ${version}"
 
@@ -188,6 +202,17 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v7.0.1
+
+      # The image is inspected below. Org GHCR packages are private by default,
+      # so without this the manifest check fails on a release that published
+      # perfectly well -- a false negative on the exact channel this job exists
+      # to confirm.
+      - name: Log in to GHCR
+        uses: docker/login-action@v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
       - name: Verify release assets
         env:

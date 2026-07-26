@@ -73,7 +73,7 @@ var versionCmd = &cobra.Command{
 			writeVersionText(cmd, info)
 			return nil
 		default:
-			return fmt.Errorf("unsupported output format %q for version: use table or json", format)
+			return fmt.Errorf("unsupported output format %q for version: use table, wide or json", format)
 		}
 	},
 }
@@ -185,6 +185,6 @@ func advertisedVersion() string {
 }
 
 func init() {
-	addFormatFlag(versionCmd, "output format: table or json")
+	addFormatFlag(versionCmd, "output format: table, wide or json (wide renders as table)")
 	rootCmd.AddCommand(versionCmd)
 }
