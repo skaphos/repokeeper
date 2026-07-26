@@ -181,7 +181,9 @@ V=0.8.0
 gh release view "v$V" --json assets --jq '.assets[].name' | sort
 curl -sf https://raw.githubusercontent.com/skaphos/homebrew-tools/main/Casks/repokeeper.rb | grep "version \"$V\""
 docker buildx imagetools inspect ghcr.io/skaphos/repokeeper:$V --raw | \
-  jq -e '[.manifests[].platform | select(.os=="linux") | .architecture] | inside(["amd64","arm64"]) | not' >/dev/null || echo "both arches present"
+  jq -e '[.manifests[].platform | select(.os=="linux") | .architecture]
+         | (index("amd64") and index("arm64"))' >/dev/null \
+  && echo "both arches present" || echo "MISSING an architecture"
 curl -sf "https://registry.modelcontextprotocol.io/v0/servers?search=io.skaphos/repokeeper" | jq '.servers[].version'
 ```
 

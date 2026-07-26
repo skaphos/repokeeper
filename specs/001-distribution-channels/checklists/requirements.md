@@ -6,9 +6,18 @@
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs)
+> Two of the template's generic items are **reworded** rather than ticked as written, because ticking
+> them would have been false. See Notes for why the standard phrasing does not fit a feature whose
+> subject matter *is* distribution artifacts.
+
+- [x] No incidental implementation detail — every artifact and tool named is the feature's own
+      subject matter, not a design choice leaking in *(reworded from "No implementation details
+      (languages, frameworks, APIs)", which this spec does not satisfy as written)*
 - [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
+- [x] Written for the audience that must act on it — maintainers and release engineers — and
+      readable by a non-specialist stakeholder at the Problem, Success Criteria and Out of Scope
+      level *(reworded from "Written for non-technical stakeholders", which is not true of the
+      Requirements or Prior Art sections)*
 - [x] All mandatory sections completed
 
 ## Requirement Completeness
@@ -54,8 +63,13 @@ container cannot use a distroless base), and a bind-mounted workspace triggers g
 dubious-ownership refusal on every call unless `safe.directory` is set. The second was measured, not
 assumed — see `research.md` R3.
 
-**On "no implementation details".** This specification names more concrete artifacts than a
-typical feature spec — `.deb`/`.rpm`, a container image, `server.json`, the `io.skaphos` namespace,
+**On the two reworded Content Quality items.** Raised in review (Copilot, PR #308): the spec names
+`cmd/repokeeper/version.go:13`, `.goreleaser.yaml` flags, `go.mod`/`go.sum` and `sigstore-go`
+package names, so ticking "No implementation details" and "Written for non-technical stakeholders"
+as written was not honest. Both items are reworded above to state the bar this spec actually meets,
+rather than left ticked against a bar it does not. The reasoning follows.
+
+This specification names more concrete artifacts than a typical feature spec — `.deb`/`.rpm`, a container image, `server.json`, the `io.skaphos` namespace,
 a DNS TXT record. These are not implementation choices leaking into the spec; they *are* the
 user-facing subject matter. The feature is "which distribution channels does RepoKeeper ship on",
 and a channel is identified by name in the upstream standard being adopted. Naming them is

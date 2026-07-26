@@ -681,8 +681,8 @@ with the read-only mount named.
   verification cannot be skipped, verifying in-process is the only way to avoid requiring a signing
   tool on the user's machine, and the dependency that makes that possible more than doubles the
   binary (+128.7%, measured under Prior Art) for every user on every channel, to serve a replace path
-  reachable on one channel of six and incoherent on a seventh. Upgrades run through the channel the
-  user installed from, documented per channel in `README.md`.
+  reachable on only one of the six channels — and incoherent on another of them, the container.
+  Upgrades run through the channel the user installed from, documented per channel in `README.md`.
 - **Detecting install provenance in code.** With no replace path to gate, ownership detection has no
   caller. It is described under Key Entities and organizes `README.md`'s upgrade table, but ships as
   documentation rather than as a code path.
