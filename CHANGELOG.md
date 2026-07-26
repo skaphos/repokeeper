@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.0](https://github.com/skaphos/repokeeper/compare/v1.3.1...v1.4.0) (2026-07-26)
+
+
+### Features
+
+* **prune:** local branch prune-safety classification + retention policy (SKA-226, SKA-222) ([#274](https://github.com/skaphos/repokeeper/issues/274)) ([6a13964](https://github.com/skaphos/repokeeper/commit/6a13964891d3d02ef40d832c91762f915634ff83))
+* **release:** conform to DECISIONS/0001 distribution channels ([#308](https://github.com/skaphos/repokeeper/issues/308)) ([8a0c75a](https://github.com/skaphos/repokeeper/commit/8a0c75ae7081f270b8ce4b73331acf16d026b0c8)), closes [#305](https://github.com/skaphos/repokeeper/issues/305)
+* **status:** report stale remote-tracking refs ([#272](https://github.com/skaphos/repokeeper/issues/272)) ([0f22d7a](https://github.com/skaphos/repokeeper/commit/0f22d7a6397bcb99cf1e4b774a2766361182fd8d))
+
 ## [1.3.1](https://github.com/skaphos/repokeeper/compare/v1.3.0...v1.3.1) (2026-07-12)
 
 
