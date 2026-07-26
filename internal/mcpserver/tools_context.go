@@ -41,12 +41,12 @@ func (s *MCPServer) handleGetRepositoryContext(ctx context.Context, req mcp.Call
 	reg := s.engine.Registry()
 	entry, err := resolveRepo(reg, repoArg)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	status, err := s.engine.InspectRepo(ctx, entry.Path)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	resp := repoContextResponse{

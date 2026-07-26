@@ -51,7 +51,7 @@ func (s *MCPServer) handleBuildWorkspaceInventory(ctx context.Context, req mcp.C
 		Concurrency: concurrency,
 	})
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	var labelReqs []selector.LabelRequirement
@@ -59,7 +59,7 @@ func (s *MCPServer) handleBuildWorkspaceInventory(ctx context.Context, req mcp.C
 		var parseErr error
 		labelReqs, parseErr = selector.ParseLabelSelector(labelSelectorRaw)
 		if parseErr != nil {
-			return mcp.NewToolResultError(parseErr.Error()), nil
+			return newToolError(parseErr), nil
 		}
 	}
 
@@ -113,7 +113,7 @@ func (s *MCPServer) handleSelectRepositories(ctx context.Context, req mcp.CallTo
 		var err error
 		fk, err = selector.ParseFieldSelectorFilter(fieldSelectorRaw)
 		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+			return newToolError(err), nil
 		}
 	}
 
@@ -122,13 +122,13 @@ func (s *MCPServer) handleSelectRepositories(ctx context.Context, req mcp.CallTo
 		var err error
 		labelReqs, err = selector.ParseLabelSelector(labelSelectorRaw)
 		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+			return newToolError(err), nil
 		}
 	}
 
 	report, err := s.engine.Status(ctx, engine.StatusOptions{Filter: fk})
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	reg := s.engine.Registry()

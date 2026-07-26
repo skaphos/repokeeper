@@ -34,7 +34,7 @@ type scanRepoEntry struct {
 func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	rootsRaw, err := optionalStringSliceArg(req, "roots")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 	pruneStale := req.GetBool("prune_stale", false)
 
@@ -59,7 +59,7 @@ func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolReq
 		Exclude: cfg.Exclude,
 	})
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	reg = s.engine.Registry()
@@ -77,7 +77,7 @@ func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolReq
 	}
 
 	if err := s.saveConfig(); err != nil {
-		return mcp.NewToolResultError("scan succeeded but failed to save: " + err.Error()), nil
+		return newToolErrorf("scan succeeded but failed to save: %w", err), nil
 	}
 
 	newCount := 0
@@ -125,13 +125,13 @@ type syncPlanEntry struct {
 func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	opts, err := parseSyncOptions(req)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 	opts.DryRun = true // plan_sync is always dry-run
 
 	results, err := s.engine.Sync(ctx, opts)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	entries := make([]syncPlanEntry, 0, len(results))
@@ -166,7 +166,7 @@ type syncResultEntry struct {
 func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	confirm, err := requireStrictBoolArg(req, "confirm")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 	if !confirm {
 		return mcp.NewToolResultError("safety gate: execute_sync requires confirm=true"), nil
@@ -174,7 +174,7 @@ func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolReque
 
 	opts, err := parseSyncOptions(req)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 	opts.DryRun = false
 	opts.ContinueOnError = true
@@ -184,12 +184,12 @@ func (s *MCPServer) handleExecuteSync(ctx context.Context, req mcp.CallToolReque
 	planOpts.DryRun = true
 	plan, err := s.engine.Sync(ctx, planOpts)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	results, err := s.engine.ExecuteSyncPlanWithCallbacks(ctx, plan, opts, nil, nil)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	entries := make([]syncResultEntry, 0, len(results))
@@ -225,16 +225,16 @@ func (s *MCPServer) handleSetLabels(_ context.Context, req mcp.CallToolRequest) 
 	reg := s.engine.Registry()
 	entry, err := resolveRepo(reg, repoArg)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	setRaw, err := optionalStringMapArg(req, "set")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 	removeRaw, err := optionalStringSliceArg(req, "remove")
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	if entry.Labels == nil {
@@ -257,7 +257,7 @@ func (s *MCPServer) handleSetLabels(_ context.Context, req mcp.CallToolRequest) 
 	reg.UpdatedAt = time.Now()
 
 	if err := s.saveConfig(); err != nil {
-		return mcp.NewToolResultError("labels updated but failed to save: " + err.Error()), nil
+		return newToolErrorf("labels updated but failed to save: %w", err), nil
 	}
 
 	return mcp.NewToolResultJSON(setLabelsResponse{
@@ -286,7 +286,7 @@ func (s *MCPServer) handleAddRepository(ctx context.Context, req mcp.CallToolReq
 	mirror := req.GetBool("mirror", false)
 
 	if err := s.engine.CloneAndRegister(ctx, url, path, s.cfgPath, mirror); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	// Find the newly registered entry.
@@ -329,7 +329,7 @@ func (s *MCPServer) handleRemoveRepository(ctx context.Context, req mcp.CallTool
 	if deleteFiles {
 		confirm, err := requireStrictBoolArg(req, "confirm")
 		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+			return newToolError(err), nil
 		}
 		if !confirm {
 			return mcp.NewToolResultError("safety gate: remove_repository with delete_files=true requires confirm=true"), nil
@@ -341,11 +341,11 @@ func (s *MCPServer) handleRemoveRepository(ctx context.Context, req mcp.CallTool
 	// matches by repo_id, so we hand it the resolved entry's RepoID.
 	entry, err := resolveRepo(s.engine.Registry(), repoArg)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	if err := s.engine.DeleteRepo(ctx, entry.RepoID, s.cfgPath, deleteFiles); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	return mcp.NewToolResultJSON(removeRepoResponse{

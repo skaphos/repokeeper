@@ -150,3 +150,87 @@ func TestMutatingToolsRemainAdvertised(t *testing.T) {
 		}
 	}
 }
+
+// resultErrorText extracts the text of an MCP error result.
+func resultErrorText(t *testing.T, res *mcp.CallToolResult) string {
+	t.Helper()
+	if res == nil {
+		t.Fatal("nil result")
+	}
+	if !res.IsError {
+		t.Fatalf("result is not an error result: %+v", res)
+	}
+	var sb strings.Builder
+	for _, c := range res.Content {
+		if tc, ok := c.(mcp.TextContent); ok {
+			sb.WriteString(tc.Text)
+		}
+	}
+	return sb.String()
+}
+
+// TestNewToolErrorExplainsReadOnly closes the gap that let the original
+// implementation ship broken.
+//
+// Handlers here report failure as a *result* with a nil error return, not via
+// the Go error return. A translation applied only in serializeTool therefore
+// never saw a real failure -- and the first version of these tests missed it,
+// because they injected a synthetic handler that did return an error. That
+// tested the assumption rather than the system. This exercises the path
+// handlers actually take.
+func TestNewToolErrorExplainsReadOnly(t *testing.T) {
+	t.Parallel()
+
+	underlying := readOnlyError()
+	if underlying == nil {
+		t.Skip("read-only filesystem errors are not detectable on this platform")
+	}
+
+	msg := resultErrorText(t, newToolError(fmt.Errorf("saving registry: %w", underlying)))
+	if !strings.Contains(msg, "read-only") {
+		t.Errorf("tool error result does not explain the read-only mount: %q", msg)
+	}
+	if !strings.Contains(msg, "remount") {
+		t.Errorf("tool error result does not state the remedy: %q", msg)
+	}
+}
+
+// TestNewToolErrorfPreservesTheCause: the wrapping verb must be %w, or the
+// cause is flattened to text and the read-only translation stops recognising it.
+func TestNewToolErrorfPreservesTheCause(t *testing.T) {
+	t.Parallel()
+
+	underlying := readOnlyError()
+	if underlying == nil {
+		t.Skip("read-only filesystem errors are not detectable on this platform")
+	}
+
+	msg := resultErrorText(t, newToolErrorf("scan succeeded but failed to save: %w", underlying))
+	if !strings.Contains(msg, "scan succeeded but failed to save") {
+		t.Errorf("context was dropped: %q", msg)
+	}
+	if !strings.Contains(msg, "read-only") {
+		t.Errorf("wrapping hid the cause from the read-only translation: %q", msg)
+	}
+}
+
+// TestNewToolErrorPassesThroughUnrelatedErrors: an ordinary failure must render
+// exactly as before, with no read-only advice bolted onto it.
+func TestNewToolErrorPassesThroughUnrelatedErrors(t *testing.T) {
+	t.Parallel()
+
+	msg := resultErrorText(t, newToolError(errors.New("repository not found")))
+	if msg != "repository not found" {
+		t.Errorf("unrelated error was altered: got %q", msg)
+	}
+}
+
+// TestNewToolErrorHandlesNil guards the helper against a nil error rather than
+// panicking on Error().
+func TestNewToolErrorHandlesNil(t *testing.T) {
+	t.Parallel()
+
+	if msg := resultErrorText(t, newToolError(nil)); msg == "" {
+		t.Error("nil error produced an empty message")
+	}
+}

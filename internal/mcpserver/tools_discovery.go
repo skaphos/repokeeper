@@ -39,7 +39,7 @@ func (s *MCPServer) handleListRepositories(_ context.Context, req mcp.CallToolRe
 		var err error
 		labelReqs, err = selector.ParseLabelSelector(labelSelectorRaw)
 		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
+			return newToolError(err), nil
 		}
 	}
 

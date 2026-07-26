@@ -18,12 +18,12 @@ func (s *MCPServer) handleGetRepoMetadata(ctx context.Context, req mcp.CallToolR
 	reg := s.engine.Registry()
 	entry, err := resolveRepo(reg, repoArg)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	status, err := s.engine.InspectRepo(ctx, entry.Path)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	if status.RepoMetadata == nil {
@@ -50,12 +50,12 @@ func (s *MCPServer) handleGetAuthoritativePaths(ctx context.Context, req mcp.Cal
 	reg := s.engine.Registry()
 	entry, err := resolveRepo(reg, repoArg)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	status, err := s.engine.InspectRepo(ctx, entry.Path)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	if status.RepoMetadata == nil {
@@ -88,12 +88,12 @@ func (s *MCPServer) handleGetRelatedRepositories(ctx context.Context, req mcp.Ca
 	reg := s.engine.Registry()
 	entry, err := resolveRepo(reg, repoArg)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	status, err := s.engine.InspectRepo(ctx, entry.Path)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return newToolError(err), nil
 	}
 
 	if status.RepoMetadata == nil || len(status.RepoMetadata.RelatedRepos) == 0 {
