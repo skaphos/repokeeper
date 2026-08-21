@@ -19,7 +19,7 @@ Details live in the contracts: [`cli-version.md`](contracts/cli-version.md),
 | 6–7 | A published release |
 
 ```bash
-go version          # 1.26.5 per go.mod
+go version          # must match the `go` directive in go.mod
 docker buildx version
 goreleaser --version   # 2.17.0 per .tool-versions
 ```
