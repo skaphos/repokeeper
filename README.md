@@ -351,7 +351,7 @@ Branch switching and prune execution are separate workflow areas rather than hid
 go -C tools tool task --list
 
 # Run tests
-go run github.com/onsi/ginkgo/v2/ginkgo@v2.29.0 ./...
+go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 ./...
 
 # Run with coverage
 go test -coverprofile=coverage.out ./...
@@ -366,7 +366,7 @@ go -C tools tool task coverage-report
 go -C tools tool task perf-bench
 
 # Lint
-go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1 run ./...
 
 # Build locally
 go build -o repokeeper .
