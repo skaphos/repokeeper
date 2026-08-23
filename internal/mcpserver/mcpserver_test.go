@@ -1793,6 +1793,78 @@ var _ = Describe("InProcess MCP Client", func() {
 		Expect(toolNames).To(HaveKey("remove_repository"))
 	})
 
+	It("returns record-shaped structured content for every tool through the real client", func() {
+		report := newTestStatusReport()
+		eng.statusResult = report
+		eng.inspectResult = &report.Repos[0]
+		eng.syncResult = []engine.SyncResult{{
+			RepoID:  "github.com/example/alpha",
+			Path:    "/home/user/repos/alpha",
+			Action:  "fetch --all --prune",
+			Outcome: engine.SyncOutcomeFetched,
+			Planned: true,
+		}}
+
+		c, err := client.NewInProcessClient(srv.Inner())
+		Expect(err).NotTo(HaveOccurred())
+		defer func() { _ = c.Close() }()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		Expect(c.Start(ctx)).To(Succeed())
+
+		initReq := mcp.InitializeRequest{}
+		initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initReq.Params.ClientInfo = mcp.Implementation{Name: "contract-test-client", Version: "1.0.0"}
+		_, err = c.Initialize(ctx, initReq)
+		Expect(err).NotTo(HaveOccurred())
+
+		cases := []struct {
+			name         string
+			arguments    map[string]any
+			requiredKeys []string
+		}{
+			{name: "list_repositories", requiredKeys: []string{"repositories"}},
+			{name: "build_workspace_inventory", requiredKeys: []string{"generated_at", "repos"}},
+			{name: "select_repositories", arguments: map[string]any{"label_selector": "team=platform"}, requiredKeys: []string{"repositories"}},
+			{name: "get_repository_context", arguments: map[string]any{"repo": "github.com/example/alpha"}, requiredKeys: []string{"repo_id", "path", "head", "tracking"}},
+			{name: "get_repo_metadata", arguments: map[string]any{"repo": "github.com/example/alpha"}, requiredKeys: []string{"name", "paths", "related_repos"}},
+			{name: "get_authoritative_paths", arguments: map[string]any{"repo": "github.com/example/alpha"}, requiredKeys: []string{"authoritative", "low_value", "entrypoints"}},
+			{name: "get_related_repositories", arguments: map[string]any{"repo": "github.com/example/alpha"}, requiredKeys: []string{"repositories"}},
+			{name: "get_workspace_config", requiredKeys: []string{"config_path", "registry_stale_days", "defaults", "repo_count"}},
+			{name: "scan_workspace", requiredKeys: []string{"discovered", "new", "missing", "pruned", "repos"}},
+			{name: "plan_sync", requiredKeys: []string{"plan"}},
+			{name: "execute_sync", arguments: map[string]any{"confirm": true}, requiredKeys: []string{"results"}},
+			{name: "set_labels", arguments: map[string]any{"repo": "github.com/example/alpha", "set": map[string]any{"tier": "critical"}}, requiredKeys: []string{"repo_id", "labels"}},
+			{name: "add_repository", arguments: map[string]any{"url": "git@github.com:example/newone.git", "path": "/tmp/fake-new-repo"}, requiredKeys: []string{"repo_id", "path", "status"}},
+			{name: "remove_repository", arguments: map[string]any{"repo": "github.com/example/beta", "delete_files": false}, requiredKeys: []string{"repo_id", "removed"}},
+		}
+		toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+		Expect(err).NotTo(HaveOccurred())
+		contractNames := make(map[string]struct{}, len(cases))
+		for _, tc := range cases {
+			contractNames[tc.name] = struct{}{}
+		}
+		Expect(contractNames).To(HaveLen(len(toolsResult.Tools)))
+		for _, tool := range toolsResult.Tools {
+			Expect(contractNames).To(HaveKey(tool.Name), "registered tool %q lacks a protocol contract case", tool.Name)
+		}
+
+		for _, tc := range cases {
+			By(tc.name)
+			result, callErr := c.CallTool(ctx, mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Name: tc.name, Arguments: tc.arguments},
+			})
+			Expect(callErr).NotTo(HaveOccurred(), tc.name)
+			Expect(result.IsError).To(BeFalse(), tc.name)
+			Expect(result.Content).NotTo(BeEmpty(), tc.name)
+			structured := structuredContentMap(result)
+			for _, key := range tc.requiredKeys {
+				Expect(structured).To(HaveKey(key), "%s missing contract key %q", tc.name, key)
+			}
+		}
+	})
+
 	It("can call a read tool end-to-end through the in-process client", func() {
 		c, err := client.NewInProcessClient(srv.Inner())
 		Expect(err).NotTo(HaveOccurred())
