@@ -155,5 +155,5 @@ Notes:
 ## Notes
 
 - CI workflow is aligned to `Taskfile.yml` targets.
-- Release Please is pinned to the latest major action (`googleapis/release-please-action@v5`).
+- Release Please is pinned to the immutable commit for `googleapis/release-please-action@v5.0.0`.
 - The GoReleaser workflow remains tag-driven (`v*`) and owns the GitHub release object end to end.
