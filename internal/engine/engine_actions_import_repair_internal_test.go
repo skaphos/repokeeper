@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -143,6 +144,39 @@ func TestPlanImportClonesSkipsAndSuccess(t *testing.T) {
 }
 
 func TestExecuteImportClonesSuccessFailureAndSkips(t *testing.T) {
+	t.Run("creates clone parent without permissions for other users", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows does not preserve Unix permission bits")
+		}
+
+		parentPath := filepath.Join(t.TempDir(), "repos")
+		targetPath := filepath.Join(parentPath, "repo")
+		eng := &Engine{
+			registry:   &registry.Registry{},
+			adapter:    &planAdapter{cloneErrByDir: map[string]error{}},
+			classifier: vcs.NewGitErrorClassifier(),
+		}
+		plan := ImportClonePlan{Clones: []ImportCloneTarget{{
+			Path: targetPath,
+			Entry: registry.Entry{
+				RepoID:    "repo",
+				RemoteURL: "git@github.com:org/repo.git",
+				Branch:    "main",
+			},
+		}}}
+
+		if _, err := eng.ExecuteImportClones(context.Background(), plan, ImportCloneCallbacks{}); err != nil {
+			t.Fatalf("execute import clones: %v", err)
+		}
+		info, err := os.Stat(parentPath)
+		if err != nil {
+			t.Fatalf("stat clone parent: %v", err)
+		}
+		if got := info.Mode().Perm(); got&0o007 != 0 {
+			t.Fatalf("expected clone parent to deny permissions to other users, got %04o", got)
+		}
+	})
+
 	t.Run("successful clone with dangerous delete updates registry and callbacks", func(t *testing.T) {
 		cwd := t.TempDir()
 		targetPath := filepath.Join(cwd, "repos", "repo")
