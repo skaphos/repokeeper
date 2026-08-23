@@ -130,6 +130,22 @@ func (e *Engine) Config() *config.Config { return e.cfg }
 // Registry returns the engine registry reference.
 func (e *Engine) Registry() *registry.Registry { return e.registry }
 
+// ReloadConfig refreshes the engine configuration and registry from disk.
+func (e *Engine) ReloadConfig(path string) error {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+	if cfg.Registry == nil {
+		return fmt.Errorf("registry not found in %q", path)
+	}
+	e.registryMu.Lock()
+	e.cfg = cfg
+	e.registry = cfg.Registry
+	e.registryMu.Unlock()
+	return nil
+}
+
 // Adapter returns the engine VCS adapter.
 func (e *Engine) Adapter() vcs.Adapter { return e.adapter }
 

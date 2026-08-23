@@ -30,6 +30,7 @@ type EngineAPI interface {
 	DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteFiles bool) error
 	CloneAndRegister(ctx context.Context, remoteURL, targetPath, cfgPath string, mirror bool) error
 	Scan(ctx context.Context, opts engine.ScanOptions) ([]model.RepoStatus, error)
+	ReloadConfig(path string) error
 	Registry() *registry.Registry
 	Config() *config.Config
 }

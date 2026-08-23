@@ -4,6 +4,8 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/internal/registry"
 	"github.com/skaphos/repokeeper/internal/sortutil"
 )
 
@@ -49,10 +52,7 @@ func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolReq
 	}
 
 	reg := s.engine.Registry()
-	prevCount := 0
-	if reg != nil {
-		prevCount = len(reg.Entries)
-	}
+	previousEntries := registryEntrySet(reg)
 
 	statuses, err := s.engine.Scan(ctx, engine.ScanOptions{
 		Roots:   scanRoots,
@@ -80,18 +80,13 @@ func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolReq
 		return newToolErrorf("scan succeeded but failed to save: %w", err), nil
 	}
 
-	newCount := 0
-	if reg != nil && len(reg.Entries) > prevCount {
-		newCount = len(reg.Entries) - prevCount
-	}
-
-	missing := 0
+	newCount := countNewRegistryEntries(previousEntries, reg)
+	missing := countRegistryEntriesWithStatus(reg, registry.StatusMissing)
 	repos := make([]scanRepoEntry, 0, len(statuses))
 	for _, st := range statuses {
 		status := "present"
 		if st.Error != "" {
 			status = "error"
-			missing++
 		}
 		repos = append(repos, scanRepoEntry{
 			RepoID: st.RepoID,
@@ -108,6 +103,48 @@ func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolReq
 		Repos:      repos,
 	}
 	return mcp.NewToolResultJSON(resp)
+}
+
+func registryEntrySet(reg *registry.Registry) map[string]struct{} {
+	entries := make(map[string]struct{})
+	if reg == nil {
+		return entries
+	}
+	for _, entry := range reg.Entries {
+		entries[registryEntryKey(entry)] = struct{}{}
+	}
+	return entries
+}
+
+func countNewRegistryEntries(previous map[string]struct{}, reg *registry.Registry) int {
+	count := 0
+	for key := range registryEntrySet(reg) {
+		if _, existed := previous[key]; !existed {
+			count++
+		}
+	}
+	return count
+}
+
+func countRegistryEntriesWithStatus(reg *registry.Registry, status registry.EntryStatus) int {
+	if reg == nil {
+		return 0
+	}
+	count := 0
+	for _, entry := range reg.Entries {
+		if entry.Status == status {
+			count++
+		}
+	}
+	return count
+}
+
+func registryEntryKey(entry registry.Entry) string {
+	checkoutID := strings.TrimSpace(entry.CheckoutID)
+	if checkoutID == "" {
+		checkoutID = filepath.Clean(entry.Path)
+	}
+	return entry.RepoID + "\x00" + checkoutID
 }
 
 // --- plan_sync ---
@@ -336,15 +373,14 @@ func (s *MCPServer) handleRemoveRepository(ctx context.Context, req mcp.CallTool
 		}
 	}
 
-	// Resolve through resolveRepo so an absolute checkout path works (the
-	// schema advertises "repo_id or absolute path"). DeleteRepo itself only
-	// matches by repo_id, so we hand it the resolved entry's RepoID.
+	// Resolve through resolveRepo so an absolute checkout path or checkout_id
+	// identifies one entry before the engine performs the mutation.
 	entry, err := resolveRepo(s.engine.Registry(), repoArg)
 	if err != nil {
 		return newToolError(err), nil
 	}
 
-	if err := s.engine.DeleteRepo(ctx, entry.RepoID, s.cfgPath, deleteFiles); err != nil {
+	if err := s.engine.DeleteRepo(ctx, entry.Path, s.cfgPath, deleteFiles); err != nil {
 		return newToolError(err), nil
 	}
 
@@ -461,6 +497,14 @@ func (s *MCPServer) saveConfig() error {
 	if cfg == nil {
 		return nil
 	}
+	if fresh, err := config.Load(s.cfgPath); err == nil {
+		cfg = fresh
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	cfg.Registry = s.engine.Registry()
-	return config.Save(cfg, s.cfgPath)
+	if err := config.Save(cfg, s.cfgPath); err != nil {
+		return err
+	}
+	return s.engine.ReloadConfig(s.cfgPath)
 }
