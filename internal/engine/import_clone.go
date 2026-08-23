@@ -153,7 +153,7 @@ func (e *Engine) ExecuteImportClones(ctx context.Context, plan ImportClonePlan, 
 		if callbacks.OnStart != nil {
 			callbacks.OnStart(result)
 		}
-		if err := os.MkdirAll(filepath.Dir(target.Path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(target.Path), 0o750); err != nil {
 			return failures, err
 		}
 		if _, err := os.Stat(target.Path); err == nil {
