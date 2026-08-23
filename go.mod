@@ -1,6 +1,6 @@
 module github.com/skaphos/repokeeper
 
-go 1.27.0
+go 1.26.7
 
 require (
 	charm.land/bubbletea/v2 v2.0.9
