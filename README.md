@@ -128,6 +128,8 @@ repokeeper reconcile
 5. Re-run `repokeeper scan` whenever clones are added, moved, or removed so the embedded registry stays current.
 6. If needed, widen scope for a specific run with `repokeeper scan --roots <dir1,dir2,...>`.
 
+Scan treats each discovered repository root as a boundary and does not descend into it. Nested repositories or linked worktrees stored inside an already discovered working tree are therefore not registered separately and do not require extra exclude patterns.
+
 ## Commands
 
 Detailed command breakdown moved to docs:
@@ -163,7 +165,7 @@ repokeeper uninstall          # remove entries (prompts unless --yes)
 
 For runtimes without a flat-file MCP config RepoKeeper can adapter (Cursor, Windsurf), `repokeeper install --manual` prints the snippet you paste into their settings UI. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime paths, the full `install`/`uninstall` flag reference, and the MCP tool catalog.
 
-The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI/TUI counterparts, so agents and users should treat them as execution surfaces when enabled.
+The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI/TUI counterparts, so agents and users should treat them as execution surfaces when enabled. The server reloads workspace configuration and registry state from disk for every request, keeping long-running sessions current without silently reverting manual configuration edits.
 
 RepoKeeper is published to the MCP registry as `io.skaphos/repokeeper`.
 

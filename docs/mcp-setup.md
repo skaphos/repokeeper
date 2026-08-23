@@ -121,6 +121,10 @@ Argument notes:
 - `plan_sync` entries include `remote_tracking_refs` with `stale_count`, the stale ref list, and a non-fatal `inspection_error` when a remote cannot be queried.
 - `scan_workspace.roots` is a string array of absolute or otherwise valid filesystem roots.
 - If `scan_workspace.roots` is omitted, RepoKeeper falls back to the effective workspace root resolved from the active config path.
+- Each MCP request reloads the config and registry from disk. Registry mutations merge their result into the latest on-disk config, so manual changes such as new `exclude` patterns are not overwritten by a running server.
+- `scan_workspace.new` counts registry entries added by that scan independently from entries pruned in the same call. `scan_workspace.missing` is the number of entries still marked missing after optional pruning.
+- `scan_workspace.prune_stale` uses `registry_stale_days` from the live config (default: 30), which is also returned by `get_workspace_config`.
+- Repository selectors accept `repo_id`, `checkout_id`, or an exact absolute checkout path. Use a checkout ID or path to disambiguate repositories with multiple registered checkouts.
 - `set_labels.set` is an object whose values must be strings.
 - `set_labels.remove` is a string array of label keys to delete.
 - `execute_sync.confirm` is a required safety gate. The call must include `"confirm": true`; omitting it or setting it to `false` is rejected.

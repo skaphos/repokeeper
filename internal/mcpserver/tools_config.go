@@ -15,6 +15,7 @@ type workspaceConfigResponse struct {
 	Exclude      []string       `json:"exclude,omitempty"`
 	IgnoredPaths []string       `json:"ignored_paths,omitempty"`
 	RegistryPath string         `json:"registry_path,omitempty"`
+	StaleDays    int            `json:"registry_stale_days"`
 	Defaults     configDefaults `json:"defaults"`
 	RepoCount    int            `json:"repo_count"`
 }
@@ -42,6 +43,7 @@ func (s *MCPServer) handleGetWorkspaceConfig(_ context.Context, _ mcp.CallToolRe
 		Exclude:      cfg.Exclude,
 		IgnoredPaths: cfg.IgnoredPaths,
 		RegistryPath: cfg.RegistryPath,
+		StaleDays:    positiveIntDefault(cfg.RegistryStaleDays, config.DefaultConfig().RegistryStaleDays),
 		Defaults: configDefaults{
 			RemoteName:     cfgDefault(cfg.Defaults.RemoteName, config.DefaultConfig().Defaults.RemoteName),
 			MainBranch:     cfgDefault(cfg.Defaults.MainBranch, config.DefaultConfig().Defaults.MainBranch),
@@ -63,6 +65,13 @@ func cfgDefault(val, fallback string) string {
 
 func intDefault(val, fallback int) int {
 	if val == 0 {
+		return fallback
+	}
+	return val
+}
+
+func positiveIntDefault(val, fallback int) int {
+	if val <= 0 {
 		return fallback
 	}
 	return val

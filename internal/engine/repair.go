@@ -112,10 +112,7 @@ func (e *Engine) RepairUpstream(ctx context.Context, repoID, cfgPath string) (Re
 	entry.Status = registry.StatusPresent
 	e.upsertRegistryEntry(entry)
 
-	e.registryMu.Lock()
-	defer e.registryMu.Unlock()
-	cfg.Registry = e.registry
-	if err := config.Save(cfg, cfgPath); err != nil {
+	if err := e.persistRegistry(cfgPath); err != nil {
 		return res, fmt.Errorf("repair succeeded but config save failed: %w", err)
 	}
 

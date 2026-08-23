@@ -3,7 +3,9 @@ package mcpserver
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -108,6 +110,9 @@ func (s *MCPServer) serializeTool(h server.ToolHandlerFunc) server.ToolHandlerFu
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if err := s.reloadConfig(); err != nil {
+			return newToolErrorf("reload config: %w", err), nil
+		}
 		res, err := h(ctx, req)
 		// Translating here rather than per-handler covers every mutating
 		// tool at one point. Read-only tools never produce EROFS, so the
@@ -127,8 +132,18 @@ func (s *MCPServer) serializeResource(
 	return func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if err := s.reloadConfig(); err != nil {
+			return nil, fmt.Errorf("reload config: %w", err)
+		}
 		return h(ctx, req)
 	}
+}
+
+func (s *MCPServer) reloadConfig() error {
+	if s.engine == nil || strings.TrimSpace(s.cfgPath) == "" {
+		return nil
+	}
+	return s.engine.ReloadConfig(s.cfgPath)
 }
 
 // --- Tool definitions ---
@@ -155,7 +170,7 @@ func getRepositoryContextTool() mcp.Tool {
 			ReadOnlyHint: boolPtr(true),
 		}),
 		mcp.WithString("repo",
-			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Description("Repository identifier (repo_id, checkout_id, or absolute path)"),
 			mcp.Required(),
 		),
 	)
@@ -213,7 +228,7 @@ func getRepoMetadataTool() mcp.Tool {
 			ReadOnlyHint: boolPtr(true),
 		}),
 		mcp.WithString("repo",
-			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Description("Repository identifier (repo_id, checkout_id, or absolute path)"),
 			mcp.Required(),
 		),
 	)
@@ -226,7 +241,7 @@ func getAuthoritativePathsTool() mcp.Tool {
 			ReadOnlyHint: boolPtr(true),
 		}),
 		mcp.WithString("repo",
-			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Description("Repository identifier (repo_id, checkout_id, or absolute path)"),
 			mcp.Required(),
 		),
 	)
@@ -239,7 +254,7 @@ func getRelatedRepositoriesTool() mcp.Tool {
 			ReadOnlyHint: boolPtr(true),
 		}),
 		mcp.WithString("repo",
-			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Description("Repository identifier (repo_id, checkout_id, or absolute path)"),
 			mcp.Required(),
 		),
 	)
@@ -320,7 +335,7 @@ func setLabelsTool() mcp.Tool {
 			ReadOnlyHint: boolPtr(false),
 		}),
 		mcp.WithString("repo",
-			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Description("Repository identifier (repo_id, checkout_id, or absolute path)"),
 			mcp.Required(),
 		),
 		mcp.WithObject("set",
@@ -362,7 +377,7 @@ func removeRepositoryTool() mcp.Tool {
 			DestructiveHint: boolPtr(true),
 		}),
 		mcp.WithString("repo",
-			mcp.Description("Repository identifier (repo_id or absolute path)"),
+			mcp.Description("Repository identifier (repo_id, checkout_id, or absolute path)"),
 			mcp.Required(),
 		),
 		mcp.WithBoolean("delete_files",

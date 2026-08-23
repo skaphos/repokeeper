@@ -43,27 +43,28 @@ func (e *Engine) ResetRepo(ctx context.Context, repoID, cfgPath string) error {
 	return nil
 }
 
-func (e *Engine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteFiles bool) error {
+func (e *Engine) DeleteRepo(ctx context.Context, repo, cfgPath string, deleteFiles bool) error {
 	e.registryMu.Lock()
 	reg := e.registry
-	cfg := e.cfg
 	e.registryMu.Unlock()
 
 	if reg == nil {
 		return fmt.Errorf("registry not available")
 	}
-	entries := reg.FindEntriesByRepoID(repoID)
-	if len(entries) == 0 {
-		return fmt.Errorf("repo %q not found in registry", repoID)
+	entry, err := resolveDeleteEntry(reg, repo)
+	if err != nil {
+		return err
 	}
-	if len(entries) > 1 {
-		return fmt.Errorf("repo %q is ambiguous: found %d local checkouts; re-run with an exact checkout selector", repoID, len(entries))
+	entryPath := entry.Path
+	if deleteFiles && entryPath != "" {
+		if err := validateRemoveAllTarget(entryPath); err != nil {
+			return err
+		}
 	}
-	entryPath := entries[0].Path
 
 	newEntries := make([]registry.Entry, 0, len(reg.Entries))
 	for _, en := range reg.Entries {
-		if en.RepoID == repoID && en.Path == entryPath {
+		if en.RepoID == entry.RepoID && filepath.Clean(en.Path) == filepath.Clean(entryPath) {
 			continue
 		}
 		newEntries = append(newEntries, en)
@@ -74,8 +75,7 @@ func (e *Engine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteF
 	reg.UpdatedAt = time.Now()
 	e.registryMu.Unlock()
 
-	cfg.Registry = reg
-	if err := config.Save(cfg, cfgPath); err != nil {
+	if err := e.persistRegistry(cfgPath); err != nil {
 		return fmt.Errorf("saving registry after delete: %w", err)
 	}
 
@@ -87,9 +87,61 @@ func (e *Engine) DeleteRepo(ctx context.Context, repoID, cfgPath string, deleteF
 	return nil
 }
 
+func resolveDeleteEntry(reg *registry.Registry, repo string) (registry.Entry, error) {
+	if filepath.IsAbs(repo) {
+		wantPath := filepath.Clean(repo)
+		var pathMatches []registry.Entry
+		for _, entry := range reg.Entries {
+			if filepath.Clean(entry.Path) == wantPath {
+				pathMatches = append(pathMatches, entry)
+			}
+		}
+		if len(pathMatches) == 1 {
+			return pathMatches[0], nil
+		}
+		if len(pathMatches) > 1 {
+			return registry.Entry{}, fmt.Errorf("repository path %q is ambiguous: found %d registry entries", repo, len(pathMatches))
+		}
+	}
+
+	var checkoutMatches []registry.Entry
+	for _, entry := range reg.Entries {
+		if entry.CheckoutID == repo {
+			checkoutMatches = append(checkoutMatches, entry)
+		}
+	}
+	if len(checkoutMatches) == 1 {
+		return checkoutMatches[0], nil
+	}
+	if len(checkoutMatches) > 1 {
+		return registry.Entry{}, fmt.Errorf("checkout_id %q is ambiguous: found %d registry entries", repo, len(checkoutMatches))
+	}
+
+	entries := reg.FindEntriesByRepoID(repo)
+	switch len(entries) {
+	case 0:
+		return registry.Entry{}, fmt.Errorf("repo %q not found in registry", repo)
+	case 1:
+		return entries[0], nil
+	default:
+		return registry.Entry{}, fmt.Errorf("repo %q is ambiguous: found %d local checkouts; re-run with an exact checkout selector", repo, len(entries))
+	}
+}
+
 // safeRemoveAll wraps os.RemoveAll with defensive checks to prevent accidental
 // deletion of non-absolute paths, filesystem roots, or non-directory targets.
 func safeRemoveAll(path string) error {
+	if err := validateRemoveAllTarget(path); err != nil {
+		return err
+	}
+	clean := filepath.Clean(path)
+	if err := os.RemoveAll(clean); err != nil {
+		return fmt.Errorf("deleting %q from disk: %w", clean, err)
+	}
+	return nil
+}
+
+func validateRemoveAllTarget(path string) error {
 	if !filepath.IsAbs(path) {
 		return fmt.Errorf("refusing to delete non-absolute path %q", path)
 	}
@@ -107,9 +159,6 @@ func safeRemoveAll(path string) error {
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("refusing to delete non-directory path %q", clean)
-	}
-	if err := os.RemoveAll(clean); err != nil {
-		return fmt.Errorf("deleting %q from disk: %w", clean, err)
 	}
 	return nil
 }
@@ -150,12 +199,38 @@ func (e *Engine) CloneAndRegister(ctx context.Context, remoteURL, targetPath, cf
 
 	e.registryMu.Lock()
 	reg := e.registry
-	cfg := e.cfg
 	e.registryMu.Unlock()
-	cfg.Registry = reg
-	if err := config.Save(cfg, cfgPath); err != nil {
+	if reg == nil {
+		return fmt.Errorf("registry not available")
+	}
+	if err := e.persistRegistry(cfgPath); err != nil {
 		return fmt.Errorf("saving registry after clone: %w", err)
 	}
+	return nil
+}
+
+func (e *Engine) persistRegistry(cfgPath string) error {
+	e.registryMu.Lock()
+	cfg := e.cfg
+	reg := e.registry
+	e.registryMu.Unlock()
+	if cfg == nil {
+		return fmt.Errorf("config not available")
+	}
+
+	if fresh, err := config.Load(cfgPath); err == nil {
+		cfg = fresh
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	cfg.Registry = reg
+	if err := config.Save(cfg, cfgPath); err != nil {
+		return err
+	}
+
+	e.registryMu.Lock()
+	e.cfg = cfg
+	e.registryMu.Unlock()
 	return nil
 }
 

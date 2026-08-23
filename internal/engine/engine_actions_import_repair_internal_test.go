@@ -652,6 +652,57 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 		if err := eng.DeleteRepo(context.Background(), "repo", cfgPath, false); err == nil || !strings.Contains(err.Error(), "ambiguous") {
 			t.Fatalf("expected ambiguous repo error, got %v", err)
 		}
+		eng.registry = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "first", Path: "/shared", Status: registry.StatusPresent},
+			{RepoID: "second", Path: "/shared", Status: registry.StatusPresent},
+		}}
+		if err := eng.DeleteRepo(context.Background(), "/shared", cfgPath, false); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+			t.Fatalf("expected duplicate path ambiguity error, got %v", err)
+		}
+		if len(eng.registry.Entries) != 2 {
+			t.Fatalf("ambiguous path must not remove entries, got %+v", eng.registry.Entries)
+		}
+
+		eng.registry = &registry.Registry{Entries: []registry.Entry{{RepoID: "root", Path: string(filepath.Separator), Status: registry.StatusPresent}}}
+		if err := eng.DeleteRepo(context.Background(), string(filepath.Separator), cfgPath, true); err == nil || !strings.Contains(err.Error(), "filesystem root") {
+			t.Fatalf("expected filesystem root rejection, got %v", err)
+		}
+		if len(eng.registry.Entries) != 1 {
+			t.Fatalf("unsafe delete target must remain registered, got %+v", eng.registry.Entries)
+		}
+
+		eng.registry = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "repo", Path: "/repo-a", CheckoutID: "co-a", Status: registry.StatusPresent},
+			{RepoID: "repo", Path: "/repo-b", CheckoutID: "co-b", Status: registry.StatusPresent},
+		}}
+		if err := eng.DeleteRepo(context.Background(), "/repo-b", cfgPath, false); err != nil {
+			t.Fatalf("delete exact checkout path: %v", err)
+		}
+		if len(eng.registry.Entries) != 1 || eng.registry.Entries[0].Path != "/repo-a" {
+			t.Fatalf("expected only /repo-b removed, entries=%+v", eng.registry.Entries)
+		}
+
+		eng.registry = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "repo", Path: "/repo-a", CheckoutID: "co-a", Status: registry.StatusPresent},
+			{RepoID: "repo", Path: "/repo-b", CheckoutID: "co-b", Status: registry.StatusPresent},
+		}}
+		if err := eng.DeleteRepo(context.Background(), "co-a", cfgPath, false); err != nil {
+			t.Fatalf("delete exact checkout ID: %v", err)
+		}
+		if len(eng.registry.Entries) != 1 || eng.registry.Entries[0].Path != "/repo-b" {
+			t.Fatalf("expected only checkout co-a removed, entries=%+v", eng.registry.Entries)
+		}
+
+		eng.registry = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "path-owner", Path: "co-b", CheckoutID: "path-owner", Status: registry.StatusPresent},
+			{RepoID: "repo", Path: "/repo-b", CheckoutID: "co-b", Status: registry.StatusPresent},
+		}}
+		if err := eng.DeleteRepo(context.Background(), "co-b", cfgPath, false); err != nil {
+			t.Fatalf("delete checkout ID that collides with a relative path: %v", err)
+		}
+		if len(eng.registry.Entries) != 1 || eng.registry.Entries[0].RepoID != "path-owner" {
+			t.Fatalf("relative path collision selected the wrong entry: %+v", eng.registry.Entries)
+		}
 
 		keepPath := filepath.Join(t.TempDir(), "keep")
 		if err := os.MkdirAll(keepPath, 0o755); err != nil {
@@ -784,6 +835,64 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 			t.Fatalf("expected stored RemoteURL trimmed, got %q", entry.RemoteURL)
 		}
 	})
+}
+
+func TestReloadConfigAndRegistryPersistenceUseLatestDiskState(t *testing.T) {
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	diskCfg := config.DefaultConfig()
+	diskCfg.Exclude = []string{"**/startup/**"}
+	diskCfg.Registry = &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "repo", CheckoutID: "first", Path: "/repo-a", Status: registry.StatusPresent},
+		{RepoID: "repo", CheckoutID: "second", Path: "/repo-b", Status: registry.StatusPresent},
+	}}
+	if err := config.Save(&diskCfg, cfgPath); err != nil {
+		t.Fatalf("save initial config: %v", err)
+	}
+
+	startupCfg := config.DefaultConfig()
+	eng := New(&startupCfg, &registry.Registry{}, vcs.NewGitAdapter(&testRunner{}), nil, nil, nil)
+
+	edited, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load config for manual edit: %v", err)
+	}
+	edited.Exclude = []string{"**/edited-after-startup/**"}
+	if err := config.Save(edited, cfgPath); err != nil {
+		t.Fatalf("save manual config edit: %v", err)
+	}
+
+	if err := eng.ReloadConfig(cfgPath); err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if got := eng.Config().Exclude; len(got) != 1 || got[0] != "**/edited-after-startup/**" {
+		t.Fatalf("expected refreshed excludes, got %v", got)
+	}
+	if got := len(eng.Registry().Entries); got != 2 {
+		t.Fatalf("expected refreshed registry with 2 entries, got %d", got)
+	}
+
+	if err := eng.DeleteRepo(context.Background(), "/repo-b", cfgPath, false); err != nil {
+		t.Fatalf("delete exact checkout: %v", err)
+	}
+	persisted, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("reload persisted config: %v", err)
+	}
+	if got := persisted.Exclude; len(got) != 1 || got[0] != "**/edited-after-startup/**" {
+		t.Fatalf("registry write clobbered manual excludes: %v", got)
+	}
+	if len(persisted.Registry.Entries) != 1 || persisted.Registry.Entries[0].Path != "/repo-a" {
+		t.Fatalf("expected only exact checkout removed, entries=%+v", persisted.Registry.Entries)
+	}
+
+	missingRegistryPath := filepath.Join(t.TempDir(), "config.yaml")
+	missingRegistryCfg := config.DefaultConfig()
+	if err := config.Save(&missingRegistryCfg, missingRegistryPath); err != nil {
+		t.Fatalf("save config without registry: %v", err)
+	}
+	if err := eng.ReloadConfig(missingRegistryPath); err == nil || !strings.Contains(err.Error(), "registry not found") {
+		t.Fatalf("expected reload to fail closed without registry, got %v", err)
+	}
 }
 
 func TestRemoteMismatchWrapperFunctions(t *testing.T) {

@@ -37,10 +37,14 @@ type mockEngine struct {
 	syncErr          error
 	scanResult       []model.RepoStatus
 	scanErr          error
+	scanFunc         func(engine.ScanOptions) ([]model.RepoStatus, error)
 	deleteRepoCalled bool
+	deleteRepoArg    string
 	deleteRepoErr    error
 	cloneCalled      bool
 	cloneErr         error
+	reloadFromDisk   bool
+	reloadErr        error
 }
 
 func (e *mockEngine) Status(_ context.Context, opts engine.StatusOptions) (*model.StatusReport, error) {
@@ -102,17 +106,21 @@ func (e *mockEngine) InspectRepo(_ context.Context, path string) (*model.RepoSta
 		},
 	}, nil
 }
-func (e *mockEngine) DeleteRepo(_ context.Context, _, _ string, _ bool) error {
+func (e *mockEngine) DeleteRepo(_ context.Context, repo string, _ string, _ bool) error {
 	e.deleteRepoCalled = true
+	e.deleteRepoArg = repo
 	return e.deleteRepoErr
 }
 func (e *mockEngine) CloneAndRegister(_ context.Context, _, _, _ string, _ bool) error {
 	e.cloneCalled = true
 	return e.cloneErr
 }
-func (e *mockEngine) Scan(_ context.Context, _ engine.ScanOptions) ([]model.RepoStatus, error) {
+func (e *mockEngine) Scan(_ context.Context, opts engine.ScanOptions) ([]model.RepoStatus, error) {
 	if e.scanErr != nil {
 		return nil, e.scanErr
+	}
+	if e.scanFunc != nil {
+		return e.scanFunc(opts)
 	}
 	if e.scanResult != nil {
 		return e.scanResult, nil
@@ -121,6 +129,22 @@ func (e *mockEngine) Scan(_ context.Context, _ engine.ScanOptions) ([]model.Repo
 }
 func (e *mockEngine) Registry() *registry.Registry { return e.reg }
 func (e *mockEngine) Config() *config.Config       { return e.cfg }
+
+func (e *mockEngine) ReloadConfig(path string) error {
+	if e.reloadErr != nil {
+		return e.reloadErr
+	}
+	if !e.reloadFromDisk {
+		return nil
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+	e.cfg = cfg
+	e.reg = cfg.Registry
+	return nil
+}
 
 var _ mcpserver.EngineAPI = (*mockEngine)(nil)
 
@@ -487,6 +511,7 @@ var _ = Describe("MCPServer", func() {
 			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
 			Expect(resp["config_path"]).To(HaveSuffix(".repokeeper.yaml"))
 			Expect(resp["repo_count"]).To(BeNumerically("==", 3))
+			Expect(resp["registry_stale_days"]).To(BeNumerically("==", 30))
 
 			defaults := resp["defaults"].(map[string]any)
 			Expect(defaults["remote_name"]).To(Equal("origin"))
@@ -498,6 +523,28 @@ var _ = Describe("MCPServer", func() {
 			result, err := callTool(srv, "get_workspace_config", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("reloads config and registry changes made after server startup", func() {
+			cfgPath := filepath.Join(tmpDir, ".repokeeper.yaml")
+			eng.cfg.Registry = eng.reg
+			Expect(config.Save(eng.cfg, cfgPath)).To(Succeed())
+
+			onDisk, err := config.Load(cfgPath)
+			Expect(err).NotTo(HaveOccurred())
+			onDisk.Exclude = []string{"**/manually-added/**"}
+			onDisk.Registry.Entries = onDisk.Registry.Entries[:2]
+			Expect(config.Save(onDisk, cfgPath)).To(Succeed())
+			eng.reloadFromDisk = true
+
+			result, err := callTool(srv, "get_workspace_config", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			Expect(resp["exclude"]).To(ConsistOf("**/manually-added/**"))
+			Expect(resp["repo_count"]).To(BeNumerically("==", 2))
 		})
 	})
 
@@ -1008,6 +1055,70 @@ var _ = Describe("MCPServer", func() {
 			text := string(resultJSON(result))
 			Expect(text).To(ContainSubstring(`argument "roots" item 1 must be a string`))
 		})
+
+		It("counts additions independently from pruning and reports current missing entries", func() {
+			now := time.Now()
+			eng.reg = &registry.Registry{Entries: []registry.Entry{
+				{RepoID: "github.com/example/existing", CheckoutID: "existing", Path: "/repos/existing", Status: registry.StatusPresent, LastSeen: now},
+				{RepoID: "github.com/example/stale", Path: "/repos/stale", Status: registry.StatusMissing, LastSeen: now.Add(-60 * 24 * time.Hour)},
+				{RepoID: "github.com/example/recent-missing", Path: "/repos/recent-missing", Status: registry.StatusMissing, LastSeen: now.Add(-7 * 24 * time.Hour)},
+			}}
+			eng.cfg = newTestConfig()
+			eng.cfg.RegistryStaleDays = 30
+			eng.scanFunc = func(_ engine.ScanOptions) ([]model.RepoStatus, error) {
+				eng.reg.Entries[0].Path = "/repos/existing-moved"
+				eng.reg.Entries = append(eng.reg.Entries, registry.Entry{
+					RepoID: "github.com/example/new",
+					Path:   "/repos/new",
+					Status: registry.StatusPresent,
+				})
+				return []model.RepoStatus{{RepoID: "github.com/example/new", Path: "/repos/new"}}, nil
+			}
+
+			result, err := callTool(srv, "scan_workspace", map[string]any{"prune_stale": true})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			Expect(resp["new"]).To(BeNumerically("==", 1))
+			Expect(resp["pruned"]).To(BeNumerically("==", 1))
+			Expect(resp["missing"]).To(BeNumerically("==", 1))
+		})
+
+		It("uses and preserves config edits made after server startup", func() {
+			cfgPath := filepath.Join(tmpDir, ".repokeeper.yaml")
+			eng.cfg.Registry = eng.reg
+			Expect(config.Save(eng.cfg, cfgPath)).To(Succeed())
+
+			onDisk, err := config.Load(cfgPath)
+			Expect(err).NotTo(HaveOccurred())
+			onDisk.Exclude = []string{"**/manually-added/**"}
+			Expect(config.Save(onDisk, cfgPath)).To(Succeed())
+			eng.reloadFromDisk = true
+			eng.scanFunc = func(opts engine.ScanOptions) ([]model.RepoStatus, error) {
+				if len(opts.Exclude) != 1 || opts.Exclude[0] != "**/manually-added/**" {
+					return nil, fmt.Errorf("scan used stale excludes: %v", opts.Exclude)
+				}
+				concurrentEdit, err := config.Load(cfgPath)
+				if err != nil {
+					return nil, err
+				}
+				concurrentEdit.Exclude = []string{"**/edited-during-scan/**"}
+				if err := config.Save(concurrentEdit, cfgPath); err != nil {
+					return nil, err
+				}
+				return []model.RepoStatus{}, nil
+			}
+
+			result, err := callTool(srv, "scan_workspace", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+
+			reloaded, err := config.Load(cfgPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(reloaded.Exclude).To(Equal([]string{"**/edited-during-scan/**"}))
+		})
 	})
 
 	Describe("plan_sync", func() {
@@ -1327,6 +1438,17 @@ var _ = Describe("MCPServer", func() {
 			Expect(resp["repo_id"]).To(Equal("github.com/example/beta"))
 		})
 
+		It("passes the exact checkout path through when a repo has multiple checkouts", func() {
+			eng.reg = registryWithDuplicateRepoID()
+
+			result, err := callTool(srv, "remove_repository", map[string]any{
+				"repo": "/home/user/repos/dup-b",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+			Expect(eng.deleteRepoArg).To(Equal("/home/user/repos/dup-b"))
+		})
+
 		It("returns error for an unknown repo before touching the engine", func() {
 			result, err := callTool(srv, "remove_repository", map[string]any{
 				"repo": "/home/user/repos/does-not-exist",
@@ -1430,18 +1552,20 @@ func registryWithDuplicateRepoID() *registry.Registry {
 		UpdatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
 		Entries: []registry.Entry{
 			{
-				RepoID:   "github.com/example/dup",
-				Path:     "/home/user/repos/dup-a",
-				Type:     "checkout",
-				Status:   registry.StatusPresent,
-				LastSeen: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+				RepoID:     "github.com/example/dup",
+				CheckoutID: "dup-a",
+				Path:       "/home/user/repos/dup-a",
+				Type:       "checkout",
+				Status:     registry.StatusPresent,
+				LastSeen:   time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
 			},
 			{
-				RepoID:   "github.com/example/dup",
-				Path:     "/home/user/repos/dup-b",
-				Type:     "checkout",
-				Status:   registry.StatusPresent,
-				LastSeen: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+				RepoID:     "github.com/example/dup",
+				CheckoutID: "dup-b",
+				Path:       "/home/user/repos/dup-b",
+				Type:       "checkout",
+				Status:     registry.StatusPresent,
+				LastSeen:   time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
 			},
 		},
 	}
@@ -1467,7 +1591,11 @@ var _ = Describe("resolveRepo ambiguity", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.IsError).To(BeTrue())
-		Expect(string(resultJSON(result))).To(ContainSubstring("ambiguous"))
+		Expect(string(resultJSON(result))).To(And(
+			ContainSubstring("ambiguous"),
+			ContainSubstring(`checkout_id="dup-a"`),
+			ContainSubstring(`/home/user/repos/dup-b`),
+		))
 	})
 
 	It("errors on get_repository_context for an ambiguous repo_id", func() {
@@ -1488,6 +1616,44 @@ var _ = Describe("resolveRepo ambiguity", func() {
 		Expect(result.IsError).To(BeFalse())
 		Expect(eng.reg.Entries[1].Labels).To(HaveKeyWithValue("tier", "critical"))
 		Expect(eng.reg.Entries[0].Labels).To(BeNil())
+	})
+
+	It("disambiguates via checkout_id", func() {
+		result, err := callTool(srv, "get_repository_context", map[string]any{
+			"repo": "dup-b",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+	})
+
+	It("does not treat a relative selector as a path", func() {
+		eng.reg = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "github.com/example/path-owner", CheckoutID: "path-owner", Path: "checkout-b"},
+			{RepoID: "github.com/example/checkout-owner", CheckoutID: "checkout-b", Path: "/home/user/repos/checkout-b"},
+		}}
+
+		result, err := callTool(srv, "set_labels", map[string]any{
+			"repo": "checkout-b",
+			"set":  map[string]any{"selected": "checkout-id"},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeFalse())
+		Expect(eng.reg.Entries[0].Labels).To(BeNil())
+		Expect(eng.reg.Entries[1].Labels).To(HaveKeyWithValue("selected", "checkout-id"))
+	})
+
+	It("rejects a path shared by multiple registry entries", func() {
+		eng.reg = &registry.Registry{Entries: []registry.Entry{
+			{RepoID: "github.com/example/first", Path: "/home/user/repos/shared"},
+			{RepoID: "github.com/example/second", Path: "/home/user/repos/shared"},
+		}}
+
+		result, err := callTool(srv, "get_repository_context", map[string]any{
+			"repo": "/home/user/repos/shared",
+		})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.IsError).To(BeTrue())
+		Expect(string(resultJSON(result))).To(ContainSubstring("ambiguous"))
 	})
 })
 
