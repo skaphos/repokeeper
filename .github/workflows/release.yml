@@ -87,7 +87,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -tags integration -o "$test_windows" ./test/e2e
           binary_linux="$(windows_to_wsl "$binary_windows")"
           test_linux="$(windows_to_wsl "$test_windows")"
-          wsl.exe -d "$distribution" -- env \
+          MSYS2_ARG_CONV_EXCL='*' wsl.exe -d "$distribution" -- env \
             PATH="/opt/repokeeper-git/bin:/usr/bin:/bin" \
             REPOKEEPER_E2E_BINARY="$binary_linux" \
             REPOKEEPER_E2E_MODULE_ROOT="$repo_linux" \
