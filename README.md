@@ -348,6 +348,16 @@ Branch switching and prune execution are separate workflow areas rather than hid
 
 ## Development
 
+The fast unit tier remains `go test ./...`. Process-level coverage is integration-tagged and excluded from the ordinary package graph:
+
+```sh
+go -C tools tool task test-integration
+go -C tools tool task test-integration-race
+go -C tools tool task test-default-excludes-e2e
+```
+
+See [test/e2e/README.md](test/e2e/README.md) for recipe authoring, focused CLI/MCP runs, isolation guarantees, compatibility matrix commands, and failure diagnosis.
+
 ```bash
 # List all task targets without installing task globally
 go -C tools tool task --list

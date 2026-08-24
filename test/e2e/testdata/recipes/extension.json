@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "name": "recipe-extension",
+  "repositories": [
+    {
+      "name": "service with spaces",
+      "remote_path": "service extension.git",
+      "checkout_path": "nested/service extension",
+      "files": {"README.md": "# Extension fixture\n", "service/config.yaml": "enabled: true\n"},
+      "branches": [
+        {
+          "name": "feature/declared",
+          "base": "main",
+          "commits": [{"message": "add declared feature", "files": {"feature.txt": "declared\n"}}]
+        }
+      ],
+      "current_branch": "main",
+      "upstream": {"remote": "origin", "branch": "main"},
+      "remote_commits": [],
+      "dirty_files": {},
+      "metadata": null,
+      "labels": {"scenario": "extension"},
+      "annotations": {}
+    }
+  ],
+  "missing_entries": [],
+  "config": {"external_registry": false, "exclude": []}
+}

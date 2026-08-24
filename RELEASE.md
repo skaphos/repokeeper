@@ -1,5 +1,13 @@
 # Release Process
 
+## Compatibility qualification boundary
+
+A `v*` tag is an immutable release candidate, not a published release. The release workflow first expands the version-controlled closed Git matrix from `test/e2e/testdata/git-compatibility.json` and runs all twelve Git `2.53`/`2.54`/`2.55` cells across Linux, macOS, native Windows, and WSL with `fail-fast: false`.
+
+Each read-only qualification job provisions the checksum-pinned Git input beneath a job-owned prefix, verifies the exact version, runs the same E2E package, and uploads bounded evidence. WSL uses the pinned Canonical Noble `20240423` rootfs as WSL1 and unregisters it during always-run cleanup. The final evidence gate requires exactly one successful, digest-matching result for every declared cell at the candidate tag and commit.
+
+Only the downstream GoReleaser publisher receives write permissions, OIDC, package authority, and publishing secrets. Missing, duplicate, skipped, failed, mismatched, or unavailable cells block every distribution channel. A transient infrastructure failure may rerun the unchanged tag and commit; any source, test, provisioning, compatibility declaration, or documentation correction requires a new semantic version and tag. Failed tags are never moved or reused.
+
 This repository releases via Release Please (PR-gated version bump and changelog) and `goreleaser` (GitHub release object, artifacts, and Homebrew publish). See [ADR-0013](./docs/adr/0013-goreleaser-owns-github-release.md) for the current release ownership decision and [ADR-0007](./docs/adr/0007-release-binaries-and-homebrew.md) for the binary/Homebrew release design it builds on.
 
 ## Pipeline shape
