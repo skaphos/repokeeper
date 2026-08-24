@@ -25,7 +25,7 @@ Failures print the operation, argument vector, working directory, scenario root,
 
 ## Git compatibility command
 
-`testdata/git-compatibility.json` is the executable source for the closed Git `2.53`/`2.54`/`2.55` claim across Linux, macOS, native Windows, and WSL. Routine CI selects one declared cell per environment; a tagged full release must produce one successful evidence document for all twelve cells.
+`testdata/git-compatibility.json` is the executable source for the closed Git `2.53`/`2.54`/`2.55` claim across Linux, macOS, native Windows, and WSL. Routine pull request CI does not run the matrix. All twelve cells run on the release pull request as a merge gate, and a tagged full release must produce one successful evidence document for all twelve. The `routine` scope selects one declared cell per environment and is kept for local and on-demand runs.
 
 ```sh
 go run -tags integration ./test/e2e/cmd/compatibility matrix --scope routine

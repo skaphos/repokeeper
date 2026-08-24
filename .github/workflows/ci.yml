@@ -124,97 +124,6 @@ jobs:
       - name: Run integration race task
         run: go -C tools tool task test-integration-race
 
-  compatibility-matrix:
-    name: Routine Compatibility Matrix
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - id: matrix
-        name: Expand the declared routine matrix
-        shell: bash
-        run: echo "matrix=$(go run -tags integration ./test/e2e/cmd/compatibility matrix --scope routine)" >> "$GITHUB_OUTPUT"
-
-  compatibility:
-    name: Compatibility / ${{ matrix.cell.key }}
-    needs: compatibility-matrix
-    runs-on: ${{ matrix.cell.runner_label }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        cell: ${{ fromJSON(needs.compatibility-matrix.outputs.matrix).cells }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-      - name: Record runner and source identity
-        shell: bash
-        env:
-          CELL: ${{ matrix.cell.key }}
-          RUNNER_IMAGE: ${{ runner.os }}-${{ runner.arch }}
-        run: printf 'cell=%s\nrunner=%s\ncommit=%s\n' "$CELL" "$RUNNER_IMAGE" "$GITHUB_SHA"
-      - name: Provision and exactly verify declared Git
-        shell: bash
-        env:
-          CELL: ${{ matrix.cell.key }}
-        run: |
-          set -euo pipefail
-          prefix="$RUNNER_TEMP/repokeeper-${CELL}"
-          go run -tags integration ./test/e2e/cmd/compatibility provision --cell "$CELL" --prefix "$prefix" > "$RUNNER_TEMP/provision.json"
-          git_path="$(jq -r .git_path "$RUNNER_TEMP/provision.json")"
-          go run -tags integration ./test/e2e/cmd/compatibility verify-version --cell "$CELL" --git "$git_path"
-          if [[ "$CELL" != wsl-* ]]; then
-            # git_path comes from filepath.Join, so Windows cells report
-            # backslashes. POSIX dirname would see no separator and answer ".",
-            # silently leaving the runner Git ahead of the provisioned one.
-            printf '%s\n' "$(dirname "${git_path//\\//}")" >> "$GITHUB_PATH"
-          fi
-      - name: Run native compatibility E2E
-        if: matrix.cell.environment != 'wsl'
-        run: go test -v -count=1 -timeout 10m -tags integration ./test/e2e
-      - name: Cross-compile and run WSL compatibility E2E
-        if: matrix.cell.environment == 'wsl'
-        shell: bash
-        run: |
-          set -euo pipefail
-          windows_to_wsl() {
-            local windows_path="$1"
-            local drive="${windows_path:0:1}"
-            local tail="${windows_path:2}"
-            tail="${tail//\\//}"
-            printf '/mnt/%s%s' "${drive,,}" "$tail"
-          }
-          distribution="$(jq -r .wsl_distribution "$RUNNER_TEMP/provision.json")"
-          repo_linux="$(windows_to_wsl "$GITHUB_WORKSPACE")"
-          binary_windows="$RUNNER_TEMP/repokeeper-e2e-product"
-          compatibility_windows="$RUNNER_TEMP/repokeeper-compatibility"
-          test_windows="$RUNNER_TEMP/repokeeper-e2e.test"
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$binary_windows" .
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags integration -o "$compatibility_windows" ./test/e2e/cmd/compatibility
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -tags integration -o "$test_windows" ./test/e2e
-          binary_linux="$(windows_to_wsl "$binary_windows")"
-          compatibility_linux="$(windows_to_wsl "$compatibility_windows")"
-          test_linux="$(windows_to_wsl "$test_windows")"
-          MSYS2_ARG_CONV_EXCL='*' wsl.exe -d "$distribution" -- env \
-            PATH="/opt/repokeeper-git/bin:/usr/bin:/bin" \
-            REPOKEEPER_E2E_BINARY="$binary_linux" \
-            REPOKEEPER_E2E_COMPATIBILITY_BINARY="$compatibility_linux" \
-            REPOKEEPER_E2E_MODULE_ROOT="$repo_linux" \
-            "$test_linux" -test.v
-      - name: Unregister WSL distribution
-        if: always() && matrix.cell.environment == 'wsl'
-        shell: bash
-        run: |
-          distribution="$(jq -r '.wsl_distribution // empty' "$RUNNER_TEMP/provision.json" 2>/dev/null || true)"
-          if [ -n "$distribution" ]; then wsl.exe --unregister "$distribution"; fi
-
   quality:
     name: Static Analysis
     runs-on: ubuntu-24.04
@@ -292,7 +201,7 @@ jobs:
     name: Build
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    needs: [dco, reuse, lint, test, integration, integration-race, compatibility, quality, perf, manifests]
+    needs: [dco, reuse, lint, test, integration, integration-race, quality, perf, manifests]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -311,7 +220,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    needs: [dco, reuse, lint, test, integration, integration-race, compatibility, quality, perf, manifests, build]
+    needs: [dco, reuse, lint, test, integration, integration-race, quality, perf, manifests, build]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Publish workflow summary
@@ -322,19 +231,18 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           INTEGRATION_RACE_RESULT: ${{ needs.integration-race.result }}
-          COMPATIBILITY_RESULT: ${{ needs.compatibility.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           PERF_RESULT: ${{ needs.perf.result }}
           MANIFESTS_RESULT: ${{ needs.manifests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          total=11
+          total=10
           success=0
           failed=0
           skipped=0
           cancelled=0
 
-          for result in "$DCO_RESULT" "$REUSE_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$INTEGRATION_RESULT" "$INTEGRATION_RACE_RESULT" "$COMPATIBILITY_RESULT" "$QUALITY_RESULT" "$PERF_RESULT" "$MANIFESTS_RESULT" "$BUILD_RESULT"; do
+          for result in "$DCO_RESULT" "$REUSE_RESULT" "$LINT_RESULT" "$TEST_RESULT" "$INTEGRATION_RESULT" "$INTEGRATION_RACE_RESULT" "$QUALITY_RESULT" "$PERF_RESULT" "$MANIFESTS_RESULT" "$BUILD_RESULT"; do
             case "$result" in
               success) success=$((success + 1)) ;;
               failure) failed=$((failed + 1)) ;;
@@ -355,7 +263,6 @@ jobs:
             echo "| test | $TEST_RESULT |"
             echo "| integration | $INTEGRATION_RESULT |"
             echo "| integration-race | $INTEGRATION_RACE_RESULT |"
-            echo "| compatibility | $COMPATIBILITY_RESULT |"
             echo "| quality | $QUALITY_RESULT |"
             echo "| perf | $PERF_RESULT |"
             echo "| manifests | $MANIFESTS_RESULT |"
@@ -375,7 +282,6 @@ jobs:
               if [ "$TEST_RESULT" = "failure" ]; then echo "- test failed"; fi
               if [ "$INTEGRATION_RESULT" = "failure" ]; then echo "- integration failed"; fi
               if [ "$INTEGRATION_RACE_RESULT" = "failure" ]; then echo "- integration-race failed"; fi
-              if [ "$COMPATIBILITY_RESULT" = "failure" ]; then echo "- compatibility failed"; fi
               if [ "$QUALITY_RESULT" = "failure" ]; then echo "- quality failed"; fi
               if [ "$PERF_RESULT" = "failure" ]; then echo "- perf failed"; fi
               if [ "$MANIFESTS_RESULT" = "failure" ]; then echo "- manifests failed"; fi
