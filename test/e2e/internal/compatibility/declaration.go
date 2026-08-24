@@ -206,6 +206,11 @@ func validatePinnedInput(field, rawURL, digest string) error {
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
 		return fmt.Errorf("%s.source_url: must be an absolute HTTPS URL", field)
 	}
+	// The declaration is committed, so userinfo in a pinned source URL would
+	// publish whatever credential it carries.
+	if parsed.User != nil {
+		return fmt.Errorf("%s.source_url: must not embed credentials", field)
+	}
 	if !sha256Pattern.MatchString(digest) {
 		return fmt.Errorf("%s.sha256: must be 64 lowercase hexadecimal characters", field)
 	}
