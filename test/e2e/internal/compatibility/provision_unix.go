@@ -48,6 +48,7 @@ func Provision(parent context.Context, cell Cell, prefix string) (ProvisionResul
 		"NO_CURL=YesPlease",
 		"NO_EXPAT=YesPlease",
 		"NO_GETTEXT=YesPlease",
+		"NO_OPENSSL=YesPlease",
 	}
 	// Git's native Makefile accepts prefix directly. Avoid generating configure,
 	// which would add an undeclared autoconf dependency to hosted runners.

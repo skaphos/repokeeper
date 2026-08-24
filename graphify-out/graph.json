@@ -1555,6 +1555,17 @@
       "source_location": "L15"
     },
     {
+      "id": "internal_tui_actions_internal_test_testactioncmdspropagateprovidedcontext",
+      "label": "TestActionCmdsPropagateProvidedContext()",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "testactioncmdspropagateprovidedcontext()",
+      "source_file": "internal/tui/actions_internal_test.go",
+      "source_location": "L899"
+    },
+    {
       "id": "internal_tui_actions_internal_test_testhelpersandpathresolution",
       "label": "TestHelpersAndPathResolution()",
       "_origin": "ast",
@@ -1652,6 +1663,50 @@
       "norm_label": "resolvedaddpath()",
       "source_file": "internal/tui/add_action.go",
       "source_location": "L116"
+    },
+    {
+      "id": "internal_tui_repair_go_engineapi",
+      "label": "EngineAPI",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "engineapi",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "internal_tui_repair_repairupstreamcmd",
+      "label": "repairUpstreamCmd()",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "repairupstreamcmd()",
+      "source_file": "internal/tui/repair.go",
+      "source_location": "L18"
+    },
+    {
+      "id": "internal_tui_reset_action_go_engineapi",
+      "label": "EngineAPI",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "engineapi",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "internal_tui_reset_action_resetrepocmd",
+      "label": "resetRepoCmd()",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "resetrepocmd()",
+      "source_file": "internal/tui/reset_action.go",
+      "source_location": "L17"
     },
     {
       "id": "tui_adddonemsg",
@@ -16328,6 +16383,17 @@
       "source_location": "L155"
     },
     {
+      "id": "internal_mcpinstall_comment_guard_test_testtomlhascomments",
+      "label": "TestTomlHasComments()",
+      "_origin": "ast",
+      "community": 206,
+      "community_name": "comment_guard_test.go",
+      "file_type": "code",
+      "norm_label": "testtomlhascomments()",
+      "source_file": "internal/mcpinstall/comment_guard_test.go",
+      "source_location": "L14"
+    },
+    {
       "id": "internal_mcpinstall_comment_guard_test_writetemp",
       "label": "writeTemp()",
       "_origin": "ast",
@@ -16701,39 +16767,6 @@
       "source_location": ""
     },
     {
-      "id": "internal_tui_actions_internal_test_testactioncmdspropagateprovidedcontext",
-      "label": "TestActionCmdsPropagateProvidedContext()",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": ".renderCurrentView",
-      "file_type": "code",
-      "norm_label": "testactioncmdspropagateprovidedcontext()",
-      "source_file": "internal/tui/actions_internal_test.go",
-      "source_location": "L899"
-    },
-    {
-      "id": "internal_tui_actions_internal_test_testresolverepairtarget",
-      "label": "TestResolveRepairTarget()",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": ".renderCurrentView",
-      "file_type": "code",
-      "norm_label": "testresolverepairtarget()",
-      "source_file": "internal/tui/actions_internal_test.go",
-      "source_location": "L936"
-    },
-    {
-      "id": "internal_tui_actions_internal_test_testresolverepairtargetusespathforduplicaterepoid",
-      "label": "TestResolveRepairTargetUsesPathForDuplicateRepoID()",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": ".renderCurrentView",
-      "file_type": "code",
-      "norm_label": "testresolverepairtargetusespathforduplicaterepoid()",
-      "source_file": "internal/tui/actions_internal_test.go",
-      "source_location": "L969"
-    },
-    {
       "id": "internal_tui_actions_internal_test_testviewsandrendering",
       "label": "TestViewsAndRendering()",
       "_origin": "ast",
@@ -16800,70 +16833,70 @@
       "source_location": "L26"
     },
     {
-      "id": "internal_tui_repair",
-      "label": "tui/repair.go",
+      "id": "internal_tui_identity",
+      "label": "identity.go",
       "_origin": "ast",
       "community": 21,
       "community_name": ".renderCurrentView",
       "file_type": "code",
-      "norm_label": "tui/repair.go",
-      "source_file": "internal/tui/repair.go",
+      "norm_label": "identity.go",
+      "source_file": "internal/tui/identity.go",
       "source_location": "L1"
     },
     {
-      "id": "internal_tui_repair_go_engineapi",
-      "label": "EngineAPI",
+      "id": "internal_tui_identity_duplicatesyncrepocounts",
+      "label": "duplicateSyncRepoCounts()",
       "_origin": "ast",
       "community": 21,
       "community_name": ".renderCurrentView",
       "file_type": "code",
-      "norm_label": "engineapi",
-      "source_file": "",
-      "source_location": ""
+      "norm_label": "duplicatesyncrepocounts()",
+      "source_file": "internal/tui/identity.go",
+      "source_location": "L76"
     },
     {
-      "id": "internal_tui_repair_go_tuimodel",
-      "label": "tuiModel",
+      "id": "internal_tui_identity_findrepostatusindex",
+      "label": "findRepoStatusIndex()",
       "_origin": "ast",
       "community": 21,
       "community_name": ".renderCurrentView",
       "file_type": "code",
-      "norm_label": "tuimodel",
-      "source_file": "",
-      "source_location": ""
+      "norm_label": "findrepostatusindex()",
+      "source_file": "internal/tui/identity.go",
+      "source_location": "L37"
     },
     {
-      "id": "internal_tui_repair_renderrepairconfirmview",
-      "label": "renderRepairConfirmView()",
+      "id": "internal_tui_identity_samerepocheckout",
+      "label": "sameRepoCheckout()",
       "_origin": "ast",
       "community": 21,
       "community_name": ".renderCurrentView",
       "file_type": "code",
-      "norm_label": "renderrepairconfirmview()",
-      "source_file": "internal/tui/repair.go",
-      "source_location": "L72"
+      "norm_label": "samerepocheckout()",
+      "source_file": "internal/tui/identity.go",
+      "source_location": "L21"
     },
     {
-      "id": "internal_tui_repair_repairupstreamcmd",
-      "label": "repairUpstreamCmd()",
+      "id": "internal_tui_identity_syncresultdisplayname",
+      "label": "syncResultDisplayName()",
       "_origin": "ast",
       "community": 21,
       "community_name": ".renderCurrentView",
       "file_type": "code",
-      "norm_label": "repairupstreamcmd()",
-      "source_file": "internal/tui/repair.go",
-      "source_location": "L18"
+      "norm_label": "syncresultdisplayname()",
+      "source_file": "internal/tui/identity.go",
+      "source_location": "L84"
     },
     {
-      "id": "internal_tui_repair_resolverepairtarget",
-      "label": "resolveRepairTarget()",
+      "id": "internal_tui_identity_syncresultidentitykey",
+      "label": "syncResultIdentityKey()",
       "_origin": "ast",
       "community": 21,
       "community_name": ".renderCurrentView",
       "file_type": "code",
-      "norm_label": "resolverepairtarget()",
-      "source_file": "internal/tui/repair.go",
-      "source_location": "L25"
+      "norm_label": "syncresultidentitykey()",
+      "source_file": "internal/tui/identity.go",
+      "source_location": "L14"
     },
     {
       "id": "internal_tui_reset_action",
@@ -16875,17 +16908,6 @@
       "norm_label": "reset_action.go",
       "source_file": "internal/tui/reset_action.go",
       "source_location": "L1"
-    },
-    {
-      "id": "internal_tui_reset_action_go_engineapi",
-      "label": "EngineAPI",
-      "_origin": "ast",
-      "community": 21,
-      "community_name": ".renderCurrentView",
-      "file_type": "code",
-      "norm_label": "engineapi",
-      "source_file": "",
-      "source_location": ""
     },
     {
       "id": "internal_tui_reset_action_go_tuimodel",
@@ -16910,15 +16932,37 @@
       "source_location": "L26"
     },
     {
-      "id": "internal_tui_reset_action_resetrepocmd",
-      "label": "resetRepoCmd()",
+      "id": "internal_tui_sync",
+      "label": "tui/sync.go",
       "_origin": "ast",
       "community": 21,
       "community_name": ".renderCurrentView",
       "file_type": "code",
-      "norm_label": "resetrepocmd()",
-      "source_file": "internal/tui/reset_action.go",
-      "source_location": "L17"
+      "norm_label": "tui/sync.go",
+      "source_file": "internal/tui/sync.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_tui_sync_buildsyncplancmd",
+      "label": "buildSyncPlanCmd()",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": ".renderCurrentView",
+      "file_type": "code",
+      "norm_label": "buildsyncplancmd()",
+      "source_file": "internal/tui/sync.go",
+      "source_location": "L28"
+    },
+    {
+      "id": "internal_tui_sync_go_engineapi",
+      "label": "EngineAPI",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": ".renderCurrentView",
+      "file_type": "code",
+      "norm_label": "engineapi",
+      "source_file": "",
+      "source_location": ""
     },
     {
       "id": "internal_tui_sync_go_tuimodel",
@@ -16943,6 +16987,17 @@
       "source_location": "L52"
     },
     {
+      "id": "internal_tui_sync_rendersyncprogressview",
+      "label": "renderSyncProgressView()",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": ".renderCurrentView",
+      "file_type": "code",
+      "norm_label": "rendersyncprogressview()",
+      "source_file": "internal/tui/sync.go",
+      "source_location": "L82"
+    },
+    {
       "id": "internal_tui_sync_test_testrendersyncplanviewshowsconfirmcancelfooter",
       "label": "TestRenderSyncPlanViewShowsConfirmCancelFooter()",
       "_origin": "ast",
@@ -16952,6 +17007,17 @@
       "norm_label": "testrendersyncplanviewshowsconfirmcancelfooter()",
       "source_file": "internal/tui/sync_test.go",
       "source_location": "L92"
+    },
+    {
+      "id": "internal_tui_sync_test_testsyncprogresskeysbycheckoutidentity",
+      "label": "TestSyncProgressKeysByCheckoutIdentity()",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": ".renderCurrentView",
+      "file_type": "code",
+      "norm_label": "testsyncprogresskeysbycheckoutidentity()",
+      "source_file": "internal/tui/sync_test.go",
+      "source_location": "L206"
     },
     {
       "id": "internal_tui_view_go_tui_tuimodel",
@@ -16985,6 +17051,39 @@
       "norm_label": "resetdonemsg",
       "source_file": "internal/tui/reset_action.go",
       "source_location": "L12"
+    },
+    {
+      "id": "tui_syncdonemsg",
+      "label": "syncDoneMsg",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": ".renderCurrentView",
+      "file_type": "code",
+      "norm_label": "syncdonemsg",
+      "source_file": "internal/tui/sync.go",
+      "source_location": "L23"
+    },
+    {
+      "id": "tui_syncplanmsg",
+      "label": "syncPlanMsg",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": ".renderCurrentView",
+      "file_type": "code",
+      "norm_label": "syncplanmsg",
+      "source_file": "internal/tui/sync.go",
+      "source_location": "L13"
+    },
+    {
+      "id": "tui_syncprogressmsg",
+      "label": "syncProgressMsg",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": ".renderCurrentView",
+      "file_type": "code",
+      "norm_label": "syncprogressmsg",
+      "source_file": "internal/tui/sync.go",
+      "source_location": "L18"
     },
     {
       "id": "tui_tuimodel_rendercurrentview",
@@ -32888,158 +32987,70 @@
       "source_location": "L45"
     },
     {
-      "id": "internal_tui_identity",
-      "label": "identity.go",
+      "id": "internal_tui_actions_internal_test_testresolverepairtarget",
+      "label": "TestResolveRepairTarget()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "renderSyncProgressView",
+      "community_name": "renderRepairConfirmView",
       "file_type": "code",
-      "norm_label": "identity.go",
-      "source_file": "internal/tui/identity.go",
+      "norm_label": "testresolverepairtarget()",
+      "source_file": "internal/tui/actions_internal_test.go",
+      "source_location": "L936"
+    },
+    {
+      "id": "internal_tui_actions_internal_test_testresolverepairtargetusespathforduplicaterepoid",
+      "label": "TestResolveRepairTargetUsesPathForDuplicateRepoID()",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "renderRepairConfirmView",
+      "file_type": "code",
+      "norm_label": "testresolverepairtargetusespathforduplicaterepoid()",
+      "source_file": "internal/tui/actions_internal_test.go",
+      "source_location": "L969"
+    },
+    {
+      "id": "internal_tui_repair",
+      "label": "tui/repair.go",
+      "_origin": "ast",
+      "community": 69,
+      "community_name": "renderRepairConfirmView",
+      "file_type": "code",
+      "norm_label": "tui/repair.go",
+      "source_file": "internal/tui/repair.go",
       "source_location": "L1"
     },
     {
-      "id": "internal_tui_identity_duplicatesyncrepocounts",
-      "label": "duplicateSyncRepoCounts()",
+      "id": "internal_tui_repair_go_tuimodel",
+      "label": "tuiModel",
       "_origin": "ast",
       "community": 69,
-      "community_name": "renderSyncProgressView",
+      "community_name": "renderRepairConfirmView",
       "file_type": "code",
-      "norm_label": "duplicatesyncrepocounts()",
-      "source_file": "internal/tui/identity.go",
-      "source_location": "L76"
-    },
-    {
-      "id": "internal_tui_identity_findrepostatusindex",
-      "label": "findRepoStatusIndex()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "findrepostatusindex()",
-      "source_file": "internal/tui/identity.go",
-      "source_location": "L37"
-    },
-    {
-      "id": "internal_tui_identity_samerepocheckout",
-      "label": "sameRepoCheckout()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "samerepocheckout()",
-      "source_file": "internal/tui/identity.go",
-      "source_location": "L21"
-    },
-    {
-      "id": "internal_tui_identity_syncresultdisplayname",
-      "label": "syncResultDisplayName()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "syncresultdisplayname()",
-      "source_file": "internal/tui/identity.go",
-      "source_location": "L84"
-    },
-    {
-      "id": "internal_tui_identity_syncresultidentitykey",
-      "label": "syncResultIdentityKey()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "syncresultidentitykey()",
-      "source_file": "internal/tui/identity.go",
-      "source_location": "L14"
-    },
-    {
-      "id": "internal_tui_sync",
-      "label": "tui/sync.go",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "tui/sync.go",
-      "source_file": "internal/tui/sync.go",
-      "source_location": "L1"
-    },
-    {
-      "id": "internal_tui_sync_buildsyncplancmd",
-      "label": "buildSyncPlanCmd()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "buildsyncplancmd()",
-      "source_file": "internal/tui/sync.go",
-      "source_location": "L28"
-    },
-    {
-      "id": "internal_tui_sync_go_engineapi",
-      "label": "EngineAPI",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "engineapi",
+      "norm_label": "tuimodel",
       "source_file": "",
       "source_location": ""
     },
     {
-      "id": "internal_tui_sync_rendersyncprogressview",
-      "label": "renderSyncProgressView()",
+      "id": "internal_tui_repair_renderrepairconfirmview",
+      "label": "renderRepairConfirmView()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "renderSyncProgressView",
+      "community_name": "renderRepairConfirmView",
       "file_type": "code",
-      "norm_label": "rendersyncprogressview()",
-      "source_file": "internal/tui/sync.go",
-      "source_location": "L82"
+      "norm_label": "renderrepairconfirmview()",
+      "source_file": "internal/tui/repair.go",
+      "source_location": "L72"
     },
     {
-      "id": "internal_tui_sync_test_testsyncprogresskeysbycheckoutidentity",
-      "label": "TestSyncProgressKeysByCheckoutIdentity()",
+      "id": "internal_tui_repair_resolverepairtarget",
+      "label": "resolveRepairTarget()",
       "_origin": "ast",
       "community": 69,
-      "community_name": "renderSyncProgressView",
+      "community_name": "renderRepairConfirmView",
       "file_type": "code",
-      "norm_label": "testsyncprogresskeysbycheckoutidentity()",
-      "source_file": "internal/tui/sync_test.go",
-      "source_location": "L206"
-    },
-    {
-      "id": "tui_syncdonemsg",
-      "label": "syncDoneMsg",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "syncdonemsg",
-      "source_file": "internal/tui/sync.go",
-      "source_location": "L23"
-    },
-    {
-      "id": "tui_syncplanmsg",
-      "label": "syncPlanMsg",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "syncplanmsg",
-      "source_file": "internal/tui/sync.go",
-      "source_location": "L13"
-    },
-    {
-      "id": "tui_syncprogressmsg",
-      "label": "syncProgressMsg",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "renderSyncProgressView",
-      "file_type": "code",
-      "norm_label": "syncprogressmsg",
-      "source_file": "internal/tui/sync.go",
-      "source_location": "L18"
+      "norm_label": "resolverepairtarget()",
+      "source_file": "internal/tui/repair.go",
+      "source_location": "L25"
     },
     {
       "id": "go_type_github_com_mark3labs_mcp_go_mcp_calltoolrequest",
@@ -35606,17 +35617,6 @@
       "norm_label": "writetomldoc()",
       "source_file": "internal/mcpinstall/codex.go",
       "source_location": "L272"
-    },
-    {
-      "id": "internal_mcpinstall_comment_guard_test_testtomlhascomments",
-      "label": "TestTomlHasComments()",
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "codex.go",
-      "file_type": "code",
-      "norm_label": "testtomlhascomments()",
-      "source_file": "internal/mcpinstall/comment_guard_test.go",
-      "source_location": "L14"
     },
     {
       "id": "internal_mcpinstall_grok_go_entry",
@@ -125268,7 +125268,7 @@
       "confidence_score": 0.85,
       "context": "call",
       "source_file": "test/e2e/internal/compatibility/provision_unix.go",
-      "source_location": "L64",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -126353,5 +126353,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "65be438c0a7bdfcea7e6f5565e24dfdcc4f0b184"
+  "built_at_commit": "11eded2b0a6d57e5dc7b62dd8985d85de1c30549"
 }

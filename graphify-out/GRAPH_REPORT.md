@@ -1,7 +1,7 @@
 # Graph Report - repokeeper  (2026-08-23)
 
 ## Corpus Check
-- 372 files · ~298,315 words
+- 372 files · ~298,318 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `65be438c`
+- Built from commit: `11eded2b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -84,7 +84,7 @@
 - ADR-0003: Sync Policy and Execution Modes
 - ADR-0004: Prune Workflow Boundaries and Safety Model
 - Specification Quality Checklist: GitHub Remote End-to-End Expansion
-- renderSyncProgressView
+- renderRepairConfirmView
 - ADR-0007: Release Binary Publishing and Homebrew Distribution
 - Engine
 - readJSONDoc
@@ -266,8 +266,8 @@ Cohesion: 0.13
 Nodes (20): github.com/mark3labs/mcp-go/mcp.CallToolRequest, T, newStructuredListResult(), countNewRegistryEntries(), countRegistryEntriesWithStatus(), MCPServer, optionalStringMapArg(), optionalStringSliceArg() (+12 more)
 
 ### Community 8 - "codex.go"
-Cohesion: 0.17
-Nodes (13): codexServersMap(), Entry, readTOMLDoc(), refuseIfTOMLComments(), skipTOMLDelim(), skipTOMLSingleLine(), tomlHasComments(), writeTOMLDoc() (+5 more)
+Cohesion: 0.18
+Nodes (12): codexServersMap(), Entry, readTOMLDoc(), refuseIfTOMLComments(), skipTOMLDelim(), skipTOMLSingleLine(), tomlHasComments(), writeTOMLDoc() (+4 more)
 
 ### Community 9 - "model_internal_test.go"
 Cohesion: 0.07
@@ -318,8 +318,8 @@ Cohesion: 0.08
 Nodes (17): check-prerequisites.sh script, check_dir(), check_file(), get_feature_paths(), get_repo_root(), has_jq(), _persist_feature_json(), resolve_specify_init_dir() (+9 more)
 
 ### Community 21 - ".renderCurrentView"
-Cohesion: 0.09
-Nodes (24): charm.land/bubbletea/v2.View, TestActionCmdsPropagateProvidedContext(), TestResolveRepairTarget(), TestResolveRepairTargetUsesPathForDuplicateRepoID(), TestViewsAndRendering(), deleteRepoCmd(), EngineAPI, tuiModel (+16 more)
+Cohesion: 0.08
+Nodes (26): charm.land/bubbletea/v2.View, TestViewsAndRendering(), deleteRepoCmd(), EngineAPI, tuiModel, renderDeleteConfirmView(), duplicateSyncRepoCounts(), findRepoStatusIndex() (+18 more)
 
 ### Community 22 - "index.go"
 Cohesion: 0.10
@@ -509,9 +509,9 @@ Nodes (15): 1. Keep prune as an implicit part of sync, 2. Treat local branch pru
 Cohesion: 0.10
 Nodes (18): Content Quality, Feature Readiness, Notes, Requirement Completeness, Specification Quality Checklist: GitHub Remote End-to-End Expansion, Assumptions, Edge Cases, Feature Specification: GitHub Remote End-to-End Expansion (+10 more)
 
-### Community 69 - "renderSyncProgressView"
-Cohesion: 0.18
-Nodes (12): duplicateSyncRepoCounts(), findRepoStatusIndex(), sameRepoCheckout(), syncResultDisplayName(), syncResultIdentityKey(), buildSyncPlanCmd(), EngineAPI, renderSyncProgressView() (+4 more)
+### Community 69 - "renderRepairConfirmView"
+Cohesion: 0.40
+Nodes (5): TestResolveRepairTarget(), TestResolveRepairTargetUsesPathForDuplicateRepoID(), tuiModel, renderRepairConfirmView(), resolveRepairTarget()
 
 ### Community 70 - "ADR-0007: Release Binary Publishing and Homebrew Distribution"
 Cohesion: 0.14
@@ -630,8 +630,8 @@ Cohesion: 0.15
 Nodes (13): Command Notes, Global Flags, `repokeeper add`, RepoKeeper Commands, `repokeeper describe`, `repokeeper edit`, `repokeeper get`, `repokeeper index` (+5 more)
 
 ### Community 100 - "TestHelpersAndPathResolution"
-Cohesion: 0.29
-Nodes (9): TestHelpersAndPathResolution(), cloneAndRegisterCmd(), defaultClonePath(), EngineAPI, tuiModel, renderAddView(), repoNameFromURL(), resolvedAddPath() (+1 more)
+Cohesion: 0.18
+Nodes (14): TestActionCmdsPropagateProvidedContext(), TestHelpersAndPathResolution(), cloneAndRegisterCmd(), defaultClonePath(), EngineAPI, tuiModel, renderAddView(), repoNameFromURL() (+6 more)
 
 ### Community 101 - "hintForErrorClass"
 Cohesion: 0.28
@@ -850,8 +850,8 @@ Cohesion: 0.11
 Nodes (32): Source, advertisedVersion(), orUnavailable(), resolvedBuildInfo(), revisionField(), runVersion(), TestAdvertisedVersion(), TestRevisionField() (+24 more)
 
 ### Community 206 - "comment_guard_test.go"
-Cohesion: 0.50
-Nodes (8): mustReadFile(), TestCodexRemoveEntryAbsentCommentedFileSucceeds(), TestCodexRemoveEntryPresentCommentedFileRefuses(), TestCodexWriteEntryAllowsUncommentedFile(), TestCodexWriteEntryRefusesCommentedFile(), TestGrokWriteEntryRefusesCommentedFile(), TestNewConfigFilesAreOwnerOnly(), writeTemp()
+Cohesion: 0.42
+Nodes (9): mustReadFile(), TestCodexRemoveEntryAbsentCommentedFileSucceeds(), TestCodexRemoveEntryPresentCommentedFileRefuses(), TestCodexWriteEntryAllowsUncommentedFile(), TestCodexWriteEntryRefusesCommentedFile(), TestGrokWriteEntryRefusesCommentedFile(), TestNewConfigFilesAreOwnerOnly(), TestTomlHasComments() (+1 more)
 
 ### Community 207 - "Implementation Plan: Distribution Channel Conformance"
 Cohesion: 0.18
