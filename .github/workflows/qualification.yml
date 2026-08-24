@@ -10,6 +10,12 @@ name: Qualification
 # This is a gate, not the publication record. `release.yml` re-runs the matrix
 # on the pushed tag and writes the evidence documents, because evidence is bound
 # to the exact tag and commit being published.
+#
+# The guard requires the branch to live in this repository as well as to carry
+# the release-please name. A branch name alone is attacker-controlled: anyone
+# can push `release-please--branches--main` to a fork and open a pull request,
+# which would otherwise spend twelve runners, one of them building Git from
+# source inside WSL.
 
 on:
   pull_request:
@@ -21,7 +27,7 @@ permissions:
 jobs:
   compatibility-matrix:
     name: Release Compatibility Matrix
-    if: github.head_ref == 'release-please--branches--main'
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'release-please--branches--main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -39,7 +45,7 @@ jobs:
   compatibility:
     name: Qualify / ${{ matrix.cell.key }}
     needs: compatibility-matrix
-    if: github.head_ref == 'release-please--branches--main'
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'release-please--branches--main'
     runs-on: ${{ matrix.cell.runner_label }}
     timeout-minutes: 30
     strategy:
@@ -126,10 +132,12 @@ jobs:
         shell: bash
         env:
           HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
           RESULT: ${{ needs.compatibility.result }}
         run: |
           set -euo pipefail
-          if [ "$HEAD_REF" != "release-please--branches--main" ]; then
+          if [ "$HEAD_REPO" != "$THIS_REPO" ] || [ "$HEAD_REF" != "release-please--branches--main" ]; then
             echo "Not the release pull request; compatibility qualification is not required here."
             exit 0
           fi

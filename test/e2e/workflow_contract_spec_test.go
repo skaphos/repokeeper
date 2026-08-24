@@ -69,14 +69,24 @@ var _ = Describe("Compatibility workflow contracts", func() {
 			Expect(text).To(ContainSubstring(required))
 		}
 		// Both jobs carry the guard, so a matrix expansion never runs for an
-		// ordinary contributor pull request.
-		Expect(strings.Count(text, "if: github.head_ref == 'release-please--branches--main'")).To(Equal(2))
+		// ordinary contributor pull request. The guard must check the head
+		// repository too: a branch name alone is attacker-controlled, so a
+		// fork could otherwise spend twelve runners by naming its branch after
+		// the release-please one.
+		guard := "if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'release-please--branches--main'"
+		Expect(strings.Count(text, guard)).To(Equal(2))
+		Expect(text).NotTo(MatchRegexp(`if: github\.head_ref ==[^\n]*\n`), "the branch guard must also pin the head repository")
 		Expect(text).To(ContainSubstring("permissions:\n  contents: read"))
 		Expect(text).NotTo(ContainSubstring("secrets."))
 		// A single always-reporting job carries a stable check name, so the
 		// gate can be a required status check even though the per-cell jobs
 		// are skipped on ordinary pull requests.
 		for _, required := range []string{"name: Release Qualification", "needs: compatibility", "if: always()", `RESULT: ${{ needs.compatibility.result }}`} {
+			Expect(text).To(ContainSubstring(required))
+		}
+		// The gate reports on every pull request, so it repeats the same
+		// head-repository check rather than trusting the branch name.
+		for _, required := range []string{`HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}`, `THIS_REPO: ${{ github.repository }}`, `[ "$HEAD_REPO" != "$THIS_REPO" ]`} {
 			Expect(text).To(ContainSubstring(required))
 		}
 	})
