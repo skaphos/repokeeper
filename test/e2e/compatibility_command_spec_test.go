@@ -93,7 +93,7 @@ func runCompatibilityCommand(arguments ...string) ([]byte, string, error) {
 	args := append([]string{"run", "-tags", "integration", "./test/e2e/cmd/compatibility"}, arguments...)
 	command := exec.CommandContext(ctx, "go", args...)
 	command.Dir = moduleRoot
-	command.Env = append(os.Environ(), "GOCACHE=/tmp/repokeeper-go-build")
+	command.Env = append(os.Environ(), "GOCACHE="+filepath.Join(os.TempDir(), "repokeeper-go-build"))
 	var stdout, stderr strings.Builder
 	command.Stdout = &stdout
 	command.Stderr = &stderr
