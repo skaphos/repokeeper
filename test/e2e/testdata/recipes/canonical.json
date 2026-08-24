@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "name": "canonical-cli-and-mcp",
+  "repositories": [
+    {
+      "name": "clean metadata repository",
+      "remote_path": "clean metadata.git",
+      "checkout_path": "clean repo",
+      "files": {
+        "README.md": "# Clean fixture\n",
+        "cmd/main.go": "package main\n",
+        "vendor/generated.txt": "low-value fixture\n"
+      },
+      "branches": [],
+      "current_branch": "main",
+      "upstream": {"remote": "origin", "branch": "main"},
+      "remote_commits": [
+        {"message": "advance clean remote", "files": {"REMOTE.md": "remote-only change\n"}}
+      ],
+      "dirty_files": {},
+      "metadata": {
+        "name": "clean-fixture",
+        "entrypoints": {"cli": "cmd/main.go"},
+        "authoritative": ["README.md", "cmd/"],
+        "low_value": ["vendor/"],
+        "related_repositories": [
+          {"repository": "dirty repository", "relationship": "depends-on"}
+        ]
+      },
+      "labels": {"fixture": "clean"},
+      "annotations": {"purpose": "e2e metadata"}
+    },
+    {
+      "name": "dirty repository",
+      "remote_path": "dirty.git",
+      "checkout_path": "dirty-repo",
+      "files": {"README.md": "# Dirty fixture\n", "tracked.txt": "committed\n"},
+      "branches": [],
+      "current_branch": "main",
+      "upstream": {"remote": "origin", "branch": "main"},
+      "remote_commits": [],
+      "dirty_files": {"tracked.txt": "uncommitted bytes stay unchanged\n"},
+      "metadata": null,
+      "labels": {"fixture": "dirty"},
+      "annotations": {"purpose": "e2e dirty state"}
+    }
+  ],
+  "missing_entries": [
+    {
+      "name": "missing repository",
+      "repo_id": "e2e/missing-repository",
+      "checkout_id": "missing-repository",
+      "path": "missing-repo",
+      "remote_url": "file:///e2e/missing-repository.git",
+      "status": "missing"
+    }
+  ],
+  "config": {
+    "external_registry": true,
+    "exclude": ["**/vendor/**"]
+  }
+}

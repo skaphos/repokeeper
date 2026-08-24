@@ -691,13 +691,18 @@ RepoKeeper shells out to the installed `git` binary for parity with real-world b
 
 ### 7.0 Git CLI Strategy & Compatibility Matrix
 
-We maintain a lightweight compatibility matrix to track minimum supported and tested Git versions across platforms. Update this table when changing git invocation behavior or adding CLI flags.
+RepoKeeper makes a **closed** compatibility claim for exactly Git `2.53`, `2.54`, and `2.55`. It does not infer support for older or newer lines from a numeric minimum. The executable source of truth is [`test/e2e/testdata/git-compatibility.json`](test/e2e/testdata/git-compatibility.json); it pins every archive, checksum, runner image, and exact patch. Adding a new Git minor retires the oldest line in the same reviewed change.
 
-| Platform | Minimum Supported | Tested In CI | Notes |
-| --- | --- | --- | --- |
-| Linux | TBD | TBD | Fill in once CI pins a Git version. |
-| macOS | TBD | TBD | Fill in once CI pins a Git version. |
-| Windows | TBD | TBD | Fill in once CI pins a Git version. |
+| Environment | Git 2.53 | Git 2.54 | Git 2.55 | Routine representative |
+| --- | --- | --- | --- | --- |
+| Linux (`ubuntu-24.04`) | 2.53.0 | 2.54.0 | 2.55.0 | 2.55.0 |
+| macOS (`macos-15`) | 2.53.0 | 2.54.0 | 2.55.0 | 2.54.0 |
+| native Windows (`windows-2025`) | 2.53.0.windows.1 | 2.54.0.windows.1 | 2.55.0.windows.1 | 2.55.0.windows.1 |
+| WSL1 / Ubuntu 24.04 (`windows-2025`) | 2.53.0 | 2.54.0 | 2.55.0 | 2.54.0 |
+
+Routine CI executes the four representatives. A full release executes all twelve cells and requires exact, unique, successful evidence before publication. WSL uses the checksum-pinned Canonical Noble `20240423` root filesystem and never falls back to native Windows, WSL2, or runner Git.
+
+The compatibility audit covers every command family delegated by `internal/gitx` and `internal/vcs`: `rev-parse`, `remote`, `remote get-url`, `remote prune --dry-run`, `config`, `status --porcelain=v1`, `symbolic-ref`, `for-each-ref` (including merged and tracking formats), `rev-list`, `fetch`, `pull --rebase`, `push`, `branch --set-upstream-to`, `remote set-url`, `stash`, `reset --hard`, `clean`, `clone`, and `cherry`. Changes to those invocations require updating the declaration and matrix tests.
 
 Experimental multi-VCS compatibility matrix:
 

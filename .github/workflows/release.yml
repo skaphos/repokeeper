@@ -6,16 +6,175 @@ on:
       - "v*"
 
 permissions:
-  contents: write
-  attestations: write
-  id-token: write
-  # Publishing the multi-arch container image to GHCR.
-  packages: write
+  contents: read
 
 jobs:
+  compatibility-matrix:
+    name: Full Compatibility Matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - id: matrix
+        name: Expand all twelve declared cells
+        shell: bash
+        run: echo "matrix=$(go run -tags integration ./test/e2e/cmd/compatibility matrix --scope release)" >> "$GITHUB_OUTPUT"
+
+  compatibility-qualification:
+    name: Qualify / ${{ matrix.cell.key }}
+    needs: compatibility-matrix
+    runs-on: ${{ matrix.cell.runner_label }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        cell: ${{ fromJSON(needs.compatibility-matrix.outputs.matrix).cells }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Record runner, tag, and commit identity
+        shell: bash
+        env:
+          CELL: ${{ matrix.cell.key }}
+          RUNNER_IDENTITY: ${{ runner.os }}-${{ runner.arch }}
+        run: printf 'cell=%s\nrunner=%s\ntag=%s\ncommit=%s\n' "$CELL" "$RUNNER_IDENTITY" "$GITHUB_REF_NAME" "$GITHUB_SHA"
+      - id: provision
+        name: Provision and exactly verify immutable Git inputs
+        continue-on-error: true
+        shell: bash
+        env:
+          CELL: ${{ matrix.cell.key }}
+        run: |
+          set -euo pipefail
+          prefix="$RUNNER_TEMP/repokeeper-${CELL}"
+          go run -tags integration ./test/e2e/cmd/compatibility provision --cell "$CELL" --prefix "$prefix" > "$RUNNER_TEMP/provision.json"
+          git_path="$(jq -r .git_path "$RUNNER_TEMP/provision.json")"
+          go run -tags integration ./test/e2e/cmd/compatibility verify-version --cell "$CELL" --git "$git_path"
+          # git_path comes from filepath.Join, so Windows cells report
+          # backslashes. POSIX dirname would see no separator and answer ".",
+          # silently qualifying the release against the runner Git.
+          if [[ "$CELL" != wsl-* ]]; then printf '%s\n' "$(dirname "${git_path//\\//}")" >> "$GITHUB_PATH"; fi
+      - id: native-e2e
+        name: Run native E2E suite
+        if: matrix.cell.environment != 'wsl' && steps.provision.outcome == 'success'
+        continue-on-error: true
+        run: go test -v -count=1 -timeout 10m -tags integration ./test/e2e
+      - id: wsl-e2e
+        name: Cross-compile and run the E2E suite inside WSL1
+        if: matrix.cell.environment == 'wsl' && steps.provision.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          windows_to_wsl() {
+            local windows_path="$1"
+            local drive="${windows_path:0:1}"
+            local tail="${windows_path:2}"
+            tail="${tail//\\//}"
+            printf '/mnt/%s%s' "${drive,,}" "$tail"
+          }
+          distribution="$(jq -r .wsl_distribution "$RUNNER_TEMP/provision.json")"
+          repo_linux="$(windows_to_wsl "$GITHUB_WORKSPACE")"
+          binary_windows="$RUNNER_TEMP/repokeeper-e2e-product"
+          compatibility_windows="$RUNNER_TEMP/repokeeper-compatibility"
+          test_windows="$RUNNER_TEMP/repokeeper-e2e.test"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$binary_windows" .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags integration -o "$compatibility_windows" ./test/e2e/cmd/compatibility
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -tags integration -o "$test_windows" ./test/e2e
+          binary_linux="$(windows_to_wsl "$binary_windows")"
+          compatibility_linux="$(windows_to_wsl "$compatibility_windows")"
+          test_linux="$(windows_to_wsl "$test_windows")"
+          MSYS2_ARG_CONV_EXCL='*' wsl.exe -d "$distribution" -- env \
+            PATH="/opt/repokeeper-git/bin:/usr/bin:/bin" \
+            REPOKEEPER_E2E_BINARY="$binary_linux" \
+            REPOKEEPER_E2E_COMPATIBILITY_BINARY="$compatibility_linux" \
+            REPOKEEPER_E2E_MODULE_ROOT="$repo_linux" \
+            "$test_linux" -test.v
+      - id: evidence
+        name: Write bounded per-cell evidence
+        if: always()
+        shell: bash
+        env:
+          CELL: ${{ matrix.cell.key }}
+          ENVIRONMENT: ${{ matrix.cell.environment }}
+          PROVISION_OUTCOME: ${{ steps.provision.outcome }}
+          NATIVE_OUTCOME: ${{ steps.native-e2e.outcome }}
+          WSL_OUTCOME: ${{ steps.wsl-e2e.outcome }}
+        run: |
+          set -euo pipefail
+          status=failed
+          if [ "$PROVISION_OUTCOME" = success ]; then
+            if { [ "$ENVIRONMENT" = wsl ] && [ "$WSL_OUTCOME" = success ]; } || { [ "$ENVIRONMENT" != wsl ] && [ "$NATIVE_OUTCOME" = success ]; }; then
+              status=passed
+            fi
+          fi
+          actual_git="$(jq -r '.actual_version // ""' "$RUNNER_TEMP/provision.json" 2>/dev/null || true)"
+          mkdir -p evidence
+          go run -tags integration ./test/e2e/cmd/compatibility write-evidence \
+            --cell "$CELL" --output "evidence/${CELL}.json" \
+            --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" \
+            --actual-git "$actual_git" --status "$status"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: Upload cell evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compatibility-${{ matrix.cell.key }}
+          path: evidence/${{ matrix.cell.key }}.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Unregister the job-owned WSL distribution
+        if: always() && matrix.cell.environment == 'wsl'
+        shell: bash
+        run: |
+          distribution="$(jq -r '.wsl_distribution // empty' "$RUNNER_TEMP/provision.json" 2>/dev/null || true)"
+          if [ -n "$distribution" ]; then wsl.exe --unregister "$distribution"; fi
+      - name: Enforce cell success after evidence upload
+        if: always() && steps.evidence.outputs.status != 'passed'
+        shell: bash
+        run: exit 1
+
+  compatibility-evidence:
+    name: Compatibility Evidence Gate
+    needs: [compatibility-matrix, compatibility-qualification]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Download every available cell artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: compatibility-*
+          merge-multiple: true
+          path: evidence
+      - name: Require the exact successful twelve-cell evidence set
+        run: go run -tags integration ./test/e2e/cmd/compatibility verify-evidence --directory evidence --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA"
+
   release:
     name: GoReleaser
-    runs-on: ubuntu-latest
+    needs: compatibility-evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -194,7 +353,8 @@ jobs:
   # test.
   verify:
     name: Verify Published Channels
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     needs: release
     if: always() && needs.release.result == 'success'
     permissions:

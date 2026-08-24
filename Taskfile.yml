@@ -75,7 +75,17 @@ tasks:
   test-integration:
     desc: Run integration-tagged tests
     cmds:
-      - go test -v -tags integration ./...
+      - go test -v -count=1 -timeout 10m -tags integration ./internal/engine ./test/e2e/...
+
+  test-integration-race:
+    desc: Run lifecycle-sensitive integration tests under the race detector
+    cmds:
+      - go test -race -v -count=1 -timeout 10m -tags integration ./internal/engine ./test/e2e/...
+
+  test-default-excludes-e2e:
+    desc: Prove the ordinary package graph excludes the integration-only E2E tree
+    cmds:
+      - '{{if eq OS "windows"}}powershell -NoProfile -Command "$packages = go list ./...; if ($packages -match ''/test/e2e'') { Write-Error ''ordinary package graph includes test/e2e''; exit 1 }"{{else}}if go list ./... | grep -q ''/test/e2e''; then echo ''ordinary package graph includes test/e2e'' >&2; exit 1; fi{{end}}'
 
   lint:
     desc: Run linters
@@ -126,6 +136,7 @@ tasks:
       - lint
       - test
       - test-integration
+      - test-default-excludes-e2e
       - staticcheck
       - vuln
       - build-ci

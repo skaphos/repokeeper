@@ -12,7 +12,8 @@ permissions:
 jobs:
   release-please:
     name: Release Please
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Mint release bot token
         id: app-token
