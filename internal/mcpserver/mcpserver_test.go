@@ -1892,9 +1892,15 @@ var _ = Describe("InProcess MCP Client", func() {
 				"tracking": HaveKeyWithValue("upstream", "origin/main"),
 			}},
 			{name: "get_repo_metadata", arguments: map[string]any{"repo": "github.com/example/alpha"}, expect: map[string]types.GomegaMatcher{
-				"name":          Equal("Alpha Service"),
-				"paths":         HaveKey("authoritative"),
-				"related_repos": HaveLen(2),
+				"name": Equal("Alpha Service"),
+				"paths": SatisfyAll(
+					HaveKeyWithValue("authoritative", ConsistOf("cmd/", "internal/", "pkg/")),
+					HaveKeyWithValue("low_value", ConsistOf("vendor/", "testdata/")),
+				),
+				"related_repos": ConsistOf(
+					HaveKeyWithValue("repo_id", "github.com/example/beta"),
+					HaveKeyWithValue("repo_id", "github.com/example/unknown"),
+				),
 			}},
 			{name: "get_authoritative_paths", arguments: map[string]any{"repo": "github.com/example/alpha"}, expect: map[string]types.GomegaMatcher{
 				"authoritative": HaveLen(3),
