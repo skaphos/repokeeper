@@ -12,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -43,6 +44,14 @@ type mockEngine struct {
 	deleteRepoErr    error
 	cloneCalled      bool
 	cloneErr         error
+	cloneURL         string
+	clonePath        string
+	// cloneRegistersAs makes CloneAndRegister append a registry entry for the
+	// cloned repo under this ID, which is what the real engine does on success.
+	// Left empty the mock clones nothing, and handleAddRepository's lookup can
+	// only ever fall through to repo_id "unknown" -- so any spec asserting a
+	// real repo_id has to opt in here.
+	cloneRegistersAs string
 	reloadFromDisk   bool
 	reloadErr        error
 }
@@ -111,9 +120,24 @@ func (e *mockEngine) DeleteRepo(_ context.Context, repo string, _ string, _ bool
 	e.deleteRepoArg = repo
 	return e.deleteRepoErr
 }
-func (e *mockEngine) CloneAndRegister(_ context.Context, _, _, _ string, _ bool) error {
+func (e *mockEngine) CloneAndRegister(_ context.Context, remoteURL, targetPath, _ string, _ bool) error {
 	e.cloneCalled = true
-	return e.cloneErr
+	e.cloneURL = remoteURL
+	e.clonePath = targetPath
+	if e.cloneErr != nil {
+		return e.cloneErr
+	}
+	if e.cloneRegistersAs != "" && e.reg != nil {
+		e.reg.Entries = append(e.reg.Entries, registry.Entry{
+			RepoID:    e.cloneRegistersAs,
+			Path:      targetPath,
+			RemoteURL: remoteURL,
+			Type:      "checkout",
+			Status:    registry.StatusPresent,
+			LastSeen:  time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+		})
+	}
+	return nil
 }
 func (e *mockEngine) Scan(_ context.Context, opts engine.ScanOptions) ([]model.RepoStatus, error) {
 	if e.scanErr != nil {
@@ -183,6 +207,30 @@ func structuredListJSON(result *mcp.CallToolResult, key string) []byte {
 	b, err := json.Marshal(payload)
 	Expect(err).NotTo(HaveOccurred())
 	return b
+}
+
+// newInitializedClient starts an in-process client against srv and completes
+// the MCP initialize handshake, returning the client and the context its calls
+// must use. The in-process transport marshals every request and response
+// through JSON, so calls made with this client exercise the serialized wire
+// shape -- unlike callTool, which invokes the handler directly and sees the
+// raw Go values.
+func newInitializedClient(srv *mcpserver.MCPServer, name string) (*client.Client, context.Context) {
+	c, err := client.NewInProcessClient(srv.Inner())
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() { _ = c.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	DeferCleanup(cancel)
+	Expect(c.Start(ctx)).To(Succeed())
+
+	initReq := mcp.InitializeRequest{}
+	initReq.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+	initReq.Params.ClientInfo = mcp.Implementation{Name: name, Version: "1.0.0"}
+	_, err = c.Initialize(ctx, initReq)
+	Expect(err).NotTo(HaveOccurred())
+
+	return c, ctx
 }
 
 func intPtr(v int) *int    { return &v }
@@ -1791,6 +1839,140 @@ var _ = Describe("InProcess MCP Client", func() {
 		Expect(toolNames).To(HaveKey("plan_sync"))
 		Expect(toolNames).To(HaveKey("execute_sync"))
 		Expect(toolNames).To(HaveKey("remove_repository"))
+	})
+
+	It("returns record-shaped structured content for every tool through the real client", func() {
+		report := newTestStatusReport()
+		eng.statusResult = report
+		eng.inspectResult = &report.Repos[0]
+		eng.syncResult = []engine.SyncResult{{
+			RepoID:  "github.com/example/alpha",
+			Path:    "/home/user/repos/alpha",
+			Action:  "fetch --all --prune",
+			Outcome: engine.SyncOutcomeFetched,
+			Planned: true,
+		}}
+
+		// add_repository reports the repo ID it finds in the registry after the
+		// clone, so the mock has to actually register something -- otherwise the
+		// handler falls through to "unknown" and a presence-only assertion would
+		// happily certify that as a success.
+		newRepoDir, err := os.MkdirTemp("", "mcp-contract-newrepo-*")
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(func() { _ = os.RemoveAll(newRepoDir) })
+		newRepoPath := filepath.Join(newRepoDir, "newone")
+		eng.cloneRegistersAs = "github.com/example/newone"
+
+		c, ctx := newInitializedClient(srv, "contract-test-client")
+
+		// Every expectation asserts a value, not just the presence of a key.
+		// Presence alone proves nothing here: each response struct tags these
+		// fields without omitempty, so the key is emitted no matter what the
+		// handler computed, and the assertion could only ever fail if someone
+		// edited a struct tag.
+		cases := []struct {
+			name      string
+			arguments map[string]any
+			expect    map[string]types.GomegaMatcher
+		}{
+			{name: "list_repositories", expect: map[string]types.GomegaMatcher{
+				"repositories": HaveLen(3),
+			}},
+			{name: "build_workspace_inventory", expect: map[string]types.GomegaMatcher{
+				"generated_at": Equal("2026-04-01T12:00:00Z"),
+				"repos":        HaveLen(2),
+			}},
+			{name: "select_repositories", arguments: map[string]any{"label_selector": "team=platform"}, expect: map[string]types.GomegaMatcher{
+				"repositories": HaveLen(1),
+			}},
+			{name: "get_repository_context", arguments: map[string]any{"repo": "github.com/example/alpha"}, expect: map[string]types.GomegaMatcher{
+				"repo_id":  Equal("github.com/example/alpha"),
+				"path":     Equal("/home/user/repos/alpha"),
+				"head":     HaveKeyWithValue("branch", "main"),
+				"tracking": HaveKeyWithValue("upstream", "origin/main"),
+			}},
+			{name: "get_repo_metadata", arguments: map[string]any{"repo": "github.com/example/alpha"}, expect: map[string]types.GomegaMatcher{
+				"name": Equal("Alpha Service"),
+				"paths": SatisfyAll(
+					HaveKeyWithValue("authoritative", ConsistOf("cmd/", "internal/", "pkg/")),
+					HaveKeyWithValue("low_value", ConsistOf("vendor/", "testdata/")),
+				),
+				"related_repos": ConsistOf(
+					HaveKeyWithValue("repo_id", "github.com/example/beta"),
+					HaveKeyWithValue("repo_id", "github.com/example/unknown"),
+				),
+			}},
+			{name: "get_authoritative_paths", arguments: map[string]any{"repo": "github.com/example/alpha"}, expect: map[string]types.GomegaMatcher{
+				"authoritative": HaveLen(3),
+				"low_value":     HaveLen(2),
+				"entrypoints":   HaveKeyWithValue("main", "cmd/alpha/main.go"),
+			}},
+			{name: "get_related_repositories", arguments: map[string]any{"repo": "github.com/example/alpha"}, expect: map[string]types.GomegaMatcher{
+				"repositories": HaveLen(2),
+			}},
+			{name: "get_workspace_config", expect: map[string]types.GomegaMatcher{
+				"config_path":         HaveSuffix(".repokeeper.yaml"),
+				"registry_stale_days": BeNumerically("==", 30),
+				"defaults":            Not(BeEmpty()),
+				"repo_count":          BeNumerically("==", 3),
+			}},
+			{name: "scan_workspace", expect: map[string]types.GomegaMatcher{
+				"discovered": BeNumerically("==", 0),
+				"new":        BeNumerically("==", 0),
+				"missing":    BeNumerically("==", 1),
+				"pruned":     BeNumerically("==", 0),
+				"repos":      BeEmpty(),
+			}},
+			{name: "plan_sync", expect: map[string]types.GomegaMatcher{
+				"plan": HaveLen(1),
+			}},
+			{name: "execute_sync", arguments: map[string]any{"confirm": true}, expect: map[string]types.GomegaMatcher{
+				"results": HaveLen(1),
+			}},
+			{name: "set_labels", arguments: map[string]any{"repo": "github.com/example/alpha", "set": map[string]any{"tier": "critical"}}, expect: map[string]types.GomegaMatcher{
+				"repo_id": Equal("github.com/example/alpha"),
+				"labels":  HaveKeyWithValue("tier", "critical"),
+			}},
+			{name: "add_repository", arguments: map[string]any{"url": "git@github.com:example/newone.git", "path": newRepoPath}, expect: map[string]types.GomegaMatcher{
+				"repo_id": Equal("github.com/example/newone"),
+				"path":    Equal(newRepoPath),
+				"status":  Equal("cloned"),
+			}},
+			{name: "remove_repository", arguments: map[string]any{"repo": "github.com/example/beta", "delete_files": false}, expect: map[string]types.GomegaMatcher{
+				"repo_id": Equal("github.com/example/beta"),
+				"removed": BeTrue(),
+			}},
+		}
+
+		toolsResult, err := c.ListTools(ctx, mcp.ListToolsRequest{})
+		Expect(err).NotTo(HaveOccurred())
+		contractNames := make(map[string]struct{}, len(cases))
+		for _, tc := range cases {
+			contractNames[tc.name] = struct{}{}
+		}
+		// Name the uncovered tool before comparing counts. A bare length
+		// mismatch reports "expected 14 to have length 15" and dumps the case
+		// map, which is exactly the moment a developer needs the tool's name
+		// instead.
+		for _, tool := range toolsResult.Tools {
+			Expect(contractNames).To(HaveKey(tool.Name), "registered tool %q lacks a protocol contract case", tool.Name)
+		}
+		Expect(contractNames).To(HaveLen(len(toolsResult.Tools)), "a contract case names a tool that is not registered")
+
+		for _, tc := range cases {
+			By(tc.name)
+			result, callErr := c.CallTool(ctx, mcp.CallToolRequest{
+				Params: mcp.CallToolParams{Name: tc.name, Arguments: tc.arguments},
+			})
+			Expect(callErr).NotTo(HaveOccurred(), tc.name)
+			Expect(result.IsError).To(BeFalse(), tc.name)
+			Expect(result.Content).NotTo(BeEmpty(), tc.name)
+			structured := structuredContentMap(result)
+			for key, matcher := range tc.expect {
+				Expect(structured).To(HaveKey(key), "%s missing contract key %q", tc.name, key)
+				Expect(structured[key]).To(matcher, "%s contract key %q", tc.name, key)
+			}
+		}
 	})
 
 	It("can call a read tool end-to-end through the in-process client", func() {
