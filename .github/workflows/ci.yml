@@ -191,14 +191,18 @@ jobs:
           distribution="$(jq -r .wsl_distribution "$RUNNER_TEMP/provision.json")"
           repo_linux="$(windows_to_wsl "$GITHUB_WORKSPACE")"
           binary_windows="$RUNNER_TEMP/repokeeper-e2e-product"
+          compatibility_windows="$RUNNER_TEMP/repokeeper-compatibility"
           test_windows="$RUNNER_TEMP/repokeeper-e2e.test"
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$binary_windows" .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags integration -o "$compatibility_windows" ./test/e2e/cmd/compatibility
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -tags integration -o "$test_windows" ./test/e2e
           binary_linux="$(windows_to_wsl "$binary_windows")"
+          compatibility_linux="$(windows_to_wsl "$compatibility_windows")"
           test_linux="$(windows_to_wsl "$test_windows")"
           MSYS2_ARG_CONV_EXCL='*' wsl.exe -d "$distribution" -- env \
             PATH="/opt/repokeeper-git/bin:/usr/bin:/bin" \
             REPOKEEPER_E2E_BINARY="$binary_linux" \
+            REPOKEEPER_E2E_COMPATIBILITY_BINARY="$compatibility_linux" \
             REPOKEEPER_E2E_MODULE_ROOT="$repo_linux" \
             "$test_linux" -test.v
       - name: Unregister WSL distribution

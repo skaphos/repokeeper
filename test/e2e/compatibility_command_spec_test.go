@@ -90,8 +90,13 @@ var _ = Describe("Compatibility command and evidence", func() {
 func runCompatibilityCommand(arguments ...string) ([]byte, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	args := append([]string{"run", "-tags", "integration", "./test/e2e/cmd/compatibility"}, arguments...)
-	command := exec.CommandContext(ctx, "go", args...)
+	executable := os.Getenv("REPOKEEPER_E2E_COMPATIBILITY_BINARY")
+	args := arguments
+	if executable == "" {
+		executable = "go"
+		args = append([]string{"run", "-tags", "integration", "./test/e2e/cmd/compatibility"}, arguments...)
+	}
+	command := exec.CommandContext(ctx, executable, args...)
 	command.Dir = moduleRoot
 	command.Env = append(os.Environ(), "GOCACHE="+filepath.Join(os.TempDir(), "repokeeper-go-build"))
 	var stdout, stderr strings.Builder

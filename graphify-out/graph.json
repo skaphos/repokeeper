@@ -1555,6 +1555,17 @@
       "source_location": "L15"
     },
     {
+      "id": "internal_tui_actions_internal_test_testactioncmdspropagateprovidedcontext",
+      "label": "TestActionCmdsPropagateProvidedContext()",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "testactioncmdspropagateprovidedcontext()",
+      "source_file": "internal/tui/actions_internal_test.go",
+      "source_location": "L899"
+    },
+    {
       "id": "internal_tui_actions_internal_test_testhelpersandpathresolution",
       "label": "TestHelpersAndPathResolution()",
       "_origin": "ast",
@@ -1654,6 +1665,94 @@
       "source_location": "L116"
     },
     {
+      "id": "internal_tui_delete_action",
+      "label": "delete_action.go",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "delete_action.go",
+      "source_file": "internal/tui/delete_action.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_tui_delete_action_deleterepocmd",
+      "label": "deleteRepoCmd()",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "deleterepocmd()",
+      "source_file": "internal/tui/delete_action.go",
+      "source_location": "L17"
+    },
+    {
+      "id": "internal_tui_delete_action_go_engineapi",
+      "label": "EngineAPI",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "engineapi",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "internal_tui_repair_go_engineapi",
+      "label": "EngineAPI",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "engineapi",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "internal_tui_repair_repairupstreamcmd",
+      "label": "repairUpstreamCmd()",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "repairupstreamcmd()",
+      "source_file": "internal/tui/repair.go",
+      "source_location": "L18"
+    },
+    {
+      "id": "internal_tui_reset_action",
+      "label": "reset_action.go",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "reset_action.go",
+      "source_file": "internal/tui/reset_action.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_tui_reset_action_go_engineapi",
+      "label": "EngineAPI",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "engineapi",
+      "source_file": "",
+      "source_location": ""
+    },
+    {
+      "id": "internal_tui_reset_action_resetrepocmd",
+      "label": "resetRepoCmd()",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "resetrepocmd()",
+      "source_file": "internal/tui/reset_action.go",
+      "source_location": "L17"
+    },
+    {
       "id": "tui_adddonemsg",
       "label": "addDoneMsg",
       "_origin": "ast",
@@ -1663,6 +1762,28 @@
       "norm_label": "adddonemsg",
       "source_file": "internal/tui/add_action.go",
       "source_location": "L19"
+    },
+    {
+      "id": "tui_deletedonemsg",
+      "label": "deleteDoneMsg",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "deletedonemsg",
+      "source_file": "internal/tui/delete_action.go",
+      "source_location": "L12"
+    },
+    {
+      "id": "tui_resetdonemsg",
+      "label": "resetDoneMsg",
+      "_origin": "ast",
+      "community": 100,
+      "community_name": "TestHelpersAndPathResolution",
+      "file_type": "code",
+      "norm_label": "resetdonemsg",
+      "source_file": "internal/tui/reset_action.go",
+      "source_location": "L12"
     },
     {
       "id": "tui_tuimodel_addfieldappend",
@@ -2660,17 +2781,6 @@
       "norm_label": ".resetrepo()",
       "source_file": "internal/tui/model_internal_test.go",
       "source_location": "L59"
-    },
-    {
-      "id": "tui_mockengine_sync",
-      "label": ".Sync()",
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "mockEngine",
-      "file_type": "code",
-      "norm_label": ".sync()",
-      "source_file": "internal/tui/model_internal_test.go",
-      "source_location": "L37"
     },
     {
       "id": "tui_repairdonemsg",
@@ -9143,7 +9253,7 @@
       "file_type": "code",
       "norm_label": "rewriteevidence()",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L109"
+      "source_location": "L114"
     },
     {
       "id": "test_e2e_compatibility_command_spec_test_runcompatibilitycommand",
@@ -9165,7 +9275,7 @@
       "file_type": "code",
       "norm_label": "writecompleteevidence()",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L104"
+      "source_location": "L109"
     },
     {
       "id": "test_e2e_internal_compatibility_declaration",
@@ -16383,6 +16493,17 @@
       "source_location": "L155"
     },
     {
+      "id": "internal_mcpinstall_comment_guard_test_testtomlhascomments",
+      "label": "TestTomlHasComments()",
+      "_origin": "ast",
+      "community": 206,
+      "community_name": "comment_guard_test.go",
+      "file_type": "code",
+      "norm_label": "testtomlhascomments()",
+      "source_file": "internal/mcpinstall/comment_guard_test.go",
+      "source_location": "L14"
+    },
+    {
       "id": "internal_mcpinstall_comment_guard_test_writetemp",
       "label": "writeTemp()",
       "_origin": "ast",
@@ -16756,6 +16877,28 @@
       "source_location": ""
     },
     {
+      "id": "internal_tui_actions_internal_test_testresolverepairtarget",
+      "label": "TestResolveRepairTarget()",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "renderDivider",
+      "file_type": "code",
+      "norm_label": "testresolverepairtarget()",
+      "source_file": "internal/tui/actions_internal_test.go",
+      "source_location": "L936"
+    },
+    {
+      "id": "internal_tui_actions_internal_test_testresolverepairtargetusespathforduplicaterepoid",
+      "label": "TestResolveRepairTargetUsesPathForDuplicateRepoID()",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "renderDivider",
+      "file_type": "code",
+      "norm_label": "testresolverepairtargetusespathforduplicaterepoid()",
+      "source_file": "internal/tui/actions_internal_test.go",
+      "source_location": "L969"
+    },
+    {
       "id": "internal_tui_actions_internal_test_testviewsandrendering",
       "label": "TestViewsAndRendering()",
       "_origin": "ast",
@@ -16877,6 +17020,17 @@
       "source_location": "L342"
     },
     {
+      "id": "internal_tui_repair",
+      "label": "tui/repair.go",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "renderDivider",
+      "file_type": "code",
+      "norm_label": "tui/repair.go",
+      "source_file": "internal/tui/repair.go",
+      "source_location": "L1"
+    },
+    {
       "id": "internal_tui_repair_go_tuimodel",
       "label": "tuiModel",
       "_origin": "ast",
@@ -16897,6 +17051,17 @@
       "norm_label": "renderrepairconfirmview()",
       "source_file": "internal/tui/repair.go",
       "source_location": "L72"
+    },
+    {
+      "id": "internal_tui_repair_resolverepairtarget",
+      "label": "resolveRepairTarget()",
+      "_origin": "ast",
+      "community": 21,
+      "community_name": "renderDivider",
+      "file_type": "code",
+      "norm_label": "resolverepairtarget()",
+      "source_file": "internal/tui/repair.go",
+      "source_location": "L25"
     },
     {
       "id": "internal_tui_reset_action_go_tuimodel",
@@ -20185,17 +20350,6 @@
       "source_location": "L329"
     },
     {
-      "id": "engine_engine_reloadconfig",
-      "label": ".ReloadConfig()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "RepoStatus",
-      "file_type": "code",
-      "norm_label": ".reloadconfig()",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L134"
-    },
-    {
       "id": "engine_engine_runsyncapply",
       "label": ".runSyncApply()",
       "_origin": "ast",
@@ -20229,17 +20383,6 @@
       "source_location": "L1337"
     },
     {
-      "id": "engine_engine_setregistryupdatedat",
-      "label": ".setRegistryUpdatedAt()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "RepoStatus",
-      "file_type": "code",
-      "norm_label": ".setregistryupdatedat()",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L1602"
-    },
-    {
       "id": "engine_engine_status",
       "label": ".Status()",
       "_origin": "ast",
@@ -20262,17 +20405,6 @@
       "source_location": "L367"
     },
     {
-      "id": "engine_engine_syncentrymatchesinspectfilter",
-      "label": ".syncEntryMatchesInspectFilter()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "RepoStatus",
-      "file_type": "code",
-      "norm_label": ".syncentrymatchesinspectfilter()",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L1000"
-    },
-    {
       "id": "engine_engine_writerepometadatasnapshots",
       "label": ".writeRepoMetadataSnapshots()",
       "_origin": "ast",
@@ -20282,17 +20414,6 @@
       "norm_label": ".writerepometadatasnapshots()",
       "source_file": "internal/engine/engine.go",
       "source_location": "L416"
-    },
-    {
-      "id": "internal_engine_engine_go_engine_engine",
-      "label": "Engine",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "RepoStatus",
-      "file_type": "code",
-      "norm_label": "engine",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L92"
     },
     {
       "id": "internal_engine_engine_inspectfailureresult",
@@ -20315,17 +20436,6 @@
       "norm_label": "supportslocalupdate()",
       "source_file": "internal/engine/engine.go",
       "source_location": "L824"
-    },
-    {
-      "id": "internal_engine_engine_workerchannelbuffersize",
-      "label": "workerChannelBufferSize()",
-      "_origin": "ast",
-      "community": 27,
-      "community_name": "RepoStatus",
-      "file_type": "code",
-      "norm_label": "workerchannelbuffersize()",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L892"
     },
     {
       "id": "internal_model_model_go_model_remotetrackingrefstatus",
@@ -20834,17 +20944,6 @@
       "source_location": "L131"
     },
     {
-      "id": "engine_engine_replaceregistryentry",
-      "label": ".replaceRegistryEntry()",
-      "_origin": "ast",
-      "community": 29,
-      "community_name": "Entry",
-      "file_type": "code",
-      "norm_label": ".replaceregistryentry()",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L1593"
-    },
-    {
       "id": "engine_engine_upsertregistryentry",
       "label": ".upsertRegistryEntry()",
       "_origin": "ast",
@@ -20854,17 +20953,6 @@
       "norm_label": ".upsertregistryentry()",
       "source_file": "internal/engine/engine.go",
       "source_location": "L1584"
-    },
-    {
-      "id": "internal_engine_engine_replaceregistryentry",
-      "label": "replaceRegistryEntry()",
-      "_origin": "ast",
-      "community": 29,
-      "community_name": "Entry",
-      "file_type": "code",
-      "norm_label": "replaceregistryentry()",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L1693"
     },
     {
       "id": "internal_registry_registry",
@@ -22565,6 +22653,28 @@
       "source_location": "L958"
     },
     {
+      "id": "engine_engine_reloadconfig",
+      "label": ".ReloadConfig()",
+      "_origin": "ast",
+      "community": 33,
+      "community_name": "SyncResult",
+      "file_type": "code",
+      "norm_label": ".reloadconfig()",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L134"
+    },
+    {
+      "id": "engine_engine_replaceregistryentry",
+      "label": ".replaceRegistryEntry()",
+      "_origin": "ast",
+      "community": 33,
+      "community_name": "SyncResult",
+      "file_type": "code",
+      "norm_label": ".replaceregistryentry()",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L1593"
+    },
+    {
       "id": "engine_engine_runsyncentry",
       "label": ".runSyncEntry()",
       "_origin": "ast",
@@ -22631,6 +22741,17 @@
       "source_location": "L1703"
     },
     {
+      "id": "internal_engine_engine_go_engine_engine",
+      "label": "Engine",
+      "_origin": "ast",
+      "community": 33,
+      "community_name": "SyncResult",
+      "file_type": "code",
+      "norm_label": "engine",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L92"
+    },
+    {
       "id": "internal_engine_engine_go_engine_syncoptions",
       "label": "SyncOptions",
       "_origin": "ast",
@@ -22675,6 +22796,17 @@
       "source_location": "L513"
     },
     {
+      "id": "internal_engine_engine_replaceregistryentry",
+      "label": "replaceRegistryEntry()",
+      "_origin": "ast",
+      "community": 33,
+      "community_name": "SyncResult",
+      "file_type": "code",
+      "norm_label": "replaceregistryentry()",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L1693"
+    },
+    {
       "id": "internal_engine_engine_shouldstopsyncexecution",
       "label": "shouldStopSyncExecution()",
       "_origin": "ast",
@@ -22708,6 +22840,17 @@
       "source_location": "L78"
     },
     {
+      "id": "mcpserver_mockengine_sync",
+      "label": ".Sync()",
+      "_origin": "ast",
+      "community": 33,
+      "community_name": "SyncResult",
+      "file_type": "code",
+      "norm_label": ".sync()",
+      "source_file": "internal/mcpserver/mcpserver_test.go",
+      "source_location": "L69"
+    },
+    {
       "id": "tui_mockengine_executesyncplanwithcallbacks",
       "label": ".ExecuteSyncPlanWithCallbacks()",
       "_origin": "ast",
@@ -22717,6 +22860,17 @@
       "norm_label": ".executesyncplanwithcallbacks()",
       "source_file": "internal/tui/model_internal_test.go",
       "source_location": "L41"
+    },
+    {
+      "id": "tui_mockengine_sync",
+      "label": ".Sync()",
+      "_origin": "ast",
+      "community": 33,
+      "community_name": "SyncResult",
+      "file_type": "code",
+      "norm_label": ".sync()",
+      "source_file": "internal/tui/model_internal_test.go",
+      "source_location": "L37"
     },
     {
       "id": "internal_config_config_more_test_testloadinvalidyamlerrors",
@@ -22730,17 +22884,6 @@
       "source_location": "L175"
     },
     {
-      "id": "internal_model_model_go_model_repometadata",
-      "label": "RepoMetadata",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "repometadata",
-      "source_file": "internal/model/model.go",
-      "source_location": "L209"
-    },
-    {
       "id": "internal_repometa_repometa_apply",
       "label": "Apply()",
       "_origin": "ast",
@@ -22752,17 +22895,6 @@
       "source_location": "L149"
     },
     {
-      "id": "internal_repometa_repometa_save",
-      "label": "Save()",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "save()",
-      "source_file": "internal/repometa/repometa.go",
-      "source_location": "L110"
-    },
-    {
       "id": "internal_repometa_repometa_test",
       "label": "repometa_test.go",
       "_origin": "ast",
@@ -22772,17 +22904,6 @@
       "norm_label": "repometa_test.go",
       "source_file": "internal/repometa/repometa_test.go",
       "source_location": "L1"
-    },
-    {
-      "id": "internal_repometa_repometa_test_mustmarshalrepometadata",
-      "label": "mustMarshalRepoMetadata()",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "mustmarshalrepometadata()",
-      "source_file": "internal/repometa/repometa_test.go",
-      "source_location": "L614"
     },
     {
       "id": "internal_repometa_repometa_test_mustmetadatafingerprint",
@@ -22950,17 +23071,6 @@
       "source_location": "L284"
     },
     {
-      "id": "internal_repometa_repometa_test_testrendermatchessaveoutput",
-      "label": "TestRenderMatchesSaveOutput()",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "testrendermatchessaveoutput()",
-      "source_file": "internal/repometa/repometa_test.go",
-      "source_location": "L182"
-    },
-    {
       "id": "internal_repometa_repometa_test_testrenderrequiresmetadata",
       "label": "TestRenderRequiresMetadata()",
       "_origin": "ast",
@@ -22983,28 +23093,6 @@
       "source_location": "L217"
     },
     {
-      "id": "internal_repometa_repometa_test_testsavereplacessymlinktargetinsteadofwritingthrough",
-      "label": "TestSaveReplacesSymlinkTargetInsteadOfWritingThrough()",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "testsavereplacessymlinktargetinsteadofwritingthrough()",
-      "source_file": "internal/repometa/repometa_test.go",
-      "source_location": "L119"
-    },
-    {
-      "id": "internal_repometa_repometa_test_testsavewritescanonicalfile",
-      "label": "TestSaveWritesCanonicalFile()",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "testsavewritescanonicalfile()",
-      "source_file": "internal/repometa/repometa_test.go",
-      "source_location": "L154"
-    },
-    {
       "id": "internal_repometa_repometa_test_testvalidaterejectsinvalidmetadata",
       "label": "TestValidateRejectsInvalidMetadata()",
       "_origin": "ast",
@@ -23025,28 +23113,6 @@
       "norm_label": "writerepometadatafile()",
       "source_file": "internal/repometa/repometa_test.go",
       "source_location": "L650"
-    },
-    {
-      "id": "model_repometadatapaths",
-      "label": "RepoMetadataPaths",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "repometadatapaths",
-      "source_file": "internal/model/model.go",
-      "source_location": "L193"
-    },
-    {
-      "id": "repokeeper_bulkproposal",
-      "label": "bulkProposal",
-      "_origin": "ast",
-      "community": 34,
-      "community_name": "repometa_test.go",
-      "file_type": "code",
-      "norm_label": "bulkproposal",
-      "source_file": "cmd/repokeeper/index.go",
-      "source_location": "L189"
     },
     {
       "id": "test_e2e_internal_compatibility_declaration_load",
@@ -24832,6 +24898,28 @@
       "source_location": "L160"
     },
     {
+      "id": "engine_engine_setregistryupdatedat",
+      "label": ".setRegistryUpdatedAt()",
+      "_origin": "ast",
+      "community": 41,
+      "community_name": "engine/engine.go",
+      "file_type": "code",
+      "norm_label": ".setregistryupdatedat()",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L1602"
+    },
+    {
+      "id": "engine_engine_syncentrymatchesinspectfilter",
+      "label": ".syncEntryMatchesInspectFilter()",
+      "_origin": "ast",
+      "community": 41,
+      "community_name": "engine/engine.go",
+      "file_type": "code",
+      "norm_label": ".syncentrymatchesinspectfilter()",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L1000"
+    },
+    {
       "id": "engine_localupdatecapable",
       "label": "localUpdateCapable",
       "_origin": "ast",
@@ -24962,17 +25050,6 @@
       "norm_label": "scanoptions",
       "source_file": "internal/engine/engine.go",
       "source_location": "L153"
-    },
-    {
-      "id": "internal_engine_engine_go_engine_statusoptions",
-      "label": "StatusOptions",
-      "_origin": "ast",
-      "community": 41,
-      "community_name": "engine/engine.go",
-      "file_type": "code",
-      "norm_label": "statusoptions",
-      "source_file": "internal/engine/engine.go",
-      "source_location": "L297"
     },
     {
       "id": "internal_engine_engine_hasremotemismatch",
@@ -25217,26 +25294,15 @@
       "source_location": "L798"
     },
     {
-      "id": "mcpserver_mockengine_status",
-      "label": ".Status()",
+      "id": "internal_engine_engine_workerchannelbuffersize",
+      "label": "workerChannelBufferSize()",
       "_origin": "ast",
       "community": 41,
       "community_name": "engine/engine.go",
       "file_type": "code",
-      "norm_label": ".status()",
-      "source_file": "internal/mcpserver/mcpserver_test.go",
-      "source_location": "L50"
-    },
-    {
-      "id": "tui_mockengine_status",
-      "label": ".Status()",
-      "_origin": "ast",
-      "community": 41,
-      "community_name": "engine/engine.go",
-      "file_type": "code",
-      "norm_label": ".status()",
-      "source_file": "internal/tui/model_internal_test.go",
-      "source_location": "L33"
+      "norm_label": "workerchannelbuffersize()",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L892"
     },
     {
       "id": "specs_001_distribution_channels_tasks_correction_made_during_implementation",
@@ -25932,11 +25998,22 @@
       "source_location": "L23"
     },
     {
+      "id": "internal_model_model_go_model_repometadata",
+      "label": "RepoMetadata",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "repometadata",
+      "source_file": "internal/model/model.go",
+      "source_location": "L209"
+    },
+    {
       "id": "internal_repometa_repometa",
       "label": "repometa.go",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "repometa.go",
       "source_file": "internal/repometa/repometa.go",
@@ -25947,7 +26024,7 @@
       "label": "canonicalize()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "canonicalize()",
       "source_file": "internal/repometa/repometa.go",
@@ -25958,7 +26035,7 @@
       "label": "discoverMetadataState()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "discovermetadatastate()",
       "source_file": "internal/repometa/repometa.go",
@@ -25969,7 +26046,7 @@
       "label": "discoverPath()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "discoverpath()",
       "source_file": "internal/repometa/repometa.go",
@@ -25980,7 +26057,7 @@
       "label": "fileExists()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "fileexists()",
       "source_file": "internal/repometa/repometa.go",
@@ -25991,7 +26068,7 @@
       "label": "metadataConflictFingerprint()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "metadataconflictfingerprint()",
       "source_file": "internal/repometa/repometa.go",
@@ -26002,7 +26079,7 @@
       "label": "metadataFileFingerprint()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "metadatafilefingerprint()",
       "source_file": "internal/repometa/repometa.go",
@@ -26013,7 +26090,7 @@
       "label": "normalize()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "normalize()",
       "source_file": "internal/repometa/repometa.go",
@@ -26024,7 +26101,7 @@
       "label": "normalizeMap()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "normalizemap()",
       "source_file": "internal/repometa/repometa.go",
@@ -26035,7 +26112,7 @@
       "label": "normalizeRelativePathMap()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "normalizerelativepathmap()",
       "source_file": "internal/repometa/repometa.go",
@@ -26046,7 +26123,7 @@
       "label": "normalizeRelativePathSlice()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "normalizerelativepathslice()",
       "source_file": "internal/repometa/repometa.go",
@@ -26057,7 +26134,7 @@
       "label": "normalizeSlice()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "normalizeslice()",
       "source_file": "internal/repometa/repometa.go",
@@ -26068,29 +26145,84 @@
       "label": "readMetadataFile()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "readmetadatafile()",
       "source_file": "internal/repometa/repometa.go",
       "source_location": "L56"
     },
     {
+      "id": "internal_repometa_repometa_save",
+      "label": "Save()",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "save()",
+      "source_file": "internal/repometa/repometa.go",
+      "source_location": "L110"
+    },
+    {
       "id": "internal_repometa_repometa_savepath",
       "label": "savePath()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "savepath()",
       "source_file": "internal/repometa/repometa.go",
       "source_location": "L311"
     },
     {
+      "id": "internal_repometa_repometa_test_mustmarshalrepometadata",
+      "label": "mustMarshalRepoMetadata()",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "mustmarshalrepometadata()",
+      "source_file": "internal/repometa/repometa_test.go",
+      "source_location": "L614"
+    },
+    {
+      "id": "internal_repometa_repometa_test_testrendermatchessaveoutput",
+      "label": "TestRenderMatchesSaveOutput()",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "testrendermatchessaveoutput()",
+      "source_file": "internal/repometa/repometa_test.go",
+      "source_location": "L182"
+    },
+    {
+      "id": "internal_repometa_repometa_test_testsavereplacessymlinktargetinsteadofwritingthrough",
+      "label": "TestSaveReplacesSymlinkTargetInsteadOfWritingThrough()",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "testsavereplacessymlinktargetinsteadofwritingthrough()",
+      "source_file": "internal/repometa/repometa_test.go",
+      "source_location": "L119"
+    },
+    {
+      "id": "internal_repometa_repometa_test_testsavewritescanonicalfile",
+      "label": "TestSaveWritesCanonicalFile()",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "testsavewritescanonicalfile()",
+      "source_file": "internal/repometa/repometa_test.go",
+      "source_location": "L154"
+    },
+    {
       "id": "internal_repometa_repometa_validate",
       "label": "validate()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "validate()",
       "source_file": "internal/repometa/repometa.go",
@@ -26101,7 +26233,7 @@
       "label": "validateMetadataKey()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "validatemetadatakey()",
       "source_file": "internal/repometa/repometa.go",
@@ -26112,18 +26244,40 @@
       "label": "validateRelativePath()",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "validaterelativepath()",
       "source_file": "internal/repometa/repometa.go",
       "source_location": "L520"
     },
     {
+      "id": "model_repometadatapaths",
+      "label": "RepoMetadataPaths",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "repometadatapaths",
+      "source_file": "internal/model/model.go",
+      "source_location": "L193"
+    },
+    {
+      "id": "repokeeper_bulkproposal",
+      "label": "bulkProposal",
+      "_origin": "ast",
+      "community": 44,
+      "community_name": "RepoMetadata",
+      "file_type": "code",
+      "norm_label": "bulkproposal",
+      "source_file": "cmd/repokeeper/index.go",
+      "source_location": "L189"
+    },
+    {
       "id": "repometa_metadatastate",
       "label": "metadataState",
       "_origin": "ast",
       "community": 44,
-      "community_name": "repometa.go",
+      "community_name": "RepoMetadata",
       "file_type": "code",
       "norm_label": "metadatastate",
       "source_file": "internal/repometa/repometa.go",
@@ -32910,171 +33064,6 @@
       "source_location": "L45"
     },
     {
-      "id": "internal_tui_actions_internal_test_testactioncmdspropagateprovidedcontext",
-      "label": "TestActionCmdsPropagateProvidedContext()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "testactioncmdspropagateprovidedcontext()",
-      "source_file": "internal/tui/actions_internal_test.go",
-      "source_location": "L899"
-    },
-    {
-      "id": "internal_tui_actions_internal_test_testresolverepairtarget",
-      "label": "TestResolveRepairTarget()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "testresolverepairtarget()",
-      "source_file": "internal/tui/actions_internal_test.go",
-      "source_location": "L936"
-    },
-    {
-      "id": "internal_tui_actions_internal_test_testresolverepairtargetusespathforduplicaterepoid",
-      "label": "TestResolveRepairTargetUsesPathForDuplicateRepoID()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "testresolverepairtargetusespathforduplicaterepoid()",
-      "source_file": "internal/tui/actions_internal_test.go",
-      "source_location": "L969"
-    },
-    {
-      "id": "internal_tui_delete_action",
-      "label": "delete_action.go",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "delete_action.go",
-      "source_file": "internal/tui/delete_action.go",
-      "source_location": "L1"
-    },
-    {
-      "id": "internal_tui_delete_action_deleterepocmd",
-      "label": "deleteRepoCmd()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "deleterepocmd()",
-      "source_file": "internal/tui/delete_action.go",
-      "source_location": "L17"
-    },
-    {
-      "id": "internal_tui_delete_action_go_engineapi",
-      "label": "EngineAPI",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "engineapi",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "internal_tui_repair",
-      "label": "tui/repair.go",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "tui/repair.go",
-      "source_file": "internal/tui/repair.go",
-      "source_location": "L1"
-    },
-    {
-      "id": "internal_tui_repair_go_engineapi",
-      "label": "EngineAPI",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "engineapi",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "internal_tui_repair_repairupstreamcmd",
-      "label": "repairUpstreamCmd()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "repairupstreamcmd()",
-      "source_file": "internal/tui/repair.go",
-      "source_location": "L18"
-    },
-    {
-      "id": "internal_tui_repair_resolverepairtarget",
-      "label": "resolveRepairTarget()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "resolverepairtarget()",
-      "source_file": "internal/tui/repair.go",
-      "source_location": "L25"
-    },
-    {
-      "id": "internal_tui_reset_action",
-      "label": "reset_action.go",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "reset_action.go",
-      "source_file": "internal/tui/reset_action.go",
-      "source_location": "L1"
-    },
-    {
-      "id": "internal_tui_reset_action_go_engineapi",
-      "label": "EngineAPI",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "engineapi",
-      "source_file": "",
-      "source_location": ""
-    },
-    {
-      "id": "internal_tui_reset_action_resetrepocmd",
-      "label": "resetRepoCmd()",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "resetrepocmd()",
-      "source_file": "internal/tui/reset_action.go",
-      "source_location": "L17"
-    },
-    {
-      "id": "tui_deletedonemsg",
-      "label": "deleteDoneMsg",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "deletedonemsg",
-      "source_file": "internal/tui/delete_action.go",
-      "source_location": "L12"
-    },
-    {
-      "id": "tui_resetdonemsg",
-      "label": "resetDoneMsg",
-      "_origin": "ast",
-      "community": 69,
-      "community_name": "TestActionCmdsPropagateProvidedContext",
-      "file_type": "code",
-      "norm_label": "resetdonemsg",
-      "source_file": "internal/tui/reset_action.go",
-      "source_location": "L12"
-    },
-    {
       "id": "go_type_github_com_mark3labs_mcp_go_mcp_calltoolrequest",
       "label": "github.com/mark3labs/mcp-go/mcp.CallToolRequest",
       "_origin": "ast",
@@ -35641,17 +35630,6 @@
       "source_location": "L272"
     },
     {
-      "id": "internal_mcpinstall_comment_guard_test_testtomlhascomments",
-      "label": "TestTomlHasComments()",
-      "_origin": "ast",
-      "community": 8,
-      "community_name": "codex.go",
-      "file_type": "code",
-      "norm_label": "testtomlhascomments()",
-      "source_file": "internal/mcpinstall/comment_guard_test.go",
-      "source_location": "L14"
-    },
-    {
       "id": "internal_mcpinstall_grok_go_entry",
       "label": "Entry",
       "_origin": "ast",
@@ -38045,6 +38023,17 @@
       "source_location": "L73"
     },
     {
+      "id": "internal_engine_engine_go_engine_statusoptions",
+      "label": "StatusOptions",
+      "_origin": "ast",
+      "community": 92,
+      "community_name": "mockEngine",
+      "file_type": "code",
+      "norm_label": "statusoptions",
+      "source_file": "internal/engine/engine.go",
+      "source_location": "L297"
+    },
+    {
       "id": "mcpserver_mockengine",
       "label": "mockEngine",
       "_origin": "ast",
@@ -38122,15 +38111,26 @@
       "source_location": "L133"
     },
     {
-      "id": "mcpserver_mockengine_sync",
-      "label": ".Sync()",
+      "id": "mcpserver_mockengine_status",
+      "label": ".Status()",
       "_origin": "ast",
       "community": 92,
       "community_name": "mockEngine",
       "file_type": "code",
-      "norm_label": ".sync()",
+      "norm_label": ".status()",
       "source_file": "internal/mcpserver/mcpserver_test.go",
-      "source_location": "L69"
+      "source_location": "L50"
+    },
+    {
+      "id": "tui_mockengine_status",
+      "label": ".Status()",
+      "_origin": "ast",
+      "community": 92,
+      "community_name": "mockEngine",
+      "file_type": "code",
+      "norm_label": ".status()",
+      "source_file": "internal/tui/model_internal_test.go",
+      "source_location": "L33"
     },
     {
       "id": "cmd_repokeeper_command_parsing_test",
@@ -53619,7 +53619,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L117",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -53631,7 +53631,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L117",
+      "source_location": "L122",
       "weight": 1.0
     },
     {
@@ -53643,7 +53643,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L106",
+      "source_location": "L111",
       "weight": 1.0
     },
     {
@@ -74991,7 +74991,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L109",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -75003,7 +75003,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L109",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -75015,7 +75015,7 @@
       "confidence_score": 1.0,
       "context": "parameter_type",
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L104",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -109111,7 +109111,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L104",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -109122,7 +109122,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "test/e2e/compatibility_command_spec_test.go",
-      "source_location": "L109",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -126353,5 +126353,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "65a8b74f840dff174ceee1391c6b00b590c74939"
+  "built_at_commit": "266168e74884defdbfbca5a72828a162185b475e"
 }

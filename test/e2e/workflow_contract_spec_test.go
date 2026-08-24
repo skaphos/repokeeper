@@ -48,7 +48,7 @@ var _ = Describe("Compatibility workflow contracts", func() {
 		data, err := os.ReadFile(filepath.Join(moduleRoot, ".github", "workflows", "ci.yml"))
 		Expect(err).NotTo(HaveOccurred())
 		text := string(data)
-		for _, required := range []string{"matrix --scope routine", "fail-fast: false", "ubuntu-24.04", "macos-15", "windows-2025", "matrix.cell.environment == 'wsl'", "windows_to_wsl", "MSYS2_ARG_CONV_EXCL='*'", "test-integration-race", "-race", "needs: compatibility-matrix"} {
+		for _, required := range []string{"matrix --scope routine", "fail-fast: false", "ubuntu-24.04", "macos-15", "windows-2025", "matrix.cell.environment == 'wsl'", "windows_to_wsl", "./test/e2e/cmd/compatibility", "REPOKEEPER_E2E_COMPATIBILITY_BINARY", "MSYS2_ARG_CONV_EXCL='*'", "test-integration-race", "-race", "needs: compatibility-matrix"} {
 			Expect(text).To(ContainSubstring(required))
 		}
 		Expect(text).To(ContainSubstring("permissions:\n  contents: read"))
@@ -58,7 +58,7 @@ var _ = Describe("Compatibility workflow contracts", func() {
 		data, err := os.ReadFile(filepath.Join(moduleRoot, ".github", "workflows", "release.yml"))
 		Expect(err).NotTo(HaveOccurred())
 		text := string(data)
-		for _, required := range []string{"matrix --scope release", "fail-fast: false", "Compatibility Evidence Gate", "verify-evidence", "needs: compatibility-evidence", "matrix.cell.environment == 'wsl'", "windows_to_wsl", "MSYS2_ARG_CONV_EXCL='*'", "wsl.exe --unregister", "contents: read", "contents: write", "id-token: write", "packages: write"} {
+		for _, required := range []string{"matrix --scope release", "fail-fast: false", "Compatibility Evidence Gate", "verify-evidence", "needs: compatibility-evidence", "matrix.cell.environment == 'wsl'", "windows_to_wsl", "./test/e2e/cmd/compatibility", "REPOKEEPER_E2E_COMPATIBILITY_BINARY", "MSYS2_ARG_CONV_EXCL='*'", "wsl.exe --unregister", "contents: read", "contents: write", "id-token: write", "packages: write"} {
 			Expect(text).To(ContainSubstring(required))
 		}
 		qualification := text[:strings.Index(text, "  release:\n")]

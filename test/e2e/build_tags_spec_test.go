@@ -4,13 +4,12 @@
 package e2e
 
 import (
-	"context"
+	"errors"
+	"go/build"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -46,16 +45,8 @@ var _ = Describe("E2E build-tag source policy", func() {
 	})
 
 	It("keeps the E2E package out of the ordinary package graph", func() {
-		root := GinkgoT().TempDir()
-		environment, err := buildChildEnvironment(root, filepath.Join(root, "config.yaml"))
-		Expect(err).NotTo(HaveOccurred())
-		for _, key := range []string{"GOMODCACHE", "GOCACHE"} {
-			output, commandErr := exec.Command("go", "env", key).Output()
-			Expect(commandErr).NotTo(HaveOccurred())
-			environment = append(environment, key+"="+strings.TrimSpace(string(output)))
-		}
-		result := runCommand(context.Background(), 30*time.Second, "ordinary go list", "go", []string{"list", "-e", "./..."}, moduleRoot, environment, root, filepath.Join(root, "config.yaml"))
-		Expect(expectExit(result, 0)).To(Succeed(), result.Diagnostics())
-		Expect(string(result.Stdout)).NotTo(ContainSubstring("github.com/skaphos/repokeeper/test/e2e"))
+		_, err := build.Default.ImportDir(filepath.Join(moduleRoot, "test", "e2e"), 0)
+		var noGoError *build.NoGoError
+		Expect(errors.As(err, &noGoError)).To(BeTrue(), "ordinary build context unexpectedly selected E2E Go sources: %v", err)
 	})
 })
