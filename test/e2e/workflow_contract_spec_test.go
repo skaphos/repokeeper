@@ -31,15 +31,14 @@ var _ = Describe("Compatibility workflow contracts", func() {
 				}
 			}
 			var document struct {
-				Jobs map[string]map[string]any `yaml:"jobs"`
+				Jobs map[string]struct {
+					TimeoutMinutes *int `yaml:"timeout-minutes"`
+				} `yaml:"jobs"`
 			}
 			Expect(yaml.Unmarshal(data, &document)).To(Succeed())
 			for job, body := range document.Jobs {
-				value, exists := body["timeout-minutes"]
-				Expect(exists).To(BeTrue(), "%s job %s has no timeout", name, job)
-				minutes, ok := value.(int)
-				Expect(ok).To(BeTrue(), "%s job %s timeout is %T", name, job, value)
-				Expect(minutes).To(BeNumerically("<=", 30), "%s job %s", name, job)
+				Expect(body.TimeoutMinutes).NotTo(BeNil(), "%s job %s has no timeout", name, job)
+				Expect(*body.TimeoutMinutes).To(BeNumerically("<=", 30), "%s job %s", name, job)
 			}
 		}
 	})

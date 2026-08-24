@@ -34,7 +34,7 @@ var _ = Describe("Real MCP stdio", func() {
 		cancel()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(compareLiveToolCoverage(tools, cases)).To(Succeed())
-		Expect(tools).To(HaveLen(14))
+		Expect(tools).To(HaveLen(len(cases)))
 
 		scanCase, err := findMCPToolCase(cases, "scan_workspace")
 		Expect(err).NotTo(HaveOccurred())

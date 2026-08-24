@@ -160,6 +160,7 @@ func validateRecipe(recipe WorkspaceRecipe) error {
 	names := map[string]string{}
 	paths := map[string]string{}
 	remotePaths := map[string]string{}
+	fixtureNames := map[string]string{}
 	repositoryNames := map[string]bool{}
 	for i, repository := range recipe.Repositories {
 		field := fmt.Sprintf("repositories[%d]", i)
@@ -167,6 +168,18 @@ func validateRecipe(recipe WorkspaceRecipe) error {
 			return err
 		}
 		repositoryNames[repository.Name] = true
+		// safeFixtureName collapses every non-alphanumeric rune, so distinct
+		// names can share one fixture identifier. That identifier becomes the
+		// remote URL and therefore the repo ID, so a collision would make
+		// materialization and registry state ambiguous.
+		fixture := safeFixtureName(repository.Name)
+		if fixture == "" {
+			return fmt.Errorf("%s.name: %q leaves no characters for a fixture identifier", field, repository.Name)
+		}
+		if previous, exists := fixtureNames[fixture]; exists {
+			return fmt.Errorf("%s.name: %q shares fixture identifier %q with %s", field, repository.Name, fixture, previous)
+		}
+		fixtureNames[fixture] = field + ".name"
 		for _, candidate := range []struct{ name, value string }{{field + ".remote_path", repository.RemotePath}, {field + ".checkout_path", repository.CheckoutPath}} {
 			if err := validatePortablePath(candidate.name, candidate.value); err != nil {
 				return err

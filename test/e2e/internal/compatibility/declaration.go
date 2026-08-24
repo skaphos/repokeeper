@@ -18,7 +18,6 @@ import (
 const MaxDocumentBytes = 1 << 20
 
 var sha256Pattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
-var minorPattern = regexp.MustCompile(`^([0-9]+)\.([0-9]+)$`)
 
 type Declaration struct {
 	SchemaVersion   int      `json:"schema_version"`
@@ -231,5 +230,3 @@ func equalStrings(left, right []string) bool {
 	}
 	return true
 }
-
-var _ = minorPattern

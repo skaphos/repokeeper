@@ -112,7 +112,10 @@ func VerifyEvidence(declaration Declaration, directory, candidateTag, commit str
 		}
 		copyForDigest := result
 		copyForDigest.ArtifactDigest = ""
-		digestPayload, _ := json.Marshal(copyForDigest)
+		digestPayload, marshalErr := json.Marshal(copyForDigest)
+		if marshalErr != nil {
+			return summary, fmt.Errorf("re-encode evidence %s for digest: %w", entry.Name(), marshalErr)
+		}
 		mismatch := result.SchemaVersion != 1 || result.CandidateTag != candidateTag || result.Commit != commit || result.Environment != cell.Environment || result.RunnerLabel != cell.RunnerLabel || result.GitMinor != cell.GitMinor || result.ExpectedGit != cell.GitPatch || result.ActualGit != "git version "+cell.GitPatch || result.InputDigests["provisioner"] != cell.Provisioner.SHA256 || result.ArtifactDigest != digestBytes(digestPayload)
 		if cell.RootFS != nil && result.InputDigests["rootfs"] != cell.RootFS.SHA256 {
 			mismatch = true
