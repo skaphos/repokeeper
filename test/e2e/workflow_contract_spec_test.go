@@ -61,7 +61,9 @@ var _ = Describe("Compatibility workflow contracts", func() {
 		for _, required := range []string{"matrix --scope release", "fail-fast: false", "Compatibility Evidence Gate", "verify-evidence", "needs: compatibility-evidence", "matrix.cell.environment == 'wsl'", "windows_to_wsl", "./test/e2e/cmd/compatibility", "REPOKEEPER_E2E_COMPATIBILITY_BINARY", "MSYS2_ARG_CONV_EXCL='*'", "wsl.exe --unregister", "contents: read", "contents: write", "id-token: write", "packages: write"} {
 			Expect(text).To(ContainSubstring(required))
 		}
-		qualification := text[:strings.Index(text, "  release:\n")]
+		releaseJob := strings.Index(text, "  release:\n")
+		Expect(releaseJob).To(BeNumerically(">", 0), "release workflow must contain the publisher job boundary")
+		qualification := text[:releaseJob]
 		Expect(qualification).NotTo(ContainSubstring("secrets."))
 		Expect(qualification).NotTo(ContainSubstring("contents: write"))
 	})
@@ -79,7 +81,7 @@ var _ = Describe("Compatibility workflow contracts", func() {
 		data, err := os.ReadFile(filepath.Join(moduleRoot, "Taskfile.yml"))
 		Expect(err).NotTo(HaveOccurred())
 		text := string(data)
-		for _, required := range []string{"test-integration:", "-count=1", "-timeout 10m", "./internal/engine ./test/e2e", "test-integration-race:", "-race", "test-default-excludes-e2e:"} {
+		for _, required := range []string{"test-integration:", "-count=1", "-timeout 10m", "./internal/engine ./test/e2e/...", "test-integration-race:", "-race", "test-default-excludes-e2e:"} {
 			Expect(text).To(ContainSubstring(required))
 		}
 	})

@@ -5,6 +5,8 @@ package e2e
 
 import (
 	"context"
+	"errors"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,5 +31,14 @@ var _ = Describe("MCP process lifecycle", func() {
 		Expect(time.Since(started)).To(BeNumerically("<", maximumScenarioTimeout))
 		Expect(len(session.stdout.Bytes())).To(BeNumerically("<", maximumCapturedOutput+64))
 		Expect(len(session.stderr.Bytes())).To(BeNumerically("<", maximumCapturedOutput+64))
+	})
+
+	It("reports non-zero MCP process exits with stderr", func() {
+		command := exec.Command(repokeeperPath, "not-a-real-command")
+		output, err := command.CombinedOutput()
+		var exitError *exec.ExitError
+		Expect(errors.As(err, &exitError)).To(BeTrue())
+		waitErr := mcpProcessExitError(err, output)
+		Expect(waitErr).To(MatchError(And(ContainSubstring("wait for MCP process"), ContainSubstring("not-a-real-command"))))
 	})
 })

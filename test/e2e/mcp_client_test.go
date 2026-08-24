@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -107,15 +106,13 @@ func (session *mcpSession) Close() error {
 		_ = session.client.Close()
 		select {
 		case err := <-session.wait:
-			var exitError *exec.ExitError
-			if err != nil && !errors.As(err, &exitError) {
-				session.closeErr = fmt.Errorf("wait for MCP process: %w", err)
-			}
+			session.closeErr = mcpProcessExitError(err, session.stderr.Bytes())
 		case <-time.After(2 * time.Second):
 			_ = forceTerminateProcessTree(session.cmd)
 			session.cancel()
 			select {
-			case <-session.wait:
+			case err := <-session.wait:
+				session.closeErr = mcpProcessExitError(err, session.stderr.Bytes())
 			case <-time.After(2 * time.Second):
 				session.closeErr = fmt.Errorf("MCP process did not terminate after forced cleanup")
 			}
@@ -127,6 +124,13 @@ func (session *mcpSession) Close() error {
 		}
 	})
 	return session.closeErr
+}
+
+func mcpProcessExitError(err error, stderr []byte) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("wait for MCP process: %w\nstderr:\n%s", err, stderr)
 }
 
 func validateJSONRPCFrames(data []byte) error {

@@ -3,7 +3,7 @@
 
 package e2e
 
-import "os"
+import "path/filepath"
 
 func mutationMCPToolCases() []MCPToolCase {
 	return []MCPToolCase{
@@ -20,5 +20,5 @@ func mutationMCPToolCases() []MCPToolCase {
 }
 
 func addedRepositoryPath(workspace *MaterializedWorkspace) string {
-	return workspace.WorkspaceRoot + string(os.PathSeparator) + "added repo"
+	return filepath.Join(workspace.WorkspaceRoot, "added repo")
 }

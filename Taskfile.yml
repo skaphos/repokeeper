@@ -75,12 +75,12 @@ tasks:
   test-integration:
     desc: Run integration-tagged tests
     cmds:
-      - go test -v -count=1 -timeout 10m -tags integration ./internal/engine ./test/e2e
+      - go test -v -count=1 -timeout 10m -tags integration ./internal/engine ./test/e2e/...
 
   test-integration-race:
     desc: Run lifecycle-sensitive integration tests under the race detector
     cmds:
-      - go test -race -v -count=1 -timeout 10m -tags integration ./internal/engine ./test/e2e
+      - go test -race -v -count=1 -timeout 10m -tags integration ./internal/engine ./test/e2e/...
 
   test-default-excludes-e2e:
     desc: Prove the ordinary package graph excludes the integration-only E2E tree

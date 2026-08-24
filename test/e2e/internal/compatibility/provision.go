@@ -60,11 +60,15 @@ func VerifyVersion(ctx context.Context, cell Cell, gitPath string) (VersionResul
 }
 
 func downloadVerified(ctx context.Context, sourceURL, expected, destination string) error {
+	return downloadVerifiedWithClient(ctx, &http.Client{Timeout: ProvisionTimeout}, sourceURL, expected, destination)
+}
+
+func downloadVerifiedWithClient(ctx context.Context, client *http.Client, sourceURL, expected, destination string) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return err
 	}
-	response, err := (&http.Client{Timeout: ProvisionTimeout}).Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}
@@ -76,6 +80,12 @@ func downloadVerified(ctx context.Context, sourceURL, expected, destination stri
 	if err != nil {
 		return err
 	}
+	complete := false
+	defer func() {
+		if !complete {
+			_ = os.Remove(destination)
+		}
+	}()
 	hash := sha256.New()
 	_, copyErr := io.Copy(io.MultiWriter(file, hash), io.LimitReader(response.Body, 2<<30))
 	closeErr := file.Close()
@@ -89,6 +99,7 @@ func downloadVerified(ctx context.Context, sourceURL, expected, destination stri
 	if actual != expected {
 		return fmt.Errorf("checksum mismatch for %s: got %s, want %s", sourceURL, actual, expected)
 	}
+	complete = true
 	return nil
 }
 
