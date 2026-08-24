@@ -84,7 +84,7 @@ func provisionWSL(ctx context.Context, cell Cell, prefix string) (ProvisionResul
 		return ProvisionResult{}, err
 	}
 	linuxArchive := strings.TrimSpace(string(raw))
-	script := fmt.Sprintf("set -eu; rm -rf /tmp/git-source /opt/repokeeper-git; mkdir -p /tmp/git-source /opt/repokeeper-git; tar -xJf %q -C /tmp/git-source --strip-components=1; cd /tmp/git-source; make configure; ./configure --prefix=/opt/repokeeper-git; make -j2 NO_CURL=YesPlease NO_EXPAT=YesPlease NO_GETTEXT=YesPlease all; make NO_CURL=YesPlease NO_EXPAT=YesPlease NO_GETTEXT=YesPlease install", linuxArchive)
+	script := fmt.Sprintf("set -eu; rm -rf /tmp/git-source /opt/repokeeper-git; mkdir -p /tmp/git-source /opt/repokeeper-git; tar -xJf %q -C /tmp/git-source --strip-components=1; cd /tmp/git-source; make -j2 prefix=/opt/repokeeper-git NO_CURL=YesPlease NO_EXPAT=YesPlease NO_GETTEXT=YesPlease all; make prefix=/opt/repokeeper-git NO_CURL=YesPlease NO_EXPAT=YesPlease NO_GETTEXT=YesPlease install", linuxArchive)
 	if err := runProvisionCommand(ctx, prefix, "wsl.exe", "-d", name, "--", "sh", "-lc", script); err != nil {
 		return ProvisionResult{}, err
 	}

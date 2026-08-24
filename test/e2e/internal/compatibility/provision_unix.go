@@ -43,16 +43,21 @@ func Provision(parent context.Context, cell Cell, prefix string) (ProvisionResul
 		return ProvisionResult{}, err
 	}
 	install := filepath.Join(absPrefix, "install")
-	if err := runProvisionCommand(ctx, sourceParent, "make", "configure"); err != nil {
+	makeArguments := []string{
+		"prefix=" + install,
+		"NO_CURL=YesPlease",
+		"NO_EXPAT=YesPlease",
+		"NO_GETTEXT=YesPlease",
+	}
+	// Git's native Makefile accepts prefix directly. Avoid generating configure,
+	// which would add an undeclared autoconf dependency to hosted runners.
+	buildArguments := append([]string{"-j2"}, makeArguments...)
+	buildArguments = append(buildArguments, "all")
+	if err := runProvisionCommand(ctx, sourceParent, "make", buildArguments...); err != nil {
 		return ProvisionResult{}, err
 	}
-	if err := runProvisionCommand(ctx, sourceParent, "./configure", "--prefix="+install); err != nil {
-		return ProvisionResult{}, err
-	}
-	if err := runProvisionCommand(ctx, sourceParent, "make", "-j2", "all"); err != nil {
-		return ProvisionResult{}, err
-	}
-	if err := runProvisionCommand(ctx, sourceParent, "make", "install"); err != nil {
+	installArguments := append(makeArguments, "install")
+	if err := runProvisionCommand(ctx, sourceParent, "make", installArguments...); err != nil {
 		return ProvisionResult{}, err
 	}
 	gitPath := filepath.Join(install, "bin", "git")
