@@ -101,3 +101,17 @@ func runProvisionCommand(ctx context.Context, dir, executable string, arguments 
 	}
 	return nil
 }
+
+// WindowsPathToWSL maps a trusted absolute drive path to WSL's default
+// automount location without depending on utilities inside a minimal rootfs.
+func WindowsPathToWSL(path string) (string, error) {
+	normalized := strings.ReplaceAll(path, `\`, "/")
+	if len(normalized) < 3 || normalized[1] != ':' || normalized[2] != '/' {
+		return "", fmt.Errorf("Windows path must be an absolute drive path: %q", path)
+	}
+	drive := normalized[0]
+	if !((drive >= 'a' && drive <= 'z') || (drive >= 'A' && drive <= 'Z')) {
+		return "", fmt.Errorf("Windows path has invalid drive letter: %q", path)
+	}
+	return "/mnt/" + strings.ToLower(string(drive)) + normalized[2:], nil
+}

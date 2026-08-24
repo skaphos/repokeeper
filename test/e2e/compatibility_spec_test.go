@@ -20,6 +20,26 @@ func compatibilityDeclarationPath() string {
 }
 
 var _ = Describe("Closed Git compatibility declaration", func() {
+	DescribeTable("maps absolute Windows paths into the WSL automount",
+		func(input, expected string) {
+			actual, err := compatibility.WindowsPathToWSL(input)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(actual).To(Equal(expected))
+		},
+		Entry("backslash path", `D:\a\_temp\git-source.tar.xz`, "/mnt/d/a/_temp/git-source.tar.xz"),
+		Entry("forward-slash path", "C:/work/Repo Keeper/test", "/mnt/c/work/Repo Keeper/test"),
+	)
+
+	DescribeTable("rejects paths outside the WSL drive automount contract",
+		func(input string) {
+			_, err := compatibility.WindowsPathToWSL(input)
+			Expect(err).To(HaveOccurred())
+		},
+		Entry("relative", `work\archive.tar.xz`),
+		Entry("UNC", `\\server\share\archive.tar.xz`),
+		Entry("invalid drive", `1:\archive.tar.xz`),
+	)
+
 	It("strictly loads the complete ordered matrix and agrees with DESIGN.md", func() {
 		declaration, err := compatibility.Load(compatibilityDeclarationPath())
 		Expect(err).NotTo(HaveOccurred())

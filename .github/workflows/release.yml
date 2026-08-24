@@ -72,14 +72,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          windows_to_wsl() {
+            local windows_path="$1"
+            local drive="${windows_path:0:1}"
+            local tail="${windows_path:2}"
+            tail="${tail//\\//}"
+            printf '/mnt/%s%s' "${drive,,}" "$tail"
+          }
           distribution="$(jq -r .wsl_distribution "$RUNNER_TEMP/provision.json")"
-          repo_linux="$(wsl.exe -d "$distribution" -- wslpath -a "$GITHUB_WORKSPACE")"
+          repo_linux="$(windows_to_wsl "$GITHUB_WORKSPACE")"
           binary_windows="$RUNNER_TEMP/repokeeper-e2e-product"
           test_windows="$RUNNER_TEMP/repokeeper-e2e.test"
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$binary_windows" .
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -c -tags integration -o "$test_windows" ./test/e2e
-          binary_linux="$(wsl.exe -d "$distribution" -- wslpath -a "$binary_windows")"
-          test_linux="$(wsl.exe -d "$distribution" -- wslpath -a "$test_windows")"
+          binary_linux="$(windows_to_wsl "$binary_windows")"
+          test_linux="$(windows_to_wsl "$test_windows")"
           wsl.exe -d "$distribution" -- env \
             PATH="/opt/repokeeper-git/bin:/usr/bin:/bin" \
             REPOKEEPER_E2E_BINARY="$binary_linux" \

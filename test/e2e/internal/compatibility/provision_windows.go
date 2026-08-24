@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -78,12 +77,10 @@ func provisionWSL(ctx context.Context, cell Cell, prefix string) (ProvisionResul
 	if err := downloadVerified(ctx, cell.Provisioner.SourceURL, cell.Provisioner.SHA256, archive); err != nil {
 		return ProvisionResult{}, err
 	}
-	pathOutput := exec.CommandContext(ctx, "wsl.exe", "-d", name, "--", "wslpath", "-a", archive)
-	raw, err := pathOutput.Output()
+	linuxArchive, err := WindowsPathToWSL(archive)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
-	linuxArchive := strings.TrimSpace(string(raw))
 	script := fmt.Sprintf("set -eu; rm -rf /tmp/git-source /opt/repokeeper-git; mkdir -p /tmp/git-source /opt/repokeeper-git; tar -xJf %q -C /tmp/git-source --strip-components=1; cd /tmp/git-source; make -j2 prefix=/opt/repokeeper-git NO_CURL=YesPlease NO_EXPAT=YesPlease NO_GETTEXT=YesPlease all; make prefix=/opt/repokeeper-git NO_CURL=YesPlease NO_EXPAT=YesPlease NO_GETTEXT=YesPlease install", linuxArchive)
 	if err := runProvisionCommand(ctx, prefix, "wsl.exe", "-d", name, "--", "sh", "-lc", script); err != nil {
 		return ProvisionResult{}, err
