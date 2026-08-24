@@ -171,7 +171,10 @@ jobs:
           git_path="$(jq -r .git_path "$RUNNER_TEMP/provision.json")"
           go run -tags integration ./test/e2e/cmd/compatibility verify-version --cell "$CELL" --git "$git_path"
           if [[ "$CELL" != wsl-* ]]; then
-            dirname "$git_path" >> "$GITHUB_PATH"
+            # git_path comes from filepath.Join, so Windows cells report
+            # backslashes. POSIX dirname would see no separator and answer ".",
+            # silently leaving the runner Git ahead of the provisioned one.
+            printf '%s\n' "$(dirname "${git_path//\\//}")" >> "$GITHUB_PATH"
           fi
       - name: Run native compatibility E2E
         if: matrix.cell.environment != 'wsl'
