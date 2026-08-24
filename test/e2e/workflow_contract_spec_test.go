@@ -19,7 +19,7 @@ var actionReferencePattern = regexp.MustCompile(`uses:\s+[^\s@]+@([0-9a-f]{40})(
 
 var _ = Describe("Compatibility workflow contracts", func() {
 	It("pins runners, actions, permissions, and timeouts in every workflow", func() {
-		for _, name := range []string{"ci.yml", "release.yml", "release-please.yml"} {
+		for _, name := range []string{"ci.yml", "qualification.yml", "release.yml", "release-please.yml"} {
 			path := filepath.Join(moduleRoot, ".github", "workflows", name)
 			data, err := os.ReadFile(path)
 			Expect(err).NotTo(HaveOccurred())
@@ -43,14 +43,42 @@ var _ = Describe("Compatibility workflow contracts", func() {
 		}
 	})
 
-	It("uses the executable four-cell routine matrix and a required race job", func() {
+	It("keeps the compatibility matrix out of routine pull request CI", func() {
 		data, err := os.ReadFile(filepath.Join(moduleRoot, ".github", "workflows", "ci.yml"))
 		Expect(err).NotTo(HaveOccurred())
 		text := string(data)
-		for _, required := range []string{"matrix --scope routine", "fail-fast: false", "ubuntu-24.04", "macos-15", "windows-2025", "matrix.cell.environment == 'wsl'", "windows_to_wsl", "./test/e2e/cmd/compatibility", "REPOKEEPER_E2E_COMPATIBILITY_BINARY", "MSYS2_ARG_CONV_EXCL='*'", "test-integration-race", "-race", "needs: compatibility-matrix"} {
+		// The matrix provisions Git on four runner images per pull request, so
+		// routine CI must not carry it. Qualification runs on the release
+		// pull request instead, before a version is cut.
+		for _, forbidden := range []string{"cmd/compatibility", "--scope routine", "--scope release", "wsl.exe"} {
+			Expect(text).NotTo(ContainSubstring(forbidden), "ci.yml must not run the compatibility matrix")
+		}
+		for _, required := range []string{"test-integration-race", "-race"} {
 			Expect(text).To(ContainSubstring(required))
 		}
 		Expect(text).To(ContainSubstring("permissions:\n  contents: read"))
+	})
+
+	It("gates the release pull request on the executable twelve-cell matrix", func() {
+		data, err := os.ReadFile(filepath.Join(moduleRoot, ".github", "workflows", "qualification.yml"))
+		Expect(err).NotTo(HaveOccurred())
+		text := string(data)
+		// Runner labels come from the declaration rather than being written
+		// here, and Validate pins each cell to an exact non-latest image.
+		for _, required := range []string{"matrix --scope release", "fail-fast: false", "runs-on: ${{ matrix.cell.runner_label }}", "matrix.cell.environment == 'wsl'", "windows_to_wsl", "./test/e2e/cmd/compatibility", "REPOKEEPER_E2E_COMPATIBILITY_BINARY", "MSYS2_ARG_CONV_EXCL='*'", "needs: compatibility-matrix"} {
+			Expect(text).To(ContainSubstring(required))
+		}
+		// Both jobs carry the guard, so a matrix expansion never runs for an
+		// ordinary contributor pull request.
+		Expect(strings.Count(text, "if: github.head_ref == 'release-please--branches--main'")).To(Equal(2))
+		Expect(text).To(ContainSubstring("permissions:\n  contents: read"))
+		Expect(text).NotTo(ContainSubstring("secrets."))
+		// A single always-reporting job carries a stable check name, so the
+		// gate can be a required status check even though the per-cell jobs
+		// are skipped on ordinary pull requests.
+		for _, required := range []string{"name: Release Qualification", "needs: compatibility", "if: always()", `RESULT: ${{ needs.compatibility.result }}`} {
+			Expect(text).To(ContainSubstring(required))
+		}
 	})
 
 	It("gates every publisher on exact twelve-cell evidence", func() {

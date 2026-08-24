@@ -700,7 +700,7 @@ RepoKeeper makes a **closed** compatibility claim for exactly Git `2.53`, `2.54`
 | native Windows (`windows-2025`) | 2.53.0.windows.1 | 2.54.0.windows.1 | 2.55.0.windows.1 | 2.55.0.windows.1 |
 | WSL1 / Ubuntu 24.04 (`windows-2025`) | 2.53.0 | 2.54.0 | 2.55.0 | 2.54.0 |
 
-Routine CI executes the four representatives. A full release executes all twelve cells and requires exact, unique, successful evidence before publication. WSL uses the checksum-pinned Canonical Noble `20240423` root filesystem and never falls back to native Windows, WSL2, or runner Git.
+Provisioning Git on four runner images is too costly to repeat for every change, so routine pull request CI does not execute the matrix at all. All twelve cells run on the release pull request, gating the merge that cuts the version, and again on the pushed tag, where they produce the exact, unique, successful evidence required before publication. The four representatives remain available as the `routine` scope for local and on-demand runs. WSL uses the checksum-pinned Canonical Noble `20240423` root filesystem and never falls back to native Windows, WSL2, or runner Git.
 
 The compatibility audit covers every command family delegated by `internal/gitx` and `internal/vcs`: `rev-parse`, `remote`, `remote get-url`, `remote prune --dry-run`, `config`, `status --porcelain=v1`, `symbolic-ref`, `for-each-ref` (including merged and tracking formats), `rev-list`, `fetch`, `pull --rebase`, `push`, `branch --set-upstream-to`, `remote set-url`, `stash`, `reset --hard`, `clean`, `clone`, and `cherry`. Changes to those invocations require updating the declaration and matrix tests.
 
