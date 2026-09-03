@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -141,6 +142,35 @@ func TestExecuteWithExitCode(t *testing.T) {
 	rootCmd.SetArgs([]string{"this-command-does-not-exist"})
 	if code := ExecuteWithExitCode(); code != 3 {
 		t.Fatalf("expected fatal exit code for command error, got %d", code)
+	}
+}
+
+// TestRootWithoutSubcommandPrintsHelp pins the ADR-0017 behaviour: with no
+// subcommand, repokeeper prints help and exits 0 on every terminal. Forcing
+// isTerminalFD to true proves no interactive branch remains on the root path.
+func TestRootWithoutSubcommandPrintsHelp(t *testing.T) {
+	commandTestStateMu.Lock()
+	defer commandTestStateMu.Unlock()
+
+	prevIsTerminalFD := isTerminalFD
+	defer func() { isTerminalFD = prevIsTerminalFD }()
+	isTerminalFD = func(_ int) bool { return true }
+
+	out := &bytes.Buffer{}
+	rootCmd.SetOut(out)
+	rootCmd.SetErr(out)
+	rootCmd.SetArgs([]string{})
+	defer func() {
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+		rootCmd.SetArgs(nil)
+	}()
+
+	if code := ExecuteWithExitCode(); code != 0 {
+		t.Fatalf("expected exit code 0 for no-subcommand help, got %d", code)
+	}
+	if !strings.Contains(out.String(), "Available Commands:") {
+		t.Fatalf("expected help output, got %q", out.String())
 	}
 }
 
