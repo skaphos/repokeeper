@@ -113,7 +113,7 @@ The current MCP server exposes 14 tools organized by intent. Most tools are read
 | `add_repository` | Clone and register a repo | Clones to disk |
 | `remove_repository` | Remove from registry (tracking-only default) | Optional disk delete |
 
-CLI and TUI remain the preferred operator interfaces for execution-heavy workflows, but the current MCP server also ships explicit mutation tools. Treat those tools as state-changing operations and rely on their documented safety gates and confirmations before using them.
+The CLI remains the preferred operator interface for execution-heavy workflows, but the current MCP server also ships explicit mutation tools. Treat those tools as state-changing operations and rely on their documented safety gates and confirmations before using them.
 
 Argument notes:
 

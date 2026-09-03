@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions for RepoKeeper
 
-RepoKeeper is a cross-platform Go CLI and TUI for multi-repo hygiene. It inventories repositories, reports drift, and performs safe sync actions without modifying user working trees by default.
+RepoKeeper is a cross-platform Go CLI and MCP server for multi-repo hygiene. It inventories repositories, reports drift, and performs safe sync actions without modifying user working trees by default.
 
 ## What Good Changes Look Like
 
@@ -21,7 +21,7 @@ RepoKeeper is a cross-platform Go CLI and TUI for multi-repo hygiene. It invento
 ## Codebase Shape
 
 - CLI command wiring lives in `cmd/repokeeper/`.
-- Core logic lives under `internal/`, especially `internal/config`, `internal/discovery`, `internal/engine`, `internal/gitx`, `internal/mcpserver`, `internal/model`, `internal/registry`, `internal/tui`, and `internal/vcs`.
+- Core logic lives under `internal/`, especially `internal/config`, `internal/discovery`, `internal/engine`, `internal/gitx`, `internal/mcpserver`, `internal/model`, `internal/registry`, and `internal/vcs`.
 - `main.go` is the entrypoint.
 - User-facing documentation lives in `README.md`, `INSTALL.md`, `docs/`, and command behavior/design notes live in `DESIGN.md`.
 

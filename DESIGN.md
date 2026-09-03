@@ -7,7 +7,7 @@
 Primary interfaces:
 
 * **CLI** (scriptable, automation-friendly)
-* **TUI** (Bubble Tea) for interactive workflows when a "GUI-like" experience is desirable in terminal environments ([GitHub][1])
+* **MCP server** (typed inspection and planning surface for agents; see [ADR-0001](docs/adr/0001-mcp-server.md))
 
 Key safety rule: **never update submodules** (no recursion).
 
@@ -91,7 +91,7 @@ RepoKeeper MCP is **primarily** a read-and-plan surface.
 * MCP may expose inventory, inspection, validation, and side-effect-free preview tools.
 * The current MCP server also exposes explicit state-changing tools such as scan, sync execution, label mutation, and add/remove flows.
 * Any mutation through MCP must remain explicit and safety-bounded; it must not be hidden behind read-only or preview operations.
-* CLI and TUI remain the primary operator interfaces for execution.
+* The CLI remains the primary operator interface for execution.
 
 ### 4.4 Mutating command safety
 
@@ -99,7 +99,7 @@ RepoKeeper distinguishes machine-local state from repo-local files:
 
 * `scan`, `get`, `describe`, `add`, and `import` may read repo-local metadata but do not create or modify repo files.
 * `label` and `edit` remain machine-local registry changes only.
-* `index --write` and the TUI metadata editor are explicit repo-local metadata write flows.
+* `index --write` is the explicit repo-local metadata write flow.
 * Promotion merges machine-local labels into `repo_metadata.labels` without overwriting existing shared keys.
 * Selector-driven bulk promotion is explicit through `repokeeper index repos --selector ... --local-selector ... --promote-local-labels --write`.
 * `--yes` can skip the final confirmation prompt for a mutating command, but it never substitutes for an explicit write-capable command or flag.
@@ -338,31 +338,13 @@ Flags:
 * `--dangerously-delete-existing` (dangerous; delete existing target paths before clone)
 * `--file-only` (config only; disables registry import and cloning)
 
-### 5.2 TUI command (phase 2)
+### 5.2 TUI command (withdrawn)
 
-#### `repokeeper tui`
-
-Interactive terminal UI built with Bubble Tea + Bubbles + Lipgloss ([GitHub][1]).
-
-**Design principle:** The TUI should follow a **k9s-style interaction model**: one primary repo list, keyboard-first filtering/navigation, and contextual actions on selected rows. Keep it as a thin presentation layer over existing engine APIs.
-
-Core interaction model:
-
-* Primary, filterable repo list as the default view.
-* `/` enters filter mode; filter by repo id, path, branch, tracking state, and error class.
-* TUI filtering also considers repo-local metadata values that are present in the loaded status model.
-* Arrow keys / `j` / `k` navigate rows; `enter` opens a repo detail/action view.
-* `space` toggles selection, `a` selects all visible rows.
-* Action keys trigger repo operations from the list or detail view (sync, edit metadata, repair upstream, open path).
-* Batch actions operate on current selection and stream progress in-place.
-
-Non-goals for TUI:
-
-* No independent business logic; all operations route through engine/CLI primitives.
-* No mandatory mouse support.
-* No complex plugin system in milestone 5.
-
-> Note: TUI is a frontend; it must call the same core engine APIs as CLI. All business logic lives in `internal/engine/`.
+A Bubble Tea dashboard shipped as the no-argument entry point through v1.x and was retired under
+[ADR-0017](docs/adr/0017-retire-the-tui.md). Its goal, a filter-first repo list with contextual
+actions, is served today by the MCP server driven by an agent and by label selectors on the CLI.
+The original k9s-style design lives in this section's git history; a reinstated TUI would be a
+new ADR and a new package, not a revival.
 
 ### 6.2.4 Repo-local metadata overlay
 
@@ -372,7 +354,7 @@ RepoKeeper supports an optional repo-root metadata file with this lookup order:
 2. `repokeeper.yaml`
 
 The file is read at runtime and merged into `RepoStatus` as a nested `repo_metadata` block plus `repo_metadata_file`, `repo_metadata_fingerprint`, and `repo_metadata_error` fields.
-RepoKeeper also stores a derived snapshot of those fields in the machine-local registry so later `scan`, `get`, `describe`, and TUI reads can reuse validated metadata when the on-disk fingerprint is unchanged.
+RepoKeeper also stores a derived snapshot of those fields in the machine-local registry so later `scan`, `get`, `describe`, and MCP reads can reuse validated metadata when the on-disk fingerprint is unchanged.
 
 Validation rules:
 
@@ -380,7 +362,7 @@ Validation rules:
 * `labels` keys follow the same key constraints as registry labels.
 * `entrypoints` and `paths` must be repository-relative and cannot escape the repo root.
 * Missing file means no metadata.
-* Invalid file becomes an in-band per-repo error; it does not abort `scan`, `get`, `describe`, or the TUI.
+* Invalid file becomes an in-band per-repo error; it does not abort `scan`, `get`, or `describe`.
 
 ### 5.3 Kubectl-Style CLI Alignment (Milestone 6+)
 
@@ -802,7 +784,7 @@ Module: `github.com/skaphos/repokeeper`
 /internal/gitx/               # git execution helpers, output parsing
 /internal/model/              # RepoStatus structs, JSON types
 /internal/engine/             # orchestration: status, sync, scan (core logic)
-/internal/tui/                # bubble tea frontend (phase 2)
+/internal/mcpserver/          # MCP server adapter over the engine (ADR-0001)
 /.github/workflows/           # CI: lint, test, build, release
 /.golangci.yml                # linter configuration
 /.goreleaser.yaml             # release configuration
@@ -822,15 +804,9 @@ Config loading: YAML (either viper or lightweight YAML parsing).
 * Concurrency is bounded by `--concurrency`.
 * Each repo action has a context timeout.
 
-### 8.4 TUI model (phase 2)
+### 8.4 TUI model (withdrawn)
 
-Bubble Tea implements the Elm architecture (Model → Update → View):
-
-* **Model:** repo list state (`[]RepoStatus`), active filters, cursor position, selection set, active view (`list` or `details`), and action progress/errors.
-* **Update:** routes key events to list/filter/action reducers and receives async engine results (sync/update/repair completion).
-* **View:** k9s-style list-first presentation with compact status columns plus contextual detail/action panel on demand.
-
-Prefer Bubbles components for list/table/text input/spinner; allow small custom view composition where needed for action menus and details. ([GitHub][5])
+Retired under [ADR-0017](docs/adr/0017-retire-the-tui.md); see §5.2.
 
 ## 9. Future: Cross-Machine Registry Sync
 
@@ -877,15 +853,9 @@ Given registries from multiple machines, RepoKeeper can produce a **global manif
 
 `git for-each-ref` supports upstream fields and can emit `"[gone]"` when upstream refs are missing, making it a reliable way to detect stale tracking relationships ([Git][3])
 
-## Appendix B — Why Bubble Tea + Bubbles
-
-Bubble Tea is a Go TUI framework suitable for simple/complex terminal apps ([GitHub][1]) and Bubbles provides reusable TUI components to speed up implementation ([GitHub][5])
-
-[1]: https://github.com/charmbracelet/bubbletea "charmbracelet/bubbletea: A powerful little TUI framework - GitHub"
 [2]: https://git-scm.com/docs/git-fetch "Git - git-fetch Documentation"
 [3]: https://git-scm.com/docs/git-for-each-ref "git-for-each-ref Documentation - Git"
 [4]: https://github.com/spf13/cobra "spf13/cobra: A Commander for modern Go CLI interactions - GitHub"
-[5]: https://github.com/charmbracelet/bubbles "charmbracelet/bubbles: TUI components for Bubble Tea - GitHub"
 [6]: https://onsi.github.io/ginkgo/ "Ginkgo - A Go Testing Framework"
 [7]: https://onsi.github.io/gomega/ "Gomega - A Go Matcher Library"
 [8]: https://golangci-lint.run/ "golangci-lint - Fast Go linters runner"
