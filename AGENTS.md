@@ -17,7 +17,7 @@
 - `goreleaser build --snapshot --clean`: snapshot build for all platforms (goreleaser managed via `.tool-versions`, not `go tool`).
 
 ## Coding Style & Naming Conventions
-- Go version: `go 1.26` (see `go.mod`).
+- Go version: see the `go` directive in `go.mod` (do not restate it here).
 - Formatting: `gofmt` and `goimports` are enforced via `golangci-lint`.
 - Naming: follow Go conventions (exported `PascalCase`, unexported `camelCase`).
 - Tests: filename suffix `_test.go`; suite files follow `*_suite_test.go`.
