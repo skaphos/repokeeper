@@ -13,7 +13,7 @@
 - `go clean -i github.com/skaphos/repokeeper`: uninstall the binary.
 - `go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 ./...`: run the Ginkgo test suite.
 - `go test -coverprofile=coverage.out ./...`: run tests with coverage output.
-- `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1 run ./...`: run linting (gofmt/goimports and static checks; v2 config).
+- `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...`: run linting (gofmt/goimports and static checks; v2 config).
 - `goreleaser build --snapshot --clean`: snapshot build for all platforms (goreleaser managed via `.tool-versions`, not `go tool`).
 
 ## Coding Style & Naming Conventions
