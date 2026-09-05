@@ -231,15 +231,20 @@ func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd stri
 }
 
 func selectRegistryPaths(entries []registry.Entry, candidates []string) []registry.Entry {
+	canonicalCandidates := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if path, ok := canonicalPathForMatch(candidate); ok {
+			canonicalCandidates = append(canonicalCandidates, path)
+		}
+	}
 	var matches []registry.Entry
 	for _, entry := range entries {
 		entryPath, ok := canonicalPathForMatch(entry.Path)
 		if !ok {
 			continue
 		}
-		for _, candidate := range candidates {
-			candidatePath, ok := canonicalPathForMatch(candidate)
-			if ok && samePathForMatch(entryPath, candidatePath) {
+		for _, candidatePath := range canonicalCandidates {
+			if samePathForMatch(entryPath, candidatePath) {
 				matches = append(matches, entry)
 				break
 			}
