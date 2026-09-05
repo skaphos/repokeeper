@@ -102,8 +102,13 @@ its workspace contract, which has real constraints worth reading before you rely
 ## From source
 
 ```bash
-go install github.com/skaphos/repokeeper@latest
+go install github.com/skaphos/repokeeper/v2@latest
 ```
+
+The `/v2` suffix is required from 2.0.0 onward — Go encodes the major version in the module path, so
+the unsuffixed path can never resolve a v2 release. v1 users are unaffected and need change nothing:
+`go install github.com/skaphos/repokeeper@latest` keeps installing the newest v1 release. Pin a
+specific v2 with `go install github.com/skaphos/repokeeper/v2@v2.0.0`.
 
 Installed builds include the bundled MCP server (`repokeeper mcp`) used by Claude Code, Cursor, Windsurf, OpenAI Codex, and similar runtimes. See [docs/mcp-setup.md](docs/mcp-setup.md) for runtime configuration and the current MCP tool boundary, including currently shipped state-changing operations.
 
@@ -119,7 +124,7 @@ go install .
 Uninstall:
 
 ```bash
-go clean -i github.com/skaphos/repokeeper
+go clean -i github.com/skaphos/repokeeper/v2
 ```
 
 Or manually remove the binary:

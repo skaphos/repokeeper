@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -7,14 +7,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/cliio"
-	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/sortutil"
-	"github.com/skaphos/repokeeper/internal/strutil"
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/cliio"
+	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/engine"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/sortutil"
+	"github.com/skaphos/repokeeper/v2/internal/strutil"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 	"github.com/spf13/cobra"
 )
 

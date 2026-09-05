@@ -37,6 +37,6 @@ function Invoke-NoticeGeneration {
     }
 }
 
-Invoke-NoticeGeneration -ModuleDir $RepoRoot -PackageArg "." -IgnorePrefix "github.com/skaphos/repokeeper" -ReportPath $RuntimeReport -SavePath $RuntimeOutputDir
+Invoke-NoticeGeneration -ModuleDir $RepoRoot -PackageArg "." -IgnorePrefix "github.com/skaphos/repokeeper/v2" -ReportPath $RuntimeReport -SavePath $RuntimeOutputDir
 
 Write-Host ("Updated third-party notices in {0}" -f $OutputRoot)

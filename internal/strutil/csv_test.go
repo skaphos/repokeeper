@@ -4,7 +4,7 @@ package strutil_test
 import (
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/v2/internal/strutil"
 )
 
 func TestSplitCSV(t *testing.T) {

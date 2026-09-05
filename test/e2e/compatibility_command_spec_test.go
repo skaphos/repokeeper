@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/test/e2e/internal/compatibility"
+	"github.com/skaphos/repokeeper/v2/test/e2e/internal/compatibility"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

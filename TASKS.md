@@ -479,7 +479,7 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 
 **Repository:** `github.com/skaphos/repokeeper`
 
-**Go module path:** `github.com/skaphos/repokeeper`
+**Go module path:** `github.com/skaphos/repokeeper/v2`
 
 - [x] `.goreleaser.yaml` configured with binary name, archive formats, ldflags
 - [x] GitHub Actions release workflow triggers on tag push

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 func TestParseAdapterSelection(t *testing.T) {

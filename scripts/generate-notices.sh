@@ -27,6 +27,6 @@ run_generation() {
 	)
 }
 
-run_generation "${repo_root}" "." "github.com/skaphos/repokeeper" "${runtime_report}" "${runtime_output_dir}"
+run_generation "${repo_root}" "." "github.com/skaphos/repokeeper/v2" "${runtime_report}" "${runtime_output_dir}"
 
 printf 'Updated third-party notices in %s\n' "${output_root}"

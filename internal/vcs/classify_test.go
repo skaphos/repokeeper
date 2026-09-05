@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/gitx"
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 )
 
 func TestGitErrorClassifier(t *testing.T) {

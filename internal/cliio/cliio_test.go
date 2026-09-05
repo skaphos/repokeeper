@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/cliio"
+	"github.com/skaphos/repokeeper/v2/internal/cliio"
 )
 
 type errorWriter struct{}

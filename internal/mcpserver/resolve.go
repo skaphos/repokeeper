@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
 )
 
 // resolveRepo resolves a repo identifier (absolute path, checkout_id, or

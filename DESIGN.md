@@ -781,7 +781,7 @@ Optional additional defense:
 
 ### 8.1 Packages (Go)
 
-Module: `github.com/skaphos/repokeeper`
+Module: `github.com/skaphos/repokeeper/v2`
 
 ```
 /cmd/repokeeper/              # cobra commands (main entry point)

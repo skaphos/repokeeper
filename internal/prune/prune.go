@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 // Policy is the branch-retention policy the classifier consumes. It is

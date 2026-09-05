@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/v2/internal/strutil"
 )
 
 // LabelRequirement represents a single label match expression (key or key=value).

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/skaphos/repokeeper/internal/urlutil"
+	"github.com/skaphos/repokeeper/v2/internal/urlutil"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

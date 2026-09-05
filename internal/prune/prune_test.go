@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/prune"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/prune"
 )
 
 func boolPtr(b bool) *bool           { return &b }

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/pathutil"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/pathutil"
 	"go.yaml.in/yaml/v3"
 )
 

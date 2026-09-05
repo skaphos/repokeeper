@@ -4,8 +4,8 @@ package sortutil
 import (
 	"sort"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
 )
 
 // LessRepoIDPath provides deterministic ordering by repository identity first,

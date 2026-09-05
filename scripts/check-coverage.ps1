@@ -57,7 +57,7 @@ $rows.GetEnumerator() | Sort-Object Name | ForEach-Object {
     $total = $_.Value.Total
     $pct = if ($total -eq 0) { 0.0 } else { ($covered / $total) * 100.0 }
 
-    if ($pkg -eq "github.com/skaphos/repokeeper/scripts/perf") {
+    if ($pkg -eq "github.com/skaphos/repokeeper/v2/scripts/perf") {
         "{0,-55} {1,6:N2}% ({2}/{3}) [skipped]" -f $pkg, $pct, $covered, $total | Write-Host
         return
     }

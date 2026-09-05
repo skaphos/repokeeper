@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
 )
 
 func TestClassifyError(t *testing.T) {

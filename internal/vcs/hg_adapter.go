@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 var errUnsupportedForHg = errors.New("operation unsupported for hg adapter")

@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$packages = @(go list ./... | Where-Object { $_ -ne "github.com/skaphos/repokeeper/scripts/perf" })
+$packages = @(go list ./... | Where-Object { $_ -ne "github.com/skaphos/repokeeper/v2/scripts/perf" })
 if ($packages.Count -eq 0) {
     Write-Error "no packages to test"
 }

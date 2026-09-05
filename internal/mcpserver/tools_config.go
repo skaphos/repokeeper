@@ -6,7 +6,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/skaphos/repokeeper/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/config"
 )
 
 // workspaceConfigResponse is the JSON shape for get_workspace_config.

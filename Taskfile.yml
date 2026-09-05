@@ -43,7 +43,7 @@ tasks:
   uninstall:
     desc: Uninstall repokeeper binary from $GOPATH/bin
     cmds:
-      - go clean -i github.com/skaphos/repokeeper
+      - go clean -i github.com/skaphos/repokeeper/v2
 
   build-ci:
     desc: Build all configured platform binaries (CI-style snapshot build)

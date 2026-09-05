@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 type scanJSONResponse []model.RepoStatus

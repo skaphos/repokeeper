@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
 )
 
 func TestPushWrapper(t *testing.T) {

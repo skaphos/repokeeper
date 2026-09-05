@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/skaphos/repokeeper/internal/mcpinstall"
+	"github.com/skaphos/repokeeper/v2/internal/mcpinstall"
 	"github.com/spf13/cobra"
 )
 

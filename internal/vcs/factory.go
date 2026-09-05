@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/strutil"
 )
 
 // ParseAdapterSelection parses --vcs selections.

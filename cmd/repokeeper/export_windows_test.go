@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
 )
 
 func TestInferRegistrySharedRootWindowsPaths(t *testing.T) {

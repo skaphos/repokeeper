@@ -12,8 +12,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/pathutil"
-	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/pathutil"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
 	"go.yaml.in/yaml/v3"
 )
 

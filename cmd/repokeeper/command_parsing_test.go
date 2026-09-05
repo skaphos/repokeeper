@@ -4,7 +4,7 @@ package repokeeper
 import (
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/engine"
+	"github.com/skaphos/repokeeper/v2/internal/engine"
 	"github.com/spf13/cobra"
 )
 

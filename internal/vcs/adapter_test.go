@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 )
 
 type runnerStub struct {

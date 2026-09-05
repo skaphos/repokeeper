@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/tableutil"
+	"github.com/skaphos/repokeeper/v2/internal/tableutil"
 )
 
 // PromptYesNo writes prompt and reads a yes/no response from input.

@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/mcpinstall"
-	"github.com/skaphos/repokeeper/internal/mcpserver"
+	"github.com/skaphos/repokeeper/v2/internal/mcpinstall"
+	"github.com/skaphos/repokeeper/v2/internal/mcpserver"
 	"github.com/spf13/cobra"
 )
 

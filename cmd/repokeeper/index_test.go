@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/repometa"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/repometa"
 )
 
 func TestFormatAssignmentDefaultsSortsKeys(t *testing.T) {

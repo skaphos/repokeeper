@@ -17,9 +17,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/skaphos/repokeeper/cmd/repokeeper.Version={{.Version}}
-      - -X github.com/skaphos/repokeeper/cmd/repokeeper.Commit={{.Commit}}
-      - -X github.com/skaphos/repokeeper/cmd/repokeeper.Date={{.Date}}
+      - -X github.com/skaphos/repokeeper/v2/cmd/repokeeper.Version={{.Version}}
+      - -X github.com/skaphos/repokeeper/v2/cmd/repokeeper.Commit={{.Commit}}
+      - -X github.com/skaphos/repokeeper/v2/cmd/repokeeper.Date={{.Date}}
 
 # macOS code signing + notarization, cross-platform via quill (no Mac runner
 # required). Auto-skipped unless all five MACOS_* secrets are set, so local/

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/buildinfo"
+	"github.com/skaphos/repokeeper/v2/internal/buildinfo"
 )
 
 // withLDFlags swaps the package-level ldflags variables for one test and

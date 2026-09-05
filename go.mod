@@ -1,4 +1,4 @@
-module github.com/skaphos/repokeeper
+module github.com/skaphos/repokeeper/v2
 
 go 1.27.1
 

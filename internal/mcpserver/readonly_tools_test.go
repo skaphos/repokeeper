@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/mcpserver"
+	"github.com/skaphos/repokeeper/v2/internal/mcpserver"
 )
 
 // TestReadOnlyToolNames pins the read-only tool set derived from the live
