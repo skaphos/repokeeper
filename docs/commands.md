@@ -10,17 +10,17 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 | `repokeeper scan` | Discover repos and update the registry |
 | `repokeeper get` | Report repo health summary (path, branch, dirty, tracking) |
 | `repokeeper get repos` | Explicit resource form for repo health |
-| `repokeeper describe <repo-id-or-path>` | Show detailed status for one repository |
-| `repokeeper describe repo <repo-id-or-path>` | Kubectl-style describe form |
-| `repokeeper index <repo-id-or-path>` | Interactively preview or write repo-local metadata |
+| `repokeeper describe <selector>` | Show detailed status for one repository |
+| `repokeeper describe repo <selector>` | Kubectl-style describe form |
+| `repokeeper index <selector>` | Interactively preview or write repo-local metadata |
 | `repokeeper index repos` | Preview or write repo-local metadata for selected repositories |
 | `repokeeper install` | Register RepoKeeper as an MCP server in detected (or --claude/--codex/--opencode) runtimes |
 | `repokeeper install list` | Show per-runtime MCP registration state (table or `--json`) |
 | `repokeeper uninstall` | Remove the RepoKeeper MCP entry from each runtime (prompts unless `--yes`) |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository |
-| `repokeeper delete <repo-id-or-path>` | Delete repo files and remove from registry |
-| `repokeeper edit <repo-id-or-path>` | Open one repo entry in `$VISUAL`/`$EDITOR`, validate, save |
-| `repokeeper label <repo-id-or-path>` | Show or mutate labels for one repository |
+| `repokeeper delete <selector>` | Delete repo files and remove from registry |
+| `repokeeper edit <selector>` | Open one repo entry in `$VISUAL`/`$EDITOR`, validate, save |
+| `repokeeper label <selector>` | Show or mutate labels for one repository |
 | `repokeeper repair upstream` | Repair missing/mismatched upstream tracking |
 | `repokeeper reconcile` | Fetch and prune all repos safely |
 | `repokeeper reconcile repos` | Explicit resource form for sync/reconciliation |
@@ -28,12 +28,25 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 | `repokeeper import` | Import a previously exported bundle |
 | `repokeeper version` | Print version and build info |
 
+## Repository selectors
+
+`describe`, `label`, `edit`, `delete`, `move`, and `index` share these selectors:
+
+- Absolute checkout path (normalized, with symlinks resolved when available).
+- Bare `checkout_id`; IDs shared by multiple repositories are ambiguous.
+- `repo_id`, when only one checkout matches, or explicit `repo_id@checkout_id`.
+- Relative path from the current directory or config root.
+
+Absolute paths take precedence over IDs, and checkout IDs take precedence over repo IDs. Ambiguity errors list qualified IDs and absolute paths for the matching checkouts. Missing checkout paths can still be selected by their stored path.
+
 ## Command Notes
 
 ### `repokeeper get`
 
 - Supports `--only`, `--field-selector`, and label selector `-l, --selector`.
 - Label selector supports `key` and `key=value`, comma-separated AND.
+- Repository errors exit with status `2`, name each affected path and error on stderr, and add an error count to the completion summary. The default table adds `ERROR_CLASS` when any displayed repository has an error. Filters apply to diagnostics and counts.
+- `--quiet` retains error diagnostics but suppresses the summary. JSON and custom-column stdout remain machine-readable.
 - Use `-o wide` for additional `PRIMARY_REMOTE`, `UPSTREAM`, `AHEAD`, `BEHIND`, and `ERROR_CLASS`.
 - Table output includes `STALE_REFS`, the number of remote-tracking refs a prune would remove. JSON and `describe` include the ref names and any non-fatal remote inspection error.
 - JSON output includes repo-local metadata when `.repokeeper-repo.yaml` or `repokeeper.yaml` is present.

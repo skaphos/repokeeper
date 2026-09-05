@@ -22,7 +22,7 @@ import (
 )
 
 var indexCmd = &cobra.Command{
-	Use:   "index <repo-id-or-path>",
+	Use:   "index <selector>",
 	Short: "Interactively propose repo-local metadata for a tracked repository",
 	Long: `Interactively propose repo-local metadata for a tracked repository.
 
@@ -32,7 +32,7 @@ rendered as a unified diff of the current file against the proposed content
 (or a note that it is unchanged); otherwise the full proposed file is shown.
 
 Pass --write to save the proposal. Overwriting an existing file requires
---force, and the diff is shown before the write is confirmed.`,
+--force, and the diff is shown before the write is confirmed.` + "\n\n" + repoSelectorUsage,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()

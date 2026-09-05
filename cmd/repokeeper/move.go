@@ -13,8 +13,9 @@ import (
 )
 
 var moveCmd = &cobra.Command{
-	Use:   "move <repo-id-or-path> <new-path>",
+	Use:   "move <selector> <new-path>",
 	Short: "Move a tracked repository directory and update its registry path",
+	Long:  repoSelectorUsage,
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()

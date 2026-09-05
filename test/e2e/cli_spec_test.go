@@ -35,7 +35,21 @@ var _ = Describe("Real CLI workflows", Ordered, func() {
 		statusResponse, err := decodeStatusJSON(status)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(statusResponse.Repos).To(HaveLen(3))
-		Expect(string(status.Stderr)).To(ContainSubstring("status completed: 3 repos"))
+		Expect(string(status.Stderr)).To(ContainSubstring("status completed: 3 repos (1 error)"))
+		Expect(string(status.Stderr)).To(ContainSubstring("error: missing-repo (missing: path missing)"))
+
+		missing := runRepoKeeper(ctx, workspace, "cli missing diagnostics", "get", "repos", "--field-selector", "repo.missing=true")
+		Expect(requireDomainExit(missing, 2)).To(Succeed(), missing.Diagnostics())
+		Expect(string(missing.Stdout)).To(ContainSubstring("ERROR_CLASS"))
+		Expect(string(missing.Stdout)).To(ContainSubstring("missing"))
+		Expect(string(missing.Stderr)).To(ContainSubstring("status completed: 1 repos (1 error)"))
+
+		quiet := runRepoKeeper(ctx, workspace, "cli quiet diagnostics", "get", "repos", "--format", "json", "--quiet")
+		Expect(requireDomainExit(quiet, 2)).To(Succeed(), quiet.Diagnostics())
+		_, err = decodeStatusJSON(quiet)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(quiet.Stderr)).To(ContainSubstring("error: missing-repo (missing: path missing)"))
+		Expect(string(quiet.Stderr)).NotTo(ContainSubstring("status completed"))
 
 		_, reg, err := reloadWorkspaceState(workspace)
 		Expect(err).NotTo(HaveOccurred())

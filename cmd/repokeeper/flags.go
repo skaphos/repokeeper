@@ -4,6 +4,7 @@ package repokeeper
 import "github.com/spf13/cobra"
 
 const (
+	repoSelectorUsage         = "Select a checkout by absolute path (symlinks are resolved), checkout_id, or repo_id.\nUse repo_id@checkout_id to qualify an ID shared by different repositories.\nRelative paths are resolved from the current directory or config root.\nAmbiguous selectors list the matching checkouts."
 	repoFilterUsage           = "filter: all, errors, dirty, clean, gone, diverged, behind, ahead, equal, remote-mismatch, missing"
 	fieldSelectorUsage        = "field selector (phase 1): tracking.status=all|gone|diverged|behind|ahead|equal, worktree.dirty=true|false, repo.error=true, repo.missing=true, remote.mismatch=true"
 	labelSelectorUsage        = "label selector: key or key=value (comma-separated AND)"

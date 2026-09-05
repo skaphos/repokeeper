@@ -182,8 +182,8 @@ When filtered to `diverged`, table/wide output includes `REASON` and `RECOMMENDE
 
 Alias form: `repokeeper describe repo <repo-id-or-path>`
 
-Shows detailed status for a single repo selected by repo ID, `repo_id@checkout_id`, cwd-relative path, or config-root-relative path.
-When a plain `repo_id` resolves to multiple local checkouts, the command fails with an ambiguity error instead of guessing.
+Shows detailed status for a single checkout. The CLI resolver shared by `describe`, `label`, `edit`, `delete`, `move`, and `index` matches absolute paths first, then checkout IDs, then repository IDs, with relative paths resolved from the current directory or config root. The explicit `repo_id@checkout_id` form is also supported.
+Existing symlinks are resolved on both the selector and stored path; missing paths retain lexical matching so absent checkouts remain addressable. Ambiguous selectors (including duplicate checkout IDs or qualified IDs) fail with matching qualified IDs and absolute paths instead of selecting the first entry.
 
 Flags:
 
@@ -397,6 +397,8 @@ Human-oriented table output is not an adapter contract. Machine-readable JSON an
 Table baseline for repos:
 
 * `NAME` (repo id short name), `PATH`, `BRANCH`, `TRACKING`, `DIRTY`, `STATUS`
+
+The default repo table adds `ERROR_CLASS` whenever a displayed repository has an error; unclassified errors display as `unknown`. `get`/`status` emit per-repository error diagnostics on stderr and include the displayed error count in their completion summary. Filters apply before diagnostics and counting. `--quiet` suppresses the summary but retains errors. JSON and custom-column data remain on stdout, and repository errors exit with status 2.
 
 `-o wide` extends with:
 

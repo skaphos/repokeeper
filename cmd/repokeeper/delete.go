@@ -13,8 +13,9 @@ import (
 )
 
 var deleteCmd = &cobra.Command{
-	Use:   "delete <repo-id-or-path>",
+	Use:   "delete <selector>",
 	Short: "Remove a repository from the registry",
+	Long:  repoSelectorUsage,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()

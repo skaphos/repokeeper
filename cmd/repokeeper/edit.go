@@ -18,8 +18,9 @@ import (
 )
 
 var editCmd = &cobra.Command{
-	Use:   "edit <repo-id-or-path>",
+	Use:   "edit <selector>",
 	Short: "Edit a single repository registry entry in your editor",
+	Long:  repoSelectorUsage,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
