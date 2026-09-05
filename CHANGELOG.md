@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.0.0](https://github.com/skaphos/repokeeper/compare/v1.4.0...v2.0.0) (2026-09-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* retire the TUI (ADR-0017) ([#337](https://github.com/skaphos/repokeeper/issues/337))
+
+### Features
+
+* retire the TUI (ADR-0017) ([#337](https://github.com/skaphos/repokeeper/issues/337)) ([5f43741](https://github.com/skaphos/repokeeper/commit/5f437412870b53d0300bc9b4045aa7ea551d99d6))
+
+
+### Bug Fixes
+
+* **cli:** resolve checkout selectors and surface repository errors ([#343](https://github.com/skaphos/repokeeper/issues/343)) ([e2e32b3](https://github.com/skaphos/repokeeper/commit/e2e32b38ddf0b3cc239f7c821836aa46ddd615ce))
+* **mcp:** keep registry state consistent ([#324](https://github.com/skaphos/repokeeper/issues/324)) ([43ab678](https://github.com/skaphos/repokeeper/commit/43ab67875bdce879e5052b5c8ccc3dd7f6579475)), closes [#318](https://github.com/skaphos/repokeeper/issues/318) [#319](https://github.com/skaphos/repokeeper/issues/319) [#320](https://github.com/skaphos/repokeeper/issues/320)
+* **registry:** preserve missing checkout identities during scan ([#342](https://github.com/skaphos/repokeeper/issues/342)) ([7616687](https://github.com/skaphos/repokeeper/commit/7616687b79cbfd057db2fefe70296c3d373061a6))
+* **security:** restrict import directory permissions ([#326](https://github.com/skaphos/repokeeper/issues/326)) ([45a9dc7](https://github.com/skaphos/repokeeper/commit/45a9dc7c1755262b60f68f386a49d10b3bdbfc6d))
+* **test:** exclude integration-only packages from Ginkgo discovery ([#340](https://github.com/skaphos/repokeeper/issues/340)) ([29e9d60](https://github.com/skaphos/repokeeper/commit/29e9d60099e137fc8333afa7d3a39ef3bb492486))
+
 ## [1.4.0](https://github.com/skaphos/repokeeper/compare/v1.3.1...v1.4.0) (2026-07-26)
 
 
