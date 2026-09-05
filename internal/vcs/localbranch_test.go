@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 )
 
 // localFmtArgs pins the exact argv of the enumeration call. If the NUL-delimited

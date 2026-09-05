@@ -2,7 +2,7 @@
 package vcs
 
 import (
-	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
 )
 
 // ErrorClassifier classifies VCS operation errors into stable categories.

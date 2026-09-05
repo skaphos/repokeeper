@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/editor"
-	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/editor"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )

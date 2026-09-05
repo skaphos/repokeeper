@@ -11,7 +11,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/skaphos/repokeeper/internal/obs"
+	"github.com/skaphos/repokeeper/v2/internal/obs"
 )
 
 // MCPServer wraps a mark3labs MCP server with access to the RepoKeeper engine.

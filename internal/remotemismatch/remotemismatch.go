@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 )
 
 // ReconcileMode controls how remote mismatch reconciliation is applied.

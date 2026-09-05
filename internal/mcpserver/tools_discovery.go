@@ -8,8 +8,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/selector"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/selector"
 )
 
 // listRepoEntry is the JSON shape returned by list_repositories for each entry.

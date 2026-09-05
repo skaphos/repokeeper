@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 	"github.com/spf13/cobra"
 )
 

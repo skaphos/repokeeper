@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/gitx"
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/obs"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/obs"
 )
 
 // Adapter defines the VCS operations RepoKeeper relies on.

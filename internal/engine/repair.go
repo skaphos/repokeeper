@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
 )
 
 // RepairUpstreamResult holds the outcome of a single upstream repair operation.

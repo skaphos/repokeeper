@@ -7,11 +7,11 @@ import (
 	"os"
 
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/mcpserver"
-	"github.com/skaphos/repokeeper/internal/obs"
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/engine"
+	"github.com/skaphos/repokeeper/v2/internal/mcpserver"
+	"github.com/skaphos/repokeeper/v2/internal/obs"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 	"github.com/spf13/cobra"
 )
 

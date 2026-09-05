@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/skaphos/repokeeper/test/e2e/internal/compatibility"
+	"github.com/skaphos/repokeeper/v2/test/e2e/internal/compatibility"
 )
 
 func main() {

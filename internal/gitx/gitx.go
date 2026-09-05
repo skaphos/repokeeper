@@ -12,8 +12,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/obs"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/obs"
 )
 
 // Runner executes git commands in a given repo directory.

@@ -13,7 +13,7 @@ fi
 skip_pkg() {
   local pkg="$1"
   case "$pkg" in
-    github.com/skaphos/repokeeper/scripts/perf) return 0 ;;
+    github.com/skaphos/repokeeper/v2/scripts/perf) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -25,7 +25,7 @@ threshold_for_pkg() {
     # failures) that cannot be exercised without filesystem fault injection, and
     # CanonicalNormalize has a Windows-only branch; both are unreachable on the
     # Linux coverage runner. Floor the package below the default accordingly.
-    github.com/skaphos/repokeeper/internal/pathutil) echo 70 ;;
+    github.com/skaphos/repokeeper/v2/internal/pathutil) echo 70 ;;
     *) echo "$default_threshold" ;;
   esac
 }

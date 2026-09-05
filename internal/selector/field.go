@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/strutil"
+	"github.com/skaphos/repokeeper/v2/internal/engine"
+	"github.com/skaphos/repokeeper/v2/internal/strutil"
 )
 
 // knownOnlyFilterKinds is the closed set of values accepted by --only. Keep in

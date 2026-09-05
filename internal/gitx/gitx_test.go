@@ -11,8 +11,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/skaphos/repokeeper/internal/gitx"
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 // writeFakeBin writes an executable POSIX shell script to a temp dir and

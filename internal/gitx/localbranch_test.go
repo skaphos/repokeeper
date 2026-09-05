@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
 )
 
 // stubRunner returns a fixed output/error regardless of args and records the

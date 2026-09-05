@@ -61,8 +61,12 @@ Download the latest release from the [Releases](https://github.com/skaphos/repok
 ### From source
 
 ```bash
-go install github.com/skaphos/repokeeper@latest
+go install github.com/skaphos/repokeeper/v2@latest
 ```
+
+The `/v2` suffix is required from 2.0.0 onward — Go encodes the major version in the module path.
+Staying on v1 needs no change: the unsuffixed path keeps resolving the newest v1 release, so
+`go install github.com/skaphos/repokeeper@latest` continues to install the latest v1.
 
 ### Container (MCP server)
 
@@ -86,7 +90,7 @@ every user on every channel to serve one install path.
 | Homebrew cask | `brew upgrade --cask skaphos/tools/repokeeper` |
 | `.deb` | Download the next release's `.deb`, then `sudo dpkg -i repokeeper_<version>_amd64.deb` |
 | `.rpm` | Download the next release's `.rpm`, then `sudo rpm -U repokeeper-<version>-1.x86_64.rpm` |
-| `go install` | `go install github.com/skaphos/repokeeper@latest` |
+| `go install` | `go install github.com/skaphos/repokeeper/v2@latest` — note the `/v2`; the unsuffixed path stays on v1 |
 | Release archive | Download the next archive and replace the binary on your `PATH` |
 | Container image | `docker pull ghcr.io/skaphos/repokeeper:latest` |
 

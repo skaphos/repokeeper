@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/strutil"
-	"github.com/skaphos/repokeeper/internal/termstyle"
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/engine"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/strutil"
+	"github.com/skaphos/repokeeper/v2/internal/termstyle"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 	"github.com/spf13/cobra"
 )
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/cliio"
+	"github.com/skaphos/repokeeper/v2/internal/cliio"
 	"github.com/spf13/cobra"
 )
 

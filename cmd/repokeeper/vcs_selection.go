@@ -2,7 +2,7 @@
 package repokeeper
 
 import (
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 	"github.com/spf13/cobra"
 )
 

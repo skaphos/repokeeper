@@ -19,10 +19,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/gitx"
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
 	"go.yaml.in/yaml/v3"
 )
 

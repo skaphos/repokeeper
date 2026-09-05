@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 const wouldPrunePrefix = "* [would prune] "

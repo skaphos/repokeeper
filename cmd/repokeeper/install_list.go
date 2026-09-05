@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/skaphos/repokeeper/internal/cliio"
-	"github.com/skaphos/repokeeper/internal/mcpinstall"
+	"github.com/skaphos/repokeeper/v2/internal/cliio"
+	"github.com/skaphos/repokeeper/v2/internal/mcpinstall"
 	"github.com/spf13/cobra"
 )
 

@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/skaphos/repokeeper/internal/buildinfo"
+	"github.com/skaphos/repokeeper/v2/internal/buildinfo"
 	"github.com/spf13/cobra"
 )
 
 // Set via ldflags at build time.
 //
 // These names are referenced by full path in .goreleaser.yaml's -X flags
-// (github.com/skaphos/repokeeper/cmd/repokeeper.Version and friends). Renaming
+// (github.com/skaphos/repokeeper/v2/cmd/repokeeper.Version and friends). Renaming
 // or moving them silently breaks release stamping: the build still succeeds and
 // the binary falls back to build metadata, so no test catches it.
 var (

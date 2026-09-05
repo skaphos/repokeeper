@@ -4,8 +4,8 @@ package engine
 import (
 	"context"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/remotemismatch"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/remotemismatch"
 )
 
 // RemoteMismatchReconcileMode controls how remote mismatch reconciliation is applied.

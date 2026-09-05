@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/skaphos/repokeeper/internal/selector"
+	"github.com/skaphos/repokeeper/v2/internal/selector"
 )
 
 var _ = Describe("Label Selector", func() {

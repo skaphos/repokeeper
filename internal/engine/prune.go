@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/prune"
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/prune"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 )
 
 // inspectLocalBranches enumerates and classifies the repository's local branches

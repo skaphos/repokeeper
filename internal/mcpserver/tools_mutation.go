@@ -11,11 +11,11 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/skaphos/repokeeper/internal/config"
-	"github.com/skaphos/repokeeper/internal/engine"
-	"github.com/skaphos/repokeeper/internal/model"
-	"github.com/skaphos/repokeeper/internal/registry"
-	"github.com/skaphos/repokeeper/internal/sortutil"
+	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/engine"
+	"github.com/skaphos/repokeeper/v2/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/sortutil"
 )
 
 // --- scan_workspace ---

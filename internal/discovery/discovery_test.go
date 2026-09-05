@@ -10,8 +10,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/skaphos/repokeeper/internal/discovery"
-	"github.com/skaphos/repokeeper/internal/vcs"
+	"github.com/skaphos/repokeeper/v2/internal/discovery"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 )
 
 var _ = Describe("Discovery", func() {

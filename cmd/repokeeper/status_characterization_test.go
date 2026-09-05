@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/spf13/cobra"
 
-	"github.com/skaphos/repokeeper/internal/model"
+	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 func statusIntPtr(n int) *int { return &n }

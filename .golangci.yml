@@ -16,14 +16,14 @@ linters:
           files:
             - "**/internal/engine/**"
           deny:
-            - pkg: "github.com/skaphos/repokeeper/internal/gitx"
+            - pkg: "github.com/skaphos/repokeeper/v2/internal/gitx"
               desc: "engine must use vcs.ErrorClassifier/URLNormalizer interfaces, not gitx directly"
         cmd-no-gitx:
           list-mode: lax
           files:
             - "**/cmd/repokeeper/**"
           deny:
-            - pkg: "github.com/skaphos/repokeeper/internal/gitx"
+            - pkg: "github.com/skaphos/repokeeper/v2/internal/gitx"
               desc: "cmd must use vcs.ErrorClassifier interface, not gitx directly"
 
 formatters:

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/mcpinstall"
-	"github.com/skaphos/repokeeper/internal/mcpserver"
+	"github.com/skaphos/repokeeper/v2/internal/mcpinstall"
+	"github.com/skaphos/repokeeper/v2/internal/mcpserver"
 )
 
 // expectedAllowList is the prefixed permissions.allow set derived from the live

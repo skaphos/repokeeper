@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/skaphos/repokeeper/internal/gitx"
+	"github.com/skaphos/repokeeper/v2/internal/gitx"
 )
 
 var _ = Describe("NormalizeURL", func() {
