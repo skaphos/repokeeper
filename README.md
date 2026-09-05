@@ -150,6 +150,7 @@ Quick highlights:
 - `repokeeper index repos --local-selector ... --promote-local-labels --write` explicitly bulk-promotes machine-local labels into repo-local metadata for selected repos.
 - Running `repokeeper` with no subcommand prints help. There is no interactive dashboard; see [ADR-0017](docs/adr/0017-retire-the-tui.md). Use `label` for repo labels and `index` for repo-local metadata.
 - `repokeeper install` registers `repokeeper mcp` with your agent runtime (Claude Code, Codex, OpenCode, or Grok); `repokeeper install list` shows registration state; `repokeeper uninstall` removes the entry.
+- MCP `plan_sync` matches CLI `reconcile --dry-run` for equivalent health filters and update options, including skip/failure reasons and repositories after a failed entry. Sync does not accept label filters; unsupported MCP `label_selector` requests are rejected.
 - `get` reports repository errors on stderr, includes their count in the completion summary, and adds `ERROR_CLASS` to the default table when errors are present. Error diagnostics remain visible with `--quiet`; JSON stays on stdout.
 - `get` supports shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).

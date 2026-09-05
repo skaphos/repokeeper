@@ -103,6 +103,39 @@ The current MCP server exposes 14 tools organized by intent. Most tools are read
 |---|---|---|
 | `plan_sync` | Preview sync actions (always dry-run) | Read-only |
 
+`plan_sync` returns an MCP `structuredContent` object with a `plan` array. Its text content contains the same array. For equivalent health filters and local-update/push options, each entry matches `repokeeper reconcile --dry-run -o json` (array ordering is not significant):
+
+| Field | Meaning |
+|---|---|
+| `repo_id`, `path` | Repository identity and exact checkout path |
+| `action`, `outcome` | Proposed command and typed result, such as `planned_fetch`, `skipped_missing`, or `skipped_local_update` |
+| `planned` | True for `planned_*` outcomes; false for skipped or failed outcomes (CLI JSON may omit false) |
+| `ok` | Engine result status; false for missing repositories and operational failures |
+| `error` | Failure or skip explanation, when present; the internal dry-run sentinel is omitted |
+| `skip_reason` | Reason the local update is skipped, when present |
+| `remote_tracking_refs` | Stale ref count/list and any non-fatal inspection error |
+
+For example, a missing checkout produces:
+
+```json
+{
+  "plan": [{
+    "repo_id": "github.com/example/proj",
+    "path": "/workspace/proj",
+    "action": "",
+    "outcome": "skipped_missing",
+    "planned": false,
+    "ok": false,
+    "error": "missing",
+    "remote_tracking_refs": {"stale_count": 0}
+  }]
+}
+```
+
+A per-repository failure does not truncate the plan: later repositories are still included, matching CLI's default `--continue-on-error=true` and `execute_sync` planning. `ok: false` within an entry does not make the entire MCP call a protocol error. For `skipped_local_update`, the `action` can still include fetch/prune even though rebase is skipped; inspect `action` and `skip_reason` together.
+
+Sync supports health filtering via `filter` (CLI `--only`/`--field-selector`). It does not support `label_selector`; nonempty requests are rejected instead of silently targeting more repositories. Label selection remains available through `select_repositories` for discovery.
+
 ### Mutation tools (5)
 
 | Tool | Description | Safety |
@@ -307,7 +340,7 @@ Use this checklist when validating a new RepoKeeper MCP integration (especially 
 
 ### 3. Planning Tools (dry-run only)
 - [ ] `plan_sync` — returns a plan without executing anything
-- [ ] `plan_sync` works with filters and label selectors
+- [ ] `plan_sync` matches CLI dry-run for health filters and rejects unsupported sync label selectors
 
 ### 4. Mutation Tools + Safety Gates
 - [ ] `scan_workspace` — updates registry (use a temp workspace)
