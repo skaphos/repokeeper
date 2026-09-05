@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/skaphos/repokeeper/internal/config"
 	"github.com/skaphos/repokeeper/internal/engine"
 	"github.com/spf13/cobra"
 )
@@ -441,18 +440,6 @@ func TestLogOutputWriteFailureLogsError(t *testing.T) {
 	}
 }
 
-func TestRootRunEHelpFallbackForNonTerminalOutput(t *testing.T) {
-	t.Parallel()
-
-	cmd := &cobra.Command{Use: "repokeeper"}
-	out := &bytes.Buffer{}
-	cmd.SetOut(out)
-
-	if err := rootRunE(cmd, nil); err != nil {
-		t.Fatalf("rootRunE returned error: %v", err)
-	}
-}
-
 func TestFlagGettersBranchCoverage(t *testing.T) {
 	t.Parallel()
 	commandTestStateMu.Lock()
@@ -490,48 +477,6 @@ func TestFlagGettersBranchCoverage(t *testing.T) {
 
 	if got := getBoolFlag(nil, "quiet"); got {
 		t.Fatal("expected nil command lookup to use root persistent quiet default false")
-	}
-}
-
-func TestRootRunEInteractiveMissingRegistry(t *testing.T) {
-	commandTestStateMu.Lock()
-	defer commandTestStateMu.Unlock()
-
-	prevIsTerminalFD := isTerminalFD
-	prevConfig, _ := rootCmd.PersistentFlags().GetString("config")
-	defer func() {
-		isTerminalFD = prevIsTerminalFD
-		_ = rootCmd.PersistentFlags().Set("config", prevConfig)
-	}()
-
-	isTerminalFD = func(_ int) bool { return true }
-
-	tmpDir := t.TempDir()
-	cfgPath := tmpDir + "/.repokeeper.yaml"
-	cfg := config.DefaultConfig()
-	cfg.Registry = nil
-	if err := config.Save(&cfg, cfgPath); err != nil {
-		t.Fatalf("save config: %v", err)
-	}
-	if err := rootCmd.PersistentFlags().Set("config", cfgPath); err != nil {
-		t.Fatalf("set config: %v", err)
-	}
-
-	outFile, err := os.CreateTemp("", "repokeeper-rootrun-*")
-	if err != nil {
-		t.Fatalf("create temp output file: %v", err)
-	}
-	defer func() {
-		_ = outFile.Close()
-		_ = os.Remove(outFile.Name())
-	}()
-
-	cmd := &cobra.Command{}
-	cmd.SetOut(outFile)
-
-	err = rootRunE(cmd, nil)
-	if err == nil || !strings.Contains(err.Error(), "registry not found") {
-		t.Fatalf("expected missing registry error, got %v", err)
 	}
 }
 

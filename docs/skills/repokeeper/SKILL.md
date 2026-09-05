@@ -10,7 +10,7 @@ metadata:
 
 # RepoKeeper
 
-> **Prefer MCP when available for inspection and planning.** If your agent runtime supports the Model Context Protocol, configure the RepoKeeper MCP server instead of using this skill for inspection and planning workflows. The current MCP server also exposes some explicit mutation tools, so treat any write-capable MCP call as a state-changing operation and rely on its safety gates. Use CLI or TUI as the preferred operator path for execution-heavy workflows. MCP provides typed tool schemas, structured JSON responses, and automatic tool discovery without parsing CLI output. See [docs/mcp-setup.md](https://github.com/skaphos/repokeeper/blob/main/docs/mcp-setup.md) for setup instructions.
+> **Prefer MCP when available for inspection and planning.** If your agent runtime supports the Model Context Protocol, configure the RepoKeeper MCP server instead of using this skill for inspection and planning workflows. The current MCP server also exposes some explicit mutation tools, so treat any write-capable MCP call as a state-changing operation and rely on its safety gates. Use the CLI as the preferred operator path for execution-heavy workflows. MCP provides typed tool schemas, structured JSON responses, and automatic tool discovery without parsing CLI output. See [docs/mcp-setup.md](https://github.com/skaphos/repokeeper/blob/main/docs/mcp-setup.md) for setup instructions.
 
 Use RepoKeeper as the first stop for multi-repository work. It tells you what repositories exist, where they live, how healthy they are, and which ones can be updated safely.
 
@@ -41,9 +41,9 @@ Use this skill when you need to:
 ## Core rules
 
 1. Prefer RepoKeeper over ad hoc filesystem crawling when the task spans more than one repository.
-2. Treat `scan`, `get`, `describe`, `add`, `import`, and the TUI as read-only with respect to repo contents unless the user explicitly requests repo-local metadata writes.
+2. Treat `scan`, `get`, `describe`, `add`, and `import` as read-only with respect to repo contents unless the user explicitly requests repo-local metadata writes.
 3. Treat `label` and `edit` as machine-local registry changes, not source-controlled repo changes.
-4. Treat `index --write` and the TUI metadata editor as explicit repo-local metadata write flows.
+4. Treat `index --write` as the explicit repo-local metadata write flow.
 5. Always inspect health with `get` before attempting reconcile or update workflows.
 6. Prefer preview-first flows: use `--dry-run` where available before executing mutating operations.
 
@@ -139,13 +139,7 @@ When you need to choose the right repository before opening files:
 4. Avoid `low_value` paths unless the task explicitly needs generated or archival content.
 5. Use `repokeeper describe <repo-id-or-path>` before editing when you need a single-repo deep view.
 
-For interactive browsing, use:
-
-```bash
-repokeeper tui
-```
-
-The TUI detail view surfaces local labels, shared labels, annotations, and repo-local metadata when available.
+For a single-repo deep view including local labels, shared labels, annotations, and repo-local metadata, use `repokeeper describe <repo-id-or-path>`; there is no interactive dashboard (ADR-0017).
 
 ## Safe update workflow
 

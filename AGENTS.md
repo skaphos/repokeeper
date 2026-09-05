@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `cmd/repokeeper/`: CLI command wiring (Cobra commands like `init`, `scan`, `get`, `reconcile`, `version`).
 - `internal/`: core packages
-- `internal/config`, `internal/registry`, `internal/discovery`, `internal/engine`, `internal/gitx`, `internal/model`, `internal/tui`.
+- `internal/config`, `internal/registry`, `internal/discovery`, `internal/engine`, `internal/gitx`, `internal/model`, `internal/mcpserver`.
 - `main.go`: entrypoint that boots the CLI.
 - Docs: `README.md` (usage), `DESIGN.md` (architecture), `TASKS.md` (milestones).
 

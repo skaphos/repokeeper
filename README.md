@@ -10,8 +10,8 @@ RepoKeeper inventories your repositories, reports drift and broken tracking, and
 - **Report** per-repo health: dirty/clean, branch, tracking status, ahead/behind, stale upstreams
 - **Sync** safely with fetch/prune-first behavior; optional `--update-local` uses `pull --rebase` under explicit conditions
 - **Registry** is stored in `.repokeeper.yaml` with staleness detection
-- **Repo-local metadata** can be read from `.repokeeper-repo.yaml` or `repokeeper.yaml` and surfaced in JSON, describe output, and the TUI detail view
-- **Remote-ref hygiene** reports stale remote-tracking refs in status, sync plans, JSON/MCP output, and the TUI without pruning them during inspection
+- **Repo-local metadata** can be read from `.repokeeper-repo.yaml` or `repokeeper.yaml` and surfaced in JSON, describe output, and MCP repository context
+- **Remote-ref hygiene** reports stale remote-tracking refs in status, sync plans, and JSON/MCP output without pruning them during inspection
 - **CLI-first** with tabular (`table`/`wide`) and JSON output formats
 - **Cross-platform** — macOS, Windows, Linux (incl. WSL)
 
@@ -146,7 +146,7 @@ Quick highlights:
 - `repokeeper label <repo-id-or-path>` manages machine-local labels via `--set key=value` and `--remove key`.
 - `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
 - `repokeeper index repos --local-selector ... --promote-local-labels --write` explicitly bulk-promotes machine-local labels into repo-local metadata for selected repos.
-- Running `repokeeper` with no subcommand launches the interactive TUI (`l` edits repo labels, `i` edits or initializes repo-local metadata from detail view).
+- Running `repokeeper` with no subcommand prints help. There is no interactive dashboard; see [ADR-0017](docs/adr/0017-retire-the-tui.md). Use `label` for repo labels and `index` for repo-local metadata.
 - `repokeeper install` registers `repokeeper mcp` with your agent runtime (Claude Code, Codex, OpenCode, or Grok); `repokeeper install list` shows registration state; `repokeeper uninstall` removes the entry.
 - `get` supports shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
@@ -165,7 +165,7 @@ repokeeper uninstall          # remove entries (prompts unless --yes)
 
 For runtimes without a flat-file MCP config RepoKeeper can adapter (Cursor, Windsurf), `repokeeper install --manual` prints the snippet you paste into their settings UI. See [docs/mcp-setup.md](docs/mcp-setup.md) for per-runtime paths, the full `install`/`uninstall` flag reference, and the MCP tool catalog.
 
-The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI/TUI counterparts, so agents and users should treat them as execution surfaces when enabled. The server reloads workspace configuration and registry state from disk for every request, keeping long-running sessions current without silently reverting manual configuration edits.
+The MCP server is primarily intended for inspection and planning workflows with browsable resources, but the current tool surface also includes some explicit state-changing operations. Those mutation-capable tools follow the same safety gates and opt-in behavior as their CLI counterparts, so agents and users should treat them as execution surfaces when enabled. The server reloads workspace configuration and registry state from disk for every request, keeping long-running sessions current without silently reverting manual configuration edits.
 
 RepoKeeper is published to the MCP registry as `io.skaphos/repokeeper`.
 
@@ -214,7 +214,7 @@ RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.ya
 - `.repokeeper.yaml` remains the machine-local workspace config and registry.
 - `.repokeeper-repo.yaml` is the source-controlled repo metadata surface.
 
-- Reads are automatic and read-only in `scan`, `get`, `describe`, and the TUI list/detail views.
+- Reads are automatic and read-only in `scan`, `get`, `describe`, and the MCP repository resources.
 - `label` remains machine-local only.
 - `index --promote-local-labels --write` explicitly promotes machine-local labels into shared repo metadata.
 - `index repos --selector ...` / `--local-selector ...` previews or writes that promotion across multiple selected repos.
@@ -316,7 +316,7 @@ RepoKeeper is designed to be safe to run on repos with dirty working trees:
 - All mutating commands support `--dry-run`
 - `scan`, `get`, `describe`, `add`, and `import` do not create or rewrite repo-local metadata files
 - `label` and `edit` do not write repo-local metadata files
-- `index --write` and the TUI metadata editor (`i` from detail view) are explicit repo-local metadata write paths
+- `index --write` is the explicit repo-local metadata write path
 
 Optional local checkout update:
 

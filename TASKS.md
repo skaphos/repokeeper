@@ -303,20 +303,17 @@ Feedback captured and prioritized:
 - [x] Repo-local metadata is read-only in runtime commands and only written through an explicit indexing workflow.
 - [x] TUI surfaces repo-local metadata where it improves navigation without adding separate business logic.
 
-### Milestone 9 — TUI (phase 2)
+### Milestone 9 — TUI (withdrawn under ADR-0017)
 
-- [ ] k9s-style primary repo list as default view
-- [ ] keyboard-first navigation (`j`/`k` + arrows), filter mode, and selection set
-- [ ] filter repos by id/path/branch/tracking/error state
-- [ ] contextual actions from list/details (sync, edit metadata, repair upstream)
-- [ ] trigger batch actions for selected repos
-- [ ] progress updates + detail/action view
-- [ ] keybindings baseline: `/` filter, `space` select, `a` select all, `s` sync, `e` edit, `r` repair upstream, `enter` details/actions, `q` quit
+Withdrawn 2026-09-03. The TUI shipped as the no-argument entry point through v1.x and was removed
+under [ADR-0017](docs/adr/0017-retire-the-tui.md). The items below were not delivered and are not
+planned; the filter-first, action-driven workflow they targeted is served by the MCP server plus an
+agent and by CLI label selectors.
 
-**Acceptance:**
-
-- [ ] Use TUI as primary operations dashboard without losing CLI automation parity
-- [ ] Core interaction model feels familiar to k9s users (list-first, filter-first, action-driven)
+Not delivered: k9s-style list view; keyboard-first navigation, filter mode and selection set;
+filter by id/path/branch/tracking/error state; contextual actions from list/details; batch actions
+for selected repos; progress and detail/action views; the `/`, `space`, `a`, `s`, `e`, `r`,
+`enter`, `q` keybinding baseline; "TUI as primary operations dashboard" acceptance.
 
 ### Milestone 10 — 1.0 Readiness & Release Reset
 
@@ -441,7 +438,7 @@ See [ADR-0001](docs/adr/0001-mcp-server.md) for full architectural decision reco
 - [x] Target: 80%+ line coverage across all packages
 - [x] CI enforces coverage thresholds
 - [x] Per-package goal: 80% minimum when reasonable, with explicit temporary exceptions documented in tooling
-- [x] Packages with inherently low testability (`cmd/`, `internal/tui/`) may have lower thresholds but should still have smoke tests
+- [x] Packages with inherently low testability (`cmd/`) may have lower thresholds but should still have smoke tests
 
 ### Unit tests (Ginkgo suites)
 
