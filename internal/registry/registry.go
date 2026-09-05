@@ -118,7 +118,7 @@ func (r *Registry) Upsert(entry Entry) {
 	r.Entries = append(r.Entries, entry)
 }
 
-// ensureCheckoutIDs assigns a derived checkout_id to any entry that lacks one.
+// ensureCheckoutIDs assigns an unused checkout_id to any entry that lacks one.
 // It is called at load and upsert time so that read-only lookups never have to
 // mutate the entry slice (which previously caused a data race when lookups ran
 // concurrently from status-worker goroutines).
@@ -128,7 +128,9 @@ func (r *Registry) ensureCheckoutIDs() {
 	}
 	for i := range r.Entries {
 		if r.Entries[i].CheckoutID == "" {
-			r.Entries[i].CheckoutID = defaultCheckoutIDFromPath(r.Entries[i].Path)
+			// Use the same allocator as discovery so legacy same-basename
+			// checkouts cannot acquire a shared identity during migration.
+			r.Entries[i].CheckoutID = r.resolveCheckoutID(r.Entries[i])
 		}
 	}
 }
@@ -158,7 +160,7 @@ func (r *Registry) resolveCheckoutID(entry Entry) string {
 		if r.Entries[i].RepoID != entry.RepoID {
 			continue
 		}
-		if sameRegistryPath(r.Entries[i].Path, entry.Path) {
+		if r.Entries[i].CheckoutID != "" && sameRegistryPath(r.Entries[i].Path, entry.Path) {
 			return r.Entries[i].CheckoutID
 		}
 		used[r.Entries[i].CheckoutID] = true

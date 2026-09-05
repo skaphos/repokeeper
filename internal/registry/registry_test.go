@@ -338,6 +338,71 @@ func TestLegacyEntryBackfillsCheckoutID(t *testing.T) {
 	g.Expect(reg.FindEntry("github.com/acme/repo", "/worktrees/legacy-one").Path).To(Equal("/worktrees/legacy-one"), "after checkout_id backfill, path-specific lookup should not fall back across legacy entries")
 }
 
+func TestLegacySameBasenameCheckoutsKeepTheirMetadata(t *testing.T) {
+	t.Parallel()
+	for _, loadFirst := range []bool{false, true} {
+		for _, reservedID := range []string{"", "proj", "custom-checkout"} {
+			name := "upsert/" + reservedID
+			if loadFirst {
+				name = "load/" + reservedID
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				g := NewWithT(t)
+				root := t.TempDir()
+				reg := &registry.Registry{Entries: []registry.Entry{
+					{RepoID: "repo", Path: filepath.Join(root, "missing", "proj"), Status: registry.StatusMissing,
+						Labels: map[string]string{"env": "prod"}, Annotations: map[string]string{"owner": "primary"}},
+					{RepoID: "repo", Path: filepath.Join(root, "present", "proj"), Status: registry.StatusPresent,
+						Labels: map[string]string{"env": "dev"}, Annotations: map[string]string{"owner": "secondary"}},
+				}}
+				if reservedID != "" {
+					// A later explicit entry must reserve its ID before any legacy
+					// entries are assigned IDs, regardless of registry ordering.
+					reg.Entries = append(reg.Entries, registry.Entry{
+						RepoID: "repo", CheckoutID: reservedID, Path: filepath.Join(root, "reserved", "proj"),
+						Status: registry.StatusMissing, Labels: map[string]string{"env": "reserved"},
+					})
+				}
+				original := append([]registry.Entry(nil), reg.Entries...)
+				reload := func() {
+					t.Helper()
+					path := filepath.Join(root, "registry.yaml")
+					g.Expect(registry.Save(reg, path)).To(Succeed())
+					var err error
+					reg, err = registry.Load(path)
+					g.Expect(err).NotTo(HaveOccurred())
+				}
+				if loadFirst {
+					reload()
+				}
+				idsByPath := make(map[string]string)
+				for range 2 {
+					reg.Upsert(registry.Entry{RepoID: "repo", Path: original[1].Path, Status: registry.StatusPresent})
+					g.Expect(reg.Entries).To(HaveLen(len(original)))
+					used := make(map[string]bool)
+					for _, want := range original {
+						entry := reg.FindEntry("repo", want.Path)
+						g.Expect(entry).NotTo(BeNil())
+						g.Expect(entry.CheckoutID).NotTo(BeEmpty())
+						g.Expect(used[entry.CheckoutID]).To(BeFalse(), "checkout IDs must be unique within a repo")
+						used[entry.CheckoutID] = true
+						if id, ok := idsByPath[want.Path]; ok {
+							g.Expect(entry.CheckoutID).To(Equal(id), "save/load and rescanning must preserve assigned IDs")
+						}
+						idsByPath[want.Path] = entry.CheckoutID
+						if want.CheckoutID == "" {
+							want.CheckoutID = entry.CheckoutID
+						}
+						g.Expect(*entry).To(Equal(want), "only missing checkout IDs may change during migration")
+					}
+					reload()
+				}
+			})
+		}
+	}
+}
+
 func TestFindEntriesByRepoIDReturnsAllCheckoutMatches(t *testing.T) {
 	g := NewWithT(t)
 	reg := &registry.Registry{}

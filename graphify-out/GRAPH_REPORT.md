@@ -1,28 +1,28 @@
 # Graph Report - repokeeper  (2026-09-05)
 
 ## Corpus Check
-- 358 files · ~297,767 words
+- 358 files · ~298,052 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3243 nodes · 6721 edges · 222 communities (171 shown, 11 thin omitted)
+- 3244 nodes · 6725 edges · 231 communities (178 shown, 13 thin omitted)
 - Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 710 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b1459544`
+- Built from commit: `30429a1c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - Save
 - GitAdapter
-- writeCustomColumnsOutput
+- coverage_boost_test.go
 - github.com/spf13/cobra.Command
 - MultiAdapter
 - Implementation Plan: Recipe-Driven End-to-End Test Harness
 - withInstallEnv
-- github.com/mark3labs/mcp-go/mcp.CallToolResult
+- github.com/mark3labs/mcp-go/mcp.CallToolRequest
 - codex.go
 - ApplyPlans
 - ADR-0008: MCP Install Tooling for Supported Agent Runtimes
@@ -33,31 +33,32 @@
 - speckit-analyze/SKILL.md
 - context.Context
 - status.go
-- terminal_width_test.go
+- model.go
 - multiStubAdapter
 - common.sh
 - Manpage Plan
 - index.go
 - export_test.go
-- import_test.go
+- import.go
 - Execution Steps
 - Tracking
 - runtime_test.go
 - NewGitAdapter
-- Entry
+- Registry
 - Tasks: [FEATURE NAME]
 - Milestones
 - Tasks: Recipe-Driven End-to-End Test Harness
 - SyncResult
 - repometa_test.go
-- pathutil_test.go
+- dropIgnoredImportEntries
 - adapter_test.go
-- import_clone.go
+- Entry
 - WorkspaceRecipe
 - ADR-0002: Branch Switch and Checkout Workflow Boundaries
 - sync.go
-- FilterKind
+- engine/engine.go
 - Tasks: Distribution Channel Conformance
+- import_test.go
 - repometa.go
 - perf/main.go
 - README.md
@@ -68,17 +69,18 @@
 - helpers_test.go
 - addFormatFlag
 - index_test.go
-- MCPToolCase
+- github.com/mark3labs/mcp-go/mcp.CallToolResult
 - ADR-0006: Adapter-Facing Contract Stability and Versioning
 - RepoKeeper
+- Snippet
 - mcpserver_test.go
 - discovery.go
 - Changelog
 - MCP Server Setup
 - newPlanExecEngine
 - 9. Future: Cross-Machine Registry Sync
-- writeRepairUpstreamTable
-- writeEmptyConfig
+- writeStatusTable
+- Load
 - ADR-0003: Sync Policy and Execution Modes
 - ADR-0004: Prune Workflow Boundaries and Safety Model
 - Specification Quality Checklist: GitHub Remote End-to-End Expansion
@@ -102,8 +104,11 @@
 - ADR-0015: Branch Retention and Protection Policy
 - edit_test.go
 - LocalBranches
+- registry_test.go
+- command_parsing_test.go
 - GitHub Copilot Instructions for RepoKeeper
 - RepoStatus
+- mockEngine
 - Core Principles
 - Core Principles
 - Repository Guidelines
@@ -119,28 +124,30 @@
 - Decision
 - repairResolveTargetBranch
 - Scope
-- tools_mutation.go
+- Contributing Guidelines
+- importTargetRelativePath
 - Implementation Plan: [FEATURE]
 - 6. Data Model
 - NewHgAdapter
 - SortRegistryEntries
 - SplitCSV
 - mcpSession
-- readonly_test.go
+- newToolError
 - Config
 - Phase 1 Data Model: Recipe-Driven End-to-End Test Harness
-- coverage_boost_test.go
+- resolveRepo
 - speckit-tasks/SKILL.md
 - os/exec.Cmd
 - 9. Stretch Goals
 - Phase 0 Research: Distribution Channel Conformance
+- grokAdapter
 - ADR-0013: GoReleaser Owns the GitHub Release
 - Decision
 - ADR-0016: No Self-Update Subcommand
 - benchmarkEngineWithRepos
 - recipe_test.go
 - Execution Contract
-- countingRunner
+- sync.Mutex
 - Decision
 - newEngineWith
 - Installation
@@ -149,10 +156,10 @@
 - Contract: `ghcr.io/skaphos/repokeeper`
 - 4. Safety & Policy
 - 8. Architecture
-- 001-distribution-channels/spec.md
+- Specification Quality Checklist: Distribution Channel Conformance
 - Phase 1 Data Model: Distribution Channel Conformance
 - MockRunner
-- newMCPEngine
+- NopLogger
 - declaration.go
 - [CHECKLIST TYPE] Checklist: [FEATURE NAME]
 - Alternatives Considered
@@ -164,16 +171,18 @@
 - speckit-implement/SKILL.md
 - ADR-0012: Release Please Owns Release Notes
 - speckit-constitution/SKILL.md
+- Colorize
 - speckit-taskstoissues/SKILL.md
-- NormalizeURL
+- fileLogger
 - Q: ok what else is on the docket for repokeeper that is achievable in one day
 - tools_metadata.go
 - Q: lets look at the issues on the repo and pick one to work on
 - TestWorkerChannelBufferSize
-- NopLogger
+- nopLogger
 - Git Compatibility Declaration Contract
+- Third-Party Notices
 - Recipe Contract
-- MaterializedWorkspace
+- assertions_test.go
 - MCP Tool Matrix Contract
 - environment_test.go
 - run_generation
@@ -225,23 +234,23 @@
 ## Import Cycles
 - None detected.
 
-## Communities (222 total, 11 thin omitted)
+## Communities (231 total, 13 thin omitted)
 
 ### Community 0 - "Save"
-Cohesion: 0.13
-Nodes (49): TestDescribeRunEIncludesRepoMetadata(), TestDescribeRunEPaths(), TestIndexReposRunEPreviewsAndWritesSelectedRepos(), TestIndexReposRunERequiresPromoteFlag(), TestIndexRunECanPromoteLocalLabels(), TestIndexRunEFailsEarlyWhenMetadataExistsWithoutForce(), TestIndexRunEForceResolvesDualMetadataFiles(), TestIndexRunEPreviewOnlyDoesNotWrite() (+41 more)
+Cohesion: 0.12
+Nodes (50): TestDescribeRunEIncludesRepoMetadata(), TestDescribeRunEPaths(), TestIndexReposRunEPreviewsAndWritesSelectedRepos(), TestIndexReposRunERequiresPromoteFlag(), TestIndexRunECanPromoteLocalLabels(), TestIndexRunEFailsEarlyWhenMetadataExistsWithoutForce(), TestIndexRunEForceResolvesDualMetadataFiles(), TestIndexRunEPreviewOnlyDoesNotWrite() (+42 more)
 
 ### Community 1 - "GitAdapter"
-Cohesion: 0.07
-Nodes (41): ForEachRefEntry, GitRunner, CleanFD(), Clone(), Fetch(), Runner, HasSubmodules(), Head() (+33 more)
+Cohesion: 0.09
+Nodes (32): GitRunner, CleanFD(), Clone(), Fetch(), Runner, HasSubmodules(), Head(), IsBare() (+24 more)
 
-### Community 2 - "writeCustomColumnsOutput"
-Cohesion: 0.20
-Nodes (15): TestResolveCustomColumnValueEdgeCases(), TestRowsForCustomColumnsFallbackPaths(), parseCustomColumnsSpec(), parseOutputMode(), resolveCustomColumnValue(), rowsForCustomColumns(), TestCustomColumnsDeterministicAcrossTerminalWidths(), TestParseCustomColumnsSpecValidation() (+7 more)
+### Community 2 - "coverage_boost_test.go"
+Cohesion: 0.10
+Nodes (27): TestMarshalToGenericMarshalErrorPath(), TestMarshalToGenericUnmarshalErrorPath(), TestNewSyncProgressWriter(), TestResolveCustomColumnValueEdgeCases(), TestRowsForCustomColumnsFallbackPaths(), TestSyncProgressWriterAdditionalBranches(), TestSyncProgressWriterPaths(), TestWriteImportCloneFailureSummary() (+19 more)
 
 ### Community 3 - "github.com/spf13/cobra.Command"
 Cohesion: 0.12
-Nodes (34): TestFlagGettersBranchCoverage(), TestLogHelpers(), executeImportClonePlanWithProgress(), assumeYes(), configOverride(), debugf(), Execute(), ExecuteWithExitCode() (+26 more)
+Nodes (35): TestFlagGettersBranchCoverage(), TestLogHelpers(), executeImportClonePlanWithProgress(), assumeYes(), configOverride(), debugf(), Execute(), ExecuteWithExitCode() (+27 more)
 
 ### Community 4 - "MultiAdapter"
 Cohesion: 0.11
@@ -252,23 +261,23 @@ Cohesion: 0.06
 Nodes (31): Content Quality, Feature Readiness, Notes, Requirement Completeness, Specification Quality Checklist: Recipe-Driven End-to-End Test Harness, Compatibility and Provisioning Design, Constitution Check, Delivery Sequence (+23 more)
 
 ### Community 6 - "withInstallEnv"
-Cohesion: 0.08
-Nodes (49): resetInstallListFlags(), runInstallListWithFlags(), TestInstallListAllNotRegistered(), TestInstallListInvalidScope(), TestInstallListJSON(), TestInstallListProjectCodexUnsupported(), TestInstallListRegisteredStateMatchesExecutable(), TestInstallListStaleWhenCommandDiffers() (+41 more)
+Cohesion: 0.14
+Nodes (33): resetInstallListFlags(), runInstallListWithFlags(), TestInstallListAllNotRegistered(), TestInstallListInvalidScope(), TestInstallListJSON(), TestInstallListProjectCodexUnsupported(), TestInstallListRegisteredStateMatchesExecutable(), TestInstallListStaleWhenCommandDiffers() (+25 more)
 
-### Community 7 - "github.com/mark3labs/mcp-go/mcp.CallToolResult"
-Cohesion: 0.20
-Nodes (14): github.com/mark3labs/mcp-go/mcp.CallToolRequest, github.com/mark3labs/mcp-go/mcp.CallToolResult, resolveRepo(), T, newStructuredListResult(), newToolError(), newToolErrorf(), MCPServer (+6 more)
+### Community 7 - "github.com/mark3labs/mcp-go/mcp.CallToolRequest"
+Cohesion: 0.16
+Nodes (17): github.com/mark3labs/mcp-go/mcp.CallToolRequest, T, newStructuredListResult(), countNewRegistryEntries(), countRegistryEntriesWithStatus(), MCPServer, optionalStringMapArg(), optionalStringSliceArg() (+9 more)
 
 ### Community 8 - "codex.go"
-Cohesion: 0.12
-Nodes (17): codexServersMap(), Entry, readTOMLDoc(), refuseIfTOMLComments(), skipTOMLDelim(), skipTOMLSingleLine(), tomlHasComments(), writeTOMLDoc() (+9 more)
+Cohesion: 0.17
+Nodes (13): codexServersMap(), Entry, init(), readTOMLDoc(), refuseIfTOMLComments(), skipTOMLDelim(), skipTOMLSingleLine(), tomlHasComments() (+5 more)
 
 ### Community 9 - "ApplyPlans"
-Cohesion: 0.13
-Nodes (20): TestParseRemoteMismatchReconcileModeTable(), remoteMismatchReconcileMode, parseRemoteMismatchReconcileMode(), TestRemoteMismatchWrapperFunctions(), Engine, RemoteMismatchPlan, RemoteMismatchReconcileMode, ParseRemoteMismatchReconcileMode() (+12 more)
+Cohesion: 0.16
+Nodes (17): TestRemoteMismatchWrapperFunctions(), Engine, RemoteMismatchPlan, RemoteMismatchReconcileMode, ParseRemoteMismatchReconcileMode(), ApplyPlans(), BuildPlans(), findRegistryEntryIndexForStatus() (+9 more)
 
 ### Community 10 - "ADR-0008: MCP Install Tooling for Supported Agent Runtimes"
-Cohesion: 0.11
+Cohesion: 0.10
 Nodes (19): 1. CLI surface, 1. Keep `skill install/uninstall`, add parallel `mcp install/uninstall/list`, 2. Architecture: per-runtime adapter interface, 2. `repokeeper install` as a leaf verb, with a separate top-level `repokeeper status` for state, 3. Data-table architecture instead of per-runtime adapters, 3. Documentation changes, 4. Silent fallback for `--scope project --codex` to user scope, 5. Prompt before every overwrite (+11 more)
 
 ### Community 11 - "server.go"
@@ -280,12 +289,12 @@ Cohesion: 0.12
 Nodes (16): ADR-0017: Retire the TUI, Alternatives Considered, Consequences, Context, Decision, Deleting beats deprecating, Deprecate for one release cycle, then remove, Half-built surfaces are a liability, not an option value (+8 more)
 
 ### Community 13 - "runDescribeRepo"
-Cohesion: 0.15
-Nodes (28): canonicalPathForMatch(), describeCheckoutID(), pathWithinBase(), runDescribeRepo(), samePathForMatch(), selectRegistryEntryForDescribe(), splitRepoAndCheckoutSelector(), TestDescribeRepoSubcommandExists() (+20 more)
+Cohesion: 0.14
+Nodes (29): canonicalPathForMatch(), describeCheckoutID(), pathWithinBase(), persistDescribeMetadataSnapshot(), runDescribeRepo(), samePathForMatch(), selectRegistryEntryForDescribe(), splitRepoAndCheckoutSelector() (+21 more)
 
 ### Community 14 - "testing.T"
 Cohesion: 0.03
-Nodes (105): TestRepokeeperSuite(), testing.T, TestCliio(), TestConfig(), TestDiscovery(), TestEngine(), TestGitx(), copyFixture() (+97 more)
+Nodes (95): TestRepokeeperSuite(), testing.T, TestCliio(), TestSaveNilConfigErrors(), TestValidateSavedConfigGVKErrors(), TestConfig(), TestDiscovery(), TestEngine() (+87 more)
 
 ### Community 15 - "speckit-analyze/SKILL.md"
 Cohesion: 0.08
@@ -296,12 +305,12 @@ Cohesion: 0.04
 Nodes (7): stubAdapter, benchAdapter, planAdapter, unsupportedLocalUpdateAdapter, context.Context, Remote, adapterStub
 
 ### Community 17 - "status.go"
-Cohesion: 0.06
-Nodes (56): TestTruncateASCIIBranches(), TestWriteStatusDetailsAndHelpers(), buildStatusJSONOutput(), countGoneRepos(), displayTrackingStatusNoColor(), TestDesignDocNamesStatusJSONAPIVersion(), TestRelatedReposString(), TestSanitizeForDisplayStripsControlAndANSISequences() (+48 more)
+Cohesion: 0.09
+Nodes (39): TestWriteRemoteMismatchPlan(), TestDivergedAdviceAndTable(), TestWriteStatusDetailsAndHelpers(), buildDivergedAdvice(), buildStatusJSONOutput(), countGoneRepos(), displayRepoPath(), displayTrackingStatusNoColor() (+31 more)
 
-### Community 18 - "terminal_width_test.go"
-Cohesion: 0.24
-Nodes (9): captureStatusTableOutputAtWidth(), captureSyncTableOutputAtWidth(), TestAdaptiveCellLimitForWidth(), TestStatusTableHeaderSnapshotsAcrossWidths(), TestSyncTableHeaderSnapshotsAcrossWidths(), TestWriteStatusTableCompactsColumnsOnTinyTTY(), TestWriteStatusTableTinyModeRetainsSemanticColor(), TestWriteStatusTableTruncatesOnNarrowTTY() (+1 more)
+### Community 18 - "model.go"
+Cohesion: 0.12
+Nodes (24): localBranchNamesByCategory(), time.Time, Engine, TestUpstreamStatusFromSignal(), upstreamStatusFromSignal(), LocalBranch, LocalBranchStatus, PruneCategory (+16 more)
 
 ### Community 19 - "multiStubAdapter"
 Cohesion: 0.11
@@ -320,12 +329,12 @@ Cohesion: 0.23
 Nodes (11): detectAuthoritativePaths(), detectLowValuePaths(), detectReadmeEntrypoint(), fallbackMetadataPath(), formatAssignmentDefaults(), guessRepoMetadataDefaults(), humanizeRepoName(), selectIndexBulkEntries() (+3 more)
 
 ### Community 23 - "export_test.go"
-Cohesion: 0.10
-Nodes (21): TestCommonPathRoot(), commonPathRoot(), exportEntriesWithEmbeddedCredentials(), exportEntryPath(), inferRegistrySharedRoot(), populateExportBranches(), prepareRegistryForExport(), TestCloneRegistry() (+13 more)
+Cohesion: 0.11
+Nodes (19): TestCommonPathRoot(), commonPathRoot(), exportEntriesWithEmbeddedCredentials(), exportEntryPath(), inferRegistrySharedRoot(), populateExportBranches(), prepareRegistryForExport(), TestExportEntriesWithEmbeddedCredentials() (+11 more)
 
-### Community 24 - "import_test.go"
-Cohesion: 0.07
-Nodes (56): dropIgnoredImportEntries(), cloneImportedEntriesWithProgress(), cloneImportedRepos(), cloneImportedReposWithProgress(), importTargetRelativePath(), inferredCheckoutIDFromPath(), mergeImportedRegistry(), mergePolicyPreflightSkips() (+48 more)
+### Community 24 - "import.go"
+Cohesion: 0.13
+Nodes (25): TestCloneRegistry(), inferredCheckoutIDFromPath(), loadExistingConfig(), mergeImportedRegistry(), mergePolicyPreflightSkips(), mergeRegistryMatchIndex(), parseImportConflictPolicy(), parseImportMode() (+17 more)
 
 ### Community 25 - "Execution Steps"
 Cohesion: 0.12
@@ -333,19 +342,19 @@ Nodes (15): 1. Initialize Convergence Context, 2. Load Artifacts (Progressive Di
 
 ### Community 26 - "Tracking"
 Cohesion: 0.09
-Nodes (8): dirtyBehindAdapter, Head, Submodules, Tracking, Worktree, inventoryRepoEntry, inventoryResponse, repoContextResponse
+Nodes (16): dirtyBehindAdapter, ForEachRefEntry, TestTrackingFromShort(), trackingFromShort(), TrackingStatus(), WorktreeStatus(), ParseForEachRef(), ParsePorcelainStatus() (+8 more)
 
 ### Community 27 - "runtime_test.go"
-Cohesion: 0.15
-Nodes (23): collectUninstallTargets(), init(), init(), All(), ByName(), Runtime, register(), SelectionFromFlags() (+15 more)
+Cohesion: 0.21
+Nodes (19): All(), ByName(), Runtime, register(), SelectionFromFlags(), names(), TestAllReturnsSortedCopy(), TestAllSortsFakeRuntimes() (+11 more)
 
 ### Community 28 - "NewGitAdapter"
-Cohesion: 0.19
-Nodes (23): TestRemoteMismatchReconcileHelpers(), TestEngineGuardErrors(), TestExecuteSyncPlanAppliesActions(), TestExecuteSyncPlanCloneAction(), TestExecuteSyncPlanStopsOnFailure(), TestExecuteSyncPlanStopsOnNonDryRunFailure(), TestExecuteSyncPlanWithCallbackInvokesPerResult(), TestHandleMissingSyncEntry() (+15 more)
+Cohesion: 0.21
+Nodes (22): TestRemoteMismatchReconcileHelpers(), TestEngineGuardErrors(), TestExecuteSyncPlanAppliesActions(), TestExecuteSyncPlanCloneAction(), TestExecuteSyncPlanStopsOnFailure(), TestExecuteSyncPlanStopsOnNonDryRunFailure(), TestExecuteSyncPlanWithCallbackInvokesPerResult(), TestHandleMissingSyncEntry() (+14 more)
 
-### Community 29 - "Entry"
-Cohesion: 0.11
-Nodes (23): persistDescribeMetadataSnapshot(), editRegistryEntryWithEditor(), findRegistryEntryIndex(), resolveEditorCommand(), trackingBranchFromUpstream(), validateEditedRegistryEntry(), resolveUpstreamTargetBranch(), enrichReportWithRegistryMetadata() (+15 more)
+### Community 29 - "Registry"
+Cohesion: 0.14
+Nodes (15): enrichReportWithRegistryMetadata(), findRegistryMetadataEntry(), persistStatusRegistrySnapshots(), canonicalRegistryPath(), checkoutIDFromEntry(), cloneRepoMetadata(), cloneStringMap(), cloneStringSlice() (+7 more)
 
 ### Community 30 - "Tasks: [FEATURE NAME]"
 Cohesion: 0.07
@@ -360,44 +369,48 @@ Cohesion: 0.06
 Nodes (31): Compatibility Contract Specs, Declaration and Reusable Compatibility Interface, Dependencies & Execution Order, Format: `[ID] [P?] [Story] Description`, Foundation, Foundational Implementation, Foundational Validation Specs, Implementation Strategy (+23 more)
 
 ### Community 33 - "SyncResult"
-Cohesion: 0.16
-Nodes (18): ImportCloneCallbacks, localUpdateCapable, OutcomeKind, syncStep, executedNonCloneOutcome(), findRegistryEntryForSyncResult(), Engine, SyncOptions (+10 more)
+Cohesion: 0.18
+Nodes (13): ImportCloneCallbacks, OutcomeKind, executedNonCloneOutcome(), SyncOptions, SyncResult, SyncResultCallback, SyncStartCallback, TestSyncFailureMessageFetchClasses() (+5 more)
 
 ### Community 34 - "repometa_test.go"
 Cohesion: 0.21
 Nodes (21): TestLoadInvalidYAMLErrors(), Apply(), mustMarshalRepoMetadata(), mustMetadataFingerprint(), rewriteFilePreservingFingerprint(), testAbsolutePath(), TestApplyCachesDualFileConflict(), TestApplyCachesInvalidMetadataError() (+13 more)
 
-### Community 35 - "pathutil_test.go"
-Cohesion: 0.21
-Nodes (13): ignoredPathSet(), CanonicalNormalize(), CleanNormalize(), IgnoredPathSet(), syncDir(), canonicalExpected(), TestCanonicalNormalize(), TestCanonicalNormalizeWindowsBehavior() (+5 more)
+### Community 35 - "dropIgnoredImportEntries"
+Cohesion: 0.16
+Nodes (17): dropIgnoredImportEntries(), ignoredPathSet(), TestDropIgnoredImportEntriesCaseInsensitiveOnWindows(), TestDropIgnoredImportEntriesRemovesIgnoredTargets(), ignoredPathSet(), CanonicalNormalize(), CleanNormalize(), IgnoredPathSet() (+9 more)
 
 ### Community 36 - "adapter_test.go"
 Cohesion: 0.40
 Nodes (3): TestGitAdapterMethods(), TestNewGitAdapterDefaultsRunnerAndCloneErrors(), runnerStub
 
-### Community 37 - "import_clone.go"
-Cohesion: 0.22
-Nodes (12): importCloneConflict, ImportCloneOptions, ImportCloneSkip, ImportCloneTarget, pathCleanCanonical(), TestImportCloneHelperFunctions(), findImportCloneConflicts(), Engine (+4 more)
+### Community 37 - "Entry"
+Cohesion: 0.15
+Nodes (19): editRegistryEntryWithEditor(), findRegistryEntryIndex(), resolveEditorCommand(), trackingBranchFromUpstream(), validateEditedRegistryEntry(), resolveUpstreamTargetBranch(), importCloneConflict, ImportCloneOptions (+11 more)
 
 ### Community 38 - "WorkspaceRecipe"
-Cohesion: 0.29
-Nodes (9): ConfigRecipe, MissingEntryRecipe, RegistrySeedMode, WorkspaceRecipe, loadRecipe(), extensionRecipe(), materializeExtension(), canonicalRecipe() (+1 more)
+Cohesion: 0.33
+Nodes (8): ConfigRecipe, MissingEntryRecipe, WorkspaceRecipe, loadRecipe(), extensionRecipe(), materializeExtension(), canonicalRecipe(), materializeCanonical()
 
 ### Community 39 - "ADR-0002: Branch Switch and Checkout Workflow Boundaries"
 Cohesion: 0.09
 Nodes (22): 1. Fold checkout into sync, 2. Keep checkout permanently out of scope, 3. Allow branch switching through MCP, ADR-0002: Branch Switch and Checkout Workflow Boundaries, Alternatives Considered, Branch switch / checkout, CLI, Consequences (+14 more)
 
 ### Community 40 - "sync.go"
-Cohesion: 0.10
-Nodes (30): TestShouldStreamSyncResults(), TestSyncProgressMessageKinds(), TestSyncResultNeedsConfirmationTable(), TestShouldStreamSyncResultsBranches(), TestDescribeSyncAction(), TestDescribeSyncActionAdditionalBranches(), TestDisplayRepoPathPrefersCWDThenRoot(), TestSyncPlanNeedsConfirmation() (+22 more)
-
-### Community 41 - "FilterKind"
 Cohesion: 0.13
-Nodes (22): PullRebasePolicyOptions, filterRequiresInspect(), filterStatus(), findRegistryEntryForStatus(), FilterKind, hasRemoteMismatch(), TestFilterAndLookupEdgeBranches(), TestFilterAndSortHelpers() (+14 more)
+Nodes (23): TestSyncProgressMessageKinds(), TestDescribeSyncAction(), TestDescribeSyncActionAdditionalBranches(), TestWriters(), TestWriteSyncFailureSummary(), TestWriteSyncTableNoHeaders(), TestWriteSyncTableWideBranches(), describeSyncAction() (+15 more)
+
+### Community 41 - "engine/engine.go"
+Cohesion: 0.13
+Nodes (26): localUpdateCapable, PullRebasePolicyOptions, filterRequiresInspect(), filterStatus(), findRegistryEntryForStatus(), findRegistryEntryForSyncResult(), FilterKind, StatusOptions (+18 more)
 
 ### Community 42 - "Tasks: Distribution Channel Conformance"
 Cohesion: 0.06
 Nodes (33): Correction made during implementation, Dependencies & Execution Order, Documentation, Execution Notes, Format: `[ID] [P?] [Story] Description`, Format validation, Highest-risk tasks, Implementation for User Story 1 (+25 more)
+
+### Community 43 - "import_test.go"
+Cohesion: 0.14
+Nodes (22): cloneImportedEntriesWithProgress(), cloneImportedRepos(), cloneImportedReposWithProgress(), normalizeImportedBundle(), planImportedEntries(), TestCloneImportedReposMarksFailedCloneAsMissing(), TestCloneImportedReposNoopWithoutRegistry(), TestCloneImportedReposRejectsDuplicateTargets() (+14 more)
 
 ### Community 44 - "repometa.go"
 Cohesion: 0.16
@@ -408,12 +421,12 @@ Cohesion: 0.21
 Nodes (16): benchmarkMetric, benchmarkRunRecord, appendRecord(), gitShortCommit(), loadLastRecord(), main(), parseBenchmarkMetrics(), printSummary() (+8 more)
 
 ### Community 46 - "README.md"
-Cohesion: 0.09
-Nodes (16): Branching and Commits, Coding Standards, Contributing Guidelines, Development Setup, Graphify, Pull Requests, Release Process, Safety Expectations (+8 more)
+Cohesion: 0.14
+Nodes (4): Manual installation, RepoKeeper Agent Skill, Git compatibility command, Recipe-driven end-to-end tests
 
 ### Community 47 - "ExecutionResult"
-Cohesion: 0.15
-Nodes (16): boundedBuffer, ExecutionResult, scanJSONResponse, statusJSONRepository, statusJSONResponse, bytes.Buffer, sync.Mutex, time.Duration (+8 more)
+Cohesion: 0.16
+Nodes (14): boundedBuffer, ExecutionResult, scanJSONResponse, statusJSONRepository, statusJSONResponse, bytes.Buffer, time.Duration, decodeScanJSON() (+6 more)
 
 ### Community 48 - "RepoKeeper"
 Cohesion: 0.09
@@ -428,8 +441,8 @@ Cohesion: 0.11
 Nodes (18): 1. Keep MCP as a mixed read/write surface, 2. Remove MCP entirely and rely on CLI JSON only, 3. Allow execution only for "safe" mutations, ADR-0001: MCP Server for Agent-Native Repository Querying and Planning, Alternatives Considered, Architecture, Consequences, Context (+10 more)
 
 ### Community 51 - "helpers_test.go"
-Cohesion: 0.11
-Nodes (25): TestColorizeAndTrackingDisplayBranches(), TestColorizeGuardBranches(), TestConfirmSyncExecution(), TestConfirmSyncExecutionEOF(), TestConfirmWithPrompt(), TestFormatCellWrapControl(), TestHasRegistryWarnings(), TestStatusExitCode() (+17 more)
+Cohesion: 0.10
+Nodes (21): TestConfirmSyncExecution(), TestConfirmSyncExecutionEOF(), TestConfirmWithPrompt(), TestDisplayRepoPathPrefersCWDThenRoot(), TestFormatCellWrapControl(), TestHasRegistryWarnings(), TestStatusExitCode(), TestStatusWarningsAndWideMirrorRow() (+13 more)
 
 ### Community 52 - "addFormatFlag"
 Cohesion: 0.29
@@ -439,9 +452,9 @@ Nodes (13): init(), addFormatFlag(), addLabelSelectorFlag(), addNoHeadersFlag(),
 Cohesion: 0.26
 Nodes (12): TestGuessRepoMetadataDefaultsClonesExistingMetadata(), TestIndexQuestionerUsesDefaultsAndParsers(), TestUnifiedDiffEmptyWhenIdentical(), TestUnifiedDiffReportsChanges(), TestWriteMetadataPreviewDiffsUnparseableExisting(), TestWriteMetadataPreviewNewFile(), TestWriteMetadataPreviewShowsDiff(), TestWriteMetadataPreviewUnchanged() (+4 more)
 
-### Community 54 - "MCPToolCase"
-Cohesion: 0.17
-Nodes (16): MCPToolCase, addedRepositoryPath(), mutationMCPToolCases(), emptyMCPArguments(), readMCPToolCases(), requireFields(), requireList(), safetyMCPToolCases() (+8 more)
+### Community 54 - "github.com/mark3labs/mcp-go/mcp.CallToolResult"
+Cohesion: 0.19
+Nodes (17): MCPToolCase, github.com/mark3labs/mcp-go/mcp.CallToolResult, addedRepositoryPath(), mutationMCPToolCases(), emptyMCPArguments(), readMCPToolCases(), requireFields(), requireList() (+9 more)
 
 ### Community 55 - "ADR-0006: Adapter-Facing Contract Stability and Versioning"
 Cohesion: 0.12
@@ -451,13 +464,17 @@ Nodes (16): 1. Treat CLI JSON as best-effort only, 2. Require adapters to import
 Cohesion: 0.12
 Nodes (16): Avoid these mistakes, Check health first, Core rules, Discovery workflow, Execute safe updates, Good agent response pattern, Initialization workflow, Labeling workflow (+8 more)
 
-### Community 58 - "mcpserver_test.go"
+### Community 57 - "Snippet"
 Cohesion: 0.18
-Nodes (11): github.com/mark3labs/mcp-go/mcp.JSONRPCMessage, expectResourceError(), expectResourceSuccess(), intPtr(), newTestConfig(), newTestRegistry(), newTestStatusReport(), registryWithDuplicateRepoID() (+3 more)
+Nodes (16): expectedAllowList(), TestDocsPermissionsSnippetMatchesReadOnlyTools(), TestInstallManualClaudeEmitsPermissionsBlock(), ClaudePermissionsSnippet(), ClaudePermissionToolName(), Entry, renderJSON(), renderTOML() (+8 more)
+
+### Community 58 - "mcpserver_test.go"
+Cohesion: 0.15
+Nodes (13): github.com/mark3labs/mcp-go/client.Client, github.com/mark3labs/mcp-go/mcp.JSONRPCMessage, expectResourceError(), expectResourceSuccess(), intPtr(), newInitializedClient(), newTestConfig(), newTestRegistry() (+5 more)
 
 ### Community 59 - "discovery.go"
-Cohesion: 0.19
-Nodes (18): Options, Result, buildResult(), detectRepo(), gitdirFromFile(), TestBuildResultBranches(), TestDetectRepoBranches(), TestGitdirFromFile() (+10 more)
+Cohesion: 0.22
+Nodes (16): Options, Result, buildResult(), detectRepo(), gitdirFromFile(), TestBuildResultBranches(), TestDetectRepoBranches(), TestGitdirFromFile() (+8 more)
 
 ### Community 60 - "Changelog"
 Cohesion: 0.11
@@ -468,20 +485,20 @@ Cohesion: 0.07
 Nodes (29): 1. Tool Discovery (all 14 tools visible), 2. Read-only Tools (safe, no side effects), 3. Planning Tools (dry-run only), 4. Mutation Tools + Safety Gates, 5. Structured Content + Error Handling, 6. Client Compatibility Smoke Test, Available tools, CLI skill fallback (+21 more)
 
 ### Community 62 - "newPlanExecEngine"
-Cohesion: 0.24
-Nodes (12): Engine, Engine, SyncResult, newPlanExecEngine(), TestApplyRemoteMismatchPlansUsesInjectedAdapter(), TestExecutePlannedNonCloneUnknownStepFailsInvalid(), TestExecutePlannedSyncItemEmptyStepsFailsInvalid(), TestParseFilterKind() (+4 more)
+Cohesion: 0.22
+Nodes (13): syncStep, Engine, Engine, SyncResult, newPlanExecEngine(), TestApplyRemoteMismatchPlansUsesInjectedAdapter(), TestExecutePlannedNonCloneUnknownStepFailsInvalid(), TestExecutePlannedSyncItemEmptyStepsFailsInvalid() (+5 more)
 
 ### Community 63 - "9. Future: Cross-Machine Registry Sync"
 Cohesion: 0.50
 Nodes (4): 9.1 Architecture considerations (factor in now), 9.2 Planned sync mechanisms (future, not v1), 9.3 Reconciliation (future), 9. Future: Cross-Machine Registry Sync
 
-### Community 64 - "writeRepairUpstreamTable"
-Cohesion: 0.15
-Nodes (16): TestDivergedAdviceAndTable(), needsUpstreamRepair(), parseUpstreamRepairFilter(), writeRepairUpstreamTable(), buildDivergedAdvice(), divergedReasonAndAction(), writeDivergedStatusTable(), adaptiveCellLimit() (+8 more)
+### Community 64 - "writeStatusTable"
+Cohesion: 0.12
+Nodes (21): needsUpstreamRepair(), parseUpstreamRepairFilter(), writeRepairUpstreamTable(), writeStatusTable(), adaptiveCellLimit(), adaptiveCellLimitForWidth(), tableWidth(), captureStatusTableOutputAtWidth() (+13 more)
 
-### Community 65 - "writeEmptyConfig"
+### Community 65 - "Load"
 Cohesion: 0.14
-Nodes (28): TestAddCommandWithAbsoluteTargetDoesNotReRootUnderCWD(), mustRunGit(), TestAddDeleteWithRegistryOverride(), TestAddValidationMutuallyExclusiveFlags(), TestDeleteCancelledByPrompt(), TestDeleteTrackingOnlyAddsIgnoredPathAndKeepsRepo(), TestInitCommandForceBehavior(), TestScanJSONOutputAndUnsupportedFormat() (+20 more)
+Nodes (30): TestAddCommandWithAbsoluteTargetDoesNotReRootUnderCWD(), mustRunGit(), TestAddDeleteWithRegistryOverride(), TestAddValidationMutuallyExclusiveFlags(), TestDeleteCancelledByPrompt(), TestDeleteTrackingOnlyAddsIgnoredPathAndKeepsRepo(), TestInitCommandForceBehavior(), TestScanJSONOutputAndUnsupportedFormat() (+22 more)
 
 ### Community 66 - "ADR-0003: Sync Policy and Execution Modes"
 Cohesion: 0.13
@@ -496,20 +513,20 @@ Cohesion: 0.10
 Nodes (18): Content Quality, Feature Readiness, Notes, Requirement Completeness, Specification Quality Checklist: GitHub Remote End-to-End Expansion, Assumptions, Edge Cases, Feature Specification: GitHub Remote End-to-End Expansion (+10 more)
 
 ### Community 69 - "WriteTable"
-Cohesion: 0.18
-Nodes (12): errorWriter, TestWriteRemoteMismatchPlan(), remoteMismatchPlan, writeRemoteMismatchPlan(), PromptYesNo(), TestPromptYesNo(), TestPromptYesNoNoAndEOF(), TestPromptYesNoWriteError() (+4 more)
+Cohesion: 0.24
+Nodes (9): errorWriter, PromptYesNo(), TestPromptYesNo(), TestPromptYesNoNoAndEOF(), TestPromptYesNoWriteError(), TestWriteTable(), TestWriteTableNoHeaders(), TestWriteTableWriteError() (+1 more)
 
 ### Community 70 - "ADR-0007: Release Binary Publishing and Homebrew Distribution"
 Cohesion: 0.14
 Nodes (14): 1. Goreleaser owns the GitHub release and release body; release-please bumps version; the `release-please.yml` workflow pushes the tag, 2. Keep `homebrew_casks:`, but make it install cleanly on Apple Silicon, 3. Backfill v0.7.0 assets (one-off), ADR-0007: Release Binary Publishing and Homebrew Distribution, Consequences, Context, Decision, Implementation plan (+6 more)
 
 ### Community 71 - "NewGitErrorClassifier"
-Cohesion: 0.25
-Nodes (9): TestActionsResetDeleteCloneAndRegister(), TestExecuteImportClonesSuccessFailureAndSkips(), TestPlanImportClonesGuardsAndErrors(), TestPlanImportClonesSkipsAndSuccess(), TestRepairUpstreamScenarios(), NewGitErrorClassifier(), TestGitErrorClassifier(), TestGitErrorClassifierMatchesGitx() (+1 more)
+Cohesion: 0.12
+Nodes (16): TestActionsResetDeleteCloneAndRegister(), TestExecuteImportClonesSuccessFailureAndSkips(), TestPlanImportClonesGuardsAndErrors(), TestPlanImportClonesSkipsAndSuccess(), TestRepairUpstreamScenarios(), TestExecuteSyncPlanAppliesPlannedActions(), NormalizeURL(), PrimaryRemote() (+8 more)
 
 ### Community 72 - "readJSONDoc"
-Cohesion: 0.14
-Nodes (12): Entry, readJSONDoc(), writeJSONDoc(), checkJsonc(), Entry, init(), opencodeDir(), opencodeServersMap() (+4 more)
+Cohesion: 0.13
+Nodes (13): Entry, init(), readJSONDoc(), writeJSONDoc(), checkJsonc(), Entry, init(), opencodeDir() (+5 more)
 
 ### Community 73 - "Feature Specification: Distribution Channel Conformance"
 Cohesion: 0.09
@@ -532,8 +549,8 @@ Cohesion: 0.15
 Nodes (12): 1. Tool Discovery, 2. Read-only Tools, 3. Planning Tools, 4. Mutation Tools + Safety Gates, 5. Structured Content & Error Quality, 6. Overall Claude Experience, How to Run the Verification (for the user), MCP Manual Verification Results (SKA-201) (+4 more)
 
 ### Community 78 - ".handleSelectRepositories"
-Cohesion: 0.20
-Nodes (14): filterBulkIndexEntriesByLabels(), filterStatusReportByLabels(), filterStatusReportByLocalLabels(), mergeLabels(), buildMatchReason(), enrichAnnotations(), enrichLabels(), MCPServer (+6 more)
+Cohesion: 0.16
+Nodes (16): filterBulkIndexEntriesByLabels(), filterStatusReportByLabels(), filterStatusReportByLocalLabels(), MCPServer, matchesStatusFilter(), buildMatchReason(), enrichAnnotations(), enrichLabels() (+8 more)
 
 ### Community 79 - "Phase 0 Research: Recipe-Driven End-to-End Test Harness"
 Cohesion: 0.11
@@ -548,8 +565,8 @@ Cohesion: 0.25
 Nodes (8): mergePromotedLabels(), cloneMetadataMap(), normalizeMetadataMap(), parseMetadataAssignments(), parseMetadataKeys(), TestParseMetadataAssignments(), TestParseMetadataKeys(), validateMetadataKey()
 
 ### Community 82 - "HgAdapter"
-Cohesion: 0.11
-Nodes (3): rejectFlagLike(), runCommand(), HgAdapter
+Cohesion: 0.08
+Nodes (4): Head, rejectFlagLike(), runCommand(), HgAdapter
 
 ### Community 83 - "RepoKeeper — Design Spec"
 Cohesion: 0.20
@@ -575,13 +592,25 @@ Nodes (5): TestEditRunERejectsInvalidEditedYAML(), TestResolveEditorCommandParse
 Cohesion: 0.21
 Nodes (13): LocalBranchInfo, stubRunner, LocalBranches(), MergedBranches(), ParseCherryEquivalent(), ParseLocalBranches(), PatchEquivalentToBase(), TestLocalBranchesRunner() (+5 more)
 
+### Community 89 - "registry_test.go"
+Cohesion: 0.13
+Nodes (15): Load(), TestFindByRepoIDAndCheckoutIDBackfillsLegacyEntries(), TestFindEntriesByRepoID(), TestFindEntriesByRepoIDReturnsAllCheckoutMatches(), TestLegacyEntryBackfillsCheckoutID(), TestLegacySameBasenameCheckoutsKeepTheirMetadata(), TestLookupsDoNotMutateEntries(), TestUpsertAllowsDuplicateRepoIDWithDistinctCheckoutID() (+7 more)
+
+### Community 90 - "command_parsing_test.go"
+Cohesion: 0.15
+Nodes (12): TestParseRemoteMismatchReconcileModeTable(), TestRepairUpstreamMatchesFilterTable(), TestShouldStreamSyncResults(), TestSyncResultNeedsConfirmationTable(), TestShouldStreamSyncResultsBranches(), TestSyncPlanNeedsConfirmation(), repairUpstreamMatchesFilter(), remoteMismatchReconcileMode (+4 more)
+
 ### Community 91 - "GitHub Copilot Instructions for RepoKeeper"
 Cohesion: 0.18
 Nodes (10): Codebase Shape, Commit and Branch Guidance, Documentation Expectations, GitHub Copilot Instructions for RepoKeeper, Go and Repository Conventions, Pull Request Instructions, Safety Rules, Testing Expectations (+2 more)
 
 ### Community 92 - "RepoStatus"
-Cohesion: 0.14
-Nodes (12): time.Time, filterRegistryEntriesByIgnoredPaths(), ScanOptions, StatusOptions, ignoredPathSet(), pathUnderAnyRoot(), sortRepoStatuses(), RemoteTrackingRefStatus (+4 more)
+Cohesion: 0.15
+Nodes (12): filterRegistryEntriesByIgnoredPaths(), Engine, hasRemoteMismatch(), inspectFailureResult(), TestInspectFailureResult(), pathUnderAnyRoot(), RemoteTrackingRefStatus, RepoStatus (+4 more)
+
+### Community 93 - "mockEngine"
+Cohesion: 0.18
+Nodes (4): TestScanDefaultsAndEmptyRoots(), TestScanToleratesDirectoryRemovedMidScan(), ScanOptions, mockEngine
 
 ### Community 94 - "Core Principles"
 Cohesion: 0.11
@@ -624,8 +653,8 @@ Cohesion: 0.15
 Nodes (13): 1. Land releasable commits on `main`, 2. Run local release checks, 3. Review and merge the release PR, 4. Tag push + GitHub release automation, 5. Verify the release, Channel verification, Compatibility qualification boundary, Credentials fail the release; they never skip a channel (+5 more)
 
 ### Community 104 - "repair_upstream_test.go"
-Cohesion: 0.20
-Nodes (9): TestRepairUpstreamMatchesFilterTable(), repairUpstreamMatchesFilter(), TestNeedsUpstreamRepair(), TestParseUpstreamRepairFilter(), TestRepairUpstreamMatchesFilter(), TestResolveUpstreamTargetBranch(), TestWriteRepairUpstreamTable(), TestWriteRepairUpstreamTableCompactsColumnsOnTinyTTY() (+1 more)
+Cohesion: 0.25
+Nodes (7): TestNeedsUpstreamRepair(), TestParseUpstreamRepairFilter(), TestRepairUpstreamMatchesFilter(), TestResolveUpstreamTargetBranch(), TestWriteRepairUpstreamTable(), TestWriteRepairUpstreamTableCompactsColumnsOnTinyTTY(), TestWriteRepairUpstreamTableNoHeaders()
 
 ### Community 105 - "speckit-specify/SKILL.md"
 Cohesion: 0.18
@@ -640,12 +669,16 @@ Cohesion: 0.43
 Nodes (5): RepairUpstreamResult, TestRepairHelpers(), Engine, repairNeedsUpstream(), repairResolveTargetBranch()
 
 ### Community 108 - "Scope"
-Cohesion: 0.22
-Nodes (4): Scope, Entry, TestScopeString(), fakeRuntime
+Cohesion: 0.16
+Nodes (6): collectUninstallTargets(), Scope, Entry, TestScopeString(), fakeRuntime, uninstallTarget
 
-### Community 109 - "tools_mutation.go"
-Cohesion: 0.15
-Nodes (15): matchesStatusFilter(), countNewRegistryEntries(), countRegistryEntriesWithStatus(), optionalStringSliceArg(), registryEntryKey(), registryEntrySet(), EntryStatus, addRepoResponse (+7 more)
+### Community 109 - "Contributing Guidelines"
+Cohesion: 0.20
+Nodes (9): Branching and Commits, Coding Standards, Contributing Guidelines, Development Setup, Graphify, Pull Requests, Release Process, Safety Expectations (+1 more)
+
+### Community 110 - "importTargetRelativePath"
+Cohesion: 0.44
+Nodes (8): importTargetRelativePath(), relativeFromAbsolutePath(), relFromRootBasename(), TestImportTargetRelativePath(), TestImportTargetRelativePathWindowsDriveAbsolute(), cleanRelativePath(), isAbsoluteLikePath(), normalizePathLikeInput()
 
 ### Community 111 - "Implementation Plan: [FEATURE]"
 Cohesion: 0.22
@@ -668,24 +701,24 @@ Cohesion: 0.32
 Nodes (5): TestSplitCSV(), ParseFieldSelectorFilter(), ResolveRepoFilter(), SplitCSV(), TestSplitCSV()
 
 ### Community 116 - "mcpSession"
-Cohesion: 0.17
-Nodes (11): mcpSession, context.CancelFunc, github.com/mark3labs/mcp-go/client.Client, io.WriteCloser, sync.Once, newInitializedClient(), mcpProcessExitError(), startMCPSession() (+3 more)
+Cohesion: 0.19
+Nodes (10): mcpSession, context.CancelFunc, io.WriteCloser, sync.Once, mcpProcessExitError(), startMCPSession(), validateJSONRPCFrames(), invokeMCP() (+2 more)
 
-### Community 117 - "readonly_test.go"
-Cohesion: 0.24
-Nodes (12): explainReadOnly(), isReadOnly(), mentionsReadOnlyFilesystem(), resultErrorText(), TestExplainReadOnlyDoesNotMisdiagnoseOtherGitFailures(), TestExplainReadOnlyNamesCauseAndRemedy(), TestExplainReadOnlyPassesThroughUnrelatedErrors(), TestExplainReadOnlyRecognisesGitSubprocessFailures() (+4 more)
+### Community 117 - "newToolError"
+Cohesion: 0.22
+Nodes (14): explainReadOnly(), isReadOnly(), mentionsReadOnlyFilesystem(), resultErrorText(), TestExplainReadOnlyDoesNotMisdiagnoseOtherGitFailures(), TestExplainReadOnlyNamesCauseAndRemedy(), TestExplainReadOnlyPassesThroughUnrelatedErrors(), TestExplainReadOnlyRecognisesGitSubprocessFailures() (+6 more)
 
 ### Community 118 - "Config"
-Cohesion: 0.09
-Nodes (36): loadExistingConfig(), TestImportCommandRunEFileOnlyFromStdin(), BranchPolicy, Defaults, configDir(), ConfigPath(), ConfigRoot(), EffectiveRoot() (+28 more)
+Cohesion: 0.12
+Nodes (29): BranchPolicy, Defaults, configDir(), ConfigPath(), ConfigRoot(), EffectiveRoot(), findNearestConfigPath(), Config (+21 more)
 
 ### Community 119 - "Phase 1 Data Model: Recipe-Driven End-to-End Test Harness"
 Cohesion: 0.14
 Nodes (13): BranchRecipe and CommitRecipe, CompatibilityCommandResult, CompatibilityResult, ConfigRecipe, ExecutionResult, ExpectedOutcome and NormalizedOutcome, GitCompatibilityMatrix and CompatibilityCell, MaterializedWorkspace (+5 more)
 
-### Community 120 - "coverage_boost_test.go"
-Cohesion: 0.12
-Nodes (16): TestLogOutputWriteFailureLogsError(), TestLogOutputWriteFailureNilError(), TestMarshalToGenericMarshalErrorPath(), TestMarshalToGenericUnmarshalErrorPath(), TestNewSyncProgressWriter(), TestSyncProgressWriterAdditionalBranches(), TestSyncProgressWriterPaths(), TestWriteImportCloneFailureSummary() (+8 more)
+### Community 120 - "resolveRepo"
+Cohesion: 0.28
+Nodes (4): resolveRepo(), MCPServer, mergeLabels(), MCPServer
 
 ### Community 121 - "speckit-tasks/SKILL.md"
 Cohesion: 0.18
@@ -702,6 +735,10 @@ Nodes (7): 7.1 Detection commands, 7.2 Tracking status (preferred), 7.3 Sync ope
 ### Community 124 - "Phase 0 Research: Distribution Channel Conformance"
 Cohesion: 0.14
 Nodes (14): Phase 0 Research: Distribution Channel Conformance, R10 — Mercurial in the container, R11 — ADR-0016 and the deviation record, R12 — Zero dependency growth, R1 — Version identity: three-tier resolution, R2 — Container base image ⚠ DIVERGENCE, R3 — Git "dubious ownership" in the container ⚠ DIVERGENCE, measured, R4 — Workspace discovery: cwd-relative crawl vs. a frozen container ⚠ DIVERGENCE (+6 more)
+
+### Community 125 - "grokAdapter"
+Cohesion: 0.32
+Nodes (4): grokDir(), init(), grokAdapter, grokServer
 
 ### Community 126 - "ADR-0013: GoReleaser Owns the GitHub Release"
 Cohesion: 0.29
@@ -720,16 +757,16 @@ Cohesion: 0.53
 Nodes (5): testing.B, benchmarkEngineWithRepos(), BenchmarkStatusReport(), BenchmarkSyncDryRunPlan(), Engine
 
 ### Community 130 - "recipe_test.go"
-Cohesion: 0.19
-Nodes (22): BranchRecipe, CommitRecipe, MetadataRecipe, RelationshipRecipe, RepositoryRecipe, UpstreamRecipe, cloneMap(), commitAll() (+14 more)
+Cohesion: 0.16
+Nodes (28): BranchRecipe, CommitRecipe, MaterializedMissingEntry, MaterializedRepository, MaterializedWorkspace, MetadataRecipe, RegistrySeedMode, RelationshipRecipe (+20 more)
 
 ### Community 131 - "Execution Contract"
 Cohesion: 0.20
 Nodes (9): CLI Process Boundary, CLI Scenario Contract, Determinism Contract, Exact Environment, Execution Contract, Full-release qualification, Git Compatibility Boundary, MCP Stdio Boundary (+1 more)
 
-### Community 132 - "countingRunner"
-Cohesion: 0.29
-Nodes (5): blockingRunner, countingRunner, mockResponse, mockRunner, joinArgs()
+### Community 132 - "sync.Mutex"
+Cohesion: 0.25
+Nodes (6): blockingRunner, countingRunner, mockResponse, mockRunner, sync.Mutex, joinArgs()
 
 ### Community 133 - "Decision"
 Cohesion: 0.33
@@ -763,17 +800,17 @@ Nodes (5): 4.1 Submodules: do not update, 4.2 Working tree safety, 4.3 MCP bound
 Cohesion: 0.40
 Nodes (5): 8.1 Packages (Go), 8.2 CLI framework, 8.3 Concurrency model, 8.4 TUI model (withdrawn), 8. Architecture
 
-### Community 141 - "001-distribution-channels/spec.md"
-Cohesion: 0.17
+### Community 141 - "Specification Quality Checklist: Distribution Channel Conformance"
+Cohesion: 0.33
 Nodes (5): Content Quality, Feature Readiness, Notes, Requirement Completeness, Specification Quality Checklist: Distribution Channel Conformance
 
 ### Community 142 - "Phase 1 Data Model: Distribution Channel Conformance"
 Cohesion: 0.17
 Nodes (11): 1. Version Identity, 2. Release Artifact Set, 3. Server Description, 4. Container Workspace Contract, `Info`, Phase 1 Data Model: Distribution Channel Conformance, Resolution rules — FR-001 through FR-005, `Source` (+3 more)
 
-### Community 144 - "newMCPEngine"
-Cohesion: 0.18
-Nodes (8): buildMCPLogger(), newMCPEngine(), TestBuildMCPLoggerReturnsOpenFileErrors(), TestBuildMCPLoggerWithoutPathReturnsNopLogger(), TestBuildMCPLoggerWritesFormattedLines(), TestNewMCPEngineWiresLoggerIntoGitAdapter(), log.Logger, fileLogger
+### Community 144 - "NopLogger"
+Cohesion: 0.20
+Nodes (10): buildMCPLogger(), newMCPEngine(), TestBuildMCPLoggerReturnsOpenFileErrors(), TestBuildMCPLoggerWithoutPathReturnsNopLogger(), TestBuildMCPLoggerWritesFormattedLines(), TestNewMCPEngineWiresLoggerIntoGitAdapter(), TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(), NopLogger() (+2 more)
 
 ### Community 145 - "declaration.go"
 Cohesion: 0.07
@@ -819,13 +856,13 @@ Nodes (7): ADR-0012: Release Please Owns Release Notes, Alternatives Considered,
 Cohesion: 0.33
 Nodes (5): Outline, Post-Execution Checks, Pre-Execution Checks, Scope Guard, User Input
 
+### Community 157 - "Colorize"
+Cohesion: 0.33
+Nodes (5): TestColorizeAndTrackingDisplayBranches(), TestColorizeGuardBranches(), displayTrackingStatus(), Colorize(), TestColorize()
+
 ### Community 158 - "speckit-taskstoissues/SKILL.md"
 Cohesion: 0.40
 Nodes (4): Outline, Post-Execution Checks, Pre-Execution Checks, User Input
-
-### Community 159 - "NormalizeURL"
-Cohesion: 0.25
-Nodes (4): NormalizeURL(), PrimaryRemote(), TestGitURLNormalizerMatchesGitx(), gitURLNormalizer
 
 ### Community 160 - "Q: ok what else is on the docket for repokeeper that is achievable in one day"
 Cohesion: 0.40
@@ -839,21 +876,21 @@ Nodes (4): Answer, Outcome, Q: lets look at the issues on the repo and pick one 
 Cohesion: 0.50
 Nodes (3): testResponse, testRunner, TestWorkerChannelBufferSize()
 
-### Community 164 - "NopLogger"
-Cohesion: 0.17
-Nodes (9): TestSyncSkipsUnsupportedLocalUpdateByAdapterCapability(), TestExecuteSyncPlanAppliesPlannedActions(), TestExecuteSyncPlanStopsOnFailureWhenConfigured(), NopLogger(), TestNopLoggerDoesNotPanic(), TestNopLoggerSatisfiesInterface(), URLNormalizer, NewGitURLNormalizer() (+1 more)
-
 ### Community 165 - "Git Compatibility Declaration Contract"
 Cohesion: 0.25
 Nodes (7): Closed support claim, Document shape, Environment and provisioner rules, Git Compatibility Declaration Contract, Release evidence, Reusable executable interface, Tag and recovery semantics
+
+### Community 166 - "Third-Party Notices"
+Cohesion: 0.50
+Nodes (3): Crediting libraries correctly, Regenerating notices, Third-Party Notices
 
 ### Community 167 - "Recipe Contract"
 Cohesion: 0.25
 Nodes (7): Canonical Topology, Materialization Contract, Preflight Contract, Purpose, Ready-State Invariants, Recipe Contract, Reuse Contract
 
-### Community 168 - "MaterializedWorkspace"
-Cohesion: 0.23
-Nodes (11): MaterializedMissingEntry, MaterializedRepository, MaterializedWorkspace, RepositorySnapshot, WorkspaceSnapshot, captureWorkspaceSnapshot(), reloadWorkspaceState(), semanticPath() (+3 more)
+### Community 168 - "assertions_test.go"
+Cohesion: 0.36
+Nodes (6): RepositorySnapshot, WorkspaceSnapshot, captureWorkspaceSnapshot(), reloadWorkspaceState(), semanticPath(), sortedRegistryPaths()
 
 ### Community 170 - "MCP Tool Matrix Contract"
 Cohesion: 0.29
@@ -864,12 +901,12 @@ Cohesion: 0.52
 Nodes (6): buildChildEnvironment(), copyHostEnvironment(), environmentMap(), executableNullDevice(), lookupEnvironmentFold(), setEnvironmentValue()
 
 ### Community 179 - "version_test.go"
-Cohesion: 0.11
-Nodes (32): Source, advertisedVersion(), orUnavailable(), resolvedBuildInfo(), revisionField(), runVersion(), TestAdvertisedVersion(), TestRevisionField() (+24 more)
+Cohesion: 0.09
+Nodes (36): Source, TestLogOutputWriteFailureLogsError(), TestLogOutputWriteFailureNilError(), logOutputWriteFailure(), advertisedVersion(), orUnavailable(), resolvedBuildInfo(), revisionField() (+28 more)
 
 ### Community 206 - "comment_guard_test.go"
-Cohesion: 0.50
-Nodes (8): mustReadFile(), TestCodexRemoveEntryAbsentCommentedFileSucceeds(), TestCodexRemoveEntryPresentCommentedFileRefuses(), TestCodexWriteEntryAllowsUncommentedFile(), TestCodexWriteEntryRefusesCommentedFile(), TestGrokWriteEntryRefusesCommentedFile(), TestNewConfigFilesAreOwnerOnly(), writeTemp()
+Cohesion: 0.42
+Nodes (9): mustReadFile(), TestCodexRemoveEntryAbsentCommentedFileSucceeds(), TestCodexRemoveEntryPresentCommentedFileRefuses(), TestCodexWriteEntryAllowsUncommentedFile(), TestCodexWriteEntryRefusesCommentedFile(), TestGrokWriteEntryRefusesCommentedFile(), TestNewConfigFilesAreOwnerOnly(), TestTomlHasComments() (+1 more)
 
 ### Community 207 - "Implementation Plan: Distribution Channel Conformance"
 Cohesion: 0.18
@@ -914,17 +951,17 @@ Nodes (6): Human-readable output, Local build from a clean tree (FR-002), Local 
 ## Knowledge Gaps
 - **836 isolated node(s):** `common.sh script`, `runtimeStateKey`, `versionJSON`, `github.com/skaphos/repokeeper`, `localUpdateCapable` (+831 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1039 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **13 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Entry` connect `Entry` to `SyncResult`, `import_clone.go`, `github.com/mark3labs/mcp-go/mcp.CallToolResult`, `FilterKind`, `buildIndexProposal`, `repairResolveTargetBranch`, `runDescribeRepo`, `.handleSelectRepositories`, `tools_mutation.go`, `repometa.go`, `SortRegistryEntries`, `index.go`, `import_test.go`, `.DeleteRepo`, `RepoStatus`, `newPlanExecEngine`?**
+- **Why does `Entry` connect `Entry` to `github.com/mark3labs/mcp-go/mcp.CallToolRequest`, `runDescribeRepo`, `model.go`, `index.go`, `import.go`, `.DeleteRepo`, `Registry`, `SyncResult`, `engine/engine.go`, `import_test.go`, `repometa.go`, `newPlanExecEngine`, `buildIndexProposal`, `.handleSelectRepositories`, `RepoStatus`, `repairResolveTargetBranch`, `importTargetRelativePath`, `SortRegistryEntries`, `resolveRepo`?**
   _High betweenness centrality (0.023) - this node is a cross-community bridge._
-- **Why does `Registry` connect `Entry` to `SyncResult`, `github.com/mark3labs/mcp-go/mcp.CallToolResult`, `MaterializedWorkspace`, `FilterKind`, `ApplyPlans`, `tools_mutation.go`, `.handleSelectRepositories`, `RepoStatus`, `ExecutionResult`, `status.go`, `runDescribeRepo`, `helpers_test.go`, `Config`, `export_test.go`, `import_test.go`, `.DeleteRepo`, `mcpserver_test.go`, `NewGitAdapter`?**
-  _High betweenness centrality (0.014) - this node is a cross-community bridge._
 - **Why does `TestMultiAdapterDelegatesAllMethods()` connect `multiStubAdapter` to `testing.T`?**
-  _High betweenness centrality (0.012) - this node is a cross-community bridge._
+  _High betweenness centrality (0.016) - this node is a cross-community bridge._
+- **Why does `Registry` connect `Registry` to `github.com/mark3labs/mcp-go/mcp.CallToolRequest`, `ApplyPlans`, `runDescribeRepo`, `model.go`, `export_test.go`, `import.go`, `.DeleteRepo`, `NewGitAdapter`, `Entry`, `assertions_test.go`, `engine/engine.go`, `import_test.go`, `ExecutionResult`, `helpers_test.go`, `mcpserver_test.go`, `.handleSelectRepositories`, `registry_test.go`, `RepoStatus`, `mockEngine`, `Config`, `resolveRepo`?**
+  _High betweenness centrality (0.013) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `Save()` (e.g. with `TestSaveErrorsWhenParentIsFile()` and `TestSaveNilConfigErrors()`) actually correct?**
   _`Save()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 2 inferred relationships involving `DefaultConfig()` (e.g. with `TestSaveErrorsWhenParentIsFile()` and `TestValidateSavedConfigGVKErrors()`) actually correct?**
@@ -932,4 +969,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `common.sh script`, `runtimeStateKey`, `versionJSON` to the rest of the system?**
   _836 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Save` be split into smaller, more focused modules?**
-  _Cohesion score 0.12627450980392158 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1229260935143288 - nodes in this community are weakly interconnected._
