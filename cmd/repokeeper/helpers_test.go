@@ -3,6 +3,8 @@ package repokeeper
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -453,6 +455,49 @@ func TestWriteStatusDetailsAndHelpers(t *testing.T) {
 	}
 	if _, ok := relWithin("/tmp/base", ""); ok {
 		t.Fatal("expected relWithin to fail with blank target")
+	}
+}
+
+// A workspace reached through a symlink reports its resolved path as the
+// process working directory while registry entries keep the symlinked form.
+// Both spellings must still resolve to a short in-tree name, including for a
+// repository that no longer exists on disk.
+func TestRelWithinResolvesSymlinkedBase(t *testing.T) {
+	root := t.TempDir()
+	real := filepath.Join(root, "real")
+	if err := os.MkdirAll(filepath.Join(real, "present"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		base   string
+		target string
+	}{
+		{"resolved base, symlinked target", real, filepath.Join(link, "present")},
+		{"symlinked base, resolved target", link, filepath.Join(real, "present")},
+		{"missing repository", real, filepath.Join(link, "missing-repo")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			want := filepath.Base(tc.target)
+			got, ok := relWithin(tc.base, tc.target)
+			if !ok || got != want {
+				t.Fatalf("relWithin(%q, %q) = %q, %v; want %q, true", tc.base, tc.target, got, ok, want)
+			}
+		})
+	}
+
+	// Resolving symlinks must not turn an outside path into an in-tree name.
+	outside := filepath.Join(root, "outside")
+	if err := os.MkdirAll(outside, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := relWithin(link, outside); ok {
+		t.Fatalf("expected relWithin to reject a path outside the base, got %q", got)
 	}
 }
 
