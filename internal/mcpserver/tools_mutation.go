@@ -155,6 +155,8 @@ type syncPlanEntry struct {
 	Action             string                        `json:"action"`
 	Outcome            string                        `json:"outcome"`
 	Planned            bool                          `json:"planned"`
+	OK                 bool                          `json:"ok"`
+	Error              string                        `json:"error,omitempty"`
 	SkipReason         string                        `json:"skip_reason,omitempty"`
 	RemoteTrackingRefs model.RemoteTrackingRefStatus `json:"remote_tracking_refs"`
 }
@@ -165,6 +167,9 @@ func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest)
 		return newToolError(err), nil
 	}
 	opts.DryRun = true // plan_sync is always dry-run
+	// Match CLI dry-run and execute_sync planning: one failed checkout must
+	// not hide actions for later entries in the registry.
+	opts.ContinueOnError = true
 
 	results, err := s.engine.Sync(ctx, opts)
 	if err != nil {
@@ -173,12 +178,21 @@ func (s *MCPServer) handlePlanSync(ctx context.Context, req mcp.CallToolRequest)
 
 	entries := make([]syncPlanEntry, 0, len(results))
 	for _, r := range results {
+		// Match the CLI JSON contract: planned identifies planned_* outcomes;
+		// preserve real skip/failure reasons but omit the dry-run sentinel.
+		planned := strings.HasPrefix(string(r.Outcome), "planned_")
+		errText := r.Error
+		if planned {
+			errText = ""
+		}
 		entries = append(entries, syncPlanEntry{
 			RepoID:             r.RepoID,
 			Path:               r.Path,
 			Action:             r.Action,
 			Outcome:            string(r.Outcome),
-			Planned:            true,
+			Planned:            planned,
+			OK:                 r.OK,
+			Error:              errText,
 			SkipReason:         r.SkipReason,
 			RemoteTrackingRefs: r.RemoteTrackingRefs,
 		})
@@ -412,6 +426,14 @@ var validSyncFilters = map[string]struct{}{
 }
 
 func parseSyncOptions(req mcp.CallToolRequest) (engine.SyncOptions, error) {
+	// Sync has no label-filter option in the engine or CLI. Reject requests
+	// that would otherwise silently plan or execute against a broader set.
+	if raw, exists := req.GetArguments()["label_selector"]; exists {
+		label, ok := raw.(string)
+		if !ok || strings.TrimSpace(label) != "" {
+			return engine.SyncOptions{}, fmt.Errorf("label_selector is not supported for sync; use the health filter")
+		}
+	}
 	filterRaw := strings.ToLower(strings.TrimSpace(req.GetString("filter", "all")))
 	if _, ok := validSyncFilters[filterRaw]; !ok {
 		return engine.SyncOptions{}, fmt.Errorf("invalid filter %q: must be one of all, errors, dirty, clean, gone, diverged, behind, ahead, equal, remote-mismatch, missing", filterRaw)

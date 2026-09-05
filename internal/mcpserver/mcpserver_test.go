@@ -1172,7 +1172,7 @@ var _ = Describe("MCPServer", func() {
 	Describe("plan_sync", func() {
 		BeforeEach(func() {
 			eng.syncResult = []engine.SyncResult{
-				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true, RemoteTrackingRefs: model.RemoteTrackingRefStatus{StaleCount: 1, Stale: []string{"origin/merged"}}},
+				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomePlannedFetch, OK: true, Planned: true, Error: "dry-run", RemoteTrackingRefs: model.RemoteTrackingRefStatus{StaleCount: 1, Stale: []string{"origin/merged"}}},
 			}
 		})
 
@@ -1189,9 +1189,40 @@ var _ = Describe("MCPServer", func() {
 			Expect(structuredEntries).To(Equal(entries))
 			Expect(entries).To(HaveLen(1))
 			Expect(entries[0]["planned"]).To(BeTrue())
+			Expect(entries[0]).To(HaveKeyWithValue("ok", true))
+			Expect(entries[0]).NotTo(HaveKey("error"))
 			Expect(entries[0]["repo_id"]).To(Equal("github.com/example/alpha"))
 			refs := entries[0]["remote_tracking_refs"].(map[string]any)
 			Expect(refs["stale_count"]).To(BeNumerically("==", 1))
+		})
+
+		It("preserves skip and failure reasons without marking them planned", func() {
+			eng.syncResult = []engine.SyncResult{
+				{RepoID: "missing", Path: "/missing", Outcome: engine.SyncOutcomeSkippedMissing, Error: engine.SyncErrorMissing},
+				{RepoID: "dirty", Path: "/dirty", Outcome: engine.SyncOutcomeSkippedLocalUpdate, OK: true, Planned: true, Action: "fetch", Error: "skipped-local-update: dirty working tree", SkipReason: "dirty working tree"},
+			}
+			result, err := callTool(srv, "plan_sync", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+			var entries []map[string]any
+			Expect(json.Unmarshal(structuredListJSON(result, "plan"), &entries)).To(Succeed())
+			Expect(entries).To(HaveLen(2))
+			Expect(entries[0]).To(HaveKeyWithValue("planned", false))
+			Expect(entries[0]).To(HaveKeyWithValue("ok", false))
+			Expect(entries[0]).To(HaveKeyWithValue("error", "missing"))
+			Expect(entries[1]).To(HaveKeyWithValue("planned", false))
+			Expect(entries[1]).To(HaveKeyWithValue("ok", true))
+			Expect(entries[1]).To(HaveKeyWithValue("skip_reason", "dirty working tree"))
+			Expect(entries[1]).To(HaveKeyWithValue("action", "fetch"))
+		})
+
+		It("rejects unsupported sync label filters instead of silently widening the target set", func() {
+			for _, tool := range []string{"plan_sync", "execute_sync"} {
+				result, err := callTool(srv, tool, map[string]any{"label_selector": "env=prod", "confirm": true})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.IsError).To(BeTrue(), tool)
+				Expect(string(resultJSON(result))).To(ContainSubstring("label_selector is not supported"))
+			}
 		})
 
 		It("returns empty wrapped plan when there are no sync actions", func() {

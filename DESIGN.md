@@ -672,6 +672,8 @@ Field notes:
 * **`remote_tracking_refs`** — included in dry-run plans so callers can see which refs the planned fetch/prune would remove. Detection failures are reported as `inspection_error` without turning an otherwise valid fetch plan into a failure.
 * The shape is a stable adapter surface: additive fields are non-breaking; renaming/removing a field or changing a value's meaning is a break. The DTO lives in `cmd/repokeeper` (`syncResultJSON`).
 
+The real-process regression in `test/e2e/sync_plan_parity_spec_test.go` compares this CLI array against MCP `structuredContent.plan` on the same disposable workspace. It verifies selected paths, actions, outcomes, `ok`, `planned`, `error`, `skip_reason`, and remote-tracking details while preserving configuration, registry, refs, HEAD, and dirty files. MCP emits an explicit false `planned` for skips/failures, where CLI may omit it. MCP planning continues after per-repository failures, matching CLI's default and `execute_sync`; the unsupported sync `label_selector` is rejected rather than ignored.
+
 ## 7. Git Operations (Engine Contract)
 
 RepoKeeper shells out to the installed `git` binary for parity with real-world behavior. Use Go git libraries only when the CLI is a poor fit (performance, missing capability, or brittle parsing), and document any such fallback.
