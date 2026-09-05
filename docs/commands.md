@@ -38,7 +38,17 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 - `repo_id`, when only one checkout matches, or explicit `repo_id@checkout_id`.
 - Relative path from the current directory or config root.
 
-Absolute paths take precedence over IDs, and checkout IDs take precedence over repo IDs. Ambiguity errors list qualified IDs and absolute paths for the matching checkouts. Missing checkout paths can still be selected by their stored path.
+Absolute paths take precedence over IDs, and checkout IDs take precedence over repo IDs. Ambiguity errors list qualified IDs and absolute paths for the matching checkouts. Missing checkout paths resolve their existing symlinked ancestors and retain the absent suffix, so they can still be selected through the root alias or resolved path.
+
+For example, if two checkouts share `github.com/example/proj` and have checkout IDs `proj` and `proj-copy`, select the second checkout with:
+
+```bash
+repokeeper describe proj-copy
+repokeeper label github.com/example/proj@proj-copy --set env=dev
+repokeeper describe /work/b/proj
+```
+
+Use the IDs and paths returned by `repokeeper get -o json`. A bare repository ID is ambiguous in this example; it does not select either checkout.
 
 ## Command Notes
 
@@ -51,6 +61,21 @@ Absolute paths take precedence over IDs, and checkout IDs take precedence over r
 - Use `-o wide` for additional `PRIMARY_REMOTE`, `UPSTREAM`, `AHEAD`, `BEHIND`, and `ERROR_CLASS`.
 - Table output includes `STALE_REFS`, the number of remote-tracking refs a prune would remove. JSON and `describe` include the ref names and any non-fatal remote inspection error.
 - JSON output includes repo-local metadata when `.repokeeper-repo.yaml` or `repokeeper.yaml` is present.
+
+For one missing checkout, stderr includes:
+
+```text
+error: missing-repo (missing: path missing)
+status completed: 1 repo (1 error)
+```
+
+The command exits with status `2`. With `-o json`, stdout remains a JSON document containing the repository's `error` and `error_class`; callers should inspect it even when the command exits nonzero. A path that disappears before a new scan may be classified as `unknown` with the underlying inspection error. Run `scan` to refresh its registry state to `missing`.
+
+### `repokeeper move`
+
+- Accepts `<selector> <new-path>` and moves the selected checkout directory to the new path.
+- Updates the checkout's registry path while retaining its identity and local metadata.
+- Rejects ambiguous selectors, a missing source, an existing destination, or an unchanged destination.
 
 ### `repokeeper describe`
 

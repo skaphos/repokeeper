@@ -95,18 +95,31 @@ Use JSON when another agent step needs structured output:
 repokeeper get -o json
 ```
 
+## Health errors and repository selectors
+
+`get` exits with status `2` when a displayed repository has an error. Read the diagnostic on stderr and the `error` / `error_class` fields in JSON before continuing; a nonzero exit does not mean JSON output is unavailable. The default table adds `ERROR_CLASS` when errors are present, and the completion summary includes their count. `--quiet` suppresses the summary but retains errors. Filters apply to both the output and error diagnostics.
+
+For `describe`, `label`, `edit`, `delete`, `move`, and `index`, replace `<selector>` with:
+
+- an absolute checkout path; existing symlink ancestors are resolved even if the checkout is missing
+- a bare `checkout_id` from `get -o json`
+- a `repo_id` that identifies only one checkout, or `repo_id@checkout_id` to qualify a checkout ID
+- a relative path from the current directory or config root
+
+Absolute paths take precedence over IDs, and checkout IDs take precedence over repository IDs. If a selector is ambiguous, use one of the matching qualified IDs or absolute paths listed in the error. Never pick an arbitrary checkout when several share a repository ID.
+
 ## Labeling workflow
 
 Use `label` for machine-local classification that helps routing and filtering on the current machine:
 
 ```bash
-repokeeper label <repo-id-or-path> --set team=platform --set role=service
+repokeeper label <selector> --set team=platform --set role=service
 ```
 
 Remove labels with:
 
 ```bash
-repokeeper label <repo-id-or-path> --remove role
+repokeeper label <selector> --remove role
 ```
 
 Filter by machine-local label with:
@@ -137,9 +150,9 @@ When you need to choose the right repository before opening files:
    - `repo_metadata.paths.low_value`
 3. Prefer files under `repo_metadata.paths.authoritative` when present.
 4. Avoid `low_value` paths unless the task explicitly needs generated or archival content.
-5. Use `repokeeper describe <repo-id-or-path>` before editing when you need a single-repo deep view.
+5. Use `repokeeper describe <selector>` before editing when you need a single-repo deep view.
 
-For a single-repo deep view including local labels, shared labels, annotations, and repo-local metadata, use `repokeeper describe <repo-id-or-path>`; there is no interactive dashboard (ADR-0017).
+For a single-repo deep view including local labels, shared labels, annotations, and repo-local metadata, use `repokeeper describe <selector>`; there is no interactive dashboard (ADR-0017).
 
 ## Safe update workflow
 
@@ -214,19 +227,19 @@ Use repo-local metadata when source-controlled repository hints are helpful.
 Preview a metadata file:
 
 ```bash
-repokeeper index <repo-id-or-path>
+repokeeper index <selector>
 ```
 
 Write it only when explicitly intended:
 
 ```bash
-repokeeper index <repo-id-or-path> --write
+repokeeper index <selector> --write
 ```
 
 To bridge machine-local labels into shared metadata intentionally:
 
 ```bash
-repokeeper index <repo-id-or-path> --promote-local-labels --write
+repokeeper index <selector> --promote-local-labels --write
 ```
 
 For explicit bulk promotion by selectors:
