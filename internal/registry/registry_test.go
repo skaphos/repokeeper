@@ -56,7 +56,7 @@ var _ = Describe("Registry", func() {
 	It("upserts entries for the same checkout identity", func() {
 		reg := &registry.Registry{}
 		reg.Upsert(registry.Entry{RepoID: "repo1", Path: "/worktrees/primary", Status: registry.StatusPresent})
-		reg.Upsert(registry.Entry{RepoID: "repo1", Path: "/alternate/primary", Status: registry.StatusPresent})
+		reg.Upsert(registry.Entry{RepoID: "repo1", CheckoutID: "primary", Path: "/alternate/primary", Status: registry.StatusPresent})
 		Expect(reg.Entries).To(HaveLen(1))
 		Expect(reg.Entries[0].CheckoutID).To(Equal("primary"))
 		Expect(reg.Entries[0].Path).To(Equal("/alternate/primary"))
@@ -244,7 +244,7 @@ func TestFindEntriesByRepoID(t *testing.T) {
 	reg := &registry.Registry{}
 
 	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/worktrees/primary", Status: registry.StatusPresent})
-	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", Path: "/another-root/primary", Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/repo", CheckoutID: "primary", Path: "/another-root/primary", Status: registry.StatusPresent})
 
 	g.Expect(reg.Entries).To(HaveLen(1), "same checkout identity should update the existing entry")
 	g.Expect(reg.Entries[0].CheckoutID).To(Equal("primary"), "default checkout identity should be derived from path basename")
@@ -425,8 +425,8 @@ func TestUpsertKeepsCoexistingSameBasenameCheckouts(t *testing.T) {
 	g.Expect(work.CheckoutID).NotTo(Equal(scratch.CheckoutID))
 }
 
-// TestUpsertReHomesMovedCheckout confirms that when the previous path is gone
-// (a genuine move), the entry is re-homed rather than duplicated.
+// An explicit identity can carry a checkout across a move; path absence alone
+// must never transfer its identity or metadata to another checkout.
 func TestUpsertReHomesMovedCheckout(t *testing.T) {
 	g := NewWithT(t)
 	root := t.TempDir()
@@ -436,11 +436,92 @@ func TestUpsertReHomesMovedCheckout(t *testing.T) {
 
 	reg := &registry.Registry{}
 	reg.Upsert(registry.Entry{RepoID: "github.com/acme/proj", Path: oldPath, Status: registry.StatusPresent})
-	reg.Upsert(registry.Entry{RepoID: "github.com/acme/proj", Path: newPath, Status: registry.StatusPresent})
+	reg.Upsert(registry.Entry{RepoID: "github.com/acme/proj", CheckoutID: "proj", Path: newPath, Status: registry.StatusPresent})
 
 	g.Expect(reg.Entries).To(HaveLen(1), "a move must re-home the single entry")
 	g.Expect(reg.Entries[0].Path).To(Equal(newPath))
 	g.Expect(reg.Entries[0].Status).To(Equal(registry.StatusMoved))
+}
+
+func TestUpsertReservesMissingCheckoutIdentity(t *testing.T) {
+	t.Parallel()
+	for _, incomingExists := range []bool{false, true} {
+		name := "missing incoming path"
+		if incomingExists {
+			name = "present incoming path"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			g := NewWithT(t)
+			root := t.TempDir()
+			oldPath := filepath.Join(root, "absent", "proj")
+			newPath := filepath.Join(root, "new", "proj")
+			if incomingExists {
+				g.Expect(os.MkdirAll(newPath, 0o755)).To(Succeed())
+			}
+			reg := &registry.Registry{Entries: []registry.Entry{{
+				RepoID: "repo", CheckoutID: "proj", Path: oldPath, Status: registry.StatusMissing,
+				Labels:       map[string]string{"env": "prod"},
+				Annotations:  map[string]string{"owner": "primary"},
+				RepoMetadata: &model.RepoMetadata{Name: "Primary"},
+			}}}
+			original := reg.Entries[0]
+			reg.Upsert(registry.Entry{RepoID: "repo", Path: newPath})
+			g.Expect(reg.Entries).To(HaveLen(2))
+			g.Expect(*reg.FindEntry("repo", oldPath)).To(Equal(original))
+			added := reg.FindEntry("repo", newPath)
+			g.Expect(added).NotTo(BeNil())
+			g.Expect(added.CheckoutID).NotTo(Equal(original.CheckoutID))
+			g.Expect(added.Labels).To(BeEmpty())
+			g.Expect(added.Annotations).To(BeEmpty())
+			g.Expect(added.RepoMetadata).To(BeNil())
+		})
+	}
+}
+
+func TestUpsertPreservesKnownPathIdentity(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	root := t.TempDir()
+	knownPath := filepath.Join(root, "scratch", "proj")
+	g.Expect(os.MkdirAll(knownPath, 0o755)).To(Succeed())
+	reg := &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "repo", CheckoutID: "proj", Path: filepath.Join(root, "absent", "proj"), Status: registry.StatusMissing},
+		{RepoID: "repo", CheckoutID: "custom-checkout", Path: knownPath, Labels: map[string]string{"env": "dev"}},
+	}}
+	reg.Upsert(registry.Entry{RepoID: "repo", Path: knownPath})
+	g.Expect(reg.Entries).To(HaveLen(2))
+	known := reg.FindEntry("repo", knownPath)
+	g.Expect(known).NotTo(BeNil())
+	g.Expect(known.CheckoutID).To(Equal("custom-checkout"))
+	g.Expect(known.Labels).To(Equal(map[string]string{"env": "dev"}))
+	g.Expect(known.Status).To(Equal(registry.StatusPresent))
+}
+
+func TestUpsertAvoidsReservedPathHashIdentity(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	root := t.TempDir()
+	newPath := filepath.Join(root, "new", "proj")
+	reg := &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "repo", CheckoutID: "proj", Path: filepath.Join(root, "old", "proj"),
+	}}}
+	reg.Upsert(registry.Entry{RepoID: "repo", Path: newPath})
+	hashedID := reg.FindEntry("repo", newPath).CheckoutID
+	// Simulate an explicit ID occupying the generated hash at another path.
+	reg.Entries[1].Path = filepath.Join(root, "reserved", "proj")
+	reg.Entries[1].Labels = map[string]string{"env": "prod"}
+	reserved := reg.Entries[1]
+	reg.Upsert(registry.Entry{RepoID: "repo", Path: newPath})
+	g.Expect(reg.Entries).To(HaveLen(3))
+	g.Expect(*reg.FindEntry("repo", reserved.Path)).To(Equal(reserved))
+	added := reg.FindEntry("repo", newPath)
+	g.Expect(added.CheckoutID).NotTo(BeElementOf("proj", hashedID))
+	g.Expect(added.Labels).To(BeEmpty())
+	newID := added.CheckoutID
+	reg.Upsert(registry.Entry{RepoID: "repo", Path: newPath})
+	g.Expect(reg.Entries).To(HaveLen(3))
+	g.Expect(reg.FindEntry("repo", newPath).CheckoutID).To(Equal(newID))
 }
 
 // TestLookupsDoNotMutateEntries guards finding #1: lookups must be read-only so

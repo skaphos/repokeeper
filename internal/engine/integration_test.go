@@ -259,6 +259,75 @@ var _ = Describe("Engine integration", func() {
 		Expect(reg.Entries).To(HaveLen(1))
 		Expect(reg.Entries[0].Status).To(Equal(registry.StatusMissing))
 	})
+
+	It("preserves both checkout identities and local metadata when one disappears and returns", func() {
+		base := GinkgoT().TempDir()
+		root := filepath.Join(base, "workspace")
+		primaryPath := filepath.Join(root, "a", "proj")
+		secondaryPath := filepath.Join(root, "b", "proj")
+		for _, path := range []string{primaryPath, secondaryPath} {
+			runGit("", "init", path)
+			runGit(path, "remote", "add", "origin", "git@github.com:example/proj.git")
+		}
+		cfg := &config.Config{}
+		reg := &registry.Registry{}
+		eng := engine.New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil, nil)
+		opts := engine.ScanOptions{Roots: []string{root}}
+		results, err := eng.Scan(context.Background(), opts)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(results).To(HaveLen(2))
+		const repoID = "github.com/example/proj"
+		primary := reg.FindEntry(repoID, primaryPath)
+		secondary := reg.FindEntry(repoID, secondaryPath)
+		Expect(primary).NotTo(BeNil())
+		Expect(secondary).NotTo(BeNil())
+		primary.Labels = map[string]string{"env": "prod", "role": "primary"}
+		primary.Annotations = map[string]string{"owner": "operations"}
+		secondary.Labels = map[string]string{"env": "dev"}
+		secondary.Annotations = map[string]string{"owner": "development"}
+		originalPrimary, originalSecondary := *primary, *secondary
+		Expect(originalPrimary.CheckoutID).NotTo(Equal(originalSecondary.CheckoutID))
+
+		// Reload between scans to model separate CLI invocations, including the
+		// first scan after an unavailable volume returns.
+		rescan := func() []model.RepoStatus {
+			registryPath := filepath.Join(base, "registry.yaml")
+			Expect(registry.Save(reg, registryPath)).To(Succeed())
+			reg, err = registry.Load(registryPath)
+			Expect(err).NotTo(HaveOccurred())
+			eng = engine.New(cfg, reg, vcs.NewGitAdapter(nil), nil, nil, nil)
+			statuses, scanErr := eng.Scan(context.Background(), opts)
+			Expect(scanErr).NotTo(HaveOccurred())
+			return statuses
+		}
+		assertCheckout := func(original registry.Entry, status registry.EntryStatus) {
+			GinkgoHelper()
+			entry := reg.FindEntry(repoID, original.Path)
+			Expect(entry).NotTo(BeNil())
+			Expect(entry.CheckoutID).To(Equal(original.CheckoutID))
+			Expect(entry.Labels).To(Equal(original.Labels))
+			Expect(entry.Annotations).To(Equal(original.Annotations))
+			Expect(entry.Status).To(Equal(status))
+		}
+		away := filepath.Join(base, "away")
+		Expect(os.Rename(primaryPath, away)).To(Succeed())
+		for range 2 {
+			results = rescan()
+			Expect(results).To(HaveLen(1))
+			Expect(results[0].CheckoutID).To(Equal(originalSecondary.CheckoutID))
+			Expect(reg.Entries).To(HaveLen(2))
+			assertCheckout(originalPrimary, registry.StatusMissing)
+			assertCheckout(originalSecondary, registry.StatusPresent)
+		}
+		Expect(os.Rename(away, primaryPath)).To(Succeed())
+		for range 2 {
+			results = rescan()
+			Expect(results).To(HaveLen(2))
+			Expect(reg.Entries).To(HaveLen(2))
+			assertCheckout(originalPrimary, registry.StatusPresent)
+			assertCheckout(originalSecondary, registry.StatusPresent)
+		}
+	})
 })
 
 func runGit(dir string, args ...string) string {

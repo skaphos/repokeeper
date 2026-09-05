@@ -128,6 +128,8 @@ repokeeper reconcile
 5. Re-run `repokeeper scan` whenever clones are added, moved, or removed so the embedded registry stays current.
 6. If needed, widen scope for a specific run with `repokeeper scan --roots <dir1,dir2,...>`.
 
+Scans preserve each known checkout's identity and local labels, including when another checkout of the same repository is temporarily unavailable. Missing checkouts remain registered. A new path gets a distinct `checkout_id`; a matching directory name and an absent old path do not establish a move. After an unrecorded move, scan retains the old entry as missing and registers the new path separately.
+
 Scan treats each discovered repository root as a boundary and does not descend into it. Nested repositories or linked worktrees stored inside an already discovered working tree are therefore not registered separately and do not require extra exclude patterns.
 
 ## Commands
