@@ -262,7 +262,7 @@ var statusCmd = &cobra.Command{
 		if code := statusExitCode(report, reg); code > 0 {
 			raiseExitCode(cmd, code)
 		}
-		infof(cmd, "status completed: %d repos", len(report.Repos))
+		logOutputWriteFailure(cmd, "status diagnostics", writeStatusCompletion(cmd, report, cwd, []string{cfgRoot}))
 		return nil
 	},
 }
@@ -336,6 +336,13 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			showDirty = false
 		}
 	}
+	showErrors := wide
+	for _, repo := range report.Repos {
+		if statusErrorClass(repo) != "" {
+			showErrors = true
+			break
+		}
+	}
 	headers := "PATH"
 	if showBranch {
 		headers += "\tBRANCH"
@@ -344,6 +351,9 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 		headers += "\tDIRTY"
 	}
 	headers += "\tTRACKING\tSTALE_REFS"
+	if showErrors {
+		headers += "\tERROR_CLASS"
+	}
 	if wide {
 		headers = "PATH\tBRANCH\tDIRTY\tTRACKING\tSTALE_REFS\tPRIMARY_REMOTE\tUPSTREAM\tAHEAD\tBEHIND\tERROR_CLASS"
 	}
@@ -386,6 +396,9 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 				row = append(row, dirty)
 			}
 			row = append(row, tracking, staleRefs)
+			if showErrors {
+				row = append(row, sanitizeForDisplay(statusErrorClass(repo)))
+			}
 			if _, err := fmt.Fprintf(w, "%s\n", strings.Join(row, "\t")); err != nil {
 				return err
 			}
@@ -411,7 +424,7 @@ func writeStatusTable(cmd *cobra.Command, report *model.StatusReport, cwd string
 			repo.Tracking.Upstream,
 			ahead,
 			behind,
-			repo.ErrorClass,
+			sanitizeForDisplay(statusErrorClass(repo)),
 		); err != nil {
 			return err
 		}
@@ -571,10 +584,57 @@ func truncateASCII(value string, max int) string {
 	return string(runes[:max-3]) + "..."
 }
 
+// statusErrorClass also exposes failures from adapters that did not classify
+// their error, so the default table never presents a failed inspection as healthy.
+func statusErrorClass(repo model.RepoStatus) string {
+	if repo.ErrorClass != "" {
+		return repo.ErrorClass
+	}
+	if repo.Error != "" {
+		return "unknown"
+	}
+	return ""
+}
+
+func writeStatusCompletion(cmd *cobra.Command, report *model.StatusReport, cwd string, roots []string) error {
+	errors := 0
+	for _, repo := range report.Repos {
+		class := statusErrorClass(repo)
+		if class == "" {
+			continue
+		}
+		errors++
+		detail := class
+		if repo.Error != "" {
+			detail += ": " + repo.Error
+		}
+		// Errors remain visible under --quiet, and diagnostics stay on stderr so
+		// JSON/custom-column stdout remains suitable for scripts.
+		if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "error: %s (%s)\n",
+			sanitizeForDisplay(displayRepoPath(repo.Path, cwd, roots)), sanitizeForDisplay(detail)); err != nil {
+			return err
+		}
+	}
+	repoNoun := "repos"
+	if len(report.Repos) == 1 {
+		repoNoun = "repo"
+	}
+	if errors == 0 {
+		infof(cmd, "status completed: %d %s", len(report.Repos), repoNoun)
+		return nil
+	}
+	noun := "errors"
+	if errors == 1 {
+		noun = "error"
+	}
+	infof(cmd, "status completed: %d %s (%d %s)", len(report.Repos), repoNoun, errors, noun)
+	return nil
+}
+
 func statusExitCode(report *model.StatusReport, reg *registry.Registry) int {
 	code := 0
 	for _, repo := range report.Repos {
-		if repo.Error != "" {
+		if statusErrorClass(repo) != "" {
 			code = 2
 		} else if (repo.Tracking.Status == model.TrackingGone || (repo.Worktree != nil && repo.Worktree.Dirty)) && code < 1 {
 			code = 1

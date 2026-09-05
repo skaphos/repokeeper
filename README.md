@@ -143,13 +143,14 @@ Detailed command breakdown moved to docs:
 Quick highlights:
 
 - `repokeeper get` and `repokeeper reconcile` are direct command forms (`... repos` aliases still supported).
-- `repokeeper edit <repo-id-or-path>` opens a single repo entry YAML in your editor (`$VISUAL`/`$EDITOR`), validates, then saves.
-- `repokeeper describe <repo-id-or-path>` accepts plain `repo_id`, `repo_id@checkout_id`, or path selectors; plain `repo_id` now fails when multiple local checkouts exist.
-- `repokeeper label <repo-id-or-path>` manages machine-local labels via `--set key=value` and `--remove key`.
-- `repokeeper index <repo-id-or-path>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
+- `repokeeper edit <selector>` opens a single repo entry YAML in your editor (`$VISUAL`/`$EDITOR`), validates, then saves.
+- `describe`, `label`, `edit`, `delete`, `move`, and `index` accept an absolute path, bare `checkout_id`, `repo_id`, or qualified `repo_id@checkout_id`. Relative paths work from the current directory or config root; symlink paths are resolved when available. Ambiguous IDs list matching qualified IDs and absolute paths.
+- `repokeeper label <selector>` manages machine-local labels via `--set key=value` and `--remove key`.
+- `repokeeper index <selector>` interactively proposes repo-local metadata and writes it only when `--write` is passed.
 - `repokeeper index repos --local-selector ... --promote-local-labels --write` explicitly bulk-promotes machine-local labels into repo-local metadata for selected repos.
 - Running `repokeeper` with no subcommand prints help. There is no interactive dashboard; see [ADR-0017](docs/adr/0017-retire-the-tui.md). Use `label` for repo labels and `index` for repo-local metadata.
 - `repokeeper install` registers `repokeeper mcp` with your agent runtime (Claude Code, Codex, OpenCode, or Grok); `repokeeper install list` shows registration state; `repokeeper uninstall` removes the entry.
+- `get` reports repository errors on stderr, includes their count in the completion summary, and adds `ERROR_CLASS` to the default table when errors are present. Error diagnostics remain visible with `--quiet`; JSON stays on stdout.
 - `get` supports shared label filtering with `-l/--selector` and machine-local label filtering with `--local-selector` (`key` and `key=value`, comma-separated AND).
 - `add` supports metadata on create with `--label` and `--annotation` (repeatable `key=value`).
 

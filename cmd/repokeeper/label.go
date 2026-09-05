@@ -15,8 +15,9 @@ import (
 )
 
 var labelCmd = &cobra.Command{
-	Use:   "label <repo-id-or-path>",
+	Use:   "label <selector>",
 	Short: "View or update labels for a tracked repository",
+	Long:  repoSelectorUsage,
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()

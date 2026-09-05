@@ -19,15 +19,17 @@ import (
 )
 
 var describeCmd = &cobra.Command{
-	Use:   "describe",
+	Use:   "describe <selector>",
 	Short: "Show detailed status for one repository",
+	Long:  repoSelectorUsage,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runDescribeRepo,
 }
 
 var describeRepoCmd = &cobra.Command{
-	Use:   "repo <repo-id-or-path>",
+	Use:   "repo <selector>",
 	Short: "Show detailed status for one repository",
+	Long:  repoSelectorUsage,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runDescribeRepo,
 }
@@ -176,112 +178,94 @@ func init() {
 	rootCmd.AddCommand(describeCmd)
 }
 
+// selectRegistryEntryForDescribe is shared by all CLI commands that target one
+// checkout. Identity collisions must fail before a mutation can select a repo.
 func selectRegistryEntryForDescribe(entries []registry.Entry, selector, cwd string, roots []string) (registry.Entry, error) {
 	sel := strings.TrimSpace(selector)
 	if sel == "" {
 		return registry.Entry{}, fmt.Errorf("empty selector")
 	}
+	if isAbsoluteLikePath(sel, filepath.Clean(normalizePathLikeInput(sel))) {
+		return uniqueCheckoutMatch(selectRegistryPaths(entries, []string{sel}), sel)
+	}
 
 	repoID, checkoutID, hasCheckoutID := splitRepoAndCheckoutSelector(sel)
 	if hasCheckoutID {
+		var matches []registry.Entry
 		for _, entry := range entries {
-			if entry.RepoID != repoID {
-				continue
-			}
-			if describeCheckoutID(entry) == checkoutID {
-				return entry, nil
+			if entry.RepoID == repoID && describeCheckoutID(entry) == checkoutID {
+				matches = append(matches, entry)
 			}
 		}
-		return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
+		if len(matches) > 0 {
+			return uniqueCheckoutMatch(matches, sel)
+		}
+		// A relative directory can contain @ too; try path matching below when
+		// this is not a known qualified identity.
 	}
 
-	var repoMatches []registry.Entry
+	var checkoutMatches, repoMatches []registry.Entry
 	for _, entry := range entries {
+		if describeCheckoutID(entry) == sel {
+			checkoutMatches = append(checkoutMatches, entry)
+		}
 		if entry.RepoID == sel {
 			repoMatches = append(repoMatches, entry)
 		}
 	}
-	if len(repoMatches) == 1 {
-		return repoMatches[0], nil
+	if len(checkoutMatches) > 0 {
+		return uniqueCheckoutMatch(checkoutMatches, sel)
 	}
-	if len(repoMatches) > 1 {
-		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(repoMatches))
-	}
-
-	if isAbsoluteLikePath(sel, filepath.Clean(normalizePathLikeInput(sel))) {
-		candidatePath, ok := canonicalPathForMatch(sel)
-		if !ok {
-			return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
-		}
-		var matches []registry.Entry
-		seen := map[string]struct{}{}
-		for _, entry := range entries {
-			entryPath, ok := canonicalPathForMatch(entry.Path)
-			if !ok || !samePathForMatch(entryPath, candidatePath) {
-				continue
-			}
-			key := entry.RepoID + "|" + entry.Path
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			matches = append(matches, entry)
-		}
-		if len(matches) == 1 {
-			return matches[0], nil
-		}
-		if len(matches) > 1 {
-			return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(matches))
-		}
-		return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
+	if len(repoMatches) > 0 {
+		return uniqueCheckoutMatch(repoMatches, sel)
 	}
 
 	candidates := make([]string, 0, 1+len(roots))
-	if abs, err := filepath.Abs(filepath.Join(cwd, sel)); err == nil {
-		if candidate, ok := canonicalPathForMatch(abs); ok && pathWithinBase(candidate, cwd) {
+	for _, base := range append([]string{cwd}, roots...) {
+		candidate, ok := canonicalPathForMatch(filepath.Join(base, sel))
+		if ok && pathWithinBase(candidate, base) {
 			candidates = append(candidates, candidate)
 		}
 	}
-	for _, root := range roots {
-		abs, err := filepath.Abs(filepath.Join(root, sel))
-		if err != nil {
-			continue
-		}
-		candidate, ok := canonicalPathForMatch(abs)
-		if !ok || !pathWithinBase(candidate, root) {
-			continue
-		}
-		candidates = append(candidates, candidate)
-	}
+	return uniqueCheckoutMatch(selectRegistryPaths(entries, candidates), sel)
+}
 
-	var matches []registry.Entry
-	seen := map[string]struct{}{}
+func selectRegistryPaths(entries []registry.Entry, candidates []string) []registry.Entry {
+	canonicalCandidates := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {
-		candidatePath, ok := canonicalPathForMatch(candidate)
+		if path, ok := canonicalPathForMatch(candidate); ok {
+			canonicalCandidates = append(canonicalCandidates, path)
+		}
+	}
+	var matches []registry.Entry
+	for _, entry := range entries {
+		entryPath, ok := canonicalPathForMatch(entry.Path)
 		if !ok {
 			continue
 		}
-		for _, entry := range entries {
-			entryPath, ok := canonicalPathForMatch(entry.Path)
-			if !ok || !samePathForMatch(entryPath, candidatePath) {
-				continue
+		for _, candidatePath := range canonicalCandidates {
+			if samePathForMatch(entryPath, candidatePath) {
+				matches = append(matches, entry)
+				break
 			}
-			key := entry.RepoID + "|" + entry.Path
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			matches = append(matches, entry)
 		}
 	}
+	return matches
+}
 
-	if len(matches) == 1 {
+func uniqueCheckoutMatch(matches []registry.Entry, selector string) (registry.Entry, error) {
+	switch len(matches) {
+	case 0:
+		return registry.Entry{}, fmt.Errorf("repo not found for selector %q", selector)
+	case 1:
 		return matches[0], nil
+	default:
+		candidates := make([]string, 0, len(matches))
+		for _, entry := range matches {
+			candidates = append(candidates, fmt.Sprintf("%q (absolute path %q)", entry.RepoID+"@"+describeCheckoutID(entry), entry.Path))
+		}
+		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches); use a qualified checkout ID or absolute path: %s", selector, len(matches), strings.Join(candidates, "; "))
 	}
-	if len(matches) > 1 {
-		return registry.Entry{}, fmt.Errorf("selector %q is ambiguous (%d matches)", sel, len(matches))
-	}
-	return registry.Entry{}, fmt.Errorf("repo not found for selector %q", sel)
 }
 
 func splitRepoAndCheckoutSelector(selector string) (string, string, bool) {
@@ -322,7 +306,23 @@ func canonicalPathForMatch(path string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return filepath.Clean(abs), true
+	// Resolve the existing ancestor even when the checkout is missing. Otherwise
+	// a symlinked root (such as macOS /var) resolves while its missing child
+	// retains the alias, making the child appear outside the root.
+	ancestor, suffix := abs, ""
+	for {
+		resolved, err := filepath.EvalSymlinks(ancestor)
+		if err == nil {
+			return filepath.Join(resolved, suffix), true
+		}
+		parent := filepath.Dir(ancestor)
+		if !os.IsNotExist(err) || parent == ancestor {
+			// Preserve lexical matching for paths that cannot be resolved.
+			return filepath.Clean(abs), true
+		}
+		suffix = filepath.Join(filepath.Base(ancestor), suffix)
+		ancestor = parent
+	}
 }
 
 func samePathForMatch(a, b string) bool {
