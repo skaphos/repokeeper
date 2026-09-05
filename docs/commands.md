@@ -19,6 +19,7 @@ This is the canonical command reference for RepoKeeper. Keep this file in sync w
 | `repokeeper uninstall` | Remove the RepoKeeper MCP entry from each runtime (prompts unless `--yes`) |
 | `repokeeper add <path> <git-repo-url>` | Clone and register a repository |
 | `repokeeper delete <selector>` | Delete repo files and remove from registry |
+| `repokeeper move <selector> <new-path>` | Move a tracked checkout and update its registry path |
 | `repokeeper edit <selector>` | Open one repo entry in `$VISUAL`/`$EDITOR`, validate, save |
 | `repokeeper label <selector>` | Show or mutate labels for one repository |
 | `repokeeper repair upstream` | Repair missing/mismatched upstream tracking |

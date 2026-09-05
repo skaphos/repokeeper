@@ -178,19 +178,19 @@ Flags:
 
 When filtered to `diverged`, table/wide output includes `REASON` and `RECOMMENDED_ACTION`, and JSON adds a `diverged` guidance array for automation-friendly remediation hints.
 
-#### `repokeeper describe <repo-id-or-path>`
+#### `repokeeper describe <selector>`
 
-Alias form: `repokeeper describe repo <repo-id-or-path>`
+Alias form: `repokeeper describe repo <selector>`
 
 Shows detailed status for a single checkout. The CLI resolver shared by `describe`, `label`, `edit`, `delete`, `move`, and `index` matches absolute paths first, then checkout IDs, then repository IDs, with relative paths resolved from the current directory or config root. The explicit `repo_id@checkout_id` form is also supported.
-Existing symlinks are resolved on both the selector and stored path; missing paths retain lexical matching so absent checkouts remain addressable. Ambiguous selectors (including duplicate checkout IDs or qualified IDs) fail with matching qualified IDs and absolute paths instead of selecting the first entry.
+Existing symlinks are resolved on both the selector and stored path; missing paths resolve their existing ancestors and retain the absent suffix so checkouts under symlinked roots remain addressable. Ambiguous selectors (including duplicate checkout IDs or qualified IDs) fail with matching qualified IDs and absolute paths instead of selecting the first entry.
 
 Flags:
 
 * `--registry <path>` (optional)
 * `-o, --format table|json` (default table)
 
-#### `repokeeper index <repo-id-or-path>`
+#### `repokeeper index <selector>`
 
 Interactively proposes repo-local metadata for one tracked repository and previews the YAML that would be written.
 
@@ -252,7 +252,7 @@ Flags:
 * `--mirror` (optional; full mirror clone, bare with no working tree)
 * `--registry <path>` (optional)
 
-#### `repokeeper delete <repo-id-or-path>`
+#### `repokeeper delete <selector>`
 
 Removes a repository entry from the registry.
 
@@ -261,7 +261,7 @@ Flags:
 * `--registry <path>` (optional)
 * `--tracking-only` (optional; keep files on disk, remove registry entry, and add path to `ignored_paths`)
 
-#### `repokeeper edit <repo-id-or-path>`
+#### `repokeeper edit <selector>`
 
 Opens a single repo registry entry in the configured editor and writes validated changes.
 The edit payload is only that one repo entry (not the full registry document).
@@ -374,9 +374,9 @@ Target command grammar (additive, backwards-compatible aliases during migration)
 
 * `repokeeper get` (status/list view)
 * `repokeeper get repos` (legacy-compatible alias)
-* `repokeeper describe repo <repo-id-or-path>`
-* `repokeeper edit <repo-id-or-path>`
-* `repokeeper delete <repo-id-or-path>`
+* `repokeeper describe repo <selector>`
+* `repokeeper edit <selector>`
+* `repokeeper delete <selector>`
 * `repokeeper reconcile` (sync/reconciliation workflows)
 * `repokeeper reconcile repos` (legacy-compatible alias)
 * `repokeeper repair upstream` (tracking repair workflows)

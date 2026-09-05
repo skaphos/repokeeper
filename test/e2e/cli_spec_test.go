@@ -42,7 +42,7 @@ var _ = Describe("Real CLI workflows", Ordered, func() {
 		Expect(requireDomainExit(missing, 2)).To(Succeed(), missing.Diagnostics())
 		Expect(string(missing.Stdout)).To(ContainSubstring("ERROR_CLASS"))
 		Expect(string(missing.Stdout)).To(ContainSubstring("missing"))
-		Expect(string(missing.Stderr)).To(ContainSubstring("status completed: 1 repos (1 error)"))
+		Expect(string(missing.Stderr)).To(ContainSubstring("status completed: 1 repo (1 error)"))
 
 		quiet := runRepoKeeper(ctx, workspace, "cli quiet diagnostics", "get", "repos", "--format", "json", "--quiet")
 		Expect(requireDomainExit(quiet, 2)).To(Succeed(), quiet.Diagnostics())

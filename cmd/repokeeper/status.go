@@ -615,15 +615,19 @@ func writeStatusCompletion(cmd *cobra.Command, report *model.StatusReport, cwd s
 			return err
 		}
 	}
+	repoNoun := "repos"
+	if len(report.Repos) == 1 {
+		repoNoun = "repo"
+	}
 	if errors == 0 {
-		infof(cmd, "status completed: %d repos", len(report.Repos))
+		infof(cmd, "status completed: %d %s", len(report.Repos), repoNoun)
 		return nil
 	}
 	noun := "errors"
 	if errors == 1 {
 		noun = "error"
 	}
-	infof(cmd, "status completed: %d repos (%d %s)", len(report.Repos), errors, noun)
+	infof(cmd, "status completed: %d %s (%d %s)", len(report.Repos), repoNoun, errors, noun)
 	return nil
 }
 

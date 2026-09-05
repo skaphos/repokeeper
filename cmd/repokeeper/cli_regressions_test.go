@@ -146,7 +146,11 @@ func TestGetReposReportsErrors(t *testing.T) {
 				if tc.count == 1 {
 					suffix = "error"
 				}
-				want := fmt.Sprintf("status completed: %d repos (%d %s)", tc.count, tc.count, suffix)
+				repoNoun := "repos"
+				if tc.count == 1 {
+					repoNoun = "repo"
+				}
+				want := fmt.Sprintf("status completed: %d %s (%d %s)", tc.count, repoNoun, tc.count, suffix)
 				if !strings.Contains(diagnostic, want) {
 					t.Errorf("missing summary %q: %q", want, diagnostic)
 				}
@@ -195,5 +199,32 @@ func TestStatusTableErrorColumn(t *testing.T) {
 				t.Errorf("missing error class: %q", out.String())
 			}
 		})
+	}
+}
+
+func TestCheckoutSelectorMissingPathUnderSymlinkRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	realRoot := filepath.Join(root, "real")
+	if err := os.Mkdir(realRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	aliasRoot := filepath.Join(root, "alias")
+	if err := os.Symlink(realRoot, aliasRoot); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	// Reproduce macOS /var -> /private/var with two missing path components.
+	for _, storedRoot := range []string{realRoot, aliasRoot} {
+		entry := registry.Entry{RepoID: "github.com/example/proj", CheckoutID: "custom", Path: filepath.Join(storedRoot, "missing", "proj")}
+		for _, selector := range []string{filepath.Join("missing", "proj"), filepath.Join(realRoot, "missing", "proj"), filepath.Join(aliasRoot, "missing", "proj")} {
+			got, err := selectRegistryEntryForDescribe([]registry.Entry{entry}, selector, aliasRoot, nil)
+			if err != nil || got.Path != entry.Path {
+				t.Errorf("stored root %q, selector %q: got %q, %v", storedRoot, selector, got.Path, err)
+			}
+		}
+	}
+	outside := registry.Entry{RepoID: "outside", CheckoutID: "outside", Path: filepath.Join(root, "outside", "proj")}
+	if _, err := selectRegistryEntryForDescribe([]registry.Entry{outside}, filepath.Join("..", "outside", "proj"), aliasRoot, nil); err == nil {
+		t.Fatal("relative traversal outside the symlink root must still be rejected")
 	}
 }

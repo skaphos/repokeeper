@@ -301,12 +301,23 @@ func canonicalPathForMatch(path string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	// Missing checkouts still need to be addressable, so retain lexical matching
-	// when the filesystem cannot resolve the path.
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		return filepath.Clean(resolved), true
+	// Resolve the existing ancestor even when the checkout is missing. Otherwise
+	// a symlinked root (such as macOS /var) resolves while its missing child
+	// retains the alias, making the child appear outside the root.
+	ancestor, suffix := abs, ""
+	for {
+		resolved, err := filepath.EvalSymlinks(ancestor)
+		if err == nil {
+			return filepath.Join(resolved, suffix), true
+		}
+		parent := filepath.Dir(ancestor)
+		if !os.IsNotExist(err) || parent == ancestor {
+			// Preserve lexical matching for paths that cannot be resolved.
+			return filepath.Clean(abs), true
+		}
+		suffix = filepath.Join(filepath.Base(ancestor), suffix)
+		ancestor = parent
 	}
-	return filepath.Clean(abs), true
 }
 
 func samePathForMatch(a, b string) bool {
