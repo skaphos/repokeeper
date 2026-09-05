@@ -194,7 +194,7 @@ engineering constraints and the referenced standards, which remain normative.
 
 - **Stack**: Go where practical; CLI uses Cobra; configuration is declarative;
   external dependencies are minimized. Go version is pinned in `go.mod`
-  (currently `go 1.26`).
+  (see the `go` directive there).
 - **Go engineering**: per the upstream `go-engineering-standard.md`. A
   regression test accompanies every bugfix; race-enabled CI; hard coverage
   gates; generated artifacts are drift-gated. New behavior MUST ship with

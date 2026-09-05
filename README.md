@@ -378,7 +378,7 @@ go -C tools tool task coverage-report
 go -C tools tool task perf-bench
 
 # Lint
-go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1 run ./...
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...
 
 # Build locally
 go build -o repokeeper .
