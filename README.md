@@ -358,12 +358,14 @@ go -C tools tool task test-default-excludes-e2e
 
 See [test/e2e/README.md](test/e2e/README.md) for recipe authoring, focused CLI/MCP runs, isolation guarantees, compatibility matrix commands, and failure diagnosis.
 
+The Ginkgo unit command (also used by `task test`) explicitly excludes E2E packages because Ginkgo discovers test files without evaluating their `integration` build tags. Use `test-integration` above to run those packages.
+
 ```bash
 # List all task targets without installing task globally
 go -C tools tool task --list
 
-# Run tests
-go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 ./...
+# Run unit tests
+go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 --skip-package=e2e ./...
 
 # Run with coverage
 go test -coverprofile=coverage.out ./...

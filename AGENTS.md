@@ -11,7 +11,7 @@
 - `go build -o repokeeper .`: build the local binary.
 - `go install .`: install binary to `$GOPATH/bin` from local source.
 - `go clean -i github.com/skaphos/repokeeper`: uninstall the binary.
-- `go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 ./...`: run the Ginkgo test suite.
+- `go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 --skip-package=e2e ./...`: run the Ginkgo unit test suite.
 - `go test -coverprofile=coverage.out ./...`: run tests with coverage output.
 - `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...`: run linting (gofmt/goimports and static checks; v2 config).
 - `goreleaser build --snapshot --clean`: snapshot build for all platforms (goreleaser managed via `.tool-versions`, not `go tool`).
@@ -26,7 +26,8 @@
 - Frameworks: Ginkgo v2 + Gomega (see `go.mod`).
 - Prefer small, focused specs; keep fixtures in the same package when possible.
 - New functionality must include meaningful tests in the same change; avoid shipping new behavior without direct coverage.
-- Run locally with `go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 ./...`; coverage with `go test -coverprofile=coverage.out ./...`.
+- Run locally with `go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 --skip-package=e2e ./...`; coverage with `go test -coverprofile=coverage.out ./...`.
+- Ginkgo discovers test files without evaluating build tags, so the unit command must exclude the integration-only `test/e2e` tree. Run integration tests with `go -C tools tool task test-integration`.
 
 ## Engineering Guardrails
 - Keep cognitive load low: prefer small functions, clear names, early returns, and simple control flow over clever abstractions.
