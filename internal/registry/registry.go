@@ -118,7 +118,8 @@ func (r *Registry) Upsert(entry Entry) {
 	r.Entries = append(r.Entries, entry)
 }
 
-// ensureCheckoutIDs assigns a derived checkout_id to any entry that lacks one.
+// ensureCheckoutIDs trims stored IDs and assigns an unused checkout_id to any
+// entry that lacks one.
 // It is called at load and upsert time so that read-only lookups never have to
 // mutate the entry slice (which previously caused a data race when lookups ran
 // concurrently from status-worker goroutines).
@@ -126,9 +127,16 @@ func (r *Registry) ensureCheckoutIDs() {
 	if r == nil {
 		return
 	}
+	// Normalize every reservation before allocating IDs so a padded explicit
+	// ID later in the registry cannot collide with an earlier derived ID.
+	for i := range r.Entries {
+		r.Entries[i].CheckoutID = strings.TrimSpace(r.Entries[i].CheckoutID)
+	}
 	for i := range r.Entries {
 		if r.Entries[i].CheckoutID == "" {
-			r.Entries[i].CheckoutID = defaultCheckoutIDFromPath(r.Entries[i].Path)
+			// Use the same allocator as discovery so legacy same-basename
+			// checkouts cannot acquire a shared identity during migration.
+			r.Entries[i].CheckoutID = r.resolveCheckoutID(r.Entries[i])
 		}
 	}
 }
@@ -138,14 +146,10 @@ func (r *Registry) ensureCheckoutIDs() {
 // An explicit checkout_id always wins and is stable across moves (this is what
 // keeps genuine move-detection working for imported/cloned checkouts).
 //
-// For entries relying on the path-basename default, two checkouts of the same
-// repo that share a directory basename (e.g. ~/work/proj and ~/scratch/proj)
-// would otherwise collide and overwrite each other. When such a same-basename
-// entry already exists at a DIFFERENT path that still exists on disk, the two
-// are genuinely coexisting checkouts (not a move), so the newcomer is given a
-// path-derived suffix to keep the identities distinct. When the existing path
-// is gone, it is treated as a move and the basename is reused so the entry is
-// re-homed rather than duplicated.
+// Otherwise, a known path retains its identity. New paths get an unused ID:
+// a missing checkout still owns its ID because an unavailable path is not
+// evidence of a move. This also prevents metadata from migrating between
+// checkouts when one volume is temporarily absent.
 func (r *Registry) resolveCheckoutID(entry Entry) string {
 	if id := strings.TrimSpace(entry.CheckoutID); id != "" {
 		return id
@@ -154,25 +158,30 @@ func (r *Registry) resolveCheckoutID(entry Entry) string {
 	if base == "" {
 		return ""
 	}
-	if r == nil || !pathExists(entry.Path) {
+	if r == nil {
 		return base
 	}
+	used := make(map[string]bool)
 	for i := range r.Entries {
 		if r.Entries[i].RepoID != entry.RepoID {
 			continue
 		}
-		if r.Entries[i].CheckoutID != base {
-			continue
+		if r.Entries[i].CheckoutID != "" && sameRegistryPath(r.Entries[i].Path, entry.Path) {
+			return r.Entries[i].CheckoutID
 		}
-		if sameRegistryPath(r.Entries[i].Path, entry.Path) {
-			continue // same checkout being updated in place
-		}
-		if pathExists(r.Entries[i].Path) {
-			// Both checkouts are live: disambiguate the newcomer.
-			return base + "-" + shortPathHash(entry.Path)
-		}
+		used[r.Entries[i].CheckoutID] = true
 	}
-	return base
+	if !used[base] {
+		return base
+	}
+	// A path hash can collide with another hash or an explicitly assigned ID.
+	// Keep all reserved identities intact in either case.
+	prefix := base + "-" + shortPathHash(entry.Path)
+	candidate := prefix
+	for suffix := 2; used[candidate]; suffix++ {
+		candidate = fmt.Sprintf("%s-%d", prefix, suffix)
+	}
+	return candidate
 }
 
 func checkoutIDFromEntry(entry Entry) string {
@@ -203,15 +212,6 @@ func shortPathHash(path string) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(key))
 	return fmt.Sprintf("%08x", h.Sum32())
-}
-
-// pathExists reports whether path currently resolves to something on disk.
-func pathExists(path string) bool {
-	if strings.TrimSpace(path) == "" {
-		return false
-	}
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 func cloneStringMap(in map[string]string) map[string]string {

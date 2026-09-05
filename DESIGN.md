@@ -455,6 +455,8 @@ Normalization rules (examples):
 
 RepoKeeper also carries an additive machine-local `checkout_id` for distinguishing multiple local checkouts that share the same `repo_id`.
 By default, `checkout_id` is derived from the checkout path basename unless explicitly set in registry data.
+Scans reuse the stored ID for the same repository at a known path. For new paths, a basename collision receives a path-hash suffix (and a numeric suffix if needed). Existing entries reserve their IDs even while missing.
+During registry loading and upsert, stored IDs are trimmed before any allocation. Legacy entries without `checkout_id` (including whitespace-only values) use the same collision-safe allocation; explicit IDs remain reserved regardless of entry order.
 
 ### 6.2 Config files
 
@@ -545,7 +547,8 @@ During `scan`, RepoKeeper validates every existing registry entry:
 * If the path still exists and contains a valid git repo → update `last_seen`, mark `present`.
 * If the path no longer exists on disk → mark `missing`. The entry is **retained** (not deleted) so users can see what disappeared.
 * If the same `repo_id` is found with a different `checkout_id` → retain both checkout entries.
-* If the same `repo_id` and `checkout_id` are found at a different path → mark that checkout entry `moved` and update the path.
+* A new path without an explicit checkout identity is registered separately, even if another checkout with the same basename is missing. Path absence alone never establishes a move or transfers local metadata.
+* If a caller supplies the same `repo_id` and an explicit existing `checkout_id` at a different path → mark that checkout entry `moved` and update the path. Discovery does not supply explicit IDs for new paths.
 
 `repokeeper get` surfaces missing/moved repos so the user can act:
 
