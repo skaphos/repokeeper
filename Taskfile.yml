@@ -51,9 +51,11 @@ tasks:
       - '{{if eq OS "windows"}}powershell -NoProfile -Command "if (-not (Get-Command goreleaser -ErrorAction SilentlyContinue)) { Write-Error ''goreleaser not found in PATH; install the version declared in .tool-versions''; exit 1 }; goreleaser build --snapshot --clean"{{else}}command -v goreleaser >/dev/null 2>&1 || { echo "goreleaser not found in PATH; install the version declared in .tool-versions" >&2; exit 1; }; goreleaser build --snapshot --clean{{end}}'
 
   test:
-    desc: Run test suite
+    desc: Run unit test suite (excludes integration-only E2E packages)
     cmds:
-      - '{{.GINKGO_RUNNER}} ./...'
+      # Ginkgo discovers test files without evaluating build tags. Match only
+      # the directory name so the exclusion also works with Windows paths.
+      - '{{.GINKGO_RUNNER}} --skip-package=e2e ./...'
 
   test-cover:
     desc: Run tests with coverage output (excludes scripts/perf)
