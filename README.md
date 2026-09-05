@@ -348,6 +348,17 @@ Branch switching and prune execution are separate workflow areas rather than hid
 
 ## Development
 
+Spec Kit includes repo-local Codex skills in `.agents/skills/speckit-*/SKILL.md`.
+Open Codex in this repository and invoke `$speckit-specify`, `$speckit-plan`,
+`$speckit-tasks`, or `$speckit-implement` to use the specification workflow.
+The skills share the constitution and templates in `.specify/` and feature
+artifacts in `specs/`. Claude remains the default Spec Kit integration; Codex
+skills can be invoked directly without changing that default. If the skills
+do not appear in an existing Codex session, restart the session.
+
+With the Specify CLI installed, run `specify integration status` to check the
+setup and `specify integration upgrade codex` to refresh the generated skills.
+
 The fast unit tier remains `go test ./...`. Process-level coverage is integration-tagged and excluded from the ordinary package graph:
 
 ```sh
