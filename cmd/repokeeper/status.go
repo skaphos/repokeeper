@@ -971,6 +971,25 @@ func relWithin(base, target string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
+	if rel, ok := relContained(baseAbs, targetAbs); ok {
+		return rel, true
+	}
+	// Retry through resolved symlinks. On macOS the process working directory
+	// reports as /private/var/... while a registry path recorded from the same
+	// directory keeps the /var/... symlink, so the two forms never share a
+	// prefix and an in-tree repo would otherwise render as a noisy absolute
+	// path. Any symlinked workspace hits this, not just the system temp dir.
+	baseResolved := resolveSymlinkPrefix(baseAbs)
+	targetResolved := resolveSymlinkPrefix(targetAbs)
+	if baseResolved == baseAbs && targetResolved == targetAbs {
+		return "", false
+	}
+	return relContained(baseResolved, targetResolved)
+}
+
+// relContained reports target relative to base only when target actually lives
+// under base, so callers never present an escaping ../ chain as a short name.
+func relContained(baseAbs, targetAbs string) (string, bool) {
 	rel, err := filepath.Rel(baseAbs, targetAbs)
 	if err != nil || rel == "." || rel == ".." {
 		return "", false
@@ -979,6 +998,30 @@ func relWithin(base, target string) (string, bool) {
 		return "", false
 	}
 	return filepath.ToSlash(rel), true
+}
+
+// resolveSymlinkPrefix resolves the longest existing ancestor of path and
+// re-appends the components that do not exist, returning path unchanged when
+// nothing resolves. filepath.EvalSymlinks fails outright on a missing path, and
+// missing repositories are exactly what the status diagnostics report on, so
+// resolving only the existing prefix keeps those paths comparable.
+func resolveSymlinkPrefix(path string) string {
+	current := path
+	remainder := ""
+	for {
+		if resolved, err := filepath.EvalSymlinks(current); err == nil {
+			if remainder == "" {
+				return resolved
+			}
+			return filepath.Join(resolved, remainder)
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return path
+		}
+		remainder = filepath.Join(filepath.Base(current), remainder)
+		current = parent
+	}
 }
 
 func metadataMapString(values map[string]string) string {

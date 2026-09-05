@@ -50,6 +50,12 @@ func Provision(parent context.Context, cell Cell, prefix string) (ProvisionResul
 		"NO_GETTEXT=YesPlease",
 		"NO_OPENSSL=YesPlease",
 		"NO_TCLTK=YesPlease",
+		// 2.55 links an optional Rust component (libgitcore) whose Makefile rule
+		// shells out to cargo. Cargo is not a declared provisioning input, so
+		// leaving Rust enabled makes the build depend on whichever toolchain the
+		// hosted runner image happens to ship. Disable it so every cell builds
+		// from the pinned inputs alone. No-op on 2.53/2.54, which have no Rust.
+		"NO_RUST=YesPlease",
 	}
 	// Git's native Makefile accepts prefix directly. Avoid generating configure,
 	// which would add an undeclared autoconf dependency to hosted runners.
