@@ -118,13 +118,19 @@ func (r *Registry) Upsert(entry Entry) {
 	r.Entries = append(r.Entries, entry)
 }
 
-// ensureCheckoutIDs assigns an unused checkout_id to any entry that lacks one.
+// ensureCheckoutIDs trims stored IDs and assigns an unused checkout_id to any
+// entry that lacks one.
 // It is called at load and upsert time so that read-only lookups never have to
 // mutate the entry slice (which previously caused a data race when lookups ran
 // concurrently from status-worker goroutines).
 func (r *Registry) ensureCheckoutIDs() {
 	if r == nil {
 		return
+	}
+	// Normalize every reservation before allocating IDs so a padded explicit
+	// ID later in the registry cannot collide with an earlier derived ID.
+	for i := range r.Entries {
+		r.Entries[i].CheckoutID = strings.TrimSpace(r.Entries[i].CheckoutID)
 	}
 	for i := range r.Entries {
 		if r.Entries[i].CheckoutID == "" {

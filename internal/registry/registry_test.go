@@ -4,6 +4,7 @@ package registry_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -341,7 +342,7 @@ func TestLegacyEntryBackfillsCheckoutID(t *testing.T) {
 func TestLegacySameBasenameCheckoutsKeepTheirMetadata(t *testing.T) {
 	t.Parallel()
 	for _, loadFirst := range []bool{false, true} {
-		for _, reservedID := range []string{"", "proj", "custom-checkout"} {
+		for _, reservedID := range []string{"", "proj", "custom-checkout", " proj ", " custom-checkout "} {
 			name := "upsert/" + reservedID
 			if loadFirst {
 				name = "load/" + reservedID
@@ -351,7 +352,7 @@ func TestLegacySameBasenameCheckoutsKeepTheirMetadata(t *testing.T) {
 				g := NewWithT(t)
 				root := t.TempDir()
 				reg := &registry.Registry{Entries: []registry.Entry{
-					{RepoID: "repo", Path: filepath.Join(root, "missing", "proj"), Status: registry.StatusMissing,
+					{RepoID: "repo", CheckoutID: "   ", Path: filepath.Join(root, "missing", "proj"), Status: registry.StatusMissing,
 						Labels: map[string]string{"env": "prod"}, Annotations: map[string]string{"owner": "primary"}},
 					{RepoID: "repo", Path: filepath.Join(root, "present", "proj"), Status: registry.StatusPresent,
 						Labels: map[string]string{"env": "dev"}, Annotations: map[string]string{"owner": "secondary"}},
@@ -385,16 +386,18 @@ func TestLegacySameBasenameCheckoutsKeepTheirMetadata(t *testing.T) {
 						entry := reg.FindEntry("repo", want.Path)
 						g.Expect(entry).NotTo(BeNil())
 						g.Expect(entry.CheckoutID).NotTo(BeEmpty())
+						g.Expect(entry.CheckoutID).To(Equal(strings.TrimSpace(entry.CheckoutID)))
 						g.Expect(used[entry.CheckoutID]).To(BeFalse(), "checkout IDs must be unique within a repo")
 						used[entry.CheckoutID] = true
 						if id, ok := idsByPath[want.Path]; ok {
 							g.Expect(entry.CheckoutID).To(Equal(id), "save/load and rescanning must preserve assigned IDs")
 						}
 						idsByPath[want.Path] = entry.CheckoutID
+						want.CheckoutID = strings.TrimSpace(want.CheckoutID)
 						if want.CheckoutID == "" {
 							want.CheckoutID = entry.CheckoutID
 						}
-						g.Expect(*entry).To(Equal(want), "only missing checkout IDs may change during migration")
+						g.Expect(*entry).To(Equal(want), "migration may only trim or fill missing checkout IDs")
 					}
 					reload()
 				}
@@ -506,6 +509,24 @@ func TestUpsertReHomesMovedCheckout(t *testing.T) {
 	g.Expect(reg.Entries).To(HaveLen(1), "a move must re-home the single entry")
 	g.Expect(reg.Entries[0].Path).To(Equal(newPath))
 	g.Expect(reg.Entries[0].Status).To(Equal(registry.StatusMoved))
+}
+
+func TestUpsertMatchesPaddedStoredCheckoutIDForMove(t *testing.T) {
+	t.Parallel()
+	g := NewWithT(t)
+	root := t.TempDir()
+	oldPath := filepath.Join(root, "old", "proj")
+	newPath := filepath.Join(root, "new", "proj")
+	reg := &registry.Registry{Entries: []registry.Entry{{
+		RepoID: "repo", CheckoutID: " \tcustom-checkout\n", Path: oldPath, Status: registry.StatusMissing,
+		Labels: map[string]string{"env": "prod"}, Annotations: map[string]string{"owner": "primary"},
+	}}}
+	want := reg.Entries[0]
+	want.CheckoutID = "custom-checkout"
+	want.Path = newPath
+	want.Status = registry.StatusMoved
+	reg.Upsert(registry.Entry{RepoID: "repo", CheckoutID: "custom-checkout", Path: newPath})
+	g.Expect(reg.Entries).To(Equal([]registry.Entry{want}))
 }
 
 func TestUpsertReservesMissingCheckoutIdentity(t *testing.T) {

@@ -456,7 +456,7 @@ Normalization rules (examples):
 RepoKeeper also carries an additive machine-local `checkout_id` for distinguishing multiple local checkouts that share the same `repo_id`.
 By default, `checkout_id` is derived from the checkout path basename unless explicitly set in registry data.
 Scans reuse the stored ID for the same repository at a known path. For new paths, a basename collision receives a path-hash suffix (and a numeric suffix if needed). Existing entries reserve their IDs even while missing.
-Legacy entries without `checkout_id` use the same collision-safe allocation during registry loading and upsert; explicit IDs remain reserved regardless of entry order.
+During registry loading and upsert, stored IDs are trimmed before any allocation. Legacy entries without `checkout_id` (including whitespace-only values) use the same collision-safe allocation; explicit IDs remain reserved regardless of entry order.
 
 ### 6.2 Config files
 
