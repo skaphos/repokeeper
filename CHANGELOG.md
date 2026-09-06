@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.0.0](https://github.com/skaphos/repokeeper/compare/v1.4.0...v2.0.0) (2026-09-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* **contract:** finish stable adapter JSON ([#351](https://github.com/skaphos/repokeeper/issues/351))
+* **contract:** uniform adapter envelope and promotion to v1 (004) ([#348](https://github.com/skaphos/repokeeper/issues/348))
+* retire the TUI (ADR-0017) ([#337](https://github.com/skaphos/repokeeper/issues/337))
+
+### Features
+
+* **contract:** uniform adapter envelope and promotion to v1 (004) ([#348](https://github.com/skaphos/repokeeper/issues/348)) ([997a4e6](https://github.com/skaphos/repokeeper/commit/997a4e66eb5239dbdaad786b0011fef4af3a46a7))
+* retire the TUI (ADR-0017) ([#337](https://github.com/skaphos/repokeeper/issues/337)) ([5f43741](https://github.com/skaphos/repokeeper/commit/5f437412870b53d0300bc9b4045aa7ea551d99d6))
+
+
+### Bug Fixes
+
+* **cli:** resolve checkout selectors and surface repository errors ([#343](https://github.com/skaphos/repokeeper/issues/343)) ([e2e32b3](https://github.com/skaphos/repokeeper/commit/e2e32b38ddf0b3cc239f7c821836aa46ddd615ce))
+* **contract:** finish stable adapter JSON ([#351](https://github.com/skaphos/repokeeper/issues/351)) ([038ee36](https://github.com/skaphos/repokeeper/commit/038ee36421e73e602223caf68b20f9f31042292b))
+* **mcp:** align sync plans with CLI dry-run results ([#344](https://github.com/skaphos/repokeeper/issues/344)) ([04edfc3](https://github.com/skaphos/repokeeper/commit/04edfc31d40aeb1c1b71ab1bab613a5087e85490))
+* **mcp:** keep registry state consistent ([#324](https://github.com/skaphos/repokeeper/issues/324)) ([43ab678](https://github.com/skaphos/repokeeper/commit/43ab67875bdce879e5052b5c8ccc3dd7f6579475)), closes [#318](https://github.com/skaphos/repokeeper/issues/318) [#319](https://github.com/skaphos/repokeeper/issues/319) [#320](https://github.com/skaphos/repokeeper/issues/320)
+* **registry:** preserve missing checkout identities during scan ([#342](https://github.com/skaphos/repokeeper/issues/342)) ([7616687](https://github.com/skaphos/repokeeper/commit/7616687b79cbfd057db2fefe70296c3d373061a6))
+* repair the two release qualification matrix failures ([#345](https://github.com/skaphos/repokeeper/issues/345)) ([7a4e281](https://github.com/skaphos/repokeeper/commit/7a4e2814cae1f0badff60944c71acae8fdee25a7))
+* **security:** restrict import directory permissions ([#326](https://github.com/skaphos/repokeeper/issues/326)) ([45a9dc7](https://github.com/skaphos/repokeeper/commit/45a9dc7c1755262b60f68f386a49d10b3bdbfc6d))
+* **test:** exclude integration-only packages from Ginkgo discovery ([#340](https://github.com/skaphos/repokeeper/issues/340)) ([29e9d60](https://github.com/skaphos/repokeeper/commit/29e9d60099e137fc8333afa7d3a39ef3bb492486))
+
 ## [1.4.0](https://github.com/skaphos/repokeeper/compare/v1.3.1...v1.4.0) (2026-07-26)
 
 
