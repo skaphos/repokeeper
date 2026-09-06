@@ -18,6 +18,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/skaphos/repokeeper/v2/internal/config"
 	"github.com/skaphos/repokeeper/v2/internal/engine"
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 	"github.com/skaphos/repokeeper/v2/internal/mcpserver"
 	"github.com/skaphos/repokeeper/v2/internal/model"
 	"github.com/skaphos/repokeeper/v2/internal/registry"
@@ -184,12 +185,40 @@ func callTool(srv *mcpserver.MCPServer, name string, args map[string]any) (*mcp.
 	return st.Handler(context.Background(), req)
 }
 
-func resultJSON(result *mcp.CallToolResult) []byte {
+// rawResultJSON returns the tool result's text content verbatim, including the
+// adapter contract envelope. Use it to assert on the envelope itself.
+func rawResultJSON(result *mcp.CallToolResult) []byte {
 	Expect(result).NotTo(BeNil())
 	Expect(result.Content).NotTo(BeEmpty())
 	tc, ok := result.Content[0].(mcp.TextContent)
 	Expect(ok).To(BeTrue(), "expected TextContent, got %T", result.Content[0])
 	return []byte(tc.Text)
+}
+
+// resultJSON returns the tool's *payload*, unwrapping the contract envelope.
+//
+// Every adapter-facing result is now `{"apiVersion": ..., "<key>": <payload>}`,
+// so the raw text no longer decodes into the payload struct a caller expects.
+// Unwrapping here keeps the assertions in each spec about the payload, which is
+// what they are actually testing; envelope behaviour is asserted separately in
+// the contract specs rather than repeated in every tool spec.
+func resultJSON(result *mcp.CallToolResult) []byte {
+	raw := rawResultJSON(result)
+
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return raw
+	}
+	if _, versioned := envelope["apiVersion"]; !versioned {
+		return raw
+	}
+	// Exactly one non-apiVersion key by construction, so this is deterministic.
+	for key, payload := range envelope {
+		if key != "apiVersion" {
+			return payload
+		}
+	}
+	return raw
 }
 
 func structuredContentMap(result *mcp.CallToolResult) map[string]any {
@@ -198,6 +227,51 @@ func structuredContentMap(result *mcp.CallToolResult) map[string]any {
 	structured, ok := result.StructuredContent.(map[string]any)
 	Expect(ok).To(BeTrue(), "expected map structured content, got %T", result.StructuredContent)
 	return structured
+}
+
+// structuredPayloadMap returns the tool's payload from structured content,
+// unwrapping the contract envelope. Specs asserting on a tool's own fields want
+// this; specs asserting on the envelope want structuredContentMap.
+func structuredPayloadMap(result *mcp.CallToolResult) map[string]any {
+	structured := structuredContentMap(result)
+	Expect(structured).To(HaveKey("apiVersion"), "adapter-facing result is missing the contract apiVersion")
+	Expect(structured["apiVersion"]).To(Equal(contract.APIVersion))
+
+	for key, payload := range structured {
+		if key == "apiVersion" {
+			continue
+		}
+		asMap, ok := payload.(map[string]any)
+		Expect(ok).To(BeTrue(), "expected object payload under %q, got %T", key, payload)
+		return asMap
+	}
+	Fail("structured content carried no payload alongside apiVersion")
+	return nil
+}
+
+// structuredContractMap flattens a result for the per-tool contract table,
+// which mixes two shapes: list tools whose payload key sits beside apiVersion
+// in the envelope, and object tools whose asserted fields live one level down
+// inside the payload. Merging both levels lets the table name a field without
+// caring which shape its tool uses.
+func structuredContractMap(result *mcp.CallToolResult) map[string]any {
+	structured := structuredContentMap(result)
+	Expect(structured).To(HaveKey("apiVersion"), "adapter-facing result is missing the contract apiVersion")
+	Expect(structured["apiVersion"]).To(Equal(contract.APIVersion))
+
+	merged := make(map[string]any, len(structured))
+	for key, value := range structured {
+		merged[key] = value
+		if key == "apiVersion" {
+			continue
+		}
+		if inner, ok := value.(map[string]any); ok {
+			for innerKey, innerValue := range inner {
+				merged[innerKey] = innerValue
+			}
+		}
+	}
+	return merged
 }
 
 func structuredListJSON(result *mcp.CallToolResult, key string) []byte {
@@ -1998,7 +2072,7 @@ var _ = Describe("InProcess MCP Client", func() {
 			Expect(callErr).NotTo(HaveOccurred(), tc.name)
 			Expect(result.IsError).To(BeFalse(), tc.name)
 			Expect(result.Content).NotTo(BeEmpty(), tc.name)
-			structured := structuredContentMap(result)
+			structured := structuredContractMap(result)
 			for key, matcher := range tc.expect {
 				Expect(structured).To(HaveKey(key), "%s missing contract key %q", tc.name, key)
 				Expect(structured[key]).To(matcher, "%s contract key %q", tc.name, key)
@@ -2137,7 +2211,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.IsError).To(BeFalse())
-		structured := structuredContentMap(result)
+		structured := structuredPayloadMap(result)
 		Expect(structured["repo_id"]).To(Equal("github.com/example/alpha"))
 
 		// Error path - unknown repo
@@ -2172,7 +2246,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.IsError).To(BeFalse())
 
-		structured := structuredContentMap(result)
+		structured := structuredPayloadMap(result)
 		Expect(structured).To(HaveKey("repos"))
 		// Ensure it's a proper object, not a bare array at top level
 		Expect(structured["generated_at"]).NotTo(BeNil())

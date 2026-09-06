@@ -4,7 +4,14 @@
 
 **Created**: 2026-09-05
 
-**Status**: Draft
+**Status**: Implemented (core) — see [tasks.md](./tasks.md) for what remains open
+
+The envelope, the `v1` promotion, the shared constant and the supporting tests are implemented and
+covered by [ADR-0018](../../docs/adr/0018-adapter-contract-envelope.md). Still open: publishing the
+surface inventory to user-facing docs (T013), the code-derived inventory drift test (T014, whose
+feasibility is recorded under T002), and the read/mutation enforcement tests (T017–T019). The
+classification itself is documented; what is not yet in place is the test that proves a surface
+classed `read` never writes.
 
 **Input**: GitHub issue [#287](https://github.com/skaphos/repokeeper/issues/287) — "Define a stable plugin adapter contract for standalone IDE integrations", milestone `v2.0.0 — the contract release`.
 
@@ -29,6 +36,16 @@ This feature is **not greenfield**. Per the constitution's Specification and Dec
 2. **Promote `v1beta1` → `v1`.** The 2.0.0 release ships the contract as `skaphos.io/repokeeper/v1`.
 
 The envelope must be applied to CLI and MCP *together*. §6.4's bare-array shape exists specifically to preserve CLI/MCP field parity — a parity actively maintained (see [#344](https://github.com/skaphos/repokeeper/pull/344)). Enveloping only one side would break it.
+
+---
+
+## Clarifications
+
+### Session 2026-09-05
+
+- Q: How should adapters detect contract version on the currently unenveloped surfaces (`scan`, `sync`/`reconcile`, `repair upstream`)? → A: Uniform envelope everywhere — wrap every adapter-facing JSON output, CLI and MCP, in `{apiVersion, ...}`. Accepted as breaking for existing bare-array consumers, taken at the 2.0.0 major where it is cheap. Alternatives weighed and rejected in [research.md](./research.md) §3: an out-of-band discovery surface (non-breaking but coarse), and per-surface mechanisms (closest to the status quo that produced this issue).
+- Q: The contract is currently marked `v1beta1`. Promote it for the 2.0.0 release? → A: Promote to `skaphos.io/repokeeper/v1`. A release named "the contract release" shipping a contract still marked beta undercuts its own message, and external adapter repos are being asked to commit to it. Conditional on the assumption, recorded below and gated as task T001, that no external consumer of `v1beta1` exists.
+- Q: Does enveloping the CLI alone suffice? → A: No. `DESIGN.md` §6.4 chose the bare-array shape specifically to hold CLI/MCP field parity, and PR #344 recently restored that parity. CLI and MCP must be enveloped in the same change (FR-018).
 
 ---
 

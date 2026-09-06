@@ -68,7 +68,7 @@ func (s *MCPServer) handleGetRepositoryContext(ctx context.Context, req mcp.Call
 		ErrorClass:    status.ErrorClass,
 	}
 
-	return mcp.NewToolResultJSON(resp)
+	return newStructuredResult("repository", resp)
 }
 
 // mergeLabels returns a combined map of registry labels and status labels,

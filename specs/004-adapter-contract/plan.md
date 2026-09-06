@@ -66,12 +66,14 @@ plus `DESIGN.md` §6.3/§6.4 revision.
 | **Workflow: cite settled upstream** | ADR-0006, `DESIGN.md` §6.3/§6.4 cited in `research.md` rather than re-derived. |
 | **Workflow: hard-to-reverse decisions get an ADR** | **Action required — see below.** |
 
-**Result: PASS, with one required follow-up.**
+**Result: PASS.** The one required follow-up is satisfied.
 
 Promoting `v1beta1` → `v1` and taking a deliberate breaking change to the output shape is
 hard-to-reverse and therefore warrants an ADR per the constitution's Specification and Decision
 Workflow. ADR-0006 set the *policy* and remains immutable; a new ADR records the *mechanism* chosen
-under it. This is tracked as task T003 and gated before implementation begins.
+under it. Tracked as task T003 and delivered as
+[ADR-0018](../../docs/adr/0018-adapter-contract-envelope.md), which cites ADR-0006 as the policy it
+implements rather than superseding it.
 
 ## Project Structure
 

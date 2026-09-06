@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/skaphos/repokeeper/v2/internal/buildinfo"
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 )
 
 // withLDFlags swaps the package-level ldflags variables for one test and
@@ -114,10 +115,16 @@ func TestVersionUnstampedFieldsReadUnavailable(t *testing.T) {
 func TestVersionJSONShape(t *testing.T) {
 	withLDFlags(t, "v0.8.0", "9f2c1ab", "2026-07-26T14:22:31Z")
 
-	var got versionJSON
-	if err := json.Unmarshal([]byte(runVersion(t, "json")), &got); err != nil {
+	// The payload is wrapped in the adapter contract envelope, so decode the
+	// envelope and assert on its named payload rather than the bare struct.
+	var env versionEnvelope[versionJSON]
+	if err := json.Unmarshal([]byte(runVersion(t, "json")), &env); err != nil {
 		t.Fatalf("version --format json did not emit valid JSON: %v", err)
 	}
+	if env.APIVersion != contract.APIVersion {
+		t.Errorf("apiVersion: got %q want %q", env.APIVersion, contract.APIVersion)
+	}
+	got := env.Version
 
 	if got.Version != "v0.8.0" {
 		t.Errorf("version: got %q want %q", got.Version, "v0.8.0")
@@ -141,10 +148,11 @@ func TestVersionJSONUnknownFieldsAreEmpty(t *testing.T) {
 
 	raw := runVersion(t, "json")
 
-	var got versionJSON
-	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+	var env versionEnvelope[versionJSON]
+	if err := json.Unmarshal([]byte(raw), &env); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
+	got := env.Version
 	if got.Revision != "" {
 		t.Errorf("unknown revision must be empty in JSON, got %q", got.Revision)
 	}

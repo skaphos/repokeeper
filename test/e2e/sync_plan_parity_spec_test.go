@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 	"github.com/skaphos/repokeeper/v2/internal/model"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -59,8 +60,15 @@ var _ = Describe("CLI and MCP sync plan parity", func() {
 		}
 		cli := runRepoKeeper(ctx, workspace, "compare CLI dry-run plan", args...)
 		Expect(requireDomainExit(cli, 1)).To(Succeed(), cli.Diagnostics())
-		var cliPlan []syncPlanRecord
-		Expect(json.Unmarshal(cli.Stdout, &cliPlan)).To(Succeed(), cli.Diagnostics())
+		// reconcile -o json is enveloped: the per-repo records live under
+		// "results" alongside the contract apiVersion.
+		var cliEnvelope struct {
+			APIVersion string           `json:"apiVersion"`
+			Results    []syncPlanRecord `json:"results"`
+		}
+		Expect(json.Unmarshal(cli.Stdout, &cliEnvelope)).To(Succeed(), cli.Diagnostics())
+		Expect(cliEnvelope.APIVersion).To(Equal(contract.APIVersion), cli.Diagnostics())
+		cliPlan := cliEnvelope.Results
 		paths := make([]string, 0, len(cliPlan))
 		for _, entry := range cliPlan {
 			paths = append(paths, semanticPath(workspace.WorkspaceRoot, entry.Path))

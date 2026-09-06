@@ -108,7 +108,7 @@ var labelCmd = &cobra.Command{
 				Path:        entry.Path,
 				LocalLabels: entry.Labels,
 			}
-			data, err := json.MarshalIndent(payload, "", "  ")
+			data, err := json.MarshalIndent(newLabelsEnvelope(payload), "", "  ")
 			if err != nil {
 				return err
 			}

@@ -27,10 +27,10 @@ func (s *MCPServer) handleGetRepoMetadata(ctx context.Context, req mcp.CallToolR
 	}
 
 	if status.RepoMetadata == nil {
-		return mcp.NewToolResultText("null"), nil
+		return newStructuredResult("metadata", nil)
 	}
 
-	return mcp.NewToolResultJSON(status.RepoMetadata)
+	return newStructuredResult("metadata", status.RepoMetadata)
 }
 
 // --- get_authoritative_paths ---
@@ -67,7 +67,7 @@ func (s *MCPServer) handleGetAuthoritativePaths(ctx context.Context, req mcp.Cal
 		LowValue:      status.RepoMetadata.Paths.LowValue,
 		Entrypoints:   status.RepoMetadata.Entrypoints,
 	}
-	return mcp.NewToolResultJSON(resp)
+	return newStructuredResult("paths", resp)
 }
 
 // --- get_related_repositories ---

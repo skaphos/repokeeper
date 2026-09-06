@@ -91,7 +91,7 @@ func (s *MCPServer) handleBuildWorkspaceInventory(ctx context.Context, req mcp.C
 		GeneratedAt: report.GeneratedAt.Format(time.RFC3339),
 		Repos:       repos,
 	}
-	return mcp.NewToolResultJSON(resp)
+	return newStructuredResult("inventory", resp)
 }
 
 // --- select_repositories ---

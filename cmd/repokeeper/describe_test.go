@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 	"github.com/skaphos/repokeeper/v2/internal/model"
 	"github.com/skaphos/repokeeper/v2/internal/registry"
 	"github.com/spf13/cobra"
@@ -599,10 +600,16 @@ func TestRunDescribeRepoJSONShape(t *testing.T) {
 		t.Fatalf("runDescribeRepo: %v", err)
 	}
 
-	var status model.RepoStatus
-	if err := json.Unmarshal(out.Bytes(), &status); err != nil {
+	// describe is adapter-facing, so the repo record arrives inside the
+	// contract envelope under a named payload rather than at the top level.
+	var env repoEnvelope[model.RepoStatus]
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
 		t.Fatalf("describe -o json did not emit valid JSON: %v\noutput: %q", err, out.String())
 	}
+	if env.APIVersion != contract.APIVersion {
+		t.Errorf("apiVersion = %q, want %q", env.APIVersion, contract.APIVersion)
+	}
+	status := env.Repo
 
 	if status.RepoID != "github.com/org/repo" {
 		t.Errorf("repo_id = %q, want github.com/org/repo", status.RepoID)

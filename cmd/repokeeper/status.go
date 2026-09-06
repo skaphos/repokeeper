@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/skaphos/repokeeper/v2/internal/cliio"
 	"github.com/skaphos/repokeeper/v2/internal/config"
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 	"github.com/skaphos/repokeeper/v2/internal/engine"
 	"github.com/skaphos/repokeeper/v2/internal/model"
 	"github.com/skaphos/repokeeper/v2/internal/registry"
@@ -49,17 +49,14 @@ type statusJSONRepo struct {
 	RepairUpstreamSuggestion bool              `json:"repair_upstream_suggestion,omitempty"`
 }
 
-// statusJSONAPIVersion identifies the schema of the `get`/`status -o json`
-// output contract. It is intentionally separate from config.ConfigAPIVersion
-// (same value today) so the output schema can be versioned independently of the
-// config schema. Bump it on any breaking change to the JSON shape; see the JSON
-// output schema stability policy in DESIGN.md §6.3.
-const statusJSONAPIVersion = "skaphos.io/repokeeper/v1beta1"
-
+// The schema of the `get`/`status -o json` output contract is identified by
+// contract.APIVersion, shared with every other adapter-facing surface and with
+// the MCP server. It remains separate from config.ConfigAPIVersion so the
+// output schema can be versioned independently of the on-disk config schema;
+// see the JSON output schema stability policy in DESIGN.md §6.3.
 type statusJSONReport struct {
-	APIVersion  string           `json:"apiVersion"`
-	GeneratedAt time.Time        `json:"generated_at"`
-	Repos       []statusJSONRepo `json:"repos"`
+	contract.Header
+	Repos []statusJSONRepo `json:"repos"`
 }
 
 type divergedJSONOutput struct {
@@ -268,11 +265,17 @@ var statusCmd = &cobra.Command{
 }
 
 func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any {
-	jsonReport := statusJSONReport{APIVersion: statusJSONAPIVersion}
+	// Repos is always a slice, never nil: the contract requires an empty
+	// collection marshal as [] rather than null, so an adapter's parse path is
+	// uniform whether or not any repository is registered.
+	jsonReport := statusJSONReport{
+		Header: contract.NewHeader(),
+		Repos:  []statusJSONRepo{},
+	}
 	var repos []model.RepoStatus
 	if report != nil {
 		repos = report.Repos
-		jsonReport.GeneratedAt = report.GeneratedAt
+		jsonReport.Header = contract.NewHeaderAt(report.GeneratedAt)
 		jsonReport.Repos = make([]statusJSONRepo, 0, len(repos))
 		for _, repo := range repos {
 			jsonReport.Repos = append(jsonReport.Repos, statusJSONRepo{

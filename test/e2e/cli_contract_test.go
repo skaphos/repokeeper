@@ -9,10 +9,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 	"github.com/skaphos/repokeeper/v2/internal/model"
 )
 
 type scanJSONResponse []model.RepoStatus
+
+// scanJSONEnvelope is the adapter contract envelope around the scan payload.
+// scan emitted a bare top-level array before 2.0.0; an array has nowhere to
+// carry apiVersion, which is the whole reason the envelope exists.
+type scanJSONEnvelope struct {
+	APIVersion string           `json:"apiVersion"`
+	Repos      scanJSONResponse `json:"repos"`
+}
 
 type statusJSONResponse struct {
 	APIVersion  string                 `json:"apiVersion"`
@@ -31,10 +40,16 @@ func runRepoKeeper(ctx context.Context, workspace *MaterializedWorkspace, operat
 }
 
 func decodeScanJSON(result ExecutionResult) (scanJSONResponse, error) {
-	var response scanJSONResponse
-	if err := json.Unmarshal(result.Stdout, &response); err != nil {
+	var envelope scanJSONEnvelope
+	if err := json.Unmarshal(result.Stdout, &envelope); err != nil {
 		return nil, fmt.Errorf("decode scan JSON: %w\n%s", err, result.Diagnostics())
 	}
+	// Assert the contract end-to-end against the real binary, not just in unit
+	// tests against the envelope constructors.
+	if envelope.APIVersion != contract.APIVersion {
+		return nil, fmt.Errorf("scan JSON apiVersion = %q, want %q\n%s", envelope.APIVersion, contract.APIVersion, result.Diagnostics())
+	}
+	response := envelope.Repos
 	for index, repository := range response {
 		if repository.RepoID == "" || repository.Path == "" || repository.PrimaryRemote == "" {
 			return nil, fmt.Errorf("scan repos[%d] is missing required fields", index)

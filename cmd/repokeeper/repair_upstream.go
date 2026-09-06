@@ -217,7 +217,7 @@ var repairUpstreamCmd = &cobra.Command{
 
 		switch mode.kind {
 		case outputKindJSON:
-			data, err := json.MarshalIndent(results, "", "  ")
+			data, err := json.MarshalIndent(newResultsEnvelope(results), "", "  ")
 			if err != nil {
 				return err
 			}

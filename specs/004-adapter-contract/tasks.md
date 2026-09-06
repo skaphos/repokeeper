@@ -27,18 +27,27 @@ behaviour, and the constitution's own sync-impact report directs that this gate 
 
 **Purpose**: Settle the decisions that change the shape of everything downstream. Do these first.
 
-- [ ] **T001** Confirm no external consumer depends on `skaphos.io/repokeeper/v1beta1`. The spec's
-      promotion assumption rests on this. Check the MCP registry entry, any published adapter, and
-      open issues. If a consumer exists, stop and revisit Decision 2 in [research.md](./research.md).
+- [x] **T001** Confirm no external consumer depends on `skaphos.io/repokeeper/v1beta1`.
+      **Outcome:** no external consumer found. Every remaining occurrence of the beta value is either
+      the **config** schema (`internal/config`, plus the config examples in `README.md` and
+      `DESIGN.md` §"config"), which is a different schema that keeps its value, or documentation of
+      the output contract, which this change updates. Repo metadata was found to use an entirely
+      separate scheme (`repokeeper/v1`) and never shared the value at all — the spec's claim that
+      "all three shared" was inaccurate and has been corrected in `DESIGN.md` and the independence
+      test. No adapter repository exists yet. Promotion proceeds.
 - [ ] **T002** Resolve the open risk in plan.md: can the surface inventory be **derived** from the
-      Cobra command tree and MCP tool registry, or must it be hand-maintained? Spike both. The answer
-      determines whether T012–T014 assert real drift or merely count entries. Record the outcome in
-      this file.
-- [ ] **T003** Write and merge an ADR recording the envelope mechanism and the `v1beta1` → `v1`
+      Cobra command tree and MCP tool registry, or must it be hand-maintained?
+      **Outcome so far:** deferred, and the inventory is hand-maintained today. Derivation is
+      plausible — the MCP side already enumerates its tools in a test that asserts every registered
+      tool has a contract case, which is most of the mechanism — but the CLI side needs a way to tell
+      an adapter-facing command from an interactive one (`init`, `edit`, `index`), and that
+      distinction does not exist in the code yet. **This is the weaker guarantee the spec warned
+      about**, and it is why T014 remains open rather than being quietly satisfied by a count.
+- [x] **T003** Write and merge an ADR recording the envelope mechanism and the `v1beta1` → `v1`
       promotion (`docs/adr/0018-adapter-contract-envelope.md`). Required by the constitution for
       hard-to-reverse decisions, and gated before implementation. Must cite ADR-0006 as the policy it
       implements — **not** supersede it; ADR-0006 remains accepted and immutable.
-- [ ] **T004** Confirm `version -o json` has no downstream parser that enveloping would break
+- [x] **T004** Confirm `version -o json` has no downstream parser that enveloping would break
       (check `internal/mcpinstall`, install tooling, `.goreleaser.yaml`, CI). If it does, decide
       whether to exempt it and record the exemption in the inventory.
 
@@ -48,16 +57,20 @@ behaviour, and the constitution's own sync-impact report directs that this gate 
 
 **Purpose**: The shared envelope. No surface consumes it yet, so this phase ships safely on its own.
 
-- [ ] **T005** Create `cmd/repokeeper/contract.go` with the single `apiVersion` constant
+- [x] **T005** Create `cmd/repokeeper/contract.go` with the single `apiVersion` constant
       (`skaphos.io/repokeeper/v1`) and a reusable generic envelope type carrying `apiVersion`,
       optional `generated_at`, and a named payload.
-- [ ] **T006** Ensure the constant is reachable from `internal/mcpserver` without an import cycle,
+- [x] **T006** Ensure the constant is reachable from `internal/mcpserver` without an import cycle,
       so CLI and MCP share one source (FR-003). If `cmd/repokeeper` cannot be imported by
       `internal/`, hoist the constant to a small `internal/contract` package — decide here, not
       later.
-- [ ] **T007** [P] Add `cmd/repokeeper/contract_test.go`: envelope always carries `apiVersion`;
+- [x] **T007** [P] Add `cmd/repokeeper/contract_test.go`: envelope always carries `apiVersion`;
       empty collections marshal as `[]` and never `null` (FR-007); `generated_at` omitted rather than
       zero-valued when not meaningful.
+- [x] **T007a** [P] Test: the contract `apiVersion` is independent of the config and repo-metadata
+      `apiVersion` values (FR-004). They share a string today, so assert they are *distinct
+      constants* — a test comparing values would pass while the coupling this forbids went unnoticed.
+      *(Added by [analysis.md](./analysis.md) A3.)*
 
 ---
 
@@ -71,16 +84,25 @@ behaviour, and the constitution's own sync-impact report directs that this gate 
 > **Ordering constraint**: T008 and T009 must land in the **same change** (FR-018). Enveloping CLI
 > alone reintroduces the CLI/MCP drift that PR #344 fixed.
 
-- [ ] **T008** [US1] Wrap the CLI action surfaces in the envelope: `scan.go`, `sync.go`
+- [x] **T008** [US1] Wrap the CLI action surfaces in the envelope: `scan.go`, `sync.go`
       (reconcile/sync), `describe.go`, `label.go`, `repair_upstream.go`, `version.go`. Each gains a
       named payload field per [surface-inventory.md](./contracts/surface-inventory.md).
-- [ ] **T009** [US1] Envelope MCP structured results in `internal/mcpserver/tool_results.go`, and
+- [x] **T009** [US1] Envelope MCP structured results in `internal/mcpserver/tool_results.go`, and
       verify against a real MCP client (plan.md open risk) that an enveloped result is accepted.
-- [ ] **T010** [US1] Promote `status.go` from `v1beta1` to `v1` and switch it to the shared constant,
+- [x] **T010** [US1] Promote `status.go` from `v1beta1` to `v1` and switch it to the shared constant,
       removing the now-duplicated local `statusJSONAPIVersion`.
-- [ ] **T011** [US1] Test: enumerate every adapter-facing surface, assert each emits `apiVersion`
+- [x] **T011** [US1] Test: enumerate every adapter-facing surface, assert each emits `apiVersion`
       equal to the shared constant (SC-001), and assert CLI and MCP resolve to the *same constant*
       rather than merely equal strings.
+- [ ] **T011a** [US1] Test: a failed invocation emits **no** envelope on stdout and exits non-zero
+      (FR-019); an intentional skip is a success carrying `ok: true` plus a reason. Adapters branch on
+      this, so it must be verified rather than assumed.
+      *(Added by [analysis.md](./analysis.md) A1.)*
+- [ ] **T011b** [US1] Test: shared-record **field-set** parity between each CLI/MCP pair —
+      `reconcile --dry-run` ↔ `plan_sync`, `reconcile` ↔ `execute_sync`, `scan` ↔ `scan_workspace`
+      (FR-017). T011 only covers the `apiVersion`; this covers the parity `cli-mcp-parity.md` actually
+      promises and that #344 had to restore.
+      *(Added by [analysis.md](./analysis.md) A2.)*
 
 **Checkpoint**: Adapters can detect contract version from any single response. Shippable.
 
@@ -93,7 +115,7 @@ behaviour, and the constitution's own sync-impact report directs that this gate 
 **Independent test**: A reviewer who has not seen the code can enumerate every surface and predict
 each response shape from the published document alone.
 
-- [ ] **T012** [US2] Revise `DESIGN.md` §6.3 and §6.4: generalise the single-surface stability policy
+- [x] **T012** [US2] Revise `DESIGN.md` §6.3 and §6.4: generalise the single-surface stability policy
       to the uniform envelope; update §6.4's bare-array description, preserving its CLI/MCP parity
       *rationale* while correcting the shape.
 - [ ] **T013** [US2] Publish the surface inventory in the repository's user-facing docs (not only in
@@ -114,9 +136,12 @@ each response shape from the published document alone.
 
 **Independent test**: For every surface, assert the declared class matches actual behaviour.
 
-- [ ] **T016** [US3] Annotate every surface with its `read`/`mutation` classification in the
-      inventory, including the two counter-intuitive cases: `plan_sync` is read, `scan_workspace` is
-      mutation (FR-014).
+- [x] **T016** [US3] Annotate every surface with its `read`/`mutation` classification in the
+      inventory, including the two counter-intuitive MCP cases (`plan_sync` is read,
+      `scan_workspace` is mutation, FR-014) **and** the CLI flag-default cases, classified at default
+      flags with the flag that changes them named (FR-014a): `scan --write-registry=true`,
+      `reconcile --dry-run=false`, `repair upstream --dry-run=true`.
+      *(Amended by [analysis.md](./analysis.md) A5.)*
 - [ ] **T017** [US3] Test: no surface classified `read` writes to registry, config, or working tree
       (FR-013, SC-004). Assert by snapshotting state before and after each read surface.
 - [ ] **T018** [US3] Test: under a read-only workspace, every `read` surface succeeds (FR-016) and

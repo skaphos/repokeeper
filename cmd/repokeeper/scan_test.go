@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 )
 
 // TestScanJSONOutputEmptyResultSetIsEmptyArray guards a divergence from the
@@ -40,20 +42,29 @@ func TestScanJSONOutputEmptyResultSetIsEmptyArray(t *testing.T) {
 		t.Fatalf("scan json failed: %v", err)
 	}
 
-	got := strings.TrimSpace(out.String())
-	if got != "[]" {
-		t.Fatalf("expected empty scan result to print exactly %q, got %q", "[]", got)
+	// scan is an adapter-facing surface, so the top level is the contract
+	// envelope rather than a bare array: an array has nowhere to carry
+	// apiVersion. The empty-collection guarantee still applies, now to the
+	// named payload field.
+	var decoded struct {
+		APIVersion string            `json:"apiVersion"`
+		Repos      []json.RawMessage `json:"repos"`
 	}
-
-	// Also confirm it round-trips as a non-nil empty slice, not a JSON null.
-	var decoded []json.RawMessage
 	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
 		t.Fatalf("unmarshal scan json: %v", err)
 	}
-	if decoded == nil {
-		t.Fatal("expected decoded slice to be non-nil (i.e. not JSON null)")
+	if decoded.APIVersion != contract.APIVersion {
+		t.Fatalf("expected apiVersion %q, got %q", contract.APIVersion, decoded.APIVersion)
 	}
-	if len(decoded) != 0 {
-		t.Fatalf("expected zero elements, got %d", len(decoded))
+	if decoded.Repos == nil {
+		t.Fatal("expected repos to be a non-nil empty slice (i.e. [] and not JSON null)")
+	}
+	if len(decoded.Repos) != 0 {
+		t.Fatalf("expected zero repos, got %d", len(decoded.Repos))
+	}
+	// Guard the null-vs-[] distinction at the byte level too: decoding alone
+	// cannot tell them apart, since JSON null also unmarshals into a nil slice.
+	if !strings.Contains(out.String(), `"repos": []`) {
+		t.Fatalf("expected an explicit empty array for repos, got %q", strings.TrimSpace(out.String()))
 	}
 }

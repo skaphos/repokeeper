@@ -15,15 +15,17 @@ command's default flags**, because three of these commands change class dependin
 default is easy to misread. Payload names are the proposed envelope field for each surface; the last
 column records what ships today.
 
-| Surface | Access (at defaults) | Flag that changes it | Stability | Payload | Envelope today |
-| --- | --- | --- | --- | --- | --- |
-| `get -o json`, `get repos -o json` | read | — | stable | `repos` | **already enveloped** |
-| `describe -o json`, `describe repo -o json` | read | — | stable | `repos` | needs wrapping |
-| `scan -o json` | **mutation** | `--write-registry` (**default `true`**) | stable | `results` | needs wrapping |
-| `reconcile -o json` (alias `sync`) | **mutation** | `--dry-run` (default `false`) → read | stable | `results` | needs wrapping |
-| `repair upstream -o json` | **read** | `--dry-run` (**default `true`**) → `=false` makes it mutation | stable | `results` | needs wrapping |
-| `label -o json` | read | `--set` / `--remove` → mutation | stable | `labels` | needs wrapping |
-| `version -o json` | read | — | stable | `version` | needs wrapping |
+| Surface | Access (at defaults) | Flag that changes it | Stability | Payload key |
+| --- | --- | --- | --- | --- |
+| `get -o json`, `get repos -o json` | read | — | stable | `repos` |
+| `describe -o json`, `describe repo -o json` | read | — | stable | `repo` |
+| `scan -o json` | **mutation** | `--write-registry` (**default `true`**) | stable | `repos` |
+| `reconcile -o json` (alias `sync`) | **mutation** | `--dry-run` (default `false`) → read | stable | `results` |
+| `repair upstream -o json` | **read** | `--dry-run` (**default `true`**) → `=false` makes it mutation | stable | `results` |
+| `label -o json` | read | `--set` / `--remove` → mutation | stable | `labels` |
+| `version -o json` | read | — | stable | `version` |
+
+All of the above are enveloped as of 2.0.0. Before it, only `get`/`status` was.
 
 ### Flag defaults that invert the obvious reading
 
@@ -42,22 +44,25 @@ adapter deciding what to call unprompted:
 
 Fourteen registered tools.
 
-| Tool | Access | Stability |
-| --- | --- | --- |
-| `list_repositories` | read | stable |
-| `get_repository_context` | read | stable |
-| `get_workspace_config` | read | stable |
-| `build_workspace_inventory` | read | stable |
-| `select_repositories` | read | stable |
-| `get_repo_metadata` | read | stable |
-| `get_authoritative_paths` | read | stable |
-| `get_related_repositories` | read | stable |
-| `plan_sync` | **read** | stable |
-| `scan_workspace` | **mutation** | stable |
-| `execute_sync` | mutation | stable |
-| `set_labels` | mutation | stable |
-| `add_repository` | mutation | stable |
-| `remove_repository` | mutation | stable |
+| Tool | Access | Stability | Payload key |
+| --- | --- | --- | --- |
+| `list_repositories` | read | stable | `repositories` |
+| `get_repository_context` | read | stable | `repository` |
+| `get_workspace_config` | read | stable | `config` |
+| `build_workspace_inventory` | read | stable | `inventory` |
+| `select_repositories` | read | stable | `repositories` |
+| `get_repo_metadata` | read | stable | `metadata` (`null` when the repo has no metadata file) |
+| `get_authoritative_paths` | read | stable | `paths` |
+| `get_related_repositories` | read | stable | `repositories` |
+| `plan_sync` | **read** | stable | `plan` |
+| `scan_workspace` | **mutation** | stable | `scan` |
+| `execute_sync` | mutation | stable | `results` |
+| `set_labels` | mutation | stable | `labels` |
+| `add_repository` | mutation | stable | `repository` |
+| `remove_repository` | mutation | stable | `repository` |
+
+The envelope appears in both the MCP `structuredContent` and the text-content
+fallback, which carry the same bytes so the two cannot describe different things.
 
 ### Two classifications adapters get wrong
 

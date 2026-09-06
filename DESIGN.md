@@ -565,7 +565,7 @@ Top-level:
 
 ```json
 {
-  "apiVersion": "skaphos.io/repokeeper/v1beta1",
+  "apiVersion": "skaphos.io/repokeeper/v1",
   "generated_at": "…",
   "repos": [
     {
@@ -624,45 +624,52 @@ Field notes:
 * **`tracking.ahead`** / **`tracking.behind`** — integer counts. Both `0` when `status` is `"equal"`. Both `null` when `status` is `"gone"` or `"none"` (no upstream to compare against).
 * **`repair_upstream_suggestion`** — optional boolean emitted on repos with `tracking.status == "gone"`, indicating that `repokeeper repair upstream` is the suggested inspection and repair path.
 * **`remote_tracking_refs`** — a read-only hygiene signal produced with `git remote prune --dry-run`. `stale_count` and `stale` describe refs a later fetch/prune would remove. When a remote cannot be queried, `inspection_error` is populated and the repository inspection continues.
-* **`local_branches`** — a read-only prune-safety classification of every local branch (see ADR-0014). Each branch carries a `category` (`keep` / `safe_to_prune` / `probably_safe` / `needs_review`) and machine-readable `reasons`. A positive integration signal — reachability (`merged_into_base`) or, when policy permits, patch-equivalence (`patch_equivalent_to_base`) — is required for any prune category; only `safe_to_prune` is auto-prune-eligible, and `probably_safe` is review-required. Tri-state signals are `null` when a check was unavailable. When enumeration fails, `inspection_error` is populated. This is a read-only signal: no branch is deleted. The `category`/`reasons` vocabulary is part of this `v1beta1` contract.
+* **`local_branches`** — a read-only prune-safety classification of every local branch (see ADR-0014). Each branch carries a `category` (`keep` / `safe_to_prune` / `probably_safe` / `needs_review`) and machine-readable `reasons`. A positive integration signal — reachability (`merged_into_base`) or, when policy permits, patch-equivalence (`patch_equivalent_to_base`) — is required for any prune category; only `safe_to_prune` is auto-prune-eligible, and `probably_safe` is review-required. Tri-state signals are `null` when a check was unavailable. When enumeration fails, `inspection_error` is populated. This is a read-only signal: no branch is deleted. The `category`/`reasons` vocabulary is part of this `v1` contract.
 * **`apiVersion`** — identifies the schema of this JSON contract (see the stability policy below). When filtered to `diverged`, the top-level object additionally carries a `diverged` advice array; `apiVersion` is unchanged by that filter.
 
 #### JSON output schema stability policy
 
-The `get` / `status -o json` output is a contractual surface (§"adapter contract": machine-readable JSON is versioned/documented, unlike human-oriented table output). Its schema is identified by the top-level `apiVersion`, currently `skaphos.io/repokeeper/v1beta1`. The contract:
+**Every** adapter-facing machine-readable surface is a contractual surface (§"adapter contract": machine-readable JSON is versioned/documented, unlike human-oriented table output) — not just `get` / `status`. Each is identified by the top-level `apiVersion`, currently `skaphos.io/repokeeper/v1`. The contract:
 
-* **Additive changes are non-breaking and do not bump `apiVersion`.** Adding a new top-level or per-repo field is always allowed; consumers must ignore unknown fields.
-* **Breaking changes bump `apiVersion`.** Removing or renaming a field, or changing a field's type or semantics (including the meaning of an existing enum value), is breaking. The version moves forward (`v1beta1` → next) and the change is documented here.
-* The output `apiVersion` is versioned **independently of the config `apiVersion`** (`internal/config`). They happen to share the value `skaphos.io/repokeeper/v1beta1` today, but a bump to one does not require a bump to the other.
-* The value is sourced from a single constant (`statusJSONAPIVersion` in `cmd/repokeeper`). A test (`TestDesignDocNamesStatusJSONAPIVersion`) asserts this document names the current constant value, so the emitted version and this policy cannot silently diverge.
+* **Every adapter-facing response carries `apiVersion`.** No adapter-facing surface emits a bare top-level array; each wraps its payload in an envelope so an adapter can determine compatibility from the first response, with no separate handshake call.
+* **Additive changes are non-breaking and do not bump `apiVersion`.** Adding a new top-level or per-record field is always allowed; consumers must ignore unknown fields.
+* **Breaking changes bump `apiVersion`.** Removing or renaming a field, changing a field's type, changing the meaning of an existing enum value, **or adding a new enum value** to an existing field, is breaking. (Adding a value is breaking because a consumer switching exhaustively over the value space breaks on it.) The version moves forward (`v1` → next) and the change is documented here.
+* **Empty collections marshal as `[]`, never `null`** and never as an omitted field, so an adapter's parse path is uniform.
+* The output `apiVersion` is versioned **independently of the config `apiVersion`** (`internal/config`) and of the repo-metadata `apiVersion` (`internal/repometa`, which uses its own unprefixed `repokeeper/vN` scheme and has never shared a value with either). The output contract and the config schema did share a single beta value until the output contract was promoted to `v1` for the 2.0.0 release; they are now deliberately different, and a bump to one still does not require a bump to another. The config value in particular is written into user `.repokeeper.yaml` files and validated on load, so it cannot follow the output contract. (The superseded value is deliberately not spelled out here — the drift test below rejects any stale version token in this section.) `TestContractVersionIsIndependentOfOtherSchemas` pins all three to their own literals, so defining one in terms of another fails the build.
+* The value is sourced from a single constant (`contract.APIVersion` in `internal/contract`), shared by the CLI and the MCP server so the two cannot drift. A test (`TestDesignDocNamesStatusJSONAPIVersion`) enumerates every contract-version token in this section and asserts each equals the current constant. It matches tokens rather than asking whether the current value appears anywhere: `skaphos.io/repokeeper/v1` is a prefix of `…/v1beta1`, so a `strings.Contains` check passed against the stale documented version and guarded nothing.
 
 ### 6.4 Sync (reconcile) JSON schema
 
-`reconcile -o json` (alias `sync -o json`) emits a top-level JSON **array** of per-repo result objects — one record per repo in the sync set. Unlike the `get`/`status` collection it is unenveloped, matching the other action commands (`scan`, `repair-upstream`) and the MCP `plan_sync`/`execute_sync` result shape, so CLI and MCP consumers parse identical fields:
+`reconcile -o json` (alias `sync -o json`) emits the contract envelope with the per-repo result objects under `results` — one record per repo in the sync set. The same per-record fields appear in the other action commands (`scan`, `repair upstream`) and in the MCP `plan_sync`/`execute_sync` results, so CLI and MCP consumers parse identical records:
 
 ```json
-[
-  {
-    "repo_id": "github.com/org/repo",
-    "path": "/home/user/work/org/repo",
-    "action": "git fetch --all --prune",
-    "outcome": "fetched",
-    "ok": true,
-    "remote_tracking_refs": {
-      "stale_count": 1,
-      "stale": ["origin/merged-pr"]
+{
+  "apiVersion": "skaphos.io/repokeeper/v1",
+  "results": [
+    {
+      "repo_id": "github.com/org/repo",
+      "path": "/home/user/work/org/repo",
+      "action": "git fetch --all --prune",
+      "outcome": "fetched",
+      "ok": true,
+      "remote_tracking_refs": {
+        "stale_count": 1,
+        "stale": ["origin/merged-pr"]
+      }
+    },
+    {
+      "repo_id": "github.com/org/no-upstream",
+      "path": "/home/user/work/org/no-upstream",
+      "action": "",
+      "outcome": "skipped_no_upstream",
+      "ok": true,
+      "error": "skipped-no-upstream"
     }
-  },
-  {
-    "repo_id": "github.com/org/no-upstream",
-    "path": "/home/user/work/org/no-upstream",
-    "action": "",
-    "outcome": "skipped_no_upstream",
-    "ok": true,
-    "error": "skipped-no-upstream"
-  }
-]
+  ]
+}
 ```
+
+Until 2.0.0 this surface emitted a bare top-level array. That shape was chosen deliberately, to keep CLI and MCP records identical, but an array has nowhere to carry `apiVersion` — so an adapter could detect a breaking change on `get`/`status` and nowhere else. 2.0.0 wraps every adapter-facing surface, CLI and MCP together, which preserves the record parity the array shape existed to protect while making the contract version discoverable everywhere.
 
 Field notes:
 
