@@ -69,6 +69,20 @@ var _ = Describe("CLI and MCP sync plan parity", func() {
 		Expect(json.Unmarshal(cli.Stdout, &cliEnvelope)).To(Succeed(), cli.Diagnostics())
 		Expect(cliEnvelope.APIVersion).To(Equal(contract.APIVersion), cli.Diagnostics())
 		cliPlan := cliEnvelope.Results
+		// Compare all wire fields as well as the semantic DTO below: typed
+		// decoders silently discard a newly added or misspelled field.
+		var cliRecords []map[string]any
+		Expect(json.Unmarshal(wireEnvelope(cli.Stdout)["results"], &cliRecords)).To(Succeed())
+		wirePlan, err := decodeStructured[struct {
+			Plan []map[string]any `json:"plan"`
+		}](result)
+		Expect(err).NotTo(HaveOccurred())
+		for _, record := range cliRecords {
+			if _, exists := record["planned"]; !exists {
+				record["planned"] = false
+			}
+		}
+		Expect(wirePlan.Plan).To(ConsistOf(cliRecords))
 		paths := make([]string, 0, len(cliPlan))
 		for _, entry := range cliPlan {
 			paths = append(paths, semanticPath(workspace.WorkspaceRoot, entry.Path))

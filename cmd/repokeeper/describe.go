@@ -107,14 +107,17 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if err := persistDescribeMetadataSnapshot(cfg, cfgPath, registryOverride, reg, entry, repo); err != nil {
-		return err
-	}
-
 	format, _ := cmd.Flags().GetString("format")
 	mode, err := parseOutputMode(format)
 	if err != nil {
 		return err
+	}
+	// Adapter reads must work without write access. Keep the interactive
+	// metadata cache refresh out of the JSON contract path.
+	if mode.kind != outputKindJSON {
+		if err := persistDescribeMetadataSnapshot(cfg, cfgPath, registryOverride, reg, entry, repo); err != nil {
+			return err
+		}
 	}
 	switch mode.kind {
 	case outputKindJSON:

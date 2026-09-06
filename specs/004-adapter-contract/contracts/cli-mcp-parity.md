@@ -41,7 +41,9 @@ implementation.
 ## Verification
 
 - A test asserts the CLI and MCP `apiVersion` values are the same constant, not merely equal strings.
-- For each information-sharing pair (`reconcile --dry-run` ↔ `plan_sync`, `reconcile` ↔ `execute_sync`,
-  `scan` ↔ `scan_workspace`), a test asserts the shared record field sets match.
+- For `reconcile --dry-run` ↔ `plan_sync` and `reconcile` ↔ `execute_sync`, tests compare complete
+  wire records, treating an omitted `planned: false` as equivalent to explicit false.
+- For `scan` ↔ `scan_workspace`, tests compare `repo_id` and `path`. CLI scan carries health records;
+  MCP scan carries registry outcomes. Their non-shared fields intentionally differ.
 - The parity assertion runs in CI on every change, so drift fails the build rather than surfacing as
   a later bug report.

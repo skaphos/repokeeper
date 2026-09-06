@@ -638,9 +638,21 @@ Field notes:
 * **Every adapter-facing response carries `apiVersion`.** No adapter-facing surface emits a bare top-level array; each wraps its payload in an envelope so an adapter can determine compatibility from the first response, with no separate handshake call.
 * **Additive changes are non-breaking and do not bump `apiVersion`.** Adding a new top-level or per-record field is always allowed; consumers must ignore unknown fields.
 * **Breaking changes bump `apiVersion`.** Removing or renaming a field, changing a field's type, changing the meaning of an existing enum value, **or adding a new enum value** to an existing field, is breaking. (Adding a value is breaking because a consumer switching exhaustively over the value space breaks on it.) The version moves forward (`v1` → next) and the change is documented here.
-* **Empty collections marshal as `[]`, never `null`** and never as an omitted field, so an adapter's parse path is uniform.
+* **Required collection payloads marshal as `[]`, never `null`** and never as an omitted field, so an adapter's parse path is uniform. Optional nested collections may be omitted when empty.
 * The output `apiVersion` is versioned **independently of the config `apiVersion`** (`internal/config`) and of the repo-metadata `apiVersion` (`internal/repometa`, which uses its own unprefixed `repokeeper/vN` scheme and has never shared a value with either). The output contract and the config schema did share a single beta value until the output contract was promoted to `v1` for the 2.0.0 release; they are now deliberately different, and a bump to one still does not require a bump to another. The config value in particular is written into user `.repokeeper.yaml` files and validated on load, so it cannot follow the output contract. (The superseded value is deliberately not spelled out here — the drift test below rejects any stale version token in this section.) `TestContractVersionIsIndependentOfOtherSchemas` pins all three to their own literals, so defining one in terms of another fails the build.
 * The value is sourced from a single constant (`contract.APIVersion` in `internal/contract`), shared by the CLI and the MCP server so the two cannot drift. A test (`TestDesignDocNamesStatusJSONAPIVersion`) enumerates every contract-version token in this section and asserts each equals the current constant. It matches tokens rather than asking whether the current value appears anywhere: `skaphos.io/repokeeper/v1` is a prefix of `…/v1beta1`, so a `strings.Contains` check passed against the stale documented version and guarded nothing.
+
+MCP config and registry resources use explicit transport DTOs in `internal/mcpserver/resource_results.go`,
+separate from the YAML persistence types. Registry entries use snake_case fields, `repos` is always an
+array, and unknown `updated_at` / `last_seen` observations are omitted. Known observations are UTC
+RFC3339 timestamps. Config-embedded registries use the same DTO and URL redaction as direct resources.
+This completes the resource field-shape migration for 2.0.0 without changing stored YAML.
+
+`describe -o json` inspects current metadata without persisting a cache refresh. Table output retains
+the existing cache behavior. Fatal invocation errors produce no JSON; completed batch reports may
+carry per-repository errors and a nonzero exit status together with a valid envelope. Consumers must
+inspect both. The published inventory is checked against live CLI/MCP registrations, and real-process
+tests enforce read behavior, error framing, and shared record parity.
 
 ### 6.4 Sync (reconcile) JSON schema
 

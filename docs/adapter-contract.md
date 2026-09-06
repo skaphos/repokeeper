@@ -47,16 +47,21 @@ Parse permissively.
 
 ## 3. The envelope
 
-Every adapter-facing response is a JSON **object** carrying `apiVersion` and exactly one named
-payload. No surface emits a bare top-level array.
+Every successful adapter-facing response is a JSON **object** carrying `apiVersion` and a named
+primary payload. No surface emits a bare top-level array. Some reports include supplemental fields,
+such as `get --only diverged`'s `diverged` advice array.
 
 | Field | Notes |
 | --- | --- |
 | `apiVersion` | Always present. `skaphos.io/repokeeper/v1` as of 2.0.0. |
 | `generated_at` | Present only where the response reports observed state at a point in time. Omitted — not zero — when not applicable. |
-| *payload* | Exactly one, named per surface (`repos`, `results`, `config`, …). |
+| *payload* | Named per surface (`repos`, `results`, `config`, …). |
 
-An empty collection is `[]`, never `null` and never omitted.
+Required collection payloads are `[]`, never `null` and never omitted. Optional nested collections
+may be omitted when empty; their absence means no values. Object-valued optional metadata may be
+`null` only where the inventory explicitly says so. Field names use snake_case except the schema
+marker `apiVersion`. Map key order is not meaningful. Repository arrays retain the command's
+selection order; consumers should match records by checkout ID or path rather than array position.
 
 > **Migrating from 1.x:** the action commands previously emitted a bare top-level array.
 > `reconcile -o json` now returns `{"apiVersion": …, "results": [...]}` — read `.results` instead of
@@ -73,13 +78,18 @@ because three of these change class depending on a flag default that is easy to 
 
 | Surface | Access (at defaults) | Flag that changes it | Payload |
 | --- | --- | --- | --- |
-| `get -o json`, `get repos -o json` | read | — | `repos` |
+| `get -o json`, `get repos -o json`, `get repo -o json` | read | `--reconcile-remote-mismatch` plus `--dry-run=false` → mutation | `repos` |
 | `describe -o json`, `describe repo -o json` | read | — | `repo` |
 | `scan -o json` | **mutation** | `--write-registry` (default `true`) | `repos` |
-| `reconcile -o json` (alias `sync`) | **mutation** | `--dry-run` (default `false`) → read | `results` |
+| `reconcile -o json`, `reconcile repos -o json`, `reconcile repo -o json` | **mutation** | `--dry-run` (default `false`) → read | `results` |
 | `repair upstream -o json` | **read** | `--dry-run` (default `true`) → `=false` makes it mutation | `results` |
 | `label -o json` | read | `--set` / `--remove` → mutation | `labels` |
 | `version -o json` | read | — | `version` |
+
+`install list --json` reports agent registration diagnostics and is explicitly outside this adapter
+contract. Interactive setup, metadata editing, and bundle import/export are also outside it. For
+metadata and validation status, use `describe` or the metadata MCP tools below. Future branch-prune
+planning and agent-status commands are not promised by this inventory.
 
 ### MCP tools
 
@@ -109,8 +119,45 @@ bytes so the two cannot disagree.
 | --- | --- | --- |
 | `repokeeper://config` | read | `config` |
 | `repokeeper://registry` | read | `registry` |
-| `repokeeper://repo/{repo_id}` | read | `repository` |
-| `repokeeper://repo/{repo_id}/metadata` | read | `metadata` |
+
+### MCP resource templates
+
+| Registered URI template | Access | Payload |
+| --- | --- | --- |
+| `repokeeper://repo/{+repo_id}` | read | `repository` or `metadata` |
+
+The reserved expansion allows slashes in repository IDs. Read `repokeeper://repo/github.com/org/repo`
+for the registry entry or append `/metadata` for repo-local metadata. Missing metadata is a resource
+error (the `get_repo_metadata` tool instead returns `metadata: null`).
+
+The inventory drift test compares these tables with the live Cobra tree, MCP tools, resources, and
+resource templates. A new JSON command must be listed or explicitly excluded above.
+
+### Resource payload fields
+
+These schemas apply to MCP resources, including a registry embedded in the config response:
+
+| Payload | Required fields | Optional fields |
+| --- | --- | --- |
+| `registry` | `repos` (entry array, empty as `[]`) | `updated_at` |
+| registry entry / `repository` | `repo_id`, `path`, `remote_url`, `status` | `checkout_id`, `type`, `branch`, `labels`, `annotations`, `last_seen`, `repo_metadata_file`, `repo_metadata_error`, `repo_metadata_fingerprint`, `repo_metadata` |
+| `config` | `apiVersion`, `kind`, `exclude`, `registry_stale_days`, `defaults`, `branch_policy` | `ignored_paths`, `registry_path`, `registry` |
+
+Entry strings describe stored registry state; `status` is `present`, `missing`, or `moved`. Labels and
+annotations are string maps. Metadata uses the repo-local schema described in DESIGN.md. Config
+`defaults` contains `remote_name`, `main_branch`, `concurrency`, and `timeout_seconds`;
+`branch_policy` contains `protected_patterns` (string array), optional `base_branch`, `stale_days`,
+and `require_merged` (boolean). Numeric config values are integers. The inner `config.apiVersion`
+describes the config schema; only the outer `apiVersion` identifies the adapter contract.
+
+`updated_at` and `last_seen` are UTC RFC3339 timestamps with optional fractional seconds. When no
+observation exists, they are omitted, including `list_repositories[].last_seen`. No year-one sentinel
+is emitted for these fields. An absent config `registry` means no registry was stored; a present
+registry with `repos: []` means a known empty registry.
+
+**2.0.0 migration:** resource fields previously inherited Go names (`Entries`, `RemoteURL`,
+`UpdatedAt`, `Exclude`). They now use `repos`, `remote_url`, `updated_at`, and `exclude`. Do not parse
+the old names. Config-embedded registry URLs are redacted just like direct registry resources.
 
 ## 5. Know which calls are safe to make unprompted
 
@@ -150,14 +197,21 @@ to clone, use `add` or `reconcile --checkout-missing`, which read the registry d
 
 ## 7. Handle failure before you parse
 
-```
-exit code 0      → parse stdout as an envelope
-exit code non-0  → read stderr; stdout carries no envelope
-```
+Check both process status and output. A fatal invocation error (invalid arguments, unreadable
+configuration) exits non-zero without a JSON envelope. However, a completed scan, status report, or
+reconcile can exit non-zero **with a valid envelope** when individual repositories have warnings or
+failures. Preserve those records and inspect `error`, `error_class`, `ok`, `outcome`, and `skip_reason`
+where present. Empty stdout is not an empty result set. Stderr is diagnostic prose, not a source of
+machine-readable fields.
 
 An intentional **skip** is a success, not a failure: a repository RepoKeeper declined to act on
-arrives inside a normal envelope with `ok: true` and a machine-readable reason. Do not treat a skip
-as an error just because no work happened.
+arrives inside a normal envelope with `ok: true` and a machine-readable reason. Some skipped outcomes
+are failures (for example, a missing checkout); inspect `ok` and `error` rather than assuming every
+`skipped_*` outcome succeeded.
+
+For MCP, check protocol errors and `isError` first. A failed tool call has no success envelope in
+`structuredContent`. Successful batch calls may still contain per-repository failures. The text
+fallback on success contains the same JSON as `structuredContent`.
 
 ## 8. What is NOT contractual
 
