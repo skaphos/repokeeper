@@ -311,9 +311,15 @@ func (s *MCPServer) handleSetLabels(_ context.Context, req mcp.CallToolRequest) 
 		return newToolErrorf("labels updated but failed to save: %w", err), nil
 	}
 
+	// Empty labels are an object in the response; keep the registry's nil-map
+	// persistence convention separate from the adapter's required field.
+	labels := entry.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
 	return newStructuredResult("labels", setLabelsResponse{
 		RepoID: entry.RepoID,
-		Labels: entry.Labels,
+		Labels: labels,
 	})
 }
 

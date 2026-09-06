@@ -228,7 +228,7 @@ RepoKeeper can read optional repo-root metadata from either `.repokeeper-repo.ya
 - `label` remains machine-local only.
 - `index --promote-local-labels --write` explicitly promotes machine-local labels into shared repo metadata.
 - `index repos --selector ...` / `--local-selector ...` previews or writes that promotion across multiple selected repos.
-- Read commands cache repo-metadata snapshots in the machine-local registry and refresh them when the on-disk metadata state changes.
+- Inspection refreshes repo-metadata snapshots in memory when on-disk metadata changes. Plain `get` / `status` reads do not persist those refreshes; explicit scan and reconciliation operations save the registry.
 - `--yes` skips the final write confirmation, but does not change the requirement to pass `--write`.
 - Existing `repo_metadata.labels` win on key conflicts; promoted local labels only fill missing keys.
 

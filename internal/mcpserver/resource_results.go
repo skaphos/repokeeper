@@ -87,11 +87,7 @@ func newConfigResourceResponse(cfg *config.Config) configResourceResponse {
 			RemoteName: cfg.Defaults.RemoteName, MainBranch: cfg.Defaults.MainBranch,
 			Concurrency: cfg.Defaults.Concurrency, TimeoutSeconds: cfg.Defaults.TimeoutSeconds,
 		},
-		BranchPolicy: branchPolicyResponse{
-			ProtectedPatterns: nonNilStrings(cfg.BranchPolicy.ProtectedPatterns),
-			BaseBranch:        cfg.BranchPolicy.BaseBranch, StaleDays: cfg.BranchPolicy.StaleDays,
-			RequireMerged: cfg.BranchPolicy.RequireMerged,
-		},
+		BranchPolicy: newBranchPolicyResponse(cfg.BranchPolicy),
 	}
 }
 
@@ -108,4 +104,13 @@ func observedTime(value time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339Nano)
+}
+
+// Both config surfaces report the same policy, including explicit false and zero values.
+func newBranchPolicyResponse(policy config.BranchPolicy) branchPolicyResponse {
+	return branchPolicyResponse{
+		ProtectedPatterns: nonNilStrings(policy.ProtectedPatterns),
+		BaseBranch:        policy.BaseBranch, StaleDays: policy.StaleDays,
+		RequireMerged: policy.RequireMerged,
+	}
 }

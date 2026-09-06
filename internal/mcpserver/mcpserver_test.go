@@ -624,6 +624,29 @@ var _ = Describe("MCPServer", func() {
 	})
 
 	Describe("get_workspace_config", func() {
+		It("shares required config fields with the resource, including empty excludes", func() {
+			eng.cfg.Exclude = nil
+			eng.cfg.BranchPolicy.ProtectedPatterns = []string{"release/*"}
+			eng.cfg.BranchPolicy.BaseBranch = "develop"
+			eng.cfg.BranchPolicy.StaleDays = 14
+			eng.cfg.BranchPolicy.RequireMerged = false
+			result, err := callTool(srv, "get_workspace_config", nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.IsError).To(BeFalse())
+			var tool map[string]json.RawMessage
+			Expect(json.Unmarshal(resultJSON(result), &tool)).To(Succeed())
+			resourceText := expectResourceSuccess(srv.Inner().HandleMessage(context.Background(), resourceReadMessage("repokeeper://config")))
+			var resource map[string]json.RawMessage
+			Expect(json.Unmarshal([]byte(resourceText), &resource)).To(Succeed())
+			for _, field := range []string{"apiVersion", "kind", "exclude", "registry_stale_days", "defaults", "branch_policy"} {
+				Expect(tool).To(HaveKey(field))
+				Expect(tool[field]).To(MatchJSON(string(resource[field])), field)
+			}
+			Expect(tool["exclude"]).To(MatchJSON("[]"))
+			Expect(tool).To(HaveKey("config_path"))
+			Expect(tool).To(HaveKey("repo_count"))
+		})
+
 		It("returns config with defaults", func() {
 			result, err := callTool(srv, "get_workspace_config", nil)
 			Expect(err).NotTo(HaveOccurred())
@@ -1431,6 +1454,24 @@ var _ = Describe("MCPServer", func() {
 	})
 
 	Describe("set_labels", func() {
+		It("returns an empty labels object after removing the last label", func() {
+			entry := eng.reg.FindByRepoID("github.com/example/alpha")
+			entry.Labels = map[string]string{"probe": "value"}
+			for range 2 {
+				result, err := callTool(srv, "set_labels", map[string]any{
+					"repo": "github.com/example/alpha", "remove": []any{"probe"},
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(result.IsError).To(BeFalse())
+				var response map[string]json.RawMessage
+				Expect(json.Unmarshal(resultJSON(result), &response)).To(Succeed())
+				Expect(response).To(HaveKey("labels"))
+				Expect(response["labels"]).To(MatchJSON("{}"))
+				// Response normalization must not change the persisted nil-map convention.
+				Expect(entry.Labels).To(BeNil())
+			}
+		})
+
 		It("sets labels on a repo", func() {
 			result, err := callTool(srv, "set_labels", map[string]any{
 				"repo": "github.com/example/alpha",

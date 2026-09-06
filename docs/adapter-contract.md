@@ -118,6 +118,13 @@ planning and agent-status commands are not promised by this inventory.
 The envelope appears in both `structuredContent` and the text-content fallback, which carry the same
 bytes so the two cannot disagree.
 
+The `get_workspace_config` tool includes the config schema's `apiVersion` and `kind`,
+`exclude` (always an array), `registry_stale_days`, `defaults`, and `branch_policy`,
+matching the resource's required config fields below. It additionally reports `config_path`
+and `repo_count`; the embedded `registry` remains resource-only.
+The `set_labels` response's inner `labels` field is always an object, including `{}`
+after the last label is removed.
+
 ### MCP resources
 
 | Resource URI | Access | Payload |

@@ -654,6 +654,8 @@ array, and unknown `updated_at` / `last_seen` observations are omitted. Known ob
 RFC3339 timestamps. Config-embedded registries use the same DTO and URL redaction as direct resources.
 This completes the resource field-shape migration for 2.0.0 without changing stored YAML.
 
+`get` / `status` inspects current metadata in memory without saving the config or registry, including filtered and repeated reads. Explicit root rescans and applied remote-mismatch reconciliation retain their persistence paths.
+
 `describe -o json` inspects current metadata without persisting a cache refresh. Table output retains
 the existing cache behavior. Fatal invocation errors produce no JSON; completed batch reports may
 carry per-repository errors and a nonzero exit status together with a valid envelope. Consumers must

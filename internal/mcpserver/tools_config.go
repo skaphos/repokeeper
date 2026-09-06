@@ -11,13 +11,16 @@ import (
 
 // workspaceConfigResponse is the JSON shape for get_workspace_config.
 type workspaceConfigResponse struct {
-	ConfigPath   string         `json:"config_path"`
-	Exclude      []string       `json:"exclude,omitempty"`
-	IgnoredPaths []string       `json:"ignored_paths,omitempty"`
-	RegistryPath string         `json:"registry_path,omitempty"`
-	StaleDays    int            `json:"registry_stale_days"`
-	Defaults     configDefaults `json:"defaults"`
-	RepoCount    int            `json:"repo_count"`
+	APIVersion   string               `json:"apiVersion"`
+	Kind         string               `json:"kind"`
+	BranchPolicy branchPolicyResponse `json:"branch_policy"`
+	ConfigPath   string               `json:"config_path"`
+	Exclude      []string             `json:"exclude"`
+	IgnoredPaths []string             `json:"ignored_paths,omitempty"`
+	RegistryPath string               `json:"registry_path,omitempty"`
+	StaleDays    int                  `json:"registry_stale_days"`
+	Defaults     configDefaults       `json:"defaults"`
+	RepoCount    int                  `json:"repo_count"`
 }
 
 type configDefaults struct {
@@ -39,8 +42,10 @@ func (s *MCPServer) handleGetWorkspaceConfig(_ context.Context, _ mcp.CallToolRe
 	}
 
 	resp := workspaceConfigResponse{
+		APIVersion: cfg.APIVersion, Kind: cfg.Kind,
+		BranchPolicy: newBranchPolicyResponse(cfg.BranchPolicy),
 		ConfigPath:   s.cfgPath,
-		Exclude:      cfg.Exclude,
+		Exclude:      nonNilStrings(cfg.Exclude),
 		IgnoredPaths: cfg.IgnoredPaths,
 		RegistryPath: cfg.RegistryPath,
 		StaleDays:    positiveIntDefault(cfg.RegistryStaleDays, config.DefaultConfig().RegistryStaleDays),
