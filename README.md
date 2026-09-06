@@ -141,7 +141,7 @@ Scan treats each discovered repository root as a boundary and does not descend i
 Detailed command breakdown moved to docs:
 
 - [docs/commands.md](docs/commands.md) - full command reference, flags, and behavior notes
-- [docs/adapter-contract.md](docs/adapter-contract.md) - the stable machine-readable surface for external tools and IDE plugins
+- [docs/adapter-contract.md](docs/adapter-contract.md) - stable machine-readable surfaces, adapter support declarations, and runtime compatibility checks
 - [docs/skills/README.md](docs/skills/README.md) - installable agent skill for OpenCode/compatible runtimes
 - [docs/man/README.md](docs/man/README.md) - manpage generation and release integration plan
 
