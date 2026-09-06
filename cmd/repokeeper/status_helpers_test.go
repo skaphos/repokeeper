@@ -5,11 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 	"github.com/skaphos/repokeeper/v2/internal/model"
 	"github.com/spf13/cobra"
 )
@@ -284,8 +286,8 @@ func TestStatusJSONOutputIncludesAPIVersion(t *testing.T) {
 		t.Parallel()
 		doc := decode(t, buildStatusJSONOutput(report, false))
 
-		if got := assertString(t, doc, "apiVersion"); got != statusJSONAPIVersion {
-			t.Errorf("apiVersion = %q, want %q", got, statusJSONAPIVersion)
+		if got := assertString(t, doc, "apiVersion"); got != contract.APIVersion {
+			t.Errorf("apiVersion = %q, want %q", got, contract.APIVersion)
 		}
 		// generated_at must survive and round-trip, not just exist.
 		if got := assertString(t, doc, "generated_at"); got != generatedAt.Format(time.RFC3339Nano) {
@@ -301,8 +303,8 @@ func TestStatusJSONOutputIncludesAPIVersion(t *testing.T) {
 		t.Parallel()
 		doc := decode(t, buildStatusJSONOutput(report, true))
 
-		if got := assertString(t, doc, "apiVersion"); got != statusJSONAPIVersion {
-			t.Errorf("diverged apiVersion = %q, want %q", got, statusJSONAPIVersion)
+		if got := assertString(t, doc, "apiVersion"); got != contract.APIVersion {
+			t.Errorf("diverged apiVersion = %q, want %q", got, contract.APIVersion)
 		}
 		// The existing repos field must remain alongside the diverged advice.
 		assertArrayLen(t, doc, "repos", len(report.Repos))
@@ -425,15 +427,15 @@ func TestStatusJSONOutputNilReportIsSafe(t *testing.T) {
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			t.Fatalf("unmarshal nil report (diverged=%t): %v", includeDiverged, err)
 		}
-		if doc.APIVersion != statusJSONAPIVersion {
-			t.Errorf("nil report (diverged=%t) apiVersion = %q, want %q", includeDiverged, doc.APIVersion, statusJSONAPIVersion)
+		if doc.APIVersion != contract.APIVersion {
+			t.Errorf("nil report (diverged=%t) apiVersion = %q, want %q", includeDiverged, doc.APIVersion, contract.APIVersion)
 		}
 	}
 }
 
 // TestDesignDocNamesStatusJSONAPIVersion is the drift guard backing DESIGN.md's
 // claim that the documented schema version cannot silently diverge from the
-// emitted constant. If statusJSONAPIVersion is bumped without updating §6.3,
+// emitted constant. If contract.APIVersion is bumped without updating §6.3,
 // this fails.
 func TestDesignDocNamesStatusJSONAPIVersion(t *testing.T) {
 	t.Parallel()
@@ -458,7 +460,23 @@ func TestDesignDocNamesStatusJSONAPIVersion(t *testing.T) {
 	if end := strings.Index(section[len(header):], "\n## "); end >= 0 {
 		section = section[:len(header)+end]
 	}
-	if !strings.Contains(section, statusJSONAPIVersion) {
-		t.Fatalf("%s §6.3 does not name the current statusJSONAPIVersion %q; update the Status JSON schema section", docPath, statusJSONAPIVersion)
+	// Match every version token in the section and require each to be the
+	// current one, rather than asking whether the current one appears anywhere.
+	//
+	// A substring check is not sufficient here and silently stopped guarding
+	// when the contract was promoted: "skaphos.io/repokeeper/v1" is a prefix of
+	// "skaphos.io/repokeeper/v1beta1", so strings.Contains reported a match
+	// against the *stale* documented version and the test passed vacuously.
+	// Enumerating the tokens catches drift in both directions -- a stale version
+	// left behind, and the current version missing entirely.
+	versionPattern := regexp.MustCompile(`skaphos\.io/repokeeper/v[0-9A-Za-z]+`)
+	found := versionPattern.FindAllString(section, -1)
+	if len(found) == 0 {
+		t.Fatalf("%s §6.3 names no contract version at all; it must name %q", docPath, contract.APIVersion)
+	}
+	for _, got := range found {
+		if got != contract.APIVersion {
+			t.Fatalf("%s §6.3 names contract version %q but the code emits %q; update the Status JSON schema section", docPath, got, contract.APIVersion)
+		}
 	}
 }

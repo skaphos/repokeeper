@@ -91,7 +91,7 @@ func writeVersionJSON(cmd *cobra.Command, info buildinfo.Info) {
 	}
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(payload); err != nil {
+	if err := enc.Encode(newVersionEnvelope(payload)); err != nil {
 		logOutputWriteFailure(cmd, "version json", err)
 	}
 }

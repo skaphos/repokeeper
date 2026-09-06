@@ -102,7 +102,7 @@ func (s *MCPServer) handleScanWorkspace(ctx context.Context, req mcp.CallToolReq
 		Pruned:     pruned,
 		Repos:      repos,
 	}
-	return mcp.NewToolResultJSON(resp)
+	return newStructuredResult("scan", resp)
 }
 
 func registryEntrySet(reg *registry.Registry) map[string]struct{} {
@@ -311,7 +311,7 @@ func (s *MCPServer) handleSetLabels(_ context.Context, req mcp.CallToolRequest) 
 		return newToolErrorf("labels updated but failed to save: %w", err), nil
 	}
 
-	return mcp.NewToolResultJSON(setLabelsResponse{
+	return newStructuredResult("labels", setLabelsResponse{
 		RepoID: entry.RepoID,
 		Labels: entry.Labels,
 	})
@@ -352,7 +352,7 @@ func (s *MCPServer) handleAddRepository(ctx context.Context, req mcp.CallToolReq
 		}
 	}
 
-	return mcp.NewToolResultJSON(addRepoResponse{
+	return newStructuredResult("repository", addRepoResponse{
 		RepoID: repoID,
 		Path:   path,
 		Status: "cloned",
@@ -398,7 +398,7 @@ func (s *MCPServer) handleRemoveRepository(ctx context.Context, req mcp.CallTool
 		return newToolError(err), nil
 	}
 
-	return mcp.NewToolResultJSON(removeRepoResponse{
+	return newStructuredResult("repository", removeRepoResponse{
 		RepoID:  entry.RepoID,
 		Removed: true,
 	})

@@ -8,6 +8,8 @@ import (
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
+
+	"github.com/skaphos/repokeeper/v2/internal/contract"
 )
 
 func decodeStructured[T any](result *mcp.CallToolResult) (T, error) {
@@ -25,11 +27,40 @@ func decodeStructured[T any](result *mcp.CallToolResult) (T, error) {
 	return target, nil
 }
 
+// mcpEnvelopePayload returns the tool's payload from a decoded envelope. When
+// the payload is an object its fields are returned directly; when it is a
+// collection there are no object fields to check, so the envelope is returned
+// unchanged and the caller's field assertions fail loudly rather than silently
+// passing against the wrong level.
+func mcpEnvelopePayload(envelope map[string]any) map[string]any {
+	for key, value := range envelope {
+		if key == "apiVersion" {
+			continue
+		}
+		if payload, ok := value.(map[string]any); ok {
+			return payload
+		}
+	}
+	return envelope
+}
+
 func requireObjectFields(result *mcp.CallToolResult, fields ...string) error {
 	object, err := decodeStructured[map[string]any](result)
 	if err != nil {
 		return err
 	}
+	// Every adapter-facing MCP result is the contract envelope: apiVersion plus
+	// one named payload. Assert the version end-to-end against the real stdio
+	// process, then look for the tool's own fields inside the payload.
+	version, versioned := object["apiVersion"]
+	if !versioned {
+		return fmt.Errorf("structuredContent is missing the contract apiVersion")
+	}
+	if version != contract.APIVersion {
+		return fmt.Errorf("structuredContent apiVersion = %v, want %q", version, contract.APIVersion)
+	}
+	object = mcpEnvelopePayload(object)
+
 	for _, field := range fields {
 		if _, exists := object[field]; !exists {
 			return fmt.Errorf("structuredContent missing required field %q", field)

@@ -53,7 +53,7 @@ func (s *MCPServer) handleGetWorkspaceConfig(_ context.Context, _ mcp.CallToolRe
 		RepoCount: repoCount,
 	}
 
-	return mcp.NewToolResultJSON(resp)
+	return newStructuredResult("config", resp)
 }
 
 func cfgDefault(val, fallback string) string {

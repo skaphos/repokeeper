@@ -174,7 +174,7 @@ var syncCmd = &cobra.Command{
 		switch mode.kind {
 		case outputKindJSON:
 			setColorOutputMode(cmd, string(mode.kind))
-			data, err := json.MarshalIndent(toSyncResultJSONs(results), "", "  ")
+			data, err := json.MarshalIndent(newResultsEnvelope(toSyncResultJSONs(results)), "", "  ")
 			if err != nil {
 				return err
 			}
