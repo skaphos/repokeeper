@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/skaphos/repokeeper/compare/v2.0.0...v2.0.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **adapter:** restore read-only status and required MCP fields ([#356](https://github.com/skaphos/repokeeper/issues/356)) ([fb4bcbc](https://github.com/skaphos/repokeeper/commit/fb4bcbcf4c9dcee4377e38f12df72181970ea482)), closes [#353](https://github.com/skaphos/repokeeper/issues/353) [#354](https://github.com/skaphos/repokeeper/issues/354) [#355](https://github.com/skaphos/repokeeper/issues/355)
+
 ## [2.0.0](https://github.com/skaphos/repokeeper/compare/v1.4.0...v2.0.0) (2026-09-06)
 
 
