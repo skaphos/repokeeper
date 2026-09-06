@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -832,78 +833,116 @@ func TestStatusUsesNearestConfigFromNestedCWD(t *testing.T) {
 }
 
 func TestStatusRunEIncludesRepoMetadata(t *testing.T) {
-	tmp := t.TempDir()
-	repoPath := filepath.Join(tmp, "repo-with-meta")
-	if err := os.MkdirAll(repoPath, 0o755); err != nil {
-		t.Fatalf("mkdir repo: %v", err)
-	}
-	metadataPath := filepath.Join(repoPath, ".repokeeper-repo.yaml")
-	metadata := "apiVersion: repokeeper/v1\nkind: RepoMetadata\nname: Repo With Meta\nlabels:\n  role: docs\nentrypoints:\n  readme: README.md\npaths:\n  authoritative:\n    - docs/\nprovides:\n  - guides\n"
-	if err := os.WriteFile(metadataPath, []byte(metadata), 0o644); err != nil {
-		t.Fatalf("write metadata: %v", err)
-	}
-	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
-	cfg := config.DefaultConfig()
-	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{RepoID: "github.com/org/repo-with-meta", Path: repoPath, Status: registry.StatusPresent, LastSeen: time.Now()}}}
-	if err := config.Save(&cfg, cfgPath); err != nil {
-		t.Fatalf("save config: %v", err)
-	}
-	cleanup := withTestConfig(t, cfgPath)
-	defer cleanup()
+	previousContext := statusCmd.Context()
+	statusCmd.SetContext(t.Context())
+	t.Cleanup(func() { statusCmd.SetContext(previousContext) })
+	for _, external := range []bool{false, true} {
+		for _, filter := range []string{"all", "errors"} {
+			t.Run(fmt.Sprintf("external=%t/filter=%s", external, filter), func(t *testing.T) {
+				tmp := t.TempDir()
+				repoPath := filepath.Join(tmp, "repo-with-meta")
+				if err := os.MkdirAll(repoPath, 0o755); err != nil {
+					t.Fatalf("mkdir repo: %v", err)
+				}
+				metadataPath := filepath.Join(repoPath, ".repokeeper-repo.yaml")
+				metadata := "apiVersion: repokeeper/v1\nkind: RepoMetadata\nname: Repo With Meta\nlabels:\n  role: docs\nentrypoints:\n  readme: README.md\npaths:\n  authoritative:\n    - docs/\nprovides:\n  - guides\n"
+				if err := os.WriteFile(metadataPath, []byte(metadata), 0o644); err != nil {
+					t.Fatalf("write metadata: %v", err)
+				}
+				cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+				cfg := config.DefaultConfig()
+				cfg.Registry = &registry.Registry{Entries: []registry.Entry{{RepoID: "github.com/org/repo-with-meta", Path: repoPath, Status: registry.StatusPresent, LastSeen: time.Now()}}}
+				if err := config.Save(&cfg, cfgPath); err != nil {
+					t.Fatalf("save config: %v", err)
+				}
+				registryPath := ""
+				if external {
+					registryPath = filepath.Join(tmp, "registry.yaml")
+					if err := registry.Save(cfg.Registry, registryPath); err != nil {
+						t.Fatal(err)
+					}
+				}
+				filesBefore := map[string][]byte{}
+				timesBefore := map[string]time.Time{}
+				for _, path := range []string{cfgPath, registryPath} {
+					if path == "" {
+						continue
+					}
+					stamp := time.Unix(1000000000, 0)
+					if err := os.Chtimes(path, stamp, stamp); err != nil {
+						t.Fatal(err)
+					}
+					data, err := os.ReadFile(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					filesBefore[path] = data
+					info, err := os.Stat(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					timesBefore[path] = info.ModTime()
+				}
+				cleanup := withTestConfig(t, cfgPath)
+				defer cleanup()
 
-	before, err := os.ReadFile(metadataPath)
-	if err != nil {
-		t.Fatalf("read metadata before status: %v", err)
-	}
+				before, err := os.ReadFile(metadataPath)
+				if err != nil {
+					t.Fatalf("read metadata before status: %v", err)
+				}
 
-	out := &bytes.Buffer{}
-	errOut := &bytes.Buffer{}
-	statusCmd.SetOut(out)
-	statusCmd.SetErr(errOut)
-	defer statusCmd.SetOut(os.Stdout)
-	defer statusCmd.SetErr(os.Stderr)
-	_ = statusCmd.Flags().Set("registry", "")
-	_ = statusCmd.Flags().Set("format", "json")
-	_ = statusCmd.Flags().Set("only", "all")
-	_ = statusCmd.Flags().Set("field-selector", "")
-	_ = statusCmd.Flags().Set("selector", "")
-	_ = statusCmd.Flags().Set("local-selector", "")
-	_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
-	_ = statusCmd.Flags().Set("dry-run", "true")
-	_ = statusCmd.Flags().Set("no-headers", "false")
+				out := &bytes.Buffer{}
+				errOut := &bytes.Buffer{}
+				statusCmd.SetOut(out)
+				statusCmd.SetErr(errOut)
+				defer statusCmd.SetOut(os.Stdout)
+				defer statusCmd.SetErr(os.Stderr)
+				_ = statusCmd.Flags().Set("registry", registryPath)
+				_ = statusCmd.Flags().Set("format", "json")
+				_ = statusCmd.Flags().Set("only", filter)
+				_ = statusCmd.Flags().Set("field-selector", "")
+				_ = statusCmd.Flags().Set("selector", "")
+				_ = statusCmd.Flags().Set("local-selector", "")
+				_ = statusCmd.Flags().Set("reconcile-remote-mismatch", "none")
+				_ = statusCmd.Flags().Set("dry-run", "true")
+				_ = statusCmd.Flags().Set("no-headers", "false")
 
-	if err := statusCmd.RunE(statusCmd, nil); err != nil {
-		t.Fatalf("status with repo metadata failed: %v", err)
-	}
-	got := out.String()
-	for _, want := range []string{"\"repo_metadata_file\"", "\"repo_metadata\"", "\"name\": \"Repo With Meta\"", "\"role\": \"docs\"", "\"guides\""} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("expected status output to contain %q, got: %q", want, got)
+				for range 2 {
+					if err := statusCmd.RunE(statusCmd, nil); err != nil {
+						t.Fatalf("status with repo metadata failed: %v", err)
+					}
+				}
+				got := out.String()
+				for _, want := range []string{"\"repo_metadata_file\"", "\"repo_metadata\"", "\"name\": \"Repo With Meta\"", "\"role\": \"docs\"", "\"guides\""} {
+					if !strings.Contains(got, want) {
+						t.Fatalf("expected status output to contain %q, got: %q", want, got)
+					}
+				}
+				for path, original := range filesBefore {
+					current, err := os.ReadFile(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(current, original) {
+						t.Fatalf("read changed %s", path)
+					}
+					info, err := os.Stat(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !info.ModTime().Equal(timesBefore[path]) {
+						t.Fatalf("read rewrote %s", path)
+					}
+				}
+				after, err := os.ReadFile(metadataPath)
+				if err != nil {
+					t.Fatalf("read metadata after status: %v", err)
+				}
+				if string(after) != string(before) {
+					t.Fatal("expected status to leave repo metadata file unchanged")
+				}
+			})
 		}
-	}
-	loaded, err := config.Load(cfgPath)
-	if err != nil {
-		t.Fatalf("reload config after status: %v", err)
-	}
-	entry := loaded.Registry.FindByRepoID("github.com/org/repo-with-meta")
-	if entry == nil {
-		t.Fatal("expected cached registry entry after status")
-	}
-	if entry.RepoMetadataFile != metadataPath {
-		t.Fatalf("expected persisted metadata file path %q, got %q", metadataPath, entry.RepoMetadataFile)
-	}
-	if entry.RepoMetadataFingerprint == "" {
-		t.Fatal("expected persisted metadata fingerprint after status")
-	}
-	if entry.RepoMetadata == nil || entry.RepoMetadata.Name != "Repo With Meta" {
-		t.Fatalf("expected persisted metadata payload after status, got %+v", entry.RepoMetadata)
-	}
-	after, err := os.ReadFile(metadataPath)
-	if err != nil {
-		t.Fatalf("read metadata after status: %v", err)
-	}
-	if string(after) != string(before) {
-		t.Fatal("expected status to leave repo metadata file unchanged")
 	}
 }
 

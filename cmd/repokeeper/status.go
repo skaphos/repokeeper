@@ -162,9 +162,9 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		if err := persistStatusRegistrySnapshots(cfg, cfgPath, registryOverride, reg); err != nil {
-			return err
-		}
+		// Status hydrates metadata in memory for reporting. Persisting here would
+		// turn every read (including filtered polls) into a config/registry write.
+		// Explicit rescan and reconciliation paths own their persistence.
 		enrichReportWithRegistryMetadata(report, reg)
 		report = filterStatusReportByLabels(report, labelSelector)
 		report = filterStatusReportByLocalLabels(report, localLabelSelector)
