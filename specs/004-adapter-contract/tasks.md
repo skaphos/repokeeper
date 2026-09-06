@@ -193,6 +193,18 @@ each response shape from the published document alone.
 - [ ] **T023** [P] Confirm no measurable performance regression on `list_repositories`, documented as
       "fast — reads registry only".
 - [ ] **T024** Run the full local gate `go -C tools tool task ci` before opening the PR.
+- [ ] **T024a** The MCP `repokeeper://registry` resource emits a **zero** `UpdatedAt`
+      (`0001-01-01T00:00:00Z`) for a registry that has never been written. This is the same
+      "epoch vs not-applicable" hazard the envelope `Header` deliberately avoids by omitting
+      `generated_at` when unset, and an adapter cannot tell the two apart. Decide whether to omit or
+      to define zero as meaningful.
+      *(Found while verifying the Copilot review fix; candidate for #289.)*
+- [ ] **T024b** `registry.Registry` and `registry.Entry` carry **no `json` tags**, so the registry
+      and per-repo resources emit Go field names (`UpdatedAt`, `Entries`, `RemoteURL`) while every
+      other adapter-facing surface emits snake_case. A contract that claims uniformity should not
+      have one surface in a different naming convention. Note this is a **breaking** shape change to
+      those resources, so 2.0.0 is the cheap window — deferring it costs a contract bump.
+      *(Found while verifying the Copilot review fix; candidate for #289, but timing argues for now.)*
 - [ ] **T025** Confirm the follow-on issues can now proceed: [#289](https://github.com/skaphos/repokeeper/issues/289)
       (JSON hardening against this contract) and [#286](https://github.com/skaphos/repokeeper/issues/286)
       (adapter version compatibility policy).

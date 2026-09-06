@@ -22,13 +22,20 @@ func (e Entry) Redacted() Entry {
 // Redacted returns a copy of the registry with every entry redacted. A nil
 // receiver yields nil so callers can pass through a not-loaded registry
 // unchanged.
+//
+// Entries is always a non-nil slice on the returned value. This method builds
+// the payload served by the adapter-facing MCP `repokeeper://registry`
+// resource, so it owns that payload's JSON representation: a nil slice marshals
+// as `null` and would break an adapter parsing `[]` uniformly, which is the
+// collection guarantee the contract makes (FR-007). An empty registry must read
+// as "no repositories", not as "no answer".
 func (r *Registry) Redacted() *Registry {
 	if r == nil {
 		return nil
 	}
 
-	redacted := &Registry{UpdatedAt: r.UpdatedAt}
-	if r.Entries == nil {
+	redacted := &Registry{UpdatedAt: r.UpdatedAt, Entries: []Entry{}}
+	if len(r.Entries) == 0 {
 		return redacted
 	}
 	redacted.Entries = make([]Entry, len(r.Entries))

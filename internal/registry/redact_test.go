@@ -3,6 +3,7 @@
 package registry_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -55,6 +56,33 @@ func TestRegistryRedactedRedactsEveryEntry(t *testing.T) {
 		if entry.RemoteURL != secretURL {
 			t.Errorf("Redacted mutated source entries[%d]: %q", i, entry.RemoteURL)
 		}
+	}
+}
+
+// TestRegistryRedactedEmitsEmptyEntriesNotNull covers the collection guarantee
+// on the MCP registry resource. Decoding cannot catch this -- JSON null also
+// unmarshals into a nil slice -- so the assertion is on the emitted bytes.
+func TestRegistryRedactedEmitsEmptyEntriesNotNull(t *testing.T) {
+	t.Parallel()
+
+	for name, reg := range map[string]*registry.Registry{
+		"nil entries":   {},
+		"empty entries": {Entries: []registry.Entry{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := json.Marshal(reg.Redacted())
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			if strings.Contains(string(data), `"Entries":null`) {
+				t.Errorf("empty registry emitted a null collection: %s", data)
+			}
+			if !strings.Contains(string(data), `"Entries":[]`) {
+				t.Errorf("empty registry did not emit an explicit empty array: %s", data)
+			}
+		})
 	}
 }
 
