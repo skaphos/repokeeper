@@ -95,15 +95,20 @@ behaviour, and the constitution's own sync-impact report directs that this gate 
 - [x] **T011** [US1] Test: enumerate every adapter-facing surface, assert each emits `apiVersion`
       equal to the shared constant (SC-001), and assert CLI and MCP resolve to the *same constant*
       rather than merely equal strings.
-- [ ] **T011a** [US1] Test: a failed invocation emits **no** envelope on stdout and exits non-zero
-      (FR-019); an intentional skip is a success carrying `ok: true` plus a reason. Adapters branch on
-      this, so it must be verified rather than assumed.
+- [x] **T011a** [US1] Test: a fatal invocation emits **no** envelope on stdout and exits non-zero;
+      completed batch reports may return a valid envelope with per-repository failures and a nonzero
+      exit. MCP tool errors have no success structured content. Benign skips carry `ok: true` plus
+      a reason; missing-checkout skips remain failures. Verified by real-process contract/parity tests
+      for #289; the original task wording conflated fatal invocation and batch-result failures.
       *(Added by [analysis.md](./analysis.md) A1.)*
-- [ ] **T011b** [US1] Test: shared-record **field-set** parity between each CLI/MCP pair —
+- [x] **T011b** [US1] Test: shared-record **field-set** parity between each CLI/MCP pair —
       `reconcile --dry-run` ↔ `plan_sync`, `reconcile` ↔ `execute_sync`, `scan` ↔ `scan_workspace`
       (FR-017). T011 only covers the `apiVersion`; this covers the parity `cli-mcp-parity.md` actually
       promises and that #344 had to restore.
       *(Added by [analysis.md](./analysis.md) A2.)*
+      #289 compares all sync wire fields (normalizing the documented omitted-false `planned`) and
+      scan identity fields. Scan payloads intentionally differ: CLI reports health, MCP reports
+      registry outcomes, so only `repo_id` and `path` are shared fields.
 
 - [x] **T009a** [US1] Envelope the three MCP **resources** in `internal/mcpserver/resources.go` —
       `config`, the registry snapshot, and the per-repo template. All three are advertised as
@@ -132,13 +137,13 @@ each response shape from the published document alone.
       *rationale* while correcting the shape.
 - [x] **T013** [US2] Publish the surface inventory in the repository's user-facing docs (not only in
       `specs/`), since adapter authors are external and will not read a feature spec directory.
-- [ ] **T014** [US2] Implement the drift test per T002's outcome — now a **derived** check, not a
+- [x] **T014** [US2] Implement the drift test per T002's outcome — now a **derived** check, not a
       count. Walk the Cobra command tree for commands accepting a JSON format flag, plus the MCP tool
       and resource registries, and fail when that set diverges from the documented inventory
       (FR-011, SC-003). Extend the existing `TestDesignDocNamesStatusJSONAPIVersion` pattern rather
       than duplicating it.
       *(Unblocked by clarify session 2026-09-05.)*
-- [ ] **T015** [P] [US2] Document what is explicitly non-contractual — table/wide output, prose,
+- [x] **T015** [P] [US2] Document what is explicitly non-contractual — table/wide output, prose,
       logs, `internal/...`, specific exit values (FR-010).
 
 **Checkpoint**: An external repo can be built against the contract. Shippable.
@@ -157,7 +162,7 @@ each response shape from the published document alone.
       flags with the flag that changes them named (FR-014a): `scan --write-registry=true`,
       `reconcile --dry-run=false`, `repair upstream --dry-run=true`.
       *(Amended by [analysis.md](./analysis.md) A5.)*
-- [ ] **T017** [US3] Test: no surface classified `read` writes to registry, config, or working tree
+- [x] **T017** [US3] Test: no surface classified `read` writes to registry, config, or working tree
       (FR-013, SC-004). Assert by snapshotting state before and after each read surface.
 - [ ] **T018** [US3] Test: under a read-only workspace, every `read` surface succeeds (FR-016) and
       every `mutation` surface refuses with a message naming cause and remedy while remaining
@@ -183,7 +188,7 @@ each response shape from the published document alone.
 
 ## Phase 5: Polish & cross-cutting
 
-- [ ] **T020** Update `README.md` where it describes machine-readable output, per the constitution's
+- [x] **T020** Update `README.md` where it describes machine-readable output, per the constitution's
       documentation constraint.
 - [ ] **T021** Release-note the breaking change explicitly. ADR-0006 requires breaking changes carry
       release-note visibility; a contract break discovered by adapter authors at runtime is a defect
@@ -192,19 +197,25 @@ each response shape from the published document alone.
       (Principle XII — parity is a requirement, not a courtesy).
 - [ ] **T023** [P] Confirm no measurable performance regression on `list_repositories`, documented as
       "fast — reads registry only".
-- [ ] **T024** Run the full local gate `go -C tools tool task ci` before opening the PR.
-- [ ] **T024a** The MCP `repokeeper://registry` resource emits a **zero** `UpdatedAt`
+- [x] **T024** Run the full local gate `go -C tools tool task ci` before opening the PR.
+      #289: passed with `TMPDIR=/private/tmp` on macOS (canonical temp path avoids the existing
+      `/var` vs `/private/var` fixture mismatch); 27 unit suites, 73 e2e specs, lint/staticcheck,
+      govulncheck, and six platform builds.
+- [x] **T024a** The MCP `repokeeper://registry` resource emits a **zero** `UpdatedAt`
       (`0001-01-01T00:00:00Z`) for a registry that has never been written. This is the same
       "epoch vs not-applicable" hazard the envelope `Header` deliberately avoids by omitting
       `generated_at` when unset, and an adapter cannot tell the two apart. Decide whether to omit or
       to define zero as meaningful.
       *(Found while verifying the Copilot review fix; candidate for #289.)*
-- [ ] **T024b** `registry.Registry` and `registry.Entry` carry **no `json` tags**, so the registry
+      Resolved for #289: resource DTOs omit unknown observation times; known times are UTC RFC3339.
+- [x] **T024b** `registry.Registry` and `registry.Entry` carry **no `json` tags**, so the registry
       and per-repo resources emit Go field names (`UpdatedAt`, `Entries`, `RemoteURL`) while every
       other adapter-facing surface emits snake_case. A contract that claims uniformity should not
       have one surface in a different naming convention. Note this is a **breaking** shape change to
       those resources, so 2.0.0 is the cheap window — deferring it costs a contract bump.
       *(Found while verifying the Copilot review fix; candidate for #289, but timing argues for now.)*
+      Resolved for #289 with explicit resource DTOs, including config-embedded registries. Stored YAML
+      types remain unchanged. The public contract documents the migration from Go field names.
 - [ ] **T025** Confirm the follow-on issues can now proceed: [#289](https://github.com/skaphos/repokeeper/issues/289)
       (JSON hardening against this contract) and [#286](https://github.com/skaphos/repokeeper/issues/286)
       (adapter version compatibility policy).

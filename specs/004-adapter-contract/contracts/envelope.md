@@ -61,14 +61,15 @@ every additive, non-breaking change into an outage on its own side.
 
 ## Failure behaviour
 
-Per Principle XII, errors go to stderr with a non-zero exit. A failed invocation does **not** emit
-an envelope on stdout. An adapter's parse path is therefore: check exit code first; parse stdout only
-on success. This is stated because leaving it undefined invites adapters to parse partial stdout on
-failure (FR-019).
+Fatal invocation errors (invalid arguments or unavailable configuration) exit non-zero without an
+envelope. Completed batch reports can exit non-zero **with** a valid envelope when repositories have
+warnings or failures. Adapters check both process status and stdout, preserve completed records, and
+inspect per-record errors. Stderr remains diagnostic prose (FR-019).
 
-Note the distinction from *intentional skips*, which are successes: a skipped repository is reported
-inside a normal envelope with `ok: true` and a machine-readable reason (FR-020). Exit-code behaviour
-is independent of the per-record `ok` field, unchanged from the behaviour §6.4 documents today.
+Benign skips carry `ok: true` and a machine-readable reason (FR-020). A skipped missing checkout can
+instead carry `ok: false` and an error; outcome prefixes alone do not establish success. MCP tool
+failures carry `isError: true` and no success structured content, while successful batch calls may
+contain per-record failures. Real-process regression tests pin both cases.
 
 ## Verification
 

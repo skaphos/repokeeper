@@ -1050,7 +1050,7 @@ var _ = Describe("MCPServer", func() {
 			text := expectResourceSuccess(response)
 			var cfg map[string]any
 			Expect(json.Unmarshal([]byte(text), &cfg)).To(Succeed())
-			Expect(cfg).To(HaveKey("Exclude"))
+			Expect(cfg).To(HaveKey("exclude"))
 		})
 
 		It("serves registry resource", func() {
@@ -1062,7 +1062,7 @@ var _ = Describe("MCPServer", func() {
 			text := expectResourceSuccess(response)
 			var reg map[string]any
 			Expect(json.Unmarshal([]byte(text), &reg)).To(Succeed())
-			Expect(reg).To(HaveKey("Entries"))
+			Expect(reg).To(HaveKey("repos"))
 		})
 
 		It("serves repo entry resource by repo_id", func() {
@@ -1074,8 +1074,8 @@ var _ = Describe("MCPServer", func() {
 			text := expectResourceSuccess(response)
 			var entry map[string]any
 			Expect(json.Unmarshal([]byte(text), &entry)).To(Succeed())
-			Expect(entry["RepoID"]).To(Equal("github.com/example/alpha"))
-			Expect(entry["Path"]).To(Equal("/home/user/repos/alpha"))
+			Expect(entry["repo_id"]).To(Equal("github.com/example/alpha"))
+			Expect(entry["path"]).To(Equal("/home/user/repos/alpha"))
 		})
 
 		It("returns error for unknown repo resource", func() {

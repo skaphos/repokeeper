@@ -65,7 +65,7 @@ func (s *MCPServer) handleConfigResource(_ context.Context, _ mcp.ReadResourceRe
 	if cfg == nil {
 		return nil, fmt.Errorf("config not loaded")
 	}
-	return newResourceContents(resourceURIConfig, "config", cfg)
+	return newResourceContents(resourceURIConfig, "config", newConfigResourceResponse(cfg))
 }
 
 func (s *MCPServer) handleRegistryResource(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -73,7 +73,7 @@ func (s *MCPServer) handleRegistryResource(_ context.Context, _ mcp.ReadResource
 	if reg == nil {
 		return nil, fmt.Errorf("registry not loaded")
 	}
-	return newResourceContents(resourceURIRegistry, "registry", reg.Redacted())
+	return newResourceContents(resourceURIRegistry, "registry", newRegistryResourceResponse(reg))
 }
 
 // handleRepoResource dispatches to either the registry entry handler or the
@@ -99,7 +99,7 @@ func (s *MCPServer) serveRepoEntry(uri, repoID string) ([]mcp.ResourceContents, 
 		return nil, err
 	}
 
-	return newResourceContents(uri, "repository", entry.Redacted())
+	return newResourceContents(uri, "repository", newRegistryEntryResponse(*entry))
 }
 
 func (s *MCPServer) serveRepoMetadata(ctx context.Context, uri, repoID string) ([]mcp.ResourceContents, error) {

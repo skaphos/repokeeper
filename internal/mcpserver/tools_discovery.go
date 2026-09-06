@@ -4,7 +4,6 @@ package mcpserver
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -22,7 +21,7 @@ type listRepoEntry struct {
 	Labels      map[string]string `json:"labels,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
 	Status      string            `json:"status"`
-	LastSeen    string            `json:"last_seen"`
+	LastSeen    string            `json:"last_seen,omitempty"`
 }
 
 func (s *MCPServer) handleListRepositories(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -55,12 +54,12 @@ func (s *MCPServer) handleListRepositories(_ context.Context, req mcp.CallToolRe
 			RepoID:      e.RepoID,
 			CheckoutID:  e.CheckoutID,
 			Path:        e.Path,
-			RemoteURL:   e.RemoteURL,
+			RemoteURL:   e.Redacted().RemoteURL,
 			Type:        e.Type,
 			Labels:      e.Labels,
 			Annotations: e.Annotations,
 			Status:      string(e.Status),
-			LastSeen:    e.LastSeen.UTC().Format(time.RFC3339),
+			LastSeen:    observedTime(e.LastSeen),
 		})
 	}
 

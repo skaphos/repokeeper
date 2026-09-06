@@ -472,7 +472,7 @@ func TestRunDescribeRepoInspectErrorPopulatesOutput(t *testing.T) {
 	}
 }
 
-func TestRunDescribeRepoPersistsRefreshedRepoMetadataSnapshot(t *testing.T) {
+func TestRunDescribeTablePersistsRefreshedRepoMetadataSnapshot(t *testing.T) {
 	tmp := t.TempDir()
 	repoPath := filepath.Join(tmp, "repo")
 	if out, err := exec.Command("git", "init", repoPath).CombinedOutput(); err != nil {
@@ -501,7 +501,6 @@ func TestRunDescribeRepoPersistsRefreshedRepoMetadataSnapshot(t *testing.T) {
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.Flags().String("registry", "", "")
 	cmd.Flags().String("format", "table", "")
-	_ = cmd.Flags().Set("format", "json")
 
 	origWD, err := os.Getwd()
 	if err != nil {
