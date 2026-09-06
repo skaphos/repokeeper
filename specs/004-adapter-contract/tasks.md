@@ -35,14 +35,15 @@ behaviour, and the constitution's own sync-impact report directs that this gate 
       separate scheme (`repokeeper/v1`) and never shared the value at all — the spec's claim that
       "all three shared" was inaccurate and has been corrected in `DESIGN.md` and the independence
       test. No adapter repository exists yet. Promotion proceeds.
-- [ ] **T002** Resolve the open risk in plan.md: can the surface inventory be **derived** from the
-      Cobra command tree and MCP tool registry, or must it be hand-maintained?
-      **Outcome so far:** deferred, and the inventory is hand-maintained today. Derivation is
-      plausible — the MCP side already enumerates its tools in a test that asserts every registered
-      tool has a contract case, which is most of the mechanism — but the CLI side needs a way to tell
-      an adapter-facing command from an interactive one (`init`, `edit`, `index`), and that
-      distinction does not exist in the code yet. **This is the weaker guarantee the spec warned
-      about**, and it is why T014 remains open rather than being quietly satisfied by a count.
+- [x] **T002** Resolve the open risk in plan.md: can the surface inventory be **derived** from the
+      Cobra command tree and MCP registries, or must it be hand-maintained?
+      **Outcome: derivable.** The blocker was that nothing distinguished an adapter-facing command
+      from an interactive one. The clarify session settled the rule — a command is adapter-facing
+      exactly when it accepts a JSON format flag — which is readable straight from the Cobra tree.
+      The MCP side already enumerates its tools in a test asserting every registered tool has a
+      contract case. T014 is therefore a real drift guarantee, not a count, and the hand-maintained
+      fallback is dropped.
+      *(Resolved by clarify session 2026-09-05.)*
 - [x] **T003** Write and merge an ADR recording the envelope mechanism and the `v1beta1` → `v1`
       promotion (`docs/adr/0018-adapter-contract-envelope.md`). Required by the constitution for
       hard-to-reverse decisions, and gated before implementation. Must cite ADR-0006 as the policy it
@@ -104,6 +105,17 @@ behaviour, and the constitution's own sync-impact report directs that this gate 
       promises and that #344 had to restore.
       *(Added by [analysis.md](./analysis.md) A2.)*
 
+- [x] **T009a** [US1] Envelope the three MCP **resources** in `internal/mcpserver/resources.go` —
+      `config`, the registry snapshot, and the per-repo template. All three are advertised as
+      `application/json` and currently emit `json.Marshal` of raw domain objects, so they sit outside
+      the contract despite being reachable by any MCP client (FR-001a). The original spec enumerated
+      only the 14 tools and missed them.
+      *(Added by clarify session 2026-09-05.)*
+- [x] **T009b** [US1] Add the three resources to the surface inventory with stability and
+      read/mutation classes, and confirm the registry snapshot is covered by the FR-021 redaction —
+      it serialises `remote_url` and is the surface most likely to carry credentials today.
+      *(Added by clarify session 2026-09-05.)*
+
 **Checkpoint**: Adapters can detect contract version from any single response. Shippable.
 
 ---
@@ -120,9 +132,12 @@ each response shape from the published document alone.
       *rationale* while correcting the shape.
 - [ ] **T013** [US2] Publish the surface inventory in the repository's user-facing docs (not only in
       `specs/`), since adapter authors are external and will not read a feature spec directory.
-- [ ] **T014** [US2] Implement the drift test per T002's outcome: fail when the surfaces in code and
-      the documented inventory diverge (FR-011, SC-003). Extend the existing
-      `TestDesignDocNamesStatusJSONAPIVersion` rather than duplicating its approach.
+- [ ] **T014** [US2] Implement the drift test per T002's outcome — now a **derived** check, not a
+      count. Walk the Cobra command tree for commands accepting a JSON format flag, plus the MCP tool
+      and resource registries, and fail when that set diverges from the documented inventory
+      (FR-011, SC-003). Extend the existing `TestDesignDocNamesStatusJSONAPIVersion` pattern rather
+      than duplicating it.
+      *(Unblocked by clarify session 2026-09-05.)*
 - [ ] **T015** [P] [US2] Document what is explicitly non-contractual — table/wide output, prose,
       logs, `internal/...`, specific exit values (FR-010).
 
@@ -149,6 +164,18 @@ each response shape from the published document alone.
       advertised (FR-015, SC-006). Extend the existing `readonly_*_test.go` coverage.
 - [ ] **T019** [P] [US3] Test: skipped work carries a machine-readable reason, including
       backend-unsupported skips for Mercurial (FR-020, Principles VI and XI).
+- [x] **T019a** [US3] Apply `urlutil.RedactCredentials` to every URL field emitted on an
+      adapter-facing surface (FR-021). Today the helper is only wired into `export` (as a hazard
+      detector) and debug-arg logging, so `remotes[].url` reaches adapter JSON verbatim from git.
+      *(Added by clarify session 2026-09-05.)*
+- [x] **T019b** [US3] Test: feed a credential-bearing remote (`https://user:token@host/repo.git`)
+      through **each** adapter-facing surface and assert no response contains the credential
+      (SC-007). Assert end-to-end per surface rather than unit-testing the helper — a helper test
+      passes while a surface that never calls it leaks.
+      *(Added by clarify session 2026-09-05.)*
+- [x] **T019c** [US3] Document in the contract that a URL from an adapter-facing response is not
+      usable for cloning, and name `add` / `--checkout-missing` as the supported path (FR-022).
+      *(Added by clarify session 2026-09-05.)*
 
 **Checkpoint**: The boundary is contractual and enforced. Shippable.
 

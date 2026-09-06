@@ -147,13 +147,28 @@ boundary already exists in code and needs classification and tests rather than n
 | Tightening "add an enum value" to breaking | A consumer switching exhaustively breaks on a new value; §6.3 is currently silent on this | Leaving it non-breaking preserves the existing wording but ships a known adapter-breaking hole in a release that claims contract stability |
 | New ADR alongside immutable ADR-0006 | Constitution requires hard-to-reverse decisions get an ADR; ADR-0006 is immutable and set policy, not mechanism | Amending ADR-0006 is forbidden — ADRs are superseded, never rewritten |
 
+## Clarify outcomes folded into this plan (session 2026-09-05)
+
+Four clarifications changed the plan after it was first written. Recorded here so the plan is not
+read as predating them.
+
+| Clarification | Effect on this plan |
+| --- | --- |
+| **"Adapter-facing" = accepts a JSON format flag, plus every MCP tool and resource** | Resolves the first Open Risk below. The surface set is now derivable from the Cobra command tree and the MCP registries, so the drift test (T014) can be a real guarantee rather than a hand-maintained list. T002 moves from "spike both" to "implement the mechanical rule". |
+| **URL fields must be credential-redacted (FR-021/FR-022)** | New scope. `urlutil.RedactCredentials` exists but is wired only into `export` (as a hazard detector) and debug-arg logging, so adapter JSON emits `remotes[].url` verbatim from git. Adds T019a–T019c and success criterion SC-007. |
+| **MCP resources are in the contract (FR-001a)** | New scope, and a gap in the original spec: it enumerated only the 14 tools. The three resources (`config`, registry snapshot, repo template) are `application/json` and unenveloped. Adds T009a–T009b. The registry snapshot intersects the redaction decision, since it serialises `remote_url`. |
+| **Clean break, no legacy output mode** | Bounds scope: no second output path, no compatibility flag, no later removal task. The migration lives in release notes (T021), not in code. |
+
+The two scope additions both enlarge Phase 2 and Phase 4. Neither changes the phasing or the
+dependency order.
+
 ## Open Risks
 
-- **Enumerating surfaces from code may not be practical.** FR-011's strongest form derives the
-  inventory from the Cobra command tree and the MCP tool registry. If reflection over those proves
-  unreliable, the fallback is a hand-maintained list with a test asserting counts match — a weaker
-  guarantee that must be recorded as a deviation rather than silently accepted. **Settle this first;
-  it shapes tasks T012–T014.**
+- ~~**Enumerating surfaces from code may not be practical.**~~ **Resolved by the clarify session.**
+  The blocker was that nothing distinguished an adapter-facing command from an interactive one. The
+  agreed rule — a command is adapter-facing exactly when it accepts a JSON format flag — is
+  mechanical and readable from the Cobra command tree, and the MCP side already enumerates its tools.
+  FR-011 can therefore be a real drift guarantee. The hand-maintained fallback is no longer needed.
 - **MCP clients may not tolerate an enveloped structured result.** If a client requires bare content,
   the envelope may need to live in a defined field of the MCP result rather than replacing it.
   Verify against a real client early (task T009) rather than at the end.

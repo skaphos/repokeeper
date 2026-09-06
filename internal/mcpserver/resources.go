@@ -43,18 +43,29 @@ func repoTemplate() mcp.ResourceTemplate {
 
 // --- resource handlers ---
 
+// newResourceContents renders a resource payload inside the adapter contract
+// envelope.
+//
+// MCP resources are adapter-facing in exactly the way the tools are: they are
+// advertised with MIME type application/json and any MCP client can read them.
+// Before 2.0.0 they emitted raw domain objects with no version marker, which
+// left three JSON surfaces outside a contract that claims to cover every one.
+func newResourceContents(uri, key string, payload any) ([]mcp.ResourceContents, error) {
+	data, err := json.Marshal(newEnvelope(key, payload))
+	if err != nil {
+		return nil, fmt.Errorf("marshaling %s resource: %w", key, err)
+	}
+	return []mcp.ResourceContents{
+		mcp.TextResourceContents{URI: uri, MIMEType: "application/json", Text: string(data)},
+	}, nil
+}
+
 func (s *MCPServer) handleConfigResource(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	cfg := s.engine.Config()
 	if cfg == nil {
 		return nil, fmt.Errorf("config not loaded")
 	}
-	data, err := json.Marshal(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling config: %w", err)
-	}
-	return []mcp.ResourceContents{
-		mcp.TextResourceContents{URI: resourceURIConfig, MIMEType: "application/json", Text: string(data)},
-	}, nil
+	return newResourceContents(resourceURIConfig, "config", cfg)
 }
 
 func (s *MCPServer) handleRegistryResource(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
@@ -62,13 +73,7 @@ func (s *MCPServer) handleRegistryResource(_ context.Context, _ mcp.ReadResource
 	if reg == nil {
 		return nil, fmt.Errorf("registry not loaded")
 	}
-	data, err := json.Marshal(reg)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling registry: %w", err)
-	}
-	return []mcp.ResourceContents{
-		mcp.TextResourceContents{URI: resourceURIRegistry, MIMEType: "application/json", Text: string(data)},
-	}, nil
+	return newResourceContents(resourceURIRegistry, "registry", reg.Redacted())
 }
 
 // handleRepoResource dispatches to either the registry entry handler or the
@@ -94,13 +99,7 @@ func (s *MCPServer) serveRepoEntry(uri, repoID string) ([]mcp.ResourceContents, 
 		return nil, err
 	}
 
-	data, err := json.Marshal(entry)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling entry: %w", err)
-	}
-	return []mcp.ResourceContents{
-		mcp.TextResourceContents{URI: uri, MIMEType: "application/json", Text: string(data)},
-	}, nil
+	return newResourceContents(uri, "repository", entry.Redacted())
 }
 
 func (s *MCPServer) serveRepoMetadata(ctx context.Context, uri, repoID string) ([]mcp.ResourceContents, error) {
@@ -119,13 +118,7 @@ func (s *MCPServer) serveRepoMetadata(ctx context.Context, uri, repoID string) (
 		return nil, fmt.Errorf("no metadata found for repository %q", repoID)
 	}
 
-	data, err := json.Marshal(status.RepoMetadata)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling metadata: %w", err)
-	}
-	return []mcp.ResourceContents{
-		mcp.TextResourceContents{URI: uri, MIMEType: "application/json", Text: string(data)},
-	}, nil
+	return newResourceContents(uri, "metadata", status.RepoMetadata)
 }
 
 // extractRepoID parses a repo_id from a resource URI by stripping the

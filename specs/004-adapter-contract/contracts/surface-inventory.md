@@ -64,6 +64,34 @@ Fourteen registered tools.
 The envelope appears in both the MCP `structuredContent` and the text-content
 fallback, which carry the same bytes so the two cannot describe different things.
 
+## MCP resources
+
+Three resources, all advertised with MIME type `application/json` and readable by any MCP client.
+They are part of the contract for exactly that reason — excluding them would leave three unversioned
+JSON surfaces inside a contract claiming uniformity.
+
+| Resource URI | Access | Stability | Payload key |
+| --- | --- | --- | --- |
+| `repokeeper://config` | read | stable | `config` |
+| `repokeeper://registry` | read | stable | `registry` |
+| `repokeeper://repo/{repo_id}` | read | stable | `repository` |
+| `repokeeper://repo/{repo_id}/metadata` | read | stable | `metadata` |
+
+The registry snapshot is the surface most likely to carry credentials, since it serialises every
+entry's `remote_url`. It is redacted (see below), as is the per-repo entry.
+
+## Credentials in URL fields
+
+Every URL emitted on an adapter-facing surface has embedded credentials stripped. A remote
+configured as `https://user:token@host/repo.git` is emitted as `https://***@host/repo.git`.
+
+- This is a **contract guarantee**, asserted per surface by test — not a best-effort convenience.
+- SSH remotes (`git@host:org/repo.git`, `ssh://…`) are unchanged: they authenticate with keys, so
+  there is no embedded secret to remove.
+- **A URL read from an adapter-facing response is therefore not usable for cloning.** An adapter that
+  needs to clone uses `add` or `reconcile --checkout-missing`, which read the registry directly
+  rather than going through the contract.
+
 ### Two classifications adapters get wrong
 
 Called out because the tool name misleads in both directions:

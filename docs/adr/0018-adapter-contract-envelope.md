@@ -51,15 +51,51 @@ Not sequentially. §6.4's array shape existed to hold CLI/MCP record parity; env
 
 `contract.APIVersion` in `internal/contract`, imported by both the CLI and the MCP server. A single constant is what makes "CLI and MCP cannot drift" mechanically true rather than a convention reviewers must police. It lives in `internal/` because `internal/mcpserver` cannot import `cmd/repokeeper` — the command package already imports the server.
 
-### 5. Empty collections are `[]`, never `null`
+### 5. MCP resources are inside the contract, not just MCP tools
+
+The three MCP resources — `repokeeper://config`, `repokeeper://registry`, and the
+`repokeeper://repo/{repo_id}` template (plus its `/metadata` form) — are advertised with MIME type
+`application/json` and readable by any MCP client. They emitted raw domain objects with no version
+marker.
+
+Excluding them would have left three unversioned JSON surfaces inside a contract that claims to
+cover every one. Adapters would have found and used them regardless of what the contract said.
+
+### 6. URL fields are credential-redacted
+
+Every URL emitted on an adapter-facing surface has embedded credentials stripped, using the existing
+`urlutil.RedactCredentials`. This is a contract guarantee asserted per surface by test.
+
+The helper predates this change but was wired only into `export` (as a hazard *detector*) and
+debug-argument logging, so `remotes[].url` reached adapter JSON verbatim from git. A remote
+configured as `https://user:token@host/repo.git` would have travelled into any IDE plugin that logs
+or displays a payload. The registry resource is the sharpest case, since it serialises every entry's
+`remote_url`.
+
+Redaction happens at the output boundary and returns a **copy**. The same `RepoStatus` and
+`registry.Entry` values feed the registry write path, and persisting a masked `remote_url` would
+break the user's ability to fetch. SSH remotes are unchanged: they authenticate with keys, so there
+is no embedded secret to strip.
+
+Consequence for consumers: a URL read from a contract response cannot be used to clone. Adapters
+needing to clone use `add` or `reconcile --checkout-missing`, which read the registry directly.
+
+### 7. No compatibility mode for the old shape
+
+2.0.0 is a clean break. There is no `--legacy-output` flag. A second output path would have to be
+maintained and tested on every surface and then deprecated in turn, which is the cost the
+major-version boundary exists to avoid. The migration is one line — read `.results` instead of the
+top-level array — and belongs in release notes.
+
+### 8. Empty collections are `[]`, never `null`
 
 A nil Go slice marshals as `null`. The envelope constructors normalise, so the guarantee is automatic rather than per-call-site vigilance.
 
-### 6. Adding an enum value is a breaking change
+### 9. Adding an enum value is a breaking change
 
 `DESIGN.md` §6.3 previously made *changing* the meaning of an enum value breaking but was silent on *adding* one. A consumer switching exhaustively over a value space breaks when a new value appears, so this is now classed breaking. This tightens the existing policy.
 
-### 7. The contract version stays independent of the config and repo-metadata schemas
+### 10. The contract version stays independent of the config and repo-metadata schemas
 
 Three `apiVersion` values exist in this codebase:
 

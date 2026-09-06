@@ -118,7 +118,7 @@ func runDescribeRepo(cmd *cobra.Command, args []string) error {
 	}
 	switch mode.kind {
 	case outputKindJSON:
-		data, err := json.MarshalIndent(newRepoEnvelope(repo), "", "  ")
+		data, err := json.MarshalIndent(newRepoEnvelope(repo.Redacted()), "", "  ")
 		if err != nil {
 			return err
 		}

@@ -279,7 +279,7 @@ func buildStatusJSONOutput(report *model.StatusReport, includeDiverged bool) any
 		jsonReport.Repos = make([]statusJSONRepo, 0, len(repos))
 		for _, repo := range repos {
 			jsonReport.Repos = append(jsonReport.Repos, statusJSONRepo{
-				RepoStatus:               repo,
+				RepoStatus:               repo.Redacted(),
 				LocalLabels:              cloneMetadataMap(repo.Labels),
 				RepairUpstreamSuggestion: repo.Tracking.Status == model.TrackingGone,
 			})

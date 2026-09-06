@@ -93,6 +93,11 @@ not an implicitly stable surface.
 | `read` | `list_repositories`, `get_repository_context`, `get_workspace_config`, `build_workspace_inventory`, `select_repositories`, `get_repo_metadata`, `get_authoritative_paths`, `get_related_repositories`, `plan_sync` |
 | `mutation` | `scan_workspace`, `execute_sync`, `set_labels`, `add_repository`, `remove_repository` |
 
+**MCP resources** are adapter-facing too, and all are `read`: `repokeeper://config`,
+`repokeeper://registry`, and the `repokeeper://repo/{repo_id}` template (plus its `/metadata`
+form). The original spec enumerated only the tools and missed these; they emit `application/json`
+and any MCP client can read them.
+
 Two MCP classifications are counter-intuitive and are called out in the contract because an adapter
 author would plausibly guess wrong:
 
@@ -153,8 +158,13 @@ peers keep their current fields and semantics; only the wrapper around them chan
 individual record shapes is issue [#289](https://github.com/skaphos/repokeeper/issues/289), which
 consumes this model.
 
-The one cross-cutting record requirement carried here, because it is a contract property rather than
-a per-command detail:
+Two cross-cutting record requirements are carried here, because they are contract properties rather
+than per-command details:
 
 - Skipped work carries a machine-readable reason, including backend-unsupported skips for non-Git
   backends (FR-020, Principles VI and XI). A skip without a reason is a defect.
+- **URL fields are credential-redacted** (FR-021). Redaction happens at the output boundary and
+  returns a copy, never mutating the value in place — the same `RepoStatus` and `registry.Entry`
+  values feed the registry write path, and persisting a masked `remote_url` would break the user's
+  ability to fetch. A consequence for consumers (FR-022): a URL read from a contract response cannot
+  be used to clone.

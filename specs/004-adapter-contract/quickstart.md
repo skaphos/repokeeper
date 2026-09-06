@@ -75,7 +75,21 @@ Note that an intentional **skip** is a success, not a failure: a repository Repo
 act on arrives inside a normal envelope with `ok: true` and a machine-readable reason. Do not treat
 a skip as an error just because work did not happen.
 
-## 5. Do not depend on these
+## 5. URLs are redacted — do not clone from them
+
+Every URL in a contract response has embedded credentials stripped:
+
+```
+https://alice:ghp_token@github.com/org/repo.git   →   https://***@github.com/org/repo.git
+```
+
+This is a guarantee, so you can log or display a contract payload without leaking a token. SSH
+remotes are unchanged — they use keys, so there is nothing to strip.
+
+The consequence: **a URL from a contract response is not usable for cloning.** If your adapter needs
+to clone, call `add` or `reconcile --checkout-missing`, which read the registry directly.
+
+## 6. Do not depend on these
 
 | Do not depend on | Why |
 | --- | --- |
@@ -87,7 +101,7 @@ a skip as an error just because work did not happen.
 If you find yourself parsing a table to get something, that thing is missing from the machine-readable
 contract. File an issue — the gap is the bug, not your workaround.
 
-## 6. CLI or MCP?
+## 7. CLI or MCP?
 
 Both are supported adapter surfaces; ADR-0006 explicitly declines to make MCP the only one.
 
@@ -98,7 +112,7 @@ Where both expose the same information, the shared records use identical field n
 so you can move between them without relearning the data. See
 [CLI/MCP parity](./contracts/cli-mcp-parity.md).
 
-## 7. Declaring which core versions you support
+## 8. Declaring which core versions you support
 
 The compatibility policy adapters use to declare and validate supported RepoKeeper core versions is
 issue [#286](https://github.com/skaphos/repokeeper/issues/286), which builds on this contract. Until

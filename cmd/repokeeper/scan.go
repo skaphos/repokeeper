@@ -94,7 +94,7 @@ var scanCmd = &cobra.Command{
 			if jsonStatuses == nil {
 				jsonStatuses = []model.RepoStatus{}
 			}
-			data, err := json.MarshalIndent(newReposEnvelope(jsonStatuses), "", "  ")
+			data, err := json.MarshalIndent(newReposEnvelope(model.RedactedStatuses(jsonStatuses)), "", "  ")
 			if err != nil {
 				return err
 			}

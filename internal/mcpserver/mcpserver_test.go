@@ -1873,7 +1873,25 @@ func expectResourceSuccess(response mcp.JSONRPCMessage) string {
 
 	tc, ok := result.Contents[0].(mcp.TextResourceContents)
 	Expect(ok).To(BeTrue(), "expected TextResourceContents, got %T", result.Contents[0])
-	return tc.Text
+
+	// Resources are adapter-facing, so their text is the contract envelope.
+	// Assert the version here once, then hand back the payload so each spec
+	// keeps asserting on the resource's own fields.
+	var envelope map[string]json.RawMessage
+	Expect(json.Unmarshal([]byte(tc.Text), &envelope)).To(Succeed(), tc.Text)
+	Expect(envelope).To(HaveKey("apiVersion"), "resource is missing the contract apiVersion: %s", tc.Text)
+
+	var version string
+	Expect(json.Unmarshal(envelope["apiVersion"], &version)).To(Succeed())
+	Expect(version).To(Equal(contract.APIVersion))
+
+	for key, payload := range envelope {
+		if key != "apiVersion" {
+			return string(payload)
+		}
+	}
+	Fail("resource envelope carried no payload alongside apiVersion")
+	return ""
 }
 
 // expectResourceError asserts the response is a JSON-RPC error.

@@ -46,6 +46,10 @@ The envelope must be applied to CLI and MCP *together*. §6.4's bare-array shape
 - Q: How should adapters detect contract version on the currently unenveloped surfaces (`scan`, `sync`/`reconcile`, `repair upstream`)? → A: Uniform envelope everywhere — wrap every adapter-facing JSON output, CLI and MCP, in `{apiVersion, ...}`. Accepted as breaking for existing bare-array consumers, taken at the 2.0.0 major where it is cheap. Alternatives weighed and rejected in [research.md](./research.md) §3: an out-of-band discovery surface (non-breaking but coarse), and per-surface mechanisms (closest to the status quo that produced this issue).
 - Q: The contract is currently marked `v1beta1`. Promote it for the 2.0.0 release? → A: Promote to `skaphos.io/repokeeper/v1`. A release named "the contract release" shipping a contract still marked beta undercuts its own message, and external adapter repos are being asked to commit to it. Conditional on the assumption, recorded below and gated as task T001, that no external consumer of `v1beta1` exists.
 - Q: Does enveloping the CLI alone suffice? → A: No. `DESIGN.md` §6.4 chose the bare-array shape specifically to hold CLI/MCP field parity, and PR #344 recently restored that parity. CLI and MCP must be enveloped in the same change (FR-018).
+- Q: Are the three MCP resources (`config`, registry snapshot, repo template) part of the adapter contract? → A: Yes. They are `application/json`, advertised over MCP, and adapters will use them regardless of what the contract says, so they are enveloped, inventoried with stability and read/mutation classes, and covered by the credential redaction in FR-021 — the registry snapshot serialises `remote_url` values and is the surface most likely to carry credentials today. This was a gap in the original spec, which enumerated only the 14 tools.
+- Q: Should 2.0.0 ship a transition path for consumers of the old bare-array shape? → A: No — clean break, no escape hatch. The migration (read `.results` instead of the top-level array) is documented in the release notes and the contract. A legacy output mode would be a second path to maintain and test on every surface, and would itself need deprecating; taking the break at the major is the reason the major is the right place for it.
+- Q: Should URL fields on adapter-facing surfaces have embedded credentials redacted? → A: Yes, and it is a contract guarantee, not best-effort. Apply the existing `urlutil.RedactCredentials` to URL fields on every adapter-facing surface and assert it by test. Today that helper is only used by `export` (as a hazard *detector*) and by debug-arg logging, so `remotes[].url` reaches adapter JSON verbatim from git. Accepted trade-off: an adapter cannot clone from a URL read out of adapter JSON; it must use `add` / `--checkout-missing`, which read the registry directly.
+- Q: Which commands count as "adapter-facing", and therefore fall under the contract? → A: Exactly those accepting a JSON format flag (`-o json` / `--format json`), plus every MCP tool. The rule is mechanical and enumerable from the Cobra command tree, which is what makes the drift test (FR-011) a real guarantee rather than a hand-maintained list. It excludes the interactive commands (`init`, `edit`, `index`), the file-oriented ones (`export`, `import`, whose `--output` is a path rather than a format), and the runtime-config commands (`install`, `uninstall`).
 
 ---
 
@@ -121,6 +125,7 @@ Four surfaces are genuinely mis-guessable, which is what makes this more than bo
 **Envelope and versioning**
 
 - **FR-001**: Every adapter-facing JSON surface MUST emit a top-level object carrying an `apiVersion` field. No adapter-facing surface may emit a bare array as its top-level value.
+- **FR-001a**: The adapter-facing set MUST include the MCP **resources** (`config`, the registry snapshot, and the per-repo template), not only the MCP tools. They are advertised with MIME type `application/json` and are reachable by any MCP client, so excluding them would leave three unversioned JSON surfaces inside a contract that claims uniformity.
 - **FR-002**: The `apiVersion` value MUST be `skaphos.io/repokeeper/v1` for the 2.0.0 release, promoted from the current `v1beta1`.
 - **FR-003**: The `apiVersion` value MUST be sourced from a single constant shared by every surface, CLI and MCP alike, so the surfaces cannot drift from one another.
 - **FR-004**: The contract `apiVersion` MUST remain versioned independently of the config `apiVersion` (`internal/config`) and the repo-metadata `apiVersion` (`internal/repometa`); a bump to one MUST NOT require a bump to another.
@@ -149,6 +154,11 @@ Four surfaces are genuinely mis-guessable, which is what makes this more than bo
 - **FR-017**: Where a CLI surface and an MCP tool expose the same information, they MUST carry the same `apiVersion` and the same field names and semantics for the shared records.
 - **FR-018**: Adding the envelope MUST be applied to CLI and MCP in the same change, so the existing field parity is preserved rather than broken and re-fixed.
 
+**Secret handling**
+
+- **FR-021**: Every URL field emitted on an adapter-facing surface MUST have embedded credentials redacted, using the existing `urlutil.RedactCredentials`. This is a contract guarantee, not best-effort, and MUST be asserted by test.
+- **FR-022**: The contract MUST state that a URL read from an adapter-facing response is **not** suitable for cloning, because it may have been redacted. Adapters needing to clone use `add` or `--checkout-missing`, which read the registry directly.
+
 **Error behaviour**
 
 - **FR-019**: The contract MUST state whether a failed invocation emits an envelope on stdout, so adapters have a defined parse path on failure.
@@ -157,7 +167,9 @@ Four surfaces are genuinely mis-guessable, which is what makes this more than bo
 ### Key Entities
 
 - **Contract envelope**: The top-level object wrapping every adapter-facing response. Carries the contract `apiVersion`, a generation timestamp where meaningful, and exactly one named collection or record payload.
-- **Adapter-facing surface**: A CLI command invoked with a machine-readable format, or an MCP tool. Has an identity, a stability class, a read/mutation classification, and a response shape.
+- **Adapter-facing surface**: Precisely — a CLI command that accepts a JSON format flag (`-o json` / `--format json`), or an MCP tool. Nothing else. Has an identity, a stability class, a read/mutation classification, and a response shape.
+
+  The rule is deliberately mechanical rather than editorial: it is derivable from the Cobra command tree and the MCP tool registry, which is what lets FR-011's drift test enumerate the contract from code instead of trusting a hand-maintained list. Excluded by construction: the interactive commands (`init`, `edit`, `index`), the file-oriented commands (`export`, `import` — their `--output` is a destination path, not an output format), and the runtime-config commands (`install`, `uninstall`).
 - **Stability class**: Whether a surface is contractual and stable, contractual but provisional, or explicitly non-contractual.
 - **Read/mutation classification**: Whether invoking a surface can alter registry, config, or working-tree state.
 - **Contract version**: The `apiVersion` identifying the schema, versioned independently of config and repo-metadata schemas.
@@ -174,6 +186,7 @@ Four surfaces are genuinely mis-guessable, which is what makes this more than bo
 - **SC-004**: Zero surfaces classified `read` perform a write, asserted by test against registry, config and working-tree state.
 - **SC-005**: An external adapter can be built against the published contract with zero imports from `github.com/skaphos/repokeeper/v2/internal/...`, demonstrated by the contract document containing no reference to an internal package as a consumption path.
 - **SC-006**: Every read surface remains callable under a read-only workspace mount, and every mutation surface refuses there with a remedy-bearing message; both asserted by test.
+- **SC-007**: Zero adapter-facing responses emit a URL containing embedded credentials, asserted by a test that feeds a credential-bearing remote through each surface — not by inspecting the redaction helper in isolation, which would pass while a surface bypassed it.
 
 ---
 
@@ -195,3 +208,4 @@ Four surfaces are genuinely mis-guessable, which is what makes this more than bo
 - Building `repokeeper-vscode`, `repokeeper-jetbrains`, or any adapter.
 - A local service or daemon mode. ADR-0006 lists it as a *possible future* surface; nothing in this feature requires it and Principle IX forbids implying coverage that does not exist.
 - Changing human-oriented `table`/`wide` output, which ADR-0006 explicitly holds non-contractual and free to evolve.
+- **A compatibility mode for the pre-2.0.0 bare-array shape.** 2.0.0 is a clean break: there is no `--legacy-output` flag or equivalent. A second output path would have to be maintained and tested on every surface and then deprecated in turn, which is the cost the major-version boundary exists to avoid. The migration is one line — read `.results` instead of the top-level array — and belongs in the release notes (FR-006) rather than in code.
