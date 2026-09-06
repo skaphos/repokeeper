@@ -141,6 +141,7 @@ Scan treats each discovered repository root as a boundary and does not descend i
 Detailed command breakdown moved to docs:
 
 - [docs/commands.md](docs/commands.md) - full command reference, flags, and behavior notes
+- [docs/adapter-contract.md](docs/adapter-contract.md) - the stable machine-readable surface for external tools and IDE plugins
 - [docs/skills/README.md](docs/skills/README.md) - installable agent skill for OpenCode/compatible runtimes
 - [docs/man/README.md](docs/man/README.md) - manpage generation and release integration plan
 
@@ -345,6 +346,7 @@ Branch switching and prune execution are separate workflow areas rather than hid
 ## Documentation
 
 - [docs/commands.md](docs/commands.md) - command reference
+- [docs/adapter-contract.md](docs/adapter-contract.md) - stable machine-readable contract for external adapters
 - [docs/mcp-setup.md](docs/mcp-setup.md) - MCP server setup for agent runtimes
 - [docs/skills/README.md](docs/skills/README.md) - user-scope agent skill installation and usage
 - [docs/man/README.md](docs/man/README.md) - manpage generation plan

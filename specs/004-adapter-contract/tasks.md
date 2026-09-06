@@ -130,7 +130,7 @@ each response shape from the published document alone.
 - [x] **T012** [US2] Revise `DESIGN.md` §6.3 and §6.4: generalise the single-surface stability policy
       to the uniform envelope; update §6.4's bare-array description, preserving its CLI/MCP parity
       *rationale* while correcting the shape.
-- [ ] **T013** [US2] Publish the surface inventory in the repository's user-facing docs (not only in
+- [x] **T013** [US2] Publish the surface inventory in the repository's user-facing docs (not only in
       `specs/`), since adapter authors are external and will not read a feature spec directory.
 - [ ] **T014** [US2] Implement the drift test per T002's outcome — now a **derived** check, not a
       count. Walk the Cobra command tree for commands accepting a JSON format flag, plus the MCP tool
