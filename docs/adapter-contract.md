@@ -139,7 +139,7 @@ vanishing.
 Every URL in a contract response has embedded credentials stripped:
 
 ```
-https://alice:ghp_token@github.com/org/repo.git   →   https://***@github.com/org/repo.git
+https://user:token@github.com/org/repo.git   →   https://***@github.com/org/repo.git
 ```
 
 This is a guarantee, so you can log or display a payload without leaking a token. SSH remotes are
