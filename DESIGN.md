@@ -631,6 +631,12 @@ Field notes:
 > classifications, and migration notes for adapter authors — is published at
 > [docs/adapter-contract.md](docs/adapter-contract.md). This section remains the schema reference.
 
+Standalone adapters declare and enforce both a bounded core-release range and exact supported output
+contract identifiers, plus the capabilities each feature requires. Core, output-contract, MCP
+protocol, and adapter versions are independent. The declaration, runtime checks, unsupported-version
+behavior, and adapter test obligations are defined in
+[the adapter compatibility policy](docs/adapter-contract.md#11-declaring-which-core-versions-you-support).
+
 #### JSON output schema stability policy
 
 **Every** adapter-facing machine-readable surface is a contractual surface (§"adapter contract": machine-readable JSON is versioned/documented, unlike human-oriented table output) — not just `get` / `status`. Each is identified by the top-level `apiVersion`, currently `skaphos.io/repokeeper/v1`. The contract:
