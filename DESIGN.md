@@ -627,6 +627,10 @@ Field notes:
 * **`local_branches`** — a read-only prune-safety classification of every local branch (see ADR-0014). Each branch carries a `category` (`keep` / `safe_to_prune` / `probably_safe` / `needs_review`) and machine-readable `reasons`. A positive integration signal — reachability (`merged_into_base`) or, when policy permits, patch-equivalence (`patch_equivalent_to_base`) — is required for any prune category; only `safe_to_prune` is auto-prune-eligible, and `probably_safe` is review-required. Tri-state signals are `null` when a check was unavailable. When enumeration fails, `inspection_error` is populated. This is a read-only signal: no branch is deleted. The `category`/`reasons` vocabulary is part of this `v1` contract.
 * **`apiVersion`** — identifies the schema of this JSON contract (see the stability policy below). When filtered to `diverged`, the top-level object additionally carries a `diverged` advice array; `apiVersion` is unchanged by that filter.
 
+> The consumer-facing version of this contract — the full surface inventory, read/mutation
+> classifications, and migration notes for adapter authors — is published at
+> [docs/adapter-contract.md](docs/adapter-contract.md). This section remains the schema reference.
+
 #### JSON output schema stability policy
 
 **Every** adapter-facing machine-readable surface is a contractual surface (§"adapter contract": machine-readable JSON is versioned/documented, unlike human-oriented table output) — not just `get` / `status`. Each is identified by the top-level `apiVersion`, currently `skaphos.io/repokeeper/v1`. The contract:
