@@ -1,0 +1,187 @@
+---
+
+description: "Task list for the stable plugin adapter contract"
+---
+
+# Tasks: Stable Plugin Adapter Contract
+
+**Input**: Design documents from `/specs/004-adapter-contract/`
+
+**Prerequisites**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/](./contracts/)
+
+**Tests**: **Mandatory, not optional.** The upstream Spec Kit scaffold marks test tasks optional; the
+RepoKeeper constitution's Engineering Constraints require meaningful tests in the same change as the
+behaviour, and the constitution's own sync-impact report directs that this gate be enforced at
+`/speckit-tasks` time. Test tasks below are therefore required work, not suggestions.
+
+**Organization**: Grouped by user story so each ships independently.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: Can run in parallel (different files, no dependencies)
+- **[Story]**: US1 / US2 / US3, or blank for shared work
+
+---
+
+## Phase 0: Gates (blocking)
+
+**Purpose**: Settle the decisions that change the shape of everything downstream. Do these first.
+
+- [ ] **T001** Confirm no external consumer depends on `skaphos.io/repokeeper/v1beta1`. The spec's
+      promotion assumption rests on this. Check the MCP registry entry, any published adapter, and
+      open issues. If a consumer exists, stop and revisit Decision 2 in [research.md](./research.md).
+- [ ] **T002** Resolve the open risk in plan.md: can the surface inventory be **derived** from the
+      Cobra command tree and MCP tool registry, or must it be hand-maintained? Spike both. The answer
+      determines whether T012–T014 assert real drift or merely count entries. Record the outcome in
+      this file.
+- [ ] **T003** Write and merge an ADR recording the envelope mechanism and the `v1beta1` → `v1`
+      promotion (`docs/adr/0018-adapter-contract-envelope.md`). Required by the constitution for
+      hard-to-reverse decisions, and gated before implementation. Must cite ADR-0006 as the policy it
+      implements — **not** supersede it; ADR-0006 remains accepted and immutable.
+- [ ] **T004** Confirm `version -o json` has no downstream parser that enveloping would break
+      (check `internal/mcpinstall`, install tooling, `.goreleaser.yaml`, CI). If it does, decide
+      whether to exempt it and record the exemption in the inventory.
+
+---
+
+## Phase 1: Foundational (blocking prerequisites)
+
+**Purpose**: The shared envelope. No surface consumes it yet, so this phase ships safely on its own.
+
+- [ ] **T005** Create `cmd/repokeeper/contract.go` with the single `apiVersion` constant
+      (`skaphos.io/repokeeper/v1`) and a reusable generic envelope type carrying `apiVersion`,
+      optional `generated_at`, and a named payload.
+- [ ] **T006** Ensure the constant is reachable from `internal/mcpserver` without an import cycle,
+      so CLI and MCP share one source (FR-003). If `cmd/repokeeper` cannot be imported by
+      `internal/`, hoist the constant to a small `internal/contract` package — decide here, not
+      later.
+- [ ] **T007** [P] Add `cmd/repokeeper/contract_test.go`: envelope always carries `apiVersion`;
+      empty collections marshal as `[]` and never `null` (FR-007); `generated_at` omitted rather than
+      zero-valued when not meaningful.
+
+---
+
+## Phase 2: User Story 1 — uniform version detection (P1) 🎯 MVP
+
+**Goal**: Every adapter-facing surface carries `apiVersion` in the same place, CLI and MCP.
+
+**Independent test**: Invoke every surface against a fixture workspace; assert each response carries
+`apiVersion` equal to the shared constant.
+
+> **Ordering constraint**: T008 and T009 must land in the **same change** (FR-018). Enveloping CLI
+> alone reintroduces the CLI/MCP drift that PR #344 fixed.
+
+- [ ] **T008** [US1] Wrap the CLI action surfaces in the envelope: `scan.go`, `sync.go`
+      (reconcile/sync), `describe.go`, `label.go`, `repair_upstream.go`, `version.go`. Each gains a
+      named payload field per [surface-inventory.md](./contracts/surface-inventory.md).
+- [ ] **T009** [US1] Envelope MCP structured results in `internal/mcpserver/tool_results.go`, and
+      verify against a real MCP client (plan.md open risk) that an enveloped result is accepted.
+- [ ] **T010** [US1] Promote `status.go` from `v1beta1` to `v1` and switch it to the shared constant,
+      removing the now-duplicated local `statusJSONAPIVersion`.
+- [ ] **T011** [US1] Test: enumerate every adapter-facing surface, assert each emits `apiVersion`
+      equal to the shared constant (SC-001), and assert CLI and MCP resolve to the *same constant*
+      rather than merely equal strings.
+
+**Checkpoint**: Adapters can detect contract version from any single response. Shippable.
+
+---
+
+## Phase 3: User Story 2 — published contract (P2)
+
+**Goal**: An adapter author builds against a document, never against Go source.
+
+**Independent test**: A reviewer who has not seen the code can enumerate every surface and predict
+each response shape from the published document alone.
+
+- [ ] **T012** [US2] Revise `DESIGN.md` §6.3 and §6.4: generalise the single-surface stability policy
+      to the uniform envelope; update §6.4's bare-array description, preserving its CLI/MCP parity
+      *rationale* while correcting the shape.
+- [ ] **T013** [US2] Publish the surface inventory in the repository's user-facing docs (not only in
+      `specs/`), since adapter authors are external and will not read a feature spec directory.
+- [ ] **T014** [US2] Implement the drift test per T002's outcome: fail when the surfaces in code and
+      the documented inventory diverge (FR-011, SC-003). Extend the existing
+      `TestDesignDocNamesStatusJSONAPIVersion` rather than duplicating its approach.
+- [ ] **T015** [P] [US2] Document what is explicitly non-contractual — table/wide output, prose,
+      logs, `internal/...`, specific exit values (FR-010).
+
+**Checkpoint**: An external repo can be built against the contract. Shippable.
+
+---
+
+## Phase 4: User Story 3 — read/mutation boundary (P3)
+
+**Goal**: Every surface declares `read` or `mutation`, and the declaration is enforced.
+
+**Independent test**: For every surface, assert the declared class matches actual behaviour.
+
+- [ ] **T016** [US3] Annotate every surface with its `read`/`mutation` classification in the
+      inventory, including the two counter-intuitive cases: `plan_sync` is read, `scan_workspace` is
+      mutation (FR-014).
+- [ ] **T017** [US3] Test: no surface classified `read` writes to registry, config, or working tree
+      (FR-013, SC-004). Assert by snapshotting state before and after each read surface.
+- [ ] **T018** [US3] Test: under a read-only workspace, every `read` surface succeeds (FR-016) and
+      every `mutation` surface refuses with a message naming cause and remedy while remaining
+      advertised (FR-015, SC-006). Extend the existing `readonly_*_test.go` coverage.
+- [ ] **T019** [P] [US3] Test: skipped work carries a machine-readable reason, including
+      backend-unsupported skips for Mercurial (FR-020, Principles VI and XI).
+
+**Checkpoint**: The boundary is contractual and enforced. Shippable.
+
+---
+
+## Phase 5: Polish & cross-cutting
+
+- [ ] **T020** Update `README.md` where it describes machine-readable output, per the constitution's
+      documentation constraint.
+- [ ] **T021** Release-note the breaking change explicitly. ADR-0006 requires breaking changes carry
+      release-note visibility; a contract break discovered by adapter authors at runtime is a defect
+      in this feature, not in their code.
+- [ ] **T022** [P] Verify cross-platform parity of the enveloped output on macOS, Linux and Windows
+      (Principle XII — parity is a requirement, not a courtesy).
+- [ ] **T023** [P] Confirm no measurable performance regression on `list_repositories`, documented as
+      "fast — reads registry only".
+- [ ] **T024** Run the full local gate `go -C tools tool task ci` before opening the PR.
+- [ ] **T025** Confirm the follow-on issues can now proceed: [#289](https://github.com/skaphos/repokeeper/issues/289)
+      (JSON hardening against this contract) and [#286](https://github.com/skaphos/repokeeper/issues/286)
+      (adapter version compatibility policy).
+
+---
+
+## Dependencies & Execution Order
+
+### Phase dependencies
+
+```text
+Phase 0 (gates)  ──►  Phase 1 (envelope)  ──►  Phase 2 (US1)  ──►  Phase 3 (US2)
+                                                      │
+                                                      └──────────►  Phase 4 (US3)  ──►  Phase 5
+```
+
+- **Phase 0 blocks everything.** T002's outcome changes T012–T014; T003 is a constitutional gate.
+- **Phase 3 depends on Phase 2.** The inventory cannot accurately document an envelope that does not
+  exist yet.
+- **Phase 4 is independent of Phase 3.** The read/mutation boundary already exists in code; this
+  phase classifies and tests it. It could ship before US2 if priorities changed.
+
+### Within Phase 2
+
+T008 and T009 are a single atomic change (FR-018). T010 follows. T011 last, since it asserts across
+all of them.
+
+### Parallel opportunities
+
+- T007 runs alongside T005/T006 once the type signature is agreed.
+- T015, T019, T022, T023 are marked `[P]` — independent files, no shared state.
+- T012 and T013 touch different documents and can proceed together.
+
+---
+
+## Implementation Strategy
+
+**MVP is Phase 0 + 1 + 2.** That delivers the thing #287 exists for: an adapter can detect contract
+compatibility from any single response. Phases 3–5 make it usable and enforced, but the mechanism is
+the irreducible core.
+
+**Do not start Phase 2 before T002 and T003.** T002 determines whether the drift guarantee is real or
+nominal, and T003 is a constitution gate on a hard-to-reverse decision. Both are cheap; discovering
+either late is not.
