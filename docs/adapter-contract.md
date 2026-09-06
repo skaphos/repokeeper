@@ -38,9 +38,10 @@ Your compatibility check:
 4. Check the core-version range and required capabilities declared by the adapter, as described in
    [§11](#11-declaring-which-core-versions-you-support), before enabling its features.
 
-The value is identical across every surface, CLI and MCP alike. Choose compatibility once per binary
-or MCP session, then validate each response's marker before interpreting its payload. A marker that
-changes mid-session invalidates that compatibility decision.
+The value is identical across CLI JSON responses and MCP tool/resource JSON results. MCP
+initialization does not carry this marker. Choose compatibility once per binary or MCP session,
+then validate each result's marker before interpreting its payload. A marker that changes
+mid-session invalidates that compatibility decision.
 
 ## 2. Ignore fields you do not recognise
 
