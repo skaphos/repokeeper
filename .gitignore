@@ -25,7 +25,16 @@ dist/
 *.swp
 *.swo
 .codex
-.claude
+# Ignore everything Claude Code writes into .claude (worktrees, local settings,
+# transcripts) EXCEPT the spec-kit skills. The Codex integration installs its
+# copies into the tracked .agents/skills/, so they survive a clone; the Claude
+# integration targets .claude/skills/, which a blanket `.claude` ignore silently
+# dropped -- leaving `specify integration status` reporting 10 missing managed
+# files on every fresh checkout. Negation needs `.claude/*` rather than
+# `.claude`, because git will not descend into an excluded directory to
+# re-include a child.
+.claude/*
+!.claude/skills/
 .cursor/
 .windsurf/
 .continue/
