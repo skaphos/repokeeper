@@ -420,6 +420,11 @@ go -C tools tool task ci
 go -C tools tool task fmt
 ```
 
+## Security
+
+Report suspected vulnerabilities privately using the [security policy](SECURITY.md).
+Please do not use public issues for security reports.
+
 ## License
 
 [MIT](LICENSE)
