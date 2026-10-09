@@ -137,7 +137,7 @@ tasks:
     cmds:
       - go clean ./...
       - go clean -testcache
-      - '{{if eq OS "windows"}}powershell -NoProfile -Command "Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue; Remove-Item -Force repokeeper.exe,repokeeper,coverage.out -ErrorAction SilentlyContinue"{{else}}rm -rf dist repokeeper coverage.out{{end}}'
+      - '{{if eq OS "windows"}}powershell -NoProfile -Command "Remove-Item -Recurse -Force dist,bin -ErrorAction SilentlyContinue; Remove-Item -Force repokeeper.exe,repokeeper,coverage.out -ErrorAction SilentlyContinue"{{else}}rm -rf dist bin repokeeper coverage.out{{end}}'
 
   ci:
     desc: Run standard CI workflow locally
