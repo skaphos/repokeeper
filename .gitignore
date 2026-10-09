@@ -18,6 +18,7 @@ cover*.out
 
 # Build artifacts
 dist/
+/bin/
 
 # IDE
 .idea/

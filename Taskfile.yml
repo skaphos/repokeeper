@@ -2,11 +2,10 @@ version: "3"
 
 vars:
   TASK_RUNNER: go -C tools tool task -d ..
-  GINKGO_RUNNER: go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1
-  GOLANGCI_RUNNER: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
-  GOIMPORTS_RUNNER: go run golang.org/x/tools/cmd/goimports@v0.49.0
-  STATICCHECK_RUNNER: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1
-  GOVULNCHECK_RUNNER: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0
+  GINKGO_RUNNER: go run github.com/onsi/ginkgo/v2/ginkgo@v2.33.0
+  GOLANGCI_RUNNER: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+  GOIMPORTS_RUNNER: go run golang.org/x/tools/cmd/goimports@v0.51.0
+  GOVULNCHECK_RUNNER: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0
   SVU_RUNNER: go run github.com/caarlos0/svu/v3@v3.4.1
 
 tasks:
@@ -101,9 +100,17 @@ tasks:
       - go fmt ./...
 
   staticcheck:
-    desc: Run staticcheck directly
+    desc: Run staticcheck (pinned in tools/go.mod, built into bin/)
+    # Not a `go run pkg@version` pin like the other linters: that form builds
+    # staticcheck with its own, older golang.org/x/tools, which cannot read the
+    # export data a newer Go toolchain emits (go1.27.2 broke v0.8.1 that way).
+    # Resolving it inside tools/go.mod lets MVS pick the x/tools the rest of the
+    # tooling already uses. It is built rather than run via `go -C tools tool`
+    # because that would execute with tools/ as the working directory and
+    # analyse the wrong module.
     cmds:
-      - '{{.STATICCHECK_RUNNER}} ./...'
+      - go -C tools build -o ../bin/staticcheck{{exeExt}} honnef.co/go/tools/cmd/staticcheck
+      - bin/staticcheck{{exeExt}} ./...
 
   vuln:
     desc: Run vulnerability scan
@@ -130,7 +137,7 @@ tasks:
     cmds:
       - go clean ./...
       - go clean -testcache
-      - '{{if eq OS "windows"}}powershell -NoProfile -Command "Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue; Remove-Item -Force repokeeper.exe,repokeeper,coverage.out -ErrorAction SilentlyContinue"{{else}}rm -rf dist repokeeper coverage.out{{end}}'
+      - '{{if eq OS "windows"}}powershell -NoProfile -Command "Remove-Item -Recurse -Force dist,bin -ErrorAction SilentlyContinue; Remove-Item -Force repokeeper.exe,repokeeper,coverage.out -ErrorAction SilentlyContinue"{{else}}rm -rf dist bin repokeeper coverage.out{{end}}'
 
   ci:
     desc: Run standard CI workflow locally

@@ -387,7 +387,7 @@ The Ginkgo unit command (also used by `task test`) explicitly excludes E2E packa
 go -C tools tool task --list
 
 # Run unit tests
-go run github.com/onsi/ginkgo/v2/ginkgo@v2.32.1 --skip-package=e2e ./...
+go run github.com/onsi/ginkgo/v2/ginkgo@v2.33.0 --skip-package=e2e ./...
 
 # Run with coverage
 go test -coverprofile=coverage.out ./...
@@ -402,7 +402,7 @@ go -C tools tool task coverage-report
 go -C tools tool task perf-bench
 
 # Lint
-go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 run ./...
+go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run ./...
 
 # Build locally
 go build -o repokeeper .
