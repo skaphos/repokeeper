@@ -10,25 +10,29 @@ import (
 )
 
 func TestResolveAbsoluteTargetPath(t *testing.T) {
+	// Root fixtures in a temp dir: "/abs/target" is not absolute on Windows.
+	root := t.TempDir()
+	cwd := filepath.Join(root, "work", "root")
+	absTarget := filepath.Join(root, "abs", "target")
+	sep := string(filepath.Separator)
 	tests := []struct {
 		name   string
 		cwd    string
 		target string
 		want   string
 	}{
-		{name: "relative target joins cwd", cwd: "/work/root", target: "repos/repo-a", want: filepath.FromSlash("/work/root/repos/repo-a")},
-		{name: "relative target with dot segments is cleaned", cwd: "/work/root", target: "./repos/../repos/repo-a", want: filepath.FromSlash("/work/root/repos/repo-a")},
+		{name: "relative target joins cwd", cwd: cwd, target: "repos/repo-a", want: filepath.Join(cwd, "repos", "repo-a")},
+		{name: "relative target with dot segments is cleaned", cwd: cwd, target: "./repos/../repos/repo-a", want: filepath.Join(cwd, "repos", "repo-a")},
 		{
 			// Regression test: an absolute target must be used as-is, not
-			// re-rooted under cwd. filepath.Join("/work/root", "/abs/target")
-			// would previously yield "/work/root/abs/target" instead of
-			// "/abs/target".
+			// re-rooted under cwd. filepath.Join(cwd, absTarget) would
+			// previously nest the target under cwd.
 			name:   "absolute target is preserved, not re-rooted under cwd",
-			cwd:    "/work/root",
-			target: "/abs/target",
-			want:   filepath.FromSlash("/abs/target"),
+			cwd:    cwd,
+			target: absTarget,
+			want:   absTarget,
 		},
-		{name: "absolute target is cleaned", cwd: "/work/root", target: "/abs//target/../target", want: filepath.FromSlash("/abs/target")},
+		{name: "absolute target is cleaned", cwd: cwd, target: root + sep + "abs" + sep + sep + "target" + sep + ".." + sep + "target", want: absTarget},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -67,8 +71,11 @@ func TestAddCommandWithAbsoluteTargetDoesNotReRootUnderCWD(t *testing.T) {
 	if _, err := os.Stat(absTarget); err != nil {
 		t.Fatalf("expected repo cloned at absolute target %q: %v", absTarget, err)
 	}
+	// On Windows the re-rooted path ("…\C:\…") is not even a valid path, so
+	// Stat reports a syntax error rather than ErrNotExist; any error means the
+	// repo was not created there.
 	wrongTarget := filepath.Join(filepath.Dir(cfgPath), absTarget)
-	if _, err := os.Stat(wrongTarget); !os.IsNotExist(err) {
+	if _, err := os.Stat(wrongTarget); err == nil {
 		t.Fatalf("expected no repo re-rooted under cwd at %q, stat err=%v", wrongTarget, err)
 	}
 }

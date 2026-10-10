@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -318,7 +319,7 @@ func newTestRegistry() *registry.Registry {
 		Entries: []registry.Entry{
 			{
 				RepoID:      "github.com/example/alpha",
-				Path:        "/home/user/repos/alpha",
+				Path:        fixturePath("/home/user/repos/alpha"),
 				RemoteURL:   "git@github.com:example/alpha.git",
 				Type:        "checkout",
 				Labels:      map[string]string{"team": "platform", "env": "prod"},
@@ -328,7 +329,7 @@ func newTestRegistry() *registry.Registry {
 			},
 			{
 				RepoID:    "github.com/example/beta",
-				Path:      "/home/user/repos/beta",
+				Path:      fixturePath("/home/user/repos/beta"),
 				RemoteURL: "git@github.com:example/beta.git",
 				Type:      "checkout",
 				Labels:    map[string]string{"team": "data"},
@@ -337,7 +338,7 @@ func newTestRegistry() *registry.Registry {
 			},
 			{
 				RepoID:   "github.com/example/gamma",
-				Path:     "/home/user/repos/gamma",
+				Path:     fixturePath("/home/user/repos/gamma"),
 				Type:     "mirror",
 				Status:   registry.StatusMissing,
 				LastSeen: time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
@@ -358,7 +359,7 @@ func newTestStatusReport() *model.StatusReport {
 		Repos: []model.RepoStatus{
 			{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Type:   "checkout",
 				Labels: map[string]string{"runtime": "go"},
 				Head:   model.Head{Branch: "main"},
@@ -387,7 +388,7 @@ func newTestStatusReport() *model.StatusReport {
 			},
 			{
 				RepoID: "github.com/example/beta",
-				Path:   "/home/user/repos/beta",
+				Path:   fixturePath("/home/user/repos/beta"),
 				Type:   "checkout",
 				Head:   model.Head{Branch: "develop"},
 				Worktree: &model.Worktree{
@@ -583,7 +584,7 @@ var _ = Describe("MCPServer", func() {
 			var resp map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
 			Expect(resp["repo_id"]).To(Equal("github.com/example/alpha"))
-			Expect(resp["path"]).To(Equal("/home/user/repos/alpha"))
+			Expect(resp["path"]).To(Equal(fixturePath("/home/user/repos/alpha")))
 		})
 
 		It("returns error when repo parameter is missing", func() {
@@ -603,7 +604,7 @@ var _ = Describe("MCPServer", func() {
 		It("merges registry labels with status labels", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Labels: map[string]string{"runtime": "go"},
 				Head:   model.Head{Branch: "main"},
 			}
@@ -864,7 +865,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns metadata when present", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 				RepoMetadata: &model.RepoMetadata{
 					Name:   "Alpha Service",
@@ -886,7 +887,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns null when no metadata exists", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 			}
 
@@ -919,7 +920,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns paths and entrypoints from metadata", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 				RepoMetadata: &model.RepoMetadata{
 					Entrypoints: map[string]string{"main": "cmd/alpha/main.go"},
@@ -952,7 +953,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns error when no metadata exists", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 			}
 
@@ -974,7 +975,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns related repos with registry cross-reference", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 				RepoMetadata: &model.RepoMetadata{
 					RelatedRepos: []model.RepoMetadataRelatedRepo{
@@ -1001,7 +1002,7 @@ var _ = Describe("MCPServer", func() {
 			// beta is in the registry — should have path and status
 			Expect(repos[0]["repo_id"]).To(Equal("github.com/example/beta"))
 			Expect(repos[0]["relationship"]).To(Equal("dependency"))
-			Expect(repos[0]["path"]).To(Equal("/home/user/repos/beta"))
+			Expect(repos[0]["path"]).To(Equal(fixturePath("/home/user/repos/beta")))
 			Expect(repos[0]["status"]).To(Equal("present"))
 
 			// unknown is not in the registry — path and status should be empty
@@ -1013,7 +1014,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns empty array when no metadata", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 			}
 
@@ -1035,7 +1036,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns empty array when metadata has no related repos", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID:       "github.com/example/alpha",
-				Path:         "/home/user/repos/alpha",
+				Path:         fixturePath("/home/user/repos/alpha"),
 				Head:         model.Head{Branch: "main"},
 				RepoMetadata: &model.RepoMetadata{Name: "Alpha"},
 			}
@@ -1098,7 +1099,7 @@ var _ = Describe("MCPServer", func() {
 			var entry map[string]any
 			Expect(json.Unmarshal([]byte(text), &entry)).To(Succeed())
 			Expect(entry["repo_id"]).To(Equal("github.com/example/alpha"))
-			Expect(entry["path"]).To(Equal("/home/user/repos/alpha"))
+			Expect(entry["path"]).To(Equal(fixturePath("/home/user/repos/alpha")))
 		})
 
 		It("returns error for unknown repo resource", func() {
@@ -1112,7 +1113,7 @@ var _ = Describe("MCPServer", func() {
 		It("serves repo metadata resource", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 				RepoMetadata: &model.RepoMetadata{
 					Name: "Alpha Service",
@@ -1133,7 +1134,7 @@ var _ = Describe("MCPServer", func() {
 		It("returns error for repo metadata when no metadata exists", func() {
 			eng.inspectResult = &model.RepoStatus{
 				RepoID: "github.com/example/alpha",
-				Path:   "/home/user/repos/alpha",
+				Path:   fixturePath("/home/user/repos/alpha"),
 				Head:   model.Head{Branch: "main"},
 			}
 
@@ -1168,8 +1169,8 @@ var _ = Describe("MCPServer", func() {
 	Describe("scan_workspace", func() {
 		It("returns scan results", func() {
 			eng.scanResult = []model.RepoStatus{
-				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha"},
-				{RepoID: "github.com/example/beta", Path: "/home/user/repos/beta"},
+				{RepoID: "github.com/example/alpha", Path: fixturePath("/home/user/repos/alpha")},
+				{RepoID: "github.com/example/beta", Path: fixturePath("/home/user/repos/beta")},
 			}
 
 			result, err := callTool(srv, "scan_workspace", nil)
@@ -1192,7 +1193,7 @@ var _ = Describe("MCPServer", func() {
 
 		It("rejects non-string roots items", func() {
 			result, err := callTool(srv, "scan_workspace", map[string]any{
-				"roots": []any{"/home/user/repos", 1},
+				"roots": []any{fixturePath("/home/user/repos"), 1},
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
@@ -1269,7 +1270,7 @@ var _ = Describe("MCPServer", func() {
 	Describe("plan_sync", func() {
 		BeforeEach(func() {
 			eng.syncResult = []engine.SyncResult{
-				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomePlannedFetch, OK: true, Planned: true, Error: "dry-run", RemoteTrackingRefs: model.RemoteTrackingRefStatus{StaleCount: 1, Stale: []string{"origin/merged"}}},
+				{RepoID: "github.com/example/alpha", Path: fixturePath("/home/user/repos/alpha"), Action: "fetch --all --prune", Outcome: engine.SyncOutcomePlannedFetch, OK: true, Planned: true, Error: "dry-run", RemoteTrackingRefs: model.RemoteTrackingRefStatus{StaleCount: 1, Stale: []string{"origin/merged"}}},
 			}
 		})
 
@@ -1359,7 +1360,7 @@ var _ = Describe("MCPServer", func() {
 	Describe("execute_sync", func() {
 		BeforeEach(func() {
 			eng.syncResult = []engine.SyncResult{
-				{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
+				{RepoID: "github.com/example/alpha", Path: fixturePath("/home/user/repos/alpha"), Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
 			}
 		})
 
@@ -1548,7 +1549,7 @@ var _ = Describe("MCPServer", func() {
 		It("clones and registers a repository", func() {
 			result, err := callTool(srv, "add_repository", map[string]any{
 				"url":  "git@github.com:example/new.git",
-				"path": "/home/user/repos/new",
+				"path": fixturePath("/home/user/repos/new"),
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeFalse())
@@ -1556,7 +1557,7 @@ var _ = Describe("MCPServer", func() {
 
 			var resp map[string]any
 			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
-			Expect(resp["path"]).To(Equal("/home/user/repos/new"))
+			Expect(resp["path"]).To(Equal(fixturePath("/home/user/repos/new")))
 			Expect(resp["status"]).To(Equal("cloned"))
 		})
 
@@ -1564,7 +1565,7 @@ var _ = Describe("MCPServer", func() {
 			eng.cloneErr = fmt.Errorf("clone failed")
 			result, err := callTool(srv, "add_repository", map[string]any{
 				"url":  "git@github.com:example/fail.git",
-				"path": "/home/user/repos/fail",
+				"path": fixturePath("/home/user/repos/fail"),
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
@@ -1572,7 +1573,7 @@ var _ = Describe("MCPServer", func() {
 
 		It("returns error when url is missing", func() {
 			result, err := callTool(srv, "add_repository", map[string]any{
-				"path": "/home/user/repos/new",
+				"path": fixturePath("/home/user/repos/new"),
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
@@ -1621,7 +1622,7 @@ var _ = Describe("MCPServer", func() {
 		// must route through resolveRepo so an absolute checkout path works.
 		It("removes a repo by absolute path", func() {
 			result, err := callTool(srv, "remove_repository", map[string]any{
-				"repo": "/home/user/repos/beta",
+				"repo": fixturePath("/home/user/repos/beta"),
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeFalse())
@@ -1636,16 +1637,16 @@ var _ = Describe("MCPServer", func() {
 			eng.reg = registryWithDuplicateRepoID()
 
 			result, err := callTool(srv, "remove_repository", map[string]any{
-				"repo": "/home/user/repos/dup-b",
+				"repo": fixturePath("/home/user/repos/dup-b"),
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeFalse())
-			Expect(eng.deleteRepoArg).To(Equal("/home/user/repos/dup-b"))
+			Expect(eng.deleteRepoArg).To(Equal(fixturePath("/home/user/repos/dup-b")))
 		})
 
 		It("returns error for an unknown repo before touching the engine", func() {
 			result, err := callTool(srv, "remove_repository", map[string]any{
-				"repo": "/home/user/repos/does-not-exist",
+				"repo": fixturePath("/home/user/repos/does-not-exist"),
 			})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
@@ -1732,7 +1733,7 @@ var _ = Describe("resolveRepo", Ordered, func() {
 
 	It("resolves by absolute path", func() {
 		result, err := callTool(srv, "get_repository_context", map[string]any{
-			"repo": "/home/user/repos/beta",
+			"repo": fixturePath("/home/user/repos/beta"),
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.IsError).To(BeFalse())
@@ -1748,7 +1749,7 @@ func registryWithDuplicateRepoID() *registry.Registry {
 			{
 				RepoID:     "github.com/example/dup",
 				CheckoutID: "dup-a",
-				Path:       "/home/user/repos/dup-a",
+				Path:       fixturePath("/home/user/repos/dup-a"),
 				Type:       "checkout",
 				Status:     registry.StatusPresent,
 				LastSeen:   time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
@@ -1756,7 +1757,7 @@ func registryWithDuplicateRepoID() *registry.Registry {
 			{
 				RepoID:     "github.com/example/dup",
 				CheckoutID: "dup-b",
-				Path:       "/home/user/repos/dup-b",
+				Path:       fixturePath("/home/user/repos/dup-b"),
 				Type:       "checkout",
 				Status:     registry.StatusPresent,
 				LastSeen:   time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
@@ -1788,7 +1789,7 @@ var _ = Describe("resolveRepo ambiguity", func() {
 		Expect(string(resultJSON(result))).To(And(
 			ContainSubstring("ambiguous"),
 			ContainSubstring(`checkout_id="dup-a"`),
-			ContainSubstring(`/home/user/repos/dup-b`),
+			ContainSubstring("path="+strconv.Quote(fixturePath("/home/user/repos/dup-b"))),
 		))
 	})
 
@@ -1803,7 +1804,7 @@ var _ = Describe("resolveRepo ambiguity", func() {
 
 	It("disambiguates via absolute path", func() {
 		result, err := callTool(srv, "set_labels", map[string]any{
-			"repo": "/home/user/repos/dup-b",
+			"repo": fixturePath("/home/user/repos/dup-b"),
 			"set":  map[string]any{"tier": "critical"},
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -1823,7 +1824,7 @@ var _ = Describe("resolveRepo ambiguity", func() {
 	It("does not treat a relative selector as a path", func() {
 		eng.reg = &registry.Registry{Entries: []registry.Entry{
 			{RepoID: "github.com/example/path-owner", CheckoutID: "path-owner", Path: "checkout-b"},
-			{RepoID: "github.com/example/checkout-owner", CheckoutID: "checkout-b", Path: "/home/user/repos/checkout-b"},
+			{RepoID: "github.com/example/checkout-owner", CheckoutID: "checkout-b", Path: fixturePath("/home/user/repos/checkout-b")},
 		}}
 
 		result, err := callTool(srv, "set_labels", map[string]any{
@@ -1838,12 +1839,12 @@ var _ = Describe("resolveRepo ambiguity", func() {
 
 	It("rejects a path shared by multiple registry entries", func() {
 		eng.reg = &registry.Registry{Entries: []registry.Entry{
-			{RepoID: "github.com/example/first", Path: "/home/user/repos/shared"},
-			{RepoID: "github.com/example/second", Path: "/home/user/repos/shared"},
+			{RepoID: "github.com/example/first", Path: fixturePath("/home/user/repos/shared")},
+			{RepoID: "github.com/example/second", Path: fixturePath("/home/user/repos/shared")},
 		}}
 
 		result, err := callTool(srv, "get_repository_context", map[string]any{
-			"repo": "/home/user/repos/shared",
+			"repo": fixturePath("/home/user/repos/shared"),
 		})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.IsError).To(BeTrue())
@@ -1860,7 +1861,7 @@ var _ = Describe("concurrent tool access", func() {
 	It("serializes overlapping registry mutations and reads", func() {
 		eng := &mockEngine{cfg: newTestConfig(), reg: newTestRegistry()}
 		eng.scanResult = []model.RepoStatus{
-			{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha"},
+			{RepoID: "github.com/example/alpha", Path: fixturePath("/home/user/repos/alpha")},
 		}
 		srv := mcpserver.New(eng, "/tmp/concurrent.yaml", "0.1.0-test", nil)
 
@@ -2011,7 +2012,7 @@ var _ = Describe("InProcess MCP Client", func() {
 		eng.inspectResult = &report.Repos[0]
 		eng.syncResult = []engine.SyncResult{{
 			RepoID:  "github.com/example/alpha",
-			Path:    "/home/user/repos/alpha",
+			Path:    fixturePath("/home/user/repos/alpha"),
 			Action:  "fetch --all --prune",
 			Outcome: engine.SyncOutcomeFetched,
 			Planned: true,
@@ -2051,7 +2052,7 @@ var _ = Describe("InProcess MCP Client", func() {
 			}},
 			{name: "get_repository_context", arguments: map[string]any{"repo": "github.com/example/alpha"}, expect: map[string]types.GomegaMatcher{
 				"repo_id":  Equal("github.com/example/alpha"),
-				"path":     Equal("/home/user/repos/alpha"),
+				"path":     Equal(fixturePath("/home/user/repos/alpha")),
 				"head":     HaveKeyWithValue("branch", "main"),
 				"tracking": HaveKeyWithValue("upstream", "origin/main"),
 			}},
@@ -2166,7 +2167,7 @@ var _ = Describe("InProcess MCP Client", func() {
 
 	It("can call plan_sync and execute_sync (with confirm) through the real client", func() {
 		eng.syncResult = []engine.SyncResult{
-			{RepoID: "github.com/example/alpha", Path: "/home/user/repos/alpha", Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
+			{RepoID: "github.com/example/alpha", Path: fixturePath("/home/user/repos/alpha"), Action: "fetch --all --prune", Outcome: engine.SyncOutcomeFetched, Planned: true},
 		}
 
 		c, err := client.NewInProcessClient(srv.Inner())
@@ -2556,3 +2557,13 @@ var _ = Describe("InProcess MCP Client", func() {
 		Expect(result.IsError).To(BeFalse())
 	})
 })
+
+// fixturePath returns p as a platform-absolute path. resolveRepo detects path
+// selectors with filepath.IsAbs, which rejects "/home/user/..." on Windows.
+func fixturePath(p string) string {
+	abs, err := filepath.Abs(filepath.FromSlash(p))
+	if err != nil {
+		panic(err)
+	}
+	return abs
+}

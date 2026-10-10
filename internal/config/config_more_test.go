@@ -4,6 +4,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -101,6 +102,9 @@ func TestFindNearestConfigPathIgnoresDirectoryNamedLikeConfig(t *testing.T) {
 }
 
 func TestFindNearestConfigPathDoesNotWalkIntoSharedDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits; see TestFindNearestConfigPathDoesNotWalkIntoSharedDirWindows")
+	}
 	// Simulate a planted config in a shared, world-writable ancestor. The walk
 	// must not ascend into it and adopt the planted file.
 	shared := filepath.Join(t.TempDir(), "shared")

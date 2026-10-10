@@ -22,7 +22,7 @@ func TestOpenCodeName(t *testing.T) {
 // alongside other tests that also set OPENCODE_CONFIG_DIR / HOME.
 
 func TestOpenCodeDetectTrueViaEnv(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	setTestHome(t, t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("OPENCODE_CONFIG_DIR", "/nowhere/opencode")
 	a := &opencodeAdapter{}
@@ -37,7 +37,7 @@ func TestOpenCodeDetectTrueViaEnv(t *testing.T) {
 
 func TestOpenCodeDetectTrueViaDir(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("OPENCODE_CONFIG_DIR", "")
 	if err := os.MkdirAll(filepath.Join(home, ".config", "opencode"), 0o755); err != nil {
@@ -55,7 +55,7 @@ func TestOpenCodeDetectTrueViaDir(t *testing.T) {
 
 func TestOpenCodeDetectFalse(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("OPENCODE_CONFIG_DIR", "")
 	a := &opencodeAdapter{}
@@ -70,7 +70,7 @@ func TestOpenCodeDetectFalse(t *testing.T) {
 
 func TestOpenCodeConfigPathDefault(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("OPENCODE_CONFIG_DIR", "")
 	a := &opencodeAdapter{}
@@ -86,7 +86,7 @@ func TestOpenCodeConfigPathDefault(t *testing.T) {
 
 func TestOpenCodeConfigPathXDG(t *testing.T) {
 	xdg := t.TempDir()
-	t.Setenv("HOME", t.TempDir())
+	setTestHome(t, t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	t.Setenv("OPENCODE_CONFIG_DIR", "")
 	a := &opencodeAdapter{}
@@ -102,7 +102,7 @@ func TestOpenCodeConfigPathXDG(t *testing.T) {
 
 func TestOpenCodeConfigPathEnvOverride(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("HOME", t.TempDir())
+	setTestHome(t, t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("OPENCODE_CONFIG_DIR", dir)
 	a := &opencodeAdapter{}

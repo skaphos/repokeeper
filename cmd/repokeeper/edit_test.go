@@ -86,10 +86,13 @@ func TestTrackingBranchFromUpstream(t *testing.T) {
 }
 
 func TestValidateEditedRegistryEntryUniqueness(t *testing.T) {
+	// Paths must be absolute on every platform; "/repos/..." is not on Windows.
+	root := t.TempDir()
+	repoA, repoB := filepath.Join(root, "repo-a"), filepath.Join(root, "repo-b")
 	base := func() registry.Entry {
 		return registry.Entry{
 			RepoID: "github.com/org/repo",
-			Path:   "/repos/repo-a",
+			Path:   repoA,
 			Status: registry.StatusPresent,
 		}
 	}
@@ -109,48 +112,48 @@ func TestValidateEditedRegistryEntryUniqueness(t *testing.T) {
 		},
 		{
 			name:   "same repo_id different checkout_id is allowed (multi-checkout)",
-			edited: registry.Entry{RepoID: "github.com/org/repo", CheckoutID: "b", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			edited: registry.Entry{RepoID: "github.com/org/repo", CheckoutID: "b", Path: repoB, Status: registry.StatusPresent},
 			reg: &registry.Registry{Entries: []registry.Entry{
-				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-a", Status: registry.StatusPresent},
-				{RepoID: "github.com/org/repo", CheckoutID: "b", Path: "/repos/repo-b", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: repoA, Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", CheckoutID: "b", Path: repoB, Status: registry.StatusPresent},
 			}},
 			index: 1,
 		},
 		{
 			name:   "same repo_id different path, no checkout_id, is allowed (multi-checkout)",
-			edited: registry.Entry{RepoID: "github.com/org/repo", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			edited: registry.Entry{RepoID: "github.com/org/repo", Path: repoB, Status: registry.StatusPresent},
 			reg: &registry.Registry{Entries: []registry.Entry{
-				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
-				{RepoID: "github.com/org/repo", Path: "/repos/repo-b", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", Path: repoA, Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", Path: repoB, Status: registry.StatusPresent},
 			}},
 			index: 1,
 		},
 		{
 			name:   "same repo_id and same checkout_id is rejected",
-			edited: registry.Entry{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-b", Status: registry.StatusPresent},
+			edited: registry.Entry{RepoID: "github.com/org/repo", CheckoutID: "a", Path: repoB, Status: registry.StatusPresent},
 			reg: &registry.Registry{Entries: []registry.Entry{
-				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-a", Status: registry.StatusPresent},
-				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: "/repos/repo-b", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: repoA, Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", CheckoutID: "a", Path: repoB, Status: registry.StatusPresent},
 			}},
 			index:   1,
 			wantErr: true,
 		},
 		{
 			name:   "same repo_id and same path (no checkout_id) is rejected",
-			edited: registry.Entry{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
+			edited: registry.Entry{RepoID: "github.com/org/repo", Path: repoA, Status: registry.StatusPresent},
 			reg: &registry.Registry{Entries: []registry.Entry{
-				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
-				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", Path: repoA, Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", Path: repoA, Status: registry.StatusPresent},
 			}},
 			index:   1,
 			wantErr: true,
 		},
 		{
 			name:   "different repo_id never conflicts",
-			edited: registry.Entry{RepoID: "github.com/org/other", Path: "/repos/repo-a", Status: registry.StatusPresent},
+			edited: registry.Entry{RepoID: "github.com/org/other", Path: repoA, Status: registry.StatusPresent},
 			reg: &registry.Registry{Entries: []registry.Entry{
-				{RepoID: "github.com/org/repo", Path: "/repos/repo-a", Status: registry.StatusPresent},
-				{RepoID: "github.com/org/other", Path: "/repos/repo-a", Status: registry.StatusPresent},
+				{RepoID: "github.com/org/repo", Path: repoA, Status: registry.StatusPresent},
+				{RepoID: "github.com/org/other", Path: repoA, Status: registry.StatusPresent},
 			}},
 			index: 1,
 		},

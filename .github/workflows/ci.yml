@@ -202,6 +202,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: [dco, reuse, lint, test, integration, integration-race, quality, perf, manifests]
+    # dco runs only for pull requests, so a main push would propagate its skip
+    # and silently skip the snapshot build. Accept a skipped dco and require
+    # every other prerequisite to succeed.
+    if: >-
+      ${{ !cancelled()
+      && contains(fromJSON('["success","skipped"]'), needs.dco.result)
+      && needs.reuse.result == 'success'
+      && needs.lint.result == 'success'
+      && needs.test.result == 'success'
+      && needs.integration.result == 'success'
+      && needs.integration-race.result == 'success'
+      && needs.quality.result == 'success'
+      && needs.perf.result == 'success'
+      && needs.manifests.result == 'success' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

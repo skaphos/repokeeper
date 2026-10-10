@@ -246,17 +246,6 @@ func sameDirPath(a, b string) bool {
 	return left == right
 }
 
-// isSharedDir reports whether dir is world-writable or sticky, which marks it
-// as a shared location (like /tmp) that config discovery must not walk into.
-func isSharedDir(dir string) bool {
-	fi, err := os.Stat(dir)
-	if err != nil {
-		return false
-	}
-	mode := fi.Mode()
-	return mode.Perm()&0o002 != 0 || mode&os.ModeSticky != 0
-}
-
 // Load reads the config file from the given path.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)

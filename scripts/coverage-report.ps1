@@ -73,3 +73,5 @@ go tool cover "-func=$Profile" |
     Sort-Object Pct, Name |
     Select-Object -First 20 |
     ForEach-Object { $_.Line | Write-Host }
+# Native exit codes are not covered by ErrorActionPreference or propagated by -File.
+exit $LASTEXITCODE

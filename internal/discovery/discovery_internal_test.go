@@ -268,19 +268,21 @@ func TestScanDefaultsAndEmptyRoots(t *testing.T) {
 }
 
 func TestRootCovered(t *testing.T) {
+	// Fixtures use the platform separator; rootCovered receives cleaned paths.
+	p := filepath.FromSlash
 	cases := []struct {
 		name     string
 		path     string
 		accepted []string
 		want     bool
 	}{
-		{"exact-match", "/A", []string{"/A"}, true},
-		{"nested-under-parent", filepath.Join("/A", "sub"), []string{"/A"}, true},
-		{"deeply-nested-under-parent", filepath.Join("/A", "sub", "deeper"), []string{"/A"}, true},
-		{"sibling-with-shared-prefix-not-nested", "/AB", []string{"/A"}, false},
-		{"unrelated-path-not-covered", "/B", []string{"/A"}, false},
-		{"no-accepted-roots", "/A", nil, false},
-		{"covered-by-second-of-several", "/C/sub", []string{"/A", "/C"}, true},
+		{"exact-match", p("/A"), []string{p("/A")}, true},
+		{"nested-under-parent", p("/A/sub"), []string{p("/A")}, true},
+		{"deeply-nested-under-parent", p("/A/sub/deeper"), []string{p("/A")}, true},
+		{"sibling-with-shared-prefix-not-nested", p("/AB"), []string{p("/A")}, false},
+		{"unrelated-path-not-covered", p("/B"), []string{p("/A")}, false},
+		{"no-accepted-roots", p("/A"), nil, false},
+		{"covered-by-second-of-several", p("/C/sub"), []string{p("/A"), p("/C")}, true},
 		// A filesystem-root root already ends in a separator; the overlap check
 		// must not append a second one (which would form "//" and never match).
 		{"filesystem-root-covers-nested", filepath.Join(string(filepath.Separator), "foo"), []string{string(filepath.Separator)}, true},
