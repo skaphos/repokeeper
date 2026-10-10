@@ -486,6 +486,66 @@ type SyncResult struct {
 	// callers pass a plan straight from Sync into ExecuteSyncPlanWithCallbacks,
 	// and struct copies preserve the field across package boundaries.
 	steps []syncStep
+	// localUpdate is set on --update-local plans for backends that support local
+	// updates. The plan's steps were chosen from pre-fetch state, so the executor
+	// uses this policy to re-derive them after the fetch has run.
+	localUpdate *localUpdatePolicy
+}
+
+// localUpdatePolicy holds the --update-local options that decide what a sync
+// does to a repository's local branch once it has been fetched.
+type localUpdatePolicy struct {
+	fetchAction string
+	pushLocal   bool
+	pull        PullRebasePolicyOptions
+}
+
+// localUpdateDecision is the local-update work chosen for one repository.
+type localUpdateDecision struct {
+	// steps is the full ordered step list, always starting with the fetch.
+	steps  []syncStep
+	action string
+	// skipReason is non-empty when the local update is skipped; steps is then
+	// fetch-only.
+	skipReason string
+	push       bool
+}
+
+// decide chooses the local-update work for status. The planner, the plan
+// executor (after its fetch) and the direct apply path all decide through here
+// so their safety checks cannot drift apart.
+func (p localUpdatePolicy) decide(status *model.RepoStatus) localUpdateDecision {
+	if p.pushLocal && status != nil && status.Tracking.Status == model.TrackingAhead {
+		return localUpdateDecision{
+			steps:  []syncStep{syncStepFetch, syncStepPush},
+			action: p.fetchAction + " && git push",
+			push:   true,
+		}
+	}
+	if reason := pullRebaseSkipReason(status, p.pull); reason != "" {
+		return localUpdateDecision{
+			steps:      []syncStep{syncStepFetch},
+			action:     p.fetchAction,
+			skipReason: reason,
+		}
+	}
+	// Local update proceeds: fetch, then pull --rebase, auto-stashing a dirty
+	// worktree when --rebase-dirty is set so the rebase does not fail. The stash
+	// steps are explicit because git pull --rebase has no built-in autostash here.
+	steps := []syncStep{syncStepFetch}
+	action := p.fetchAction
+	stash := p.pull.RebaseDirty && status.Worktree != nil && status.Worktree.Dirty
+	if stash {
+		steps = append(steps, syncStepStashPush)
+		action += " && git stash push -u -m \"" + preRebaseStashMessage + "\""
+	}
+	steps = append(steps, syncStepPullRebase)
+	action += " && git pull --rebase --no-recurse-submodules"
+	if stash {
+		steps = append(steps, syncStepStashPop)
+		action += " && git stash pop"
+	}
+	return localUpdateDecision{steps: steps, action: action}
 }
 
 // syncStep identifies a single VCS operation within an executable sync plan.
@@ -686,8 +746,9 @@ func (e *Engine) executePlannedSyncItem(ctx context.Context, item SyncResult) Sy
 	// step ran, but no local update was applied. Restore the planner's
 	// user-facing skip message/class that we cleared above so the sync table's
 	// ERROR/ERROR_CLASS columns keep reporting the skip reason rather than going
-	// blank after plan execution.
-	if result.OK && result.Outcome == SyncOutcomeSkippedLocalUpdate {
+	// blank after plan execution. A local-update plan that re-decided after its
+	// fetch has already set the message for the reason that applied.
+	if result.OK && result.Outcome == SyncOutcomeSkippedLocalUpdate && result.Error == "" {
 		result.Error = item.Error
 		result.ErrorClass = item.ErrorClass
 	}
@@ -719,8 +780,54 @@ func (e *Engine) executePlannedClone(ctx context.Context, executed SyncResult) S
 }
 
 func (e *Engine) executePlannedNonClone(ctx context.Context, executed SyncResult) SyncResult {
+	if executed.localUpdate != nil {
+		return e.executePlannedLocalUpdate(ctx, executed)
+	}
+	return e.runPlannedSteps(ctx, executed, executed.steps)
+}
+
+// executePlannedLocalUpdate runs an --update-local plan. Its local-update steps
+// were chosen from pre-fetch state, which the fetch can invalidate: an
+// up-to-date branch can turn out to be behind, or an ahead branch diverged. So
+// the repository is re-inspected after the fetch and the remaining steps are
+// re-derived with the same policy, as the direct apply path does.
+func (e *Engine) executePlannedLocalUpdate(ctx context.Context, executed SyncResult) SyncResult {
+	if executed.steps[0] != syncStepFetch {
+		executed.OK = false
+		executed.Outcome = SyncOutcomeFailedInvalid
+		executed.Error = fmt.Sprintf("local-update plan must start with a fetch, got %v", executed.steps[0])
+		executed.ErrorClass = "invalid"
+		return executed
+	}
+	if err := e.adapter.Fetch(ctx, executed.Path); err != nil {
+		return e.failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
+	}
+	status, err := e.InspectRepo(ctx, executed.Path)
+	if err != nil {
+		return e.failedPlannedSyncResult(executed, SyncOutcomeFailedInspect, err)
+	}
+	decision := executed.localUpdate.decide(status)
+	executed.steps = decision.steps
+	executed.Action = decision.action
+	executed.SkipReason = decision.skipReason
+	if decision.skipReason != "" {
+		executed.OK = true
+		executed.Outcome = SyncOutcomeSkippedLocalUpdate
+		executed.Error = SyncErrorSkippedLocalUpdatePrefix + decision.skipReason
+		executed.ErrorClass = "skipped"
+		return executed
+	}
+	// The fetch already ran; reset any planned skip so the outcome is derived
+	// from the steps actually performed.
+	executed.Outcome = SyncOutcomeFetched
+	return e.runPlannedSteps(ctx, executed, decision.steps[1:])
+}
+
+// runPlannedSteps performs steps for executed, whose steps field holds the
+// item's full step list for outcome reporting.
+func (e *Engine) runPlannedSteps(ctx context.Context, executed SyncResult, steps []syncStep) SyncResult {
 	stashed := false
-	for _, step := range executed.steps {
+	for _, step := range steps {
 		switch step {
 		case syncStepFetch:
 			if err := e.adapter.Fetch(ctx, executed.Path); err != nil {
@@ -1196,54 +1303,43 @@ func (e *Engine) runSyncDryRun(ctx context.Context, entry registry.Entry, opts S
 		}
 	}
 	remoteTrackingRefs = status.RemoteTrackingRefs
-	if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
-		return withRemoteTrackingRefs(SyncResult{
-			RepoID:  entry.RepoID,
-			Path:    entry.Path,
-			Outcome: SyncOutcomePlannedPush,
-			OK:      true,
-			Error:   SyncErrorDryRun,
-			Action:  fetchAction + " && git push",
-			Planned: true,
-			steps:   []syncStep{syncStepFetch, syncStepPush},
-		})
+	// The decision below reflects pre-fetch state. It is what a dry run reports;
+	// the executor re-decides with this policy once the fetch has run.
+	policy := &localUpdatePolicy{
+		fetchAction: fetchAction,
+		pushLocal:   opts.PushLocal,
+		pull:        pullRebasePolicy(opts),
 	}
-	if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
+	decision := policy.decide(status)
+	if decision.skipReason != "" {
+		plan := skippedLocalUpdate(decision.skipReason)
+		plan.localUpdate = policy
+		return plan
+	}
+	outcome := SyncOutcomePlannedFetch
+	if decision.push {
+		outcome = SyncOutcomePlannedPush
+	}
+	return withRemoteTrackingRefs(SyncResult{
+		RepoID:      entry.RepoID,
+		Path:        entry.Path,
+		Outcome:     outcome,
+		OK:          true,
+		Error:       SyncErrorDryRun,
+		Action:      decision.action,
+		Planned:     true,
+		steps:       decision.steps,
+		localUpdate: policy,
+	})
+}
+
+func pullRebasePolicy(opts SyncOptions) PullRebasePolicyOptions {
+	return PullRebasePolicyOptions{
 		RebaseDirty:          opts.RebaseDirty,
 		Force:                opts.Force,
 		ProtectedBranches:    opts.ProtectedBranches,
 		AllowProtectedRebase: opts.AllowProtectedRebase,
-	}); reason != "" {
-		return skippedLocalUpdate(reason)
 	}
-
-	// Local update proceeds: fetch, then pull --rebase, auto-stashing a dirty
-	// worktree when --rebase-dirty is set so the rebase does not fail. The stash
-	// steps are emitted into the plan itself so the live execute path performs
-	// them (git pull --rebase has no built-in autostash here).
-	steps := []syncStep{syncStepFetch}
-	action := fetchAction
-	stashPlanned := opts.RebaseDirty && status.Worktree != nil && status.Worktree.Dirty
-	if stashPlanned {
-		steps = append(steps, syncStepStashPush)
-		action += " && git stash push -u -m \"" + preRebaseStashMessage + "\""
-	}
-	steps = append(steps, syncStepPullRebase)
-	action += " && git pull --rebase --no-recurse-submodules"
-	if stashPlanned {
-		steps = append(steps, syncStepStashPop)
-		action += " && git stash pop"
-	}
-	return withRemoteTrackingRefs(SyncResult{
-		RepoID:  entry.RepoID,
-		Path:    entry.Path,
-		Outcome: SyncOutcomePlannedFetch,
-		OK:      true,
-		Error:   SyncErrorDryRun,
-		Action:  action,
-		Planned: true,
-		steps:   steps,
-	})
 }
 
 func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts SyncOptions, cached *model.RepoStatus) SyncResult {
@@ -1295,7 +1391,8 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 	if err != nil {
 		return inspectFailureResult(entry, err, e.classifier)
 	}
-	if opts.PushLocal && status.Tracking.Status == model.TrackingAhead {
+	decision := localUpdatePolicy{pushLocal: opts.PushLocal, pull: pullRebasePolicy(opts)}.decide(status)
+	if decision.push {
 		if err := e.adapter.Push(ctx, entry.Path); err != nil {
 			return SyncResult{
 				RepoID:     entry.RepoID,
@@ -1315,12 +1412,7 @@ func (e *Engine) runSyncApply(ctx context.Context, entry registry.Entry, opts Sy
 			Action:  "git push",
 		}
 	}
-	if reason := pullRebaseSkipReason(status, PullRebasePolicyOptions{
-		RebaseDirty:          opts.RebaseDirty,
-		Force:                opts.Force,
-		ProtectedBranches:    opts.ProtectedBranches,
-		AllowProtectedRebase: opts.AllowProtectedRebase,
-	}); reason != "" {
+	if reason := decision.skipReason; reason != "" {
 		return SyncResult{
 			RepoID:     entry.RepoID,
 			Path:       entry.Path,
