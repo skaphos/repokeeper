@@ -3,6 +3,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
@@ -18,6 +19,8 @@ type fetchTransitionAdapter struct {
 	before  model.TrackingStatus
 	after   model.TrackingStatus
 	fetched bool
+	// afterErr, when set, fails tracking inspection after the fetch.
+	afterErr error
 }
 
 func (a *fetchTransitionAdapter) Head(context.Context, string) (model.Head, error) {
@@ -32,6 +35,9 @@ func (a *fetchTransitionAdapter) Fetch(ctx context.Context, dir string) error {
 func (a *fetchTransitionAdapter) TrackingStatus(context.Context, string) (model.Tracking, error) {
 	status := a.before
 	if a.fetched {
+		if a.afterErr != nil {
+			return model.Tracking{}, a.afterErr
+		}
 		status = a.after
 	}
 	return model.Tracking{Status: status, Upstream: "origin/main"}, nil
@@ -114,6 +120,43 @@ func TestPlannedLocalUpdateRedecidesAfterFetch(t *testing.T) {
 			}
 			if executed.Error != wantError {
 				t.Fatalf("executed error = %q, want %q", executed.Error, wantError)
+			}
+		})
+	}
+}
+
+// A failure after a skip plan must not report the plan's pre-fetch skip reason
+// alongside the failed outcome.
+func TestPlannedLocalUpdateFailureDropsPreviewSkipReason(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		fetchErr    error
+		afterErr    error
+		wantOutcome OutcomeKind
+	}{
+		{name: "post-fetch inspection fails", afterErr: errors.New("tracking unavailable"), wantOutcome: SyncOutcomeFailedInspect},
+		{name: "fetch fails", fetchErr: errors.New("network unreachable"), wantOutcome: SyncOutcomeFailedFetch},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			adapter := &fetchTransitionAdapter{
+				planAdapter: &planAdapter{fetchErrByDir: map[string]error{"/repo": tc.fetchErr}},
+				before:      model.TrackingEqual,
+				after:       model.TrackingBehind,
+				afterErr:    tc.afterErr,
+			}
+			eng := newPlanExecEngine(adapter)
+			entry := registry.Entry{RepoID: "repo", Path: "/repo", RemoteURL: "git@github.com:org/repo.git", Status: registry.StatusPresent}
+
+			plan, executed := eng.planAndExecute(t, entry, SyncOptions{UpdateLocal: true})
+
+			if plan.SkipReason != SyncReasonAlreadyUpToDate {
+				t.Fatalf("expected an up-to-date skip plan, got %+v", plan)
+			}
+			if executed.OK || executed.Outcome != tc.wantOutcome {
+				t.Fatalf("executed outcome = %q ok=%v, want failed %q", executed.Outcome, executed.OK, tc.wantOutcome)
+			}
+			if executed.SkipReason != "" {
+				t.Fatalf("failed result kept preview skip reason %q", executed.SkipReason)
 			}
 		})
 	}

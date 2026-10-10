@@ -799,6 +799,10 @@ func (e *Engine) executePlannedLocalUpdate(ctx context.Context, executed SyncRes
 		executed.ErrorClass = "invalid"
 		return executed
 	}
+	// The plan's skip reason was a pre-fetch preview. Drop it so a failed fetch
+	// or inspection does not report a skip that never happened; the post-fetch
+	// decision sets it again when the update really is skipped.
+	executed.SkipReason = ""
 	if err := e.adapter.Fetch(ctx, executed.Path); err != nil {
 		return e.failedPlannedSyncResult(executed, SyncOutcomeFailedFetch, err)
 	}
