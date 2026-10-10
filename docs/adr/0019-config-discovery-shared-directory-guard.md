@@ -39,9 +39,16 @@ current user can create files in", and implement it per platform:
   - A NULL DACL grants everyone full access, so it counts as shared.
   - If the security descriptor cannot be read, or has no DACL, the directory counts as shared. The
     guard fails closed: the walk stops, and resolution falls back to the global config.
+  - If any broad-principal SID cannot be constructed, every directory counts as shared. A partial
+    set would let a grant to the missing group go unnoticed.
 
-Deny ACEs are not evaluated, so a directory whose broad grant is later denied is still treated as
-shared. This errs toward stopping the walk, which is the safe direction.
+Every judgment the guard cannot make errs toward stopping the walk, which is the safe direction:
+
+- Deny ACEs are not evaluated, so a directory whose broad grant is later denied is still treated as
+  shared.
+- A conditional (callback) allow ACE is treated as if its condition holds.
+- Any other ACE form that carries one of the rights above fails closed, such as object ACEs, whose
+  trustee SID sits at a different offset.
 
 ## Consequences
 

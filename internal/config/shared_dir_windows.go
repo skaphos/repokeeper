@@ -17,26 +17,40 @@ const sharedDirRights = windows.FILE_WRITE_DATA | // FILE_ADD_FILE on a director
 	windows.WRITE_DAC |
 	windows.WRITE_OWNER
 
-// broadPrincipals are the well-known groups that stand for "other local users".
-var broadPrincipals = sync.OnceValue(func() []*windows.SID {
-	var sids []*windows.SID
-	for _, kind := range []windows.WELL_KNOWN_SID_TYPE{
+// ACE types from winnt.h that golang.org/x/sys/windows does not define.
+const (
+	accessDeniedObjectACEType         = 0x6
+	accessAllowedCallbackACEType      = 0x9 // conditional allow; same layout as ACCESS_ALLOWED_ACE
+	accessDeniedCallbackACEType       = 0xA
+	accessDeniedCallbackObjectACEType = 0xC
+)
+
+// broadPrincipals returns the well-known groups that stand for "other local
+// users". It fails if any of them cannot be constructed, because a partial set
+// would let a grant to the missing group go unnoticed. A variable so tests can
+// exercise the failure path.
+var broadPrincipals = sync.OnceValues(func() ([]*windows.SID, error) {
+	kinds := []windows.WELL_KNOWN_SID_TYPE{
 		windows.WinWorldSid,             // Everyone
 		windows.WinAuthenticatedUserSid, // Authenticated Users
 		windows.WinBuiltinUsersSid,      // BUILTIN\Users
-	} {
-		if sid, err := windows.CreateWellKnownSid(kind); err == nil {
-			sids = append(sids, sid)
-		}
 	}
-	return sids
+	sids := make([]*windows.SID, 0, len(kinds))
+	for _, kind := range kinds {
+		sid, err := windows.CreateWellKnownSid(kind)
+		if err != nil {
+			return nil, err
+		}
+		sids = append(sids, sid)
+	}
+	return sids, nil
 })
 
 // isSharedDir reports whether principals broader than the current user may
 // create files in dir, which marks it as a shared location that config
 // discovery must not walk into. Windows has no Unix permission bits (Go reports
-// 0777 for every directory), so the DACL is inspected instead. A descriptor
-// that cannot be read counts as shared, which stops the walk. See ADR-0019.
+// 0777 for every directory), so the DACL is inspected instead. Anything that
+// cannot be evaluated counts as shared, which stops the walk. See ADR-0019.
 func isSharedDir(dir string) bool {
 	sd, err := windows.GetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
 	if err != nil {
@@ -52,30 +66,41 @@ func isSharedDir(dir string) bool {
 	return daclGrantsBroadWrite(dacl)
 }
 
-// daclGrantsBroadWrite reports whether an effective access-allowed ACE grants a
-// broad principal any of sharedDirRights. Deny ACEs are not evaluated, so this
-// errs toward reporting a directory as shared.
+// daclGrantsBroadWrite reports whether an effective allow ACE grants a broad
+// principal any of sharedDirRights. Every judgment it cannot make errs toward
+// reporting the directory as shared:
+//   - deny ACEs are not evaluated, so a later deny does not clear a grant;
+//   - a conditional (callback) allow ACE is treated as if its condition holds;
+//   - any other ACE form that carries a relevant right fails closed, since its
+//     trustee cannot be read at the ACCESS_ALLOWED_ACE offset.
 func daclGrantsBroadWrite(dacl *windows.ACL) bool {
-	broad := broadPrincipals()
-	if len(broad) == 0 {
-		return true // cannot tell who is broad; fail closed
+	broad, err := broadPrincipals()
+	if err != nil {
+		return true
 	}
 	for i := range uint32(dacl.AceCount) {
 		var ace *windows.ACCESS_ALLOWED_ACE
 		if err := windows.GetAce(dacl, i, &ace); err != nil {
 			return true
 		}
-		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE ||
-			ace.Header.AceFlags&windows.INHERIT_ONLY_ACE != 0 ||
-			ace.Mask&sharedDirRights == 0 {
+		// Every ACE form keeps its access mask right after the header.
+		if ace.Header.AceFlags&windows.INHERIT_ONLY_ACE != 0 || ace.Mask&sharedDirRights == 0 {
 			continue
 		}
-		// The trustee SID is stored inline, starting at SidStart.
-		sid := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
-		for _, principal := range broad {
-			if sid.Equals(principal) {
-				return true
+		switch ace.Header.AceType {
+		case windows.ACCESS_DENIED_ACE_TYPE, accessDeniedObjectACEType,
+			accessDeniedCallbackACEType, accessDeniedCallbackObjectACEType:
+			continue
+		case windows.ACCESS_ALLOWED_ACE_TYPE, accessAllowedCallbackACEType:
+			// The trustee SID is stored inline, starting at SidStart.
+			sid := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+			for _, principal := range broad {
+				if sid.Equals(principal) {
+					return true
+				}
 			}
+		default:
+			return true
 		}
 	}
 	return false

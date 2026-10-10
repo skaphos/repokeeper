@@ -44,7 +44,41 @@ func grantEveryone(t *testing.T, dir string, rights windows.ACCESS_MASK, inherit
 	}
 }
 
+// setDACLFromSDDL replaces dir's explicit DACL with the one in sddl. The DACL is
+// not protected, so ACEs inherited from the parent (including the test user's
+// rights, which t.TempDir cleanup needs) are kept.
+func setDACLFromSDDL(t *testing.T, dir, sddl string) {
+	t.Helper()
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		t.Fatalf("parse SDDL %q: %v", sddl, err)
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		t.Fatalf("read SDDL DACL: %v", err)
+	}
+	if err := windows.SetNamedSecurityInfo(dir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION, nil, nil, dacl, nil); err != nil {
+		t.Fatalf("set DACL: %v", err)
+	}
+}
+
 func TestIsSharedDirWindows(t *testing.T) {
+	t.Run("conditional allow ACE counts as a grant", func(t *testing.T) {
+		dir := t.TempDir()
+		// XA is a callback (conditional) allow ACE; 0x2 is FILE_ADD_FILE.
+		setDACLFromSDDL(t, dir, "D:(XA;;0x2;;;WD;(Member_of {SID(WD)}))")
+		if !isSharedDir(dir) {
+			t.Fatal("expected a conditional grant to Everyone to count as shared")
+		}
+	})
+	t.Run("unknown broad-principal set fails closed", func(t *testing.T) {
+		original := broadPrincipals
+		t.Cleanup(func() { broadPrincipals = original })
+		broadPrincipals = func() ([]*windows.SID, error) { return nil, windows.ERROR_INVALID_SID }
+		if !isSharedDir(t.TempDir()) {
+			t.Fatal("expected a failure to build the principal set to count as shared")
+		}
+	})
 	t.Run("private temp dir is not shared", func(t *testing.T) {
 		if isSharedDir(t.TempDir()) {
 			t.Fatal("expected a per-user temp dir to be private")
