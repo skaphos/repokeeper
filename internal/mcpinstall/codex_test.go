@@ -21,7 +21,7 @@ func TestCodexName(t *testing.T) {
 // t.Setenv("HOME", ...), which conflicts with t.Parallel on Go 1.26.2+.
 func TestCodexDetectTrue(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	if err := os.MkdirAll(filepath.Join(home, ".codex"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestCodexDetectTrue(t *testing.T) {
 
 func TestCodexDetectFalse(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	a := &codexAdapter{}
 	ok, err := a.Detect()
 	if err != nil {
@@ -50,7 +50,7 @@ func TestCodexDetectFalse(t *testing.T) {
 
 func TestCodexConfigPathUser(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	a := &codexAdapter{}
 	path, err := a.ConfigPath(ScopeUser)
 	if err != nil {

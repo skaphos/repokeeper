@@ -25,7 +25,7 @@ func TestClaudeNameAndDetect(t *testing.T) {
 
 func TestClaudeDetectTrueWhenDotClaudeJson(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestClaudeDetectTrueWhenDotClaudeJson(t *testing.T) {
 
 func TestClaudeDetectTrueWhenDotClaudeDir(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestClaudeDetectTrueWhenDotClaudeDir(t *testing.T) {
 
 func TestClaudeDetectFalseWhenNeither(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	a := &claudeAdapter{}
 	ok, err := a.Detect()
 	if err != nil {
@@ -70,7 +70,7 @@ func TestClaudeDetectFalseWhenNeither(t *testing.T) {
 
 func TestClaudeConfigPathUser(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	a := &claudeAdapter{}
 	path, err := a.ConfigPath(ScopeUser)
 	if err != nil {

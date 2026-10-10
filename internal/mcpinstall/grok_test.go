@@ -20,7 +20,7 @@ func TestGrokName(t *testing.T) {
 // t.Setenv("HOME", ...), which conflicts with t.Parallel on Go 1.26.2+.
 func TestGrokDetectTrue(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	if err := os.MkdirAll(filepath.Join(home, ".grok"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestGrokDetectTrue(t *testing.T) {
 
 func TestGrokDetectTrueWithConfigFile(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	grokDir := filepath.Join(home, ".grok")
 	if err := os.MkdirAll(grokDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestGrokDetectTrueWithConfigFile(t *testing.T) {
 
 func TestGrokDetectFalse(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	a := &grokAdapter{}
 	ok, err := a.Detect()
 	if err != nil {
@@ -69,7 +69,7 @@ func TestGrokDetectFalse(t *testing.T) {
 
 func TestGrokConfigPathUser(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 	a := &grokAdapter{}
 	path, err := a.ConfigPath(ScopeUser)
 	if err != nil {
