@@ -697,8 +697,8 @@ func TestActionsResetDeleteCloneAndRegister(t *testing.T) {
 			t.Fatalf("ambiguous path must not remove entries, got %+v", eng.registry.Entries)
 		}
 
-		eng.registry = &registry.Registry{Entries: []registry.Entry{{RepoID: "root", Path: string(filepath.Separator), Status: registry.StatusPresent}}}
-		if err := eng.DeleteRepo(context.Background(), string(filepath.Separator), cfgPath, true); err == nil || !strings.Contains(err.Error(), "filesystem root") {
+		eng.registry = &registry.Registry{Entries: []registry.Entry{{RepoID: "root", Path: fixturePath("/"), Status: registry.StatusPresent}}}
+		if err := eng.DeleteRepo(context.Background(), fixturePath("/"), cfgPath, true); err == nil || !strings.Contains(err.Error(), "filesystem root") {
 			t.Fatalf("expected filesystem root rejection, got %v", err)
 		}
 		if len(eng.registry.Entries) != 1 {

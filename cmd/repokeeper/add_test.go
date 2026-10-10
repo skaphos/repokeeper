@@ -71,8 +71,11 @@ func TestAddCommandWithAbsoluteTargetDoesNotReRootUnderCWD(t *testing.T) {
 	if _, err := os.Stat(absTarget); err != nil {
 		t.Fatalf("expected repo cloned at absolute target %q: %v", absTarget, err)
 	}
+	// On Windows the re-rooted path ("…\C:\…") is not even a valid path, so
+	// Stat reports a syntax error rather than ErrNotExist; any error means the
+	// repo was not created there.
 	wrongTarget := filepath.Join(filepath.Dir(cfgPath), absTarget)
-	if _, err := os.Stat(wrongTarget); !os.IsNotExist(err) {
+	if _, err := os.Stat(wrongTarget); err == nil {
 		t.Fatalf("expected no repo re-rooted under cwd at %q, stat err=%v", wrongTarget, err)
 	}
 }

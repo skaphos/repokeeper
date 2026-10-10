@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -46,7 +47,8 @@ func TestCheckoutSelectorPrecedenceAndAmbiguity(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected ambiguity")
 				}
-				for _, hint := range []string{"ambiguous", second.CheckoutID, second.Path, "absolute path"} {
+				// The hint formats paths with %q, which doubles Windows backslashes.
+				for _, hint := range []string{"ambiguous", second.CheckoutID, strconv.Quote(second.Path), "absolute path"} {
 					if !strings.Contains(err.Error(), hint) {
 						t.Errorf("missing hint %q: %v", hint, err)
 					}
