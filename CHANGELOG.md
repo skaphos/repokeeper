@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.2](https://github.com/skaphos/repokeeper/compare/v2.0.1...v2.0.2) (2026-10-10)
+
+
+### Bug Fixes
+
+* **config:** find the nearest .repokeeper.yaml from subdirectories on Windows ([#380](https://github.com/skaphos/repokeeper/issues/380)) ([e9c306b](https://github.com/skaphos/repokeeper/commit/e9c306b7986b2b8adf4b30f2cbcbaf835d8c42e5))
+* **sync:** re-decide local updates after the plan's fetch ([#382](https://github.com/skaphos/repokeeper/issues/382)) ([60f645a](https://github.com/skaphos/repokeeper/commit/60f645a6ec9f5246c61c20e46d98d4140bed0387))
+
 ## [2.0.1](https://github.com/skaphos/repokeeper/compare/v2.0.0...v2.0.1) (2026-09-06)
 
 
