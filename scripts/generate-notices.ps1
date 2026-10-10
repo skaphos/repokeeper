@@ -28,9 +28,17 @@ function Invoke-NoticeGeneration {
 
     Push-Location $ModuleDir
     try {
+        # ErrorActionPreference does not apply to native commands; check each
+        # exit code so a failed go-licenses run cannot leave a truncated report.
         $report = go run $GoLicensesPackage report $PackageArg --ignore $IgnorePrefix
+        if ($LASTEXITCODE -ne 0) {
+            throw "go-licenses report failed with exit code $LASTEXITCODE"
+        }
         Set-Content -LiteralPath $ReportPath -Value $report
         go run $GoLicensesPackage save $PackageArg --ignore $IgnorePrefix --save_path $SavePath
+        if ($LASTEXITCODE -ne 0) {
+            throw "go-licenses save failed with exit code $LASTEXITCODE"
+        }
     }
     finally {
         Pop-Location
