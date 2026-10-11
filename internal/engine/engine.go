@@ -637,6 +637,7 @@ func (e *Engine) ExecuteSyncPlanWithCallbacks(ctx context.Context, plan []SyncRe
 }
 
 func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResult, opts SyncOptions, onStart SyncStartCallback, onComplete SyncResultCallback) []SyncResult {
+	_, timeoutSeconds := e.syncRuntime(opts)
 	results := make([]SyncResult, 0, len(plan))
 	for _, item := range plan {
 		if onStart != nil {
@@ -654,7 +655,7 @@ func (e *Engine) executeSyncPlanSequential(ctx context.Context, plan []SyncResul
 			continue
 		}
 
-		executed := e.executePlannedSyncItem(ctx, item)
+		executed := e.executePlannedSyncItemWithTimeout(ctx, item, timeoutSeconds)
 		e.logSyncFailureHint(executed)
 		results = append(results, executed)
 		if onComplete != nil {
@@ -691,15 +692,7 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 		sem <- struct{}{}
 		spawned++
 		go func(item SyncResult) {
-			repoCtx := ctx
-			var cancel context.CancelFunc
-			if timeoutSeconds > 0 {
-				repoCtx, cancel = context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
-			}
-			res := e.executePlannedSyncItem(repoCtx, item)
-			if cancel != nil {
-				cancel()
-			}
+			res := e.executePlannedSyncItemWithTimeout(ctx, item, timeoutSeconds)
 			e.logSyncFailureHint(res)
 			<-sem
 			out <- res
@@ -715,6 +708,18 @@ func (e *Engine) executeSyncPlanConcurrent(ctx context.Context, plan []SyncResul
 	}
 	sortSyncResults(results)
 	return results
+}
+
+// executePlannedSyncItemWithTimeout executes one planned item under the
+// per-repository timeout. Both executors go through here so --timeout bounds
+// every step, clones included, whether or not --continue-on-error is set.
+func (e *Engine) executePlannedSyncItemWithTimeout(ctx context.Context, item SyncResult, timeoutSeconds int) SyncResult {
+	if timeoutSeconds <= 0 {
+		return e.executePlannedSyncItem(ctx, item)
+	}
+	repoCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+	return e.executePlannedSyncItem(repoCtx, item)
 }
 
 func shouldStopSyncExecution(result SyncResult, opts SyncOptions) bool {
