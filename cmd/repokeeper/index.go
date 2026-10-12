@@ -384,8 +384,8 @@ type indexQuestioner struct {
 	out    io.Writer
 }
 
-// newIndexQuestioner reuses in when it is already a *bufio.Reader (bufio.NewReader
-// returns it unchanged), so callers can share buffered input with later prompts.
+// newIndexQuestioner reuses in when it is a *bufio.Reader with at least bufio's
+// default buffer size, allowing callers to share buffered input with later prompts.
 func newIndexQuestioner(in io.Reader, out io.Writer) *indexQuestioner {
 	return &indexQuestioner{reader: bufio.NewReader(in), out: out}
 }
