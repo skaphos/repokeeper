@@ -66,9 +66,12 @@ var exportCmd = &cobra.Command{
 			if inferredRoot := inferRegistrySharedRoot(exportedRegistry); inferredRoot != "" {
 				bundle.Root = inferredRoot
 			}
-			exportedRegistry = prepareRegistryForExport(exportedRegistry, bundle.Root)
+			// Read live branch data before relativizing paths: Git resolves a
+			// relative path against the process working directory, not the
+			// bundle root, so inspecting afterwards reads the wrong repository.
 			adapter := vcs.NewGitAdapter(nil)
 			populateExportBranches(cmd.Context(), exportedRegistry, adapter.Head, adapter.TrackingStatus)
+			exportedRegistry = prepareRegistryForExport(exportedRegistry, bundle.Root)
 			// remote_url must stay usable for import/reconcile, so credentials
 			// embedded in it (https://user:token@host/...) are exported verbatim
 			// rather than silently redacted; warn instead so the operator knows
