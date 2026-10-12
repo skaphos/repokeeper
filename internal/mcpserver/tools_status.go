@@ -66,7 +66,7 @@ func (s *MCPServer) handleBuildWorkspaceInventory(ctx context.Context, req mcp.C
 	reg := s.engine.Registry()
 	repos := make([]inventoryRepoEntry, 0, len(report.Repos))
 	for _, rs := range report.Repos {
-		labels := enrichLabels(reg, rs.RepoID, rs.Labels)
+		labels := enrichLabels(reg, rs)
 		if !selector.LabelsMatchSelector(labels, labelReqs) {
 			continue
 		}
@@ -77,7 +77,7 @@ func (s *MCPServer) handleBuildWorkspaceInventory(ctx context.Context, req mcp.C
 			Type:         rs.Type,
 			Bare:         rs.Bare,
 			Labels:       labels,
-			Annotations:  enrichAnnotations(reg, rs.RepoID),
+			Annotations:  enrichAnnotations(reg, rs),
 			Head:         rs.Head,
 			Worktree:     rs.Worktree,
 			Tracking:     rs.Tracking,
@@ -134,7 +134,7 @@ func (s *MCPServer) handleSelectRepositories(ctx context.Context, req mcp.CallTo
 	reg := s.engine.Registry()
 	entries := make([]selectRepoEntry, 0, len(report.Repos))
 	for _, rs := range report.Repos {
-		labels := enrichLabels(reg, rs.RepoID, rs.Labels)
+		labels := enrichLabels(reg, rs)
 		if !selector.LabelsMatchSelector(labels, labelReqs) {
 			continue
 		}
@@ -155,23 +155,21 @@ func (s *MCPServer) handleSelectRepositories(ctx context.Context, req mcp.CallTo
 
 // --- shared helpers ---
 
-// enrichLabels merges status labels with registry labels (registry takes precedence).
-func enrichLabels(reg *registry.Registry, repoID string, statusLabels map[string]string) map[string]string {
+// enrichLabels merges the checkout's status labels with its registry labels
+// (registry takes precedence). The entry is resolved by path, not repo_id:
+// sibling checkouts share a repo_id but not labels, and label selectors
+// filter on the result.
+func enrichLabels(reg *registry.Registry, rs model.RepoStatus) map[string]string {
 	var regLabels map[string]string
-	if reg != nil {
-		if entry := reg.FindByRepoID(repoID); entry != nil {
-			regLabels = entry.Labels
-		}
+	if entry := reg.FindCheckout(rs.RepoID, rs.Path); entry != nil {
+		regLabels = entry.Labels
 	}
-	return mergeLabels(regLabels, statusLabels)
+	return mergeLabels(regLabels, rs.Labels)
 }
 
-// enrichAnnotations returns annotations from the registry entry if available.
-func enrichAnnotations(reg *registry.Registry, repoID string) map[string]string {
-	if reg == nil {
-		return nil
-	}
-	if entry := reg.FindByRepoID(repoID); entry != nil {
+// enrichAnnotations returns the checkout's registry annotations, if any.
+func enrichAnnotations(reg *registry.Registry, rs model.RepoStatus) map[string]string {
+	if entry := reg.FindCheckout(rs.RepoID, rs.Path); entry != nil {
 		return entry.Annotations
 	}
 	return nil
