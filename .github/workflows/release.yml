@@ -250,6 +250,33 @@ jobs:
           fi
 
           echo "Homebrew tap credential verified."
+      # GoReleaser skips notarization when any MACOS_* secret is unset. The cask
+      # no longer strips the quarantine xattr (ADR-0020), so an unsigned darwin
+      # binary would be refused by Gatekeeper. Fail before publishing instead.
+      - name: Verify the macOS signing credentials
+        shell: bash
+        env:
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for name in MACOS_SIGN_P12 MACOS_SIGN_PASSWORD MACOS_NOTARY_ISSUER_ID MACOS_NOTARY_KEY_ID MACOS_NOTARY_KEY; do
+            if [ -z "${!name:-}" ]; then
+              missing+=("${name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error title=macOS signing::Missing ${missing[*]}. Notarization would be skipped and the Homebrew cask would ship a binary Gatekeeper refuses to run."
+            exit 1
+          fi
+
+          echo "macOS signing credentials present."
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: v2.18.0
@@ -257,8 +284,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          # macOS notarization (cross-platform via quill). When these secrets are
-          # unset the notarize block is auto-skipped, so the release still works.
+          # macOS notarization (cross-platform via quill). Presence is enforced
+          # by the step above; the notarize block's own skip is a local/fork guard.
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}

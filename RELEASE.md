@@ -98,7 +98,7 @@ records, where the cask sat pinned at `0.6.0` across two releases because a run 
 | `RELEASE_BOT_CLIENT_ID` / `RELEASE_BOT_PRIVATE_KEY` | Pre-flight error, release fails before GoReleaser runs |
 | GHCR (`github.token`) | Login step fails, release fails |
 | `MCP_REGISTRY_KEY` | Warning only — the registry is the one exempt channel |
-| `MACOS_*` | Pre-existing behavior: GoReleaser auto-skips notarization when unset (known gap, separate follow-up) |
+| `MACOS_*` | Pre-flight error, release fails before GoReleaser runs. The cask relies on notarization for Gatekeeper ([ADR-0020](docs/adr/0020-homebrew-cask-relies-on-notarization.md)) |
 
 ### Channel verification
 
