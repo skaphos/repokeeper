@@ -105,6 +105,68 @@ var _ = Describe("Compatibility workflow contracts", func() {
 		Expect(qualification).NotTo(ContainSubstring("contents: write"))
 	})
 
+	It("refuses to publish the cask without macOS signing (ADR-0020)", func() {
+		// The cask no longer strips com.apple.quarantine, so an unsigned darwin
+		// binary would be refused by Gatekeeper. GoReleaser silently skips
+		// notarization when a secret is missing, so the workflow must fail first.
+		secrets := []string{"MACOS_SIGN_P12", "MACOS_SIGN_PASSWORD", "MACOS_NOTARY_ISSUER_ID", "MACOS_NOTARY_KEY_ID", "MACOS_NOTARY_KEY"}
+
+		data, err := os.ReadFile(filepath.Join(moduleRoot, ".github", "workflows", "release.yml"))
+		Expect(err).NotTo(HaveOccurred())
+		var workflow struct {
+			Jobs map[string]struct {
+				Steps []struct {
+					Name string            `yaml:"name"`
+					Uses string            `yaml:"uses"`
+					Env  map[string]string `yaml:"env"`
+					Run  string            `yaml:"run"`
+				} `yaml:"steps"`
+			} `yaml:"jobs"`
+		}
+		Expect(yaml.Unmarshal(data, &workflow)).To(Succeed())
+		steps := workflow.Jobs["release"].Steps
+		guard, goreleaser := -1, -1
+		for i, step := range steps {
+			if step.Name == "Verify the macOS signing credentials" {
+				guard = i
+			}
+			if strings.HasPrefix(step.Uses, "goreleaser/goreleaser-action@") {
+				goreleaser = i
+			}
+		}
+		Expect(guard).To(BeNumerically(">=", 0), "release job must verify the macOS signing credentials")
+		Expect(goreleaser).To(BeNumerically(">", guard), "the signing check must run before GoReleaser")
+		for _, name := range secrets {
+			Expect(steps[guard].Env).To(HaveKeyWithValue(name, "${{ secrets."+name+" }}"))
+			Expect(steps[guard].Run).To(ContainSubstring(name))
+		}
+		Expect(steps[guard].Run).To(ContainSubstring("exit 1"))
+
+		config, err := os.ReadFile(filepath.Join(moduleRoot, ".goreleaser.yaml"))
+		Expect(err).NotTo(HaveOccurred())
+		var goreleaserConfig struct {
+			Notarize struct {
+				MacOS []struct {
+					Enabled string `yaml:"enabled"`
+				} `yaml:"macos"`
+			} `yaml:"notarize"`
+			HomebrewCasks []map[string]any `yaml:"homebrew_casks"`
+		}
+		Expect(yaml.Unmarshal(config, &goreleaserConfig)).To(Succeed())
+		Expect(goreleaserConfig.Notarize.MacOS).To(HaveLen(1))
+		for _, name := range secrets {
+			Expect(goreleaserConfig.Notarize.MacOS[0].Enabled).To(ContainSubstring(`isEnvSet "` + name + `"`))
+		}
+		Expect(goreleaserConfig.HomebrewCasks).NotTo(BeEmpty())
+		for _, cask := range goreleaserConfig.HomebrewCasks {
+			// Homebrew deprecated block-form postflight; any custom block or
+			// hook reintroduces the warning and the tap's brew style failure.
+			Expect(cask).NotTo(HaveKey("custom_block"))
+			Expect(cask).NotTo(HaveKey("hooks"))
+		}
+		Expect(string(config)).NotTo(ContainSubstring("com.apple.quarantine"))
+	})
+
 	It("keeps tags as candidates without release-please publishing a GitHub release", func() {
 		data, err := os.ReadFile(filepath.Join(moduleRoot, ".github", "workflows", "release-please.yml"))
 		Expect(err).NotTo(HaveOccurred())
