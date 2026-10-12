@@ -439,13 +439,17 @@ func (r *Registry) RebindRepoID(index int, repoID string) bool {
 	if r == nil || repoID == "" || index < 0 || index >= len(r.Entries) {
 		return false
 	}
-	entry := r.Entries[index]
-	if entry.RepoID == repoID {
+	if r.Entries[index].RepoID == repoID {
 		return false
 	}
-	checkoutID := checkoutIDFromEntry(entry)
+	// An inline config registry skips Load's normalization, so trim and
+	// assign checkout IDs first; otherwise a padded or missing ID on another
+	// entry hides a collision from the comparison and from the allocator.
+	r.ensureCheckoutIDs()
+	entry := r.Entries[index]
+	checkoutID := entry.CheckoutID
 	for i := range r.Entries {
-		if i != index && r.Entries[i].RepoID == repoID && checkoutIDFromEntry(r.Entries[i]) == checkoutID {
+		if i != index && r.Entries[i].RepoID == repoID && r.Entries[i].CheckoutID == checkoutID {
 			// resolveCheckoutID skips entries under other repo IDs, so the
 			// entry being rebound cannot reserve its own old ID here.
 			checkoutID = r.resolveCheckoutID(Entry{RepoID: repoID, Path: entry.Path})

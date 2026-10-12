@@ -275,6 +275,33 @@ var _ = Describe("Registry", func() {
 		Expect(reg.Entries[1].RemoteURL).To(Equal("b"))
 	})
 
+	// An inline config registry is unmarshalled without Load's normalization,
+	// so its checkout IDs may be padded or absent.
+	It("detects a rebind collision with a padded checkout ID", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", CheckoutID: " repo ", Path: "/a/repo"},
+				{RepoID: "host/old", CheckoutID: "repo", Path: "/b/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(1, "host/new")).To(BeTrue())
+		Expect(strings.TrimSpace(reg.Entries[0].CheckoutID)).To(Equal("repo"))
+		Expect(reg.Entries[1].CheckoutID).NotTo(Equal("repo"))
+	})
+
+	It("detects a rebind collision with legacy entries that have no checkout ID", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", Path: "/a/repo"},
+				{RepoID: "host/old", Path: "/b/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(1, "host/new")).To(BeTrue())
+		Expect(reg.Entries[0].CheckoutID).NotTo(BeEmpty())
+		Expect(reg.Entries[1].CheckoutID).NotTo(BeEmpty())
+		Expect(reg.Entries[1].CheckoutID).NotTo(Equal(reg.Entries[0].CheckoutID))
+	})
+
 	It("ignores a rebind with an invalid index or empty repo ID", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{{RepoID: "host/old", CheckoutID: "repo", Path: "/a/repo"}},
