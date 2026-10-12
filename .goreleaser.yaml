@@ -166,15 +166,13 @@ homebrew_casks:
     homepage: "https://github.com/skaphos/repokeeper"
     description: "Track and manage many Git repositories from a single config"
     license: "MIT"
+    # No quarantine-stripping hook: the darwin binaries are Developer ID signed
+    # and notarized, so Gatekeeper accepts them as installed. The old
+    # `postflight` hook is deprecated by Homebrew and warned on every brew run.
+    # See ADR-0020. The release workflow fails if the notarize secrets are
+    # missing, because an unsigned binary in this cask would not run on macOS.
     binaries:
       - repokeeper
-    custom_block: |
-      postflight do
-        if OS.mac?
-          system_command "/usr/bin/xattr",
-                         args: ["-dr", "com.apple.quarantine", "#{staged_path}/repokeeper"]
-        end
-      end
 
 snapshot:
   version_template: "{{ .Tag }}-next"
