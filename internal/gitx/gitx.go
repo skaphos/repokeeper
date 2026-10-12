@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/skaphos/repokeeper/v2/internal/model"
 	"github.com/skaphos/repokeeper/v2/internal/obs"
@@ -20,7 +21,9 @@ import (
 // This interface allows mocking in tests.
 type Runner interface {
 	// Run executes a git command in the given directory and returns
-	// trimmed stdout only. Any stderr text is folded into the returned
+	// stdout only, with trailing whitespace trimmed. Leading whitespace is
+	// preserved because it can be significant: a porcelain status row with
+	// a blank index column begins with a space (" M file"). Any stderr text is folded into the returned
 	// error (see GitRunner.Run) and never appears in the returned string,
 	// so callers can safely parse the result as machine-readable output.
 	Run(ctx context.Context, dir string, args ...string) (string, error)
@@ -58,7 +61,9 @@ func (g *GitRunner) Run(ctx context.Context, dir string, args ...string) (string
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
-	out := strings.TrimSpace(stdout.String())
+	// Trim only trailing whitespace: stripping a leading space would shift
+	// an unstaged-only porcelain row (" M file") into the index column.
+	out := strings.TrimRightFunc(stdout.String(), unicode.IsSpace)
 	if err != nil {
 		if errText := strings.TrimSpace(stderr.String()); errText != "" {
 			return out, fmt.Errorf("%s: %w", errText, err)

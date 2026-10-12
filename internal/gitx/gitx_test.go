@@ -48,6 +48,15 @@ var _ = Describe("GitRunner.Run", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("preserves leading stdout whitespace and trims only trailing whitespace", func() {
+		script := "#!/usr/bin/env sh\n" +
+			"printf ' M file.go\\n\\n'\n"
+		fakeRunner := &gitx.GitRunner{GitBin: writeFakeBin(script)}
+		out, err := fakeRunner.Run(context.Background(), "", "status", "--porcelain=v1")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out).To(Equal(" M file.go"))
+	})
+
 	It("respects context cancellation", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -258,6 +267,41 @@ var _ = Describe("WorktreeStatus", func() {
 		wt, err := gitx.WorktreeStatus(context.Background(), mock, "/repo")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(wt.Dirty).To(BeFalse())
+	})
+
+	// Regression for #359: GitRunner.Run used to TrimSpace stdout, which
+	// turned a leading unstaged-only row " M file" into "M file" and made
+	// ParsePorcelainStatus count it as staged.
+	It("keeps a leading unstaged-only row unstaged through GitRunner", func() {
+		script := "#!/usr/bin/env sh\n" +
+			"printf ' M first.go\\nM  second.go\\n'\n"
+		fakeRunner := &gitx.GitRunner{GitBin: writeFakeBin(script)}
+		wt, err := gitx.WorktreeStatus(context.Background(), fakeRunner, "")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(wt.Staged).To(Equal(1))
+		Expect(wt.Unstaged).To(Equal(1))
+	})
+
+	It("reports an unstaged-only modification in a real repository", func() {
+		ctx := context.Background()
+		runner := &gitx.GitRunner{}
+		dir := GinkgoT().TempDir()
+		git := func(args ...string) {
+			_, err := runner.Run(ctx, dir, append([]string{"-c", "user.name=test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false"}, args...)...)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		git("init", "-q")
+		file := filepath.Join(dir, "file.txt")
+		Expect(os.WriteFile(file, []byte("one\n"), 0o644)).To(Succeed())
+		git("add", "file.txt")
+		git("commit", "-q", "-m", "init")
+		Expect(os.WriteFile(file, []byte("two\n"), 0o644)).To(Succeed())
+
+		wt, err := gitx.WorktreeStatus(ctx, runner, dir)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(wt.Staged).To(Equal(0))
+		Expect(wt.Unstaged).To(Equal(1))
+		Expect(wt.Dirty).To(BeTrue())
 	})
 })
 
