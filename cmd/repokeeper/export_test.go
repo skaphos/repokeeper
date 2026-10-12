@@ -347,6 +347,59 @@ func TestExportCommandRunELoadsRegistryFromRegistryPath(t *testing.T) {
 	}
 }
 
+// Branch data must come from the live checkout at its real path. Export
+// relativizes paths against the bundle root, and Git resolves a relative path
+// against the process working directory, so inspecting after relativizing
+// reads the wrong (or no) repository when export runs elsewhere (#362).
+func TestExportCommandRunEReadsBranchesFromRealPaths(t *testing.T) {
+	workspace := t.TempDir()
+	remote := filepath.Join(workspace, "remote.git")
+	repoPath := filepath.Join(workspace, "team", "repo")
+	mustRunGit(t, workspace, "init", "--bare", remote)
+	mustRunGit(t, workspace, "clone", remote, repoPath)
+	mustRunGit(t, repoPath, "checkout", "-b", "feature-x")
+	mustRunGit(t, repoPath, "commit", "--allow-empty", "-m", "init")
+	mustRunGit(t, repoPath, "push", "-u", "origin", "feature-x")
+
+	// The config lives outside the workspace, so the process working
+	// directory during export is not the bundle root.
+	cfgPath := filepath.Join(t.TempDir(), ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{
+		{RepoID: "github.com/org/repo", Path: repoPath, RemoteURL: remote, Status: registry.StatusPresent},
+	}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withConfigAndCWD(t, cfgPath)
+	defer cleanup()
+
+	out := &bytes.Buffer{}
+	exportCmd.SetOut(out)
+	exportCmd.SetContext(context.Background())
+	defer exportCmd.SetOut(nil)
+	_ = exportCmd.Flags().Set("include-registry", "true")
+	_ = exportCmd.Flags().Set("output", "-")
+
+	if err := exportCmd.RunE(exportCmd, nil); err != nil {
+		t.Fatalf("export run failed: %v", err)
+	}
+	var exported exportBundle
+	if err := yaml.Unmarshal(out.Bytes(), &exported); err != nil {
+		t.Fatalf("unmarshal exported bundle: %v", err)
+	}
+	if exported.Registry == nil || len(exported.Registry.Entries) != 1 {
+		t.Fatalf("expected one exported entry, got %+v", exported.Registry)
+	}
+	entry := exported.Registry.Entries[0]
+	if entry.Path != "repo" {
+		t.Fatalf("expected root-relative exported path %q, got %q", "repo", entry.Path)
+	}
+	if entry.Branch != "feature-x" {
+		t.Fatalf("expected branch read from the real checkout, got %q", entry.Branch)
+	}
+}
+
 func TestExportCommandRunEWritesFile(t *testing.T) {
 	cfgPath := writeEmptyConfig(t)
 	cleanup := withConfigAndCWD(t, cfgPath)
