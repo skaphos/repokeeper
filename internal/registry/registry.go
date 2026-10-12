@@ -428,6 +428,35 @@ func (r *Registry) FindByRepoIDAndCheckoutID(repoID, checkoutID string) *Entry {
 	return nil
 }
 
+// RebindRepoID moves the entry at index to repoID, e.g. after its remote URL
+// changed. The checkout ID is kept while it stays unique under repoID, so
+// explicit IDs and their move detection survive. If another entry already
+// holds it under repoID, a fresh ID is allocated as discovery would; sharing
+// a (repo_id, checkout_id) key would let a later Upsert merge the wrong
+// checkout. It reports whether the entry changed identity.
+func (r *Registry) RebindRepoID(index int, repoID string) bool {
+	repoID = strings.TrimSpace(repoID)
+	if r == nil || repoID == "" || index < 0 || index >= len(r.Entries) {
+		return false
+	}
+	entry := r.Entries[index]
+	if entry.RepoID == repoID {
+		return false
+	}
+	checkoutID := checkoutIDFromEntry(entry)
+	for i := range r.Entries {
+		if i != index && r.Entries[i].RepoID == repoID && checkoutIDFromEntry(r.Entries[i]) == checkoutID {
+			// resolveCheckoutID skips entries under other repo IDs, so the
+			// entry being rebound cannot reserve its own old ID here.
+			checkoutID = r.resolveCheckoutID(Entry{RepoID: repoID, Path: entry.Path})
+			break
+		}
+	}
+	r.Entries[index].RepoID = repoID
+	r.Entries[index].CheckoutID = checkoutID
+	return true
+}
+
 // FindEntry returns the entry for the checkout at path with identity repoID,
 // using the same precedence as FindEntryIndex, or nil if not found.
 func (r *Registry) FindEntry(repoID, path string) *Entry {

@@ -560,7 +560,7 @@ During `scan`, RepoKeeper validates every existing registry entry:
 2. The path alone matches. A changed remote still binds to the entry at the same path, which is what lets `--only remote-mismatch` and `--reconcile-remote-mismatch` see the change.
 3. The `repo_id` alone matches (the checkout moved).
 
-Paths compare as `scan` compares them (cleaned; case-insensitive on Windows), so each path maps to one entry. Accepting the live remote with `--reconcile-remote-mismatch registry` updates both `remote_url` and `repo_id`; `git` mode restores the registry URL on the checkout and leaves the entry unchanged.
+Paths compare as `scan` compares them (cleaned; case-insensitive on Windows), so each path maps to one entry. Accepting the live remote with `--reconcile-remote-mismatch registry` updates both `remote_url` and `repo_id`. The entry keeps its `checkout_id` unless another checkout already holds that ID under the new `repo_id`; then it gets a fresh one, allocated as discovery would, so no two entries share a (`repo_id`, `checkout_id`) key. `git` mode restores the registry URL on the checkout and leaves the entry unchanged.
 
 `repokeeper get` surfaces missing/moved repos so the user can act:
 

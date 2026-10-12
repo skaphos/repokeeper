@@ -239,6 +239,51 @@ var _ = Describe("Registry", func() {
 		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(0))
 	})
 
+	It("rebinds a repo ID and keeps a checkout ID that stays unique", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", CheckoutID: "repo", Path: "/a/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(0, "host/new")).To(BeTrue())
+		Expect(reg.Entries[0].RepoID).To(Equal("host/new"))
+		Expect(reg.Entries[0].CheckoutID).To(Equal("repo"))
+	})
+
+	It("reallocates a checkout ID that would collide under the new repo ID", func() {
+		// Two same-basename checkouts of different repos both hold "repo";
+		// pointing one at the other's remote must not merge their identities.
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", CheckoutID: "repo", Path: "/a/repo"},
+				{RepoID: "host/old", CheckoutID: "repo", Path: "/b/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(1, "host/new")).To(BeTrue())
+		Expect(reg.Entries[1].RepoID).To(Equal("host/new"))
+		Expect(reg.Entries[1].CheckoutID).NotTo(Equal("repo"))
+		Expect(reg.Entries[1].CheckoutID).To(HavePrefix("repo-"))
+		Expect(reg.Entries[0].CheckoutID).To(Equal("repo"))
+
+		// A later scan of each checkout must update its own entry only.
+		reg.Upsert(registry.Entry{RepoID: "host/new", Path: "/a/repo", RemoteURL: "a"})
+		reg.Upsert(registry.Entry{RepoID: "host/new", Path: "/b/repo", RemoteURL: "b"})
+		Expect(reg.Entries).To(HaveLen(2))
+		Expect(reg.Entries[0].Path).To(Equal("/a/repo"))
+		Expect(reg.Entries[0].RemoteURL).To(Equal("a"))
+		Expect(reg.Entries[1].Path).To(Equal("/b/repo"))
+		Expect(reg.Entries[1].RemoteURL).To(Equal("b"))
+	})
+
+	It("ignores a rebind with an invalid index or empty repo ID", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{{RepoID: "host/old", CheckoutID: "repo", Path: "/a/repo"}},
+		}
+		Expect(reg.RebindRepoID(5, "host/new")).To(BeFalse())
+		Expect(reg.RebindRepoID(0, "  ")).To(BeFalse())
+		Expect(reg.Entries[0].RepoID).To(Equal("host/old"))
+	})
+
 	It("returns -1 when entry not found by FindEntryIndex", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{

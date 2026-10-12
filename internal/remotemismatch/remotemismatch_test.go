@@ -200,6 +200,45 @@ func TestBuildPlansFollowsCheckoutAcrossRemoteURLChange(t *testing.T) {
 	}
 }
 
+// Accepting a remote that another same-basename checkout already uses must not
+// give both entries the same (repo_id, checkout_id) identity.
+func TestApplyPlansRegistryKeepsCheckoutIdentityUnique(t *testing.T) {
+	adapter := &normalizingAdapter{}
+	sharedURL := "https://host/shared.git"
+	otherURL := "https://host/other.git"
+	sharedID := adapter.NormalizeURL(sharedURL)
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: sharedID, CheckoutID: "repo", Path: "/a/repo", RemoteURL: sharedURL},
+			{RepoID: adapter.NormalizeURL(otherURL), CheckoutID: "repo", Path: "/b/repo", RemoteURL: otherURL},
+		},
+	}
+	repos := []model.RepoStatus{{
+		RepoID:        sharedID,
+		Path:          "/b/repo",
+		PrimaryRemote: "origin",
+		Remotes:       []model.Remote{{Name: "origin", URL: sharedURL}},
+	}}
+
+	plans := BuildPlans(repos, reg, adapter, ReconcileRegistry)
+	if len(plans) != 1 || plans[0].EntryIndex != 1 {
+		t.Fatalf("expected one plan against the /b/repo entry, got %+v", plans)
+	}
+	if err := ApplyPlans(context.Background(), plans, reg, ReconcileRegistry, adapter, nil); err != nil {
+		t.Fatalf("apply registry plans: %v", err)
+	}
+	a, b := reg.Entries[0], reg.Entries[1]
+	if b.RepoID != sharedID {
+		t.Fatalf("expected /b/repo to adopt %q, got %q", sharedID, b.RepoID)
+	}
+	if a.CheckoutID == b.CheckoutID {
+		t.Fatalf("expected distinct checkout IDs under %q, both are %q", sharedID, a.CheckoutID)
+	}
+	if a.CheckoutID != "repo" {
+		t.Fatalf("expected the untouched entry to keep its checkout ID, got %q", a.CheckoutID)
+	}
+}
+
 // Git mode restores the registry URL on the checkout, so the entry's identity
 // already matches the remote it will have and must not change.
 func TestBuildPlansGitModeAcrossRemoteURLChange(t *testing.T) {
