@@ -283,6 +283,23 @@ func TestMatchesProtectedBranch(t *testing.T) {
 	}
 }
 
+// A real remote URL change alters the live repo ID; the remote-mismatch filter
+// must still bind the checkout to its same-path entry and report it (#361).
+func TestFilterStatusRemoteMismatchAfterRemoteURLChange(t *testing.T) {
+	normalizer := vcs.NewGitURLNormalizer()
+	oldURL := "https://host/old.git"
+	newURL := "https://host/new.git"
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: normalizer.NormalizeURL(oldURL), Path: "/repos/changed", RemoteURL: oldURL},
+		},
+	}
+	changed := model.RepoStatus{RepoID: normalizer.NormalizeURL(newURL), Path: "/repos/changed"}
+	if !filterStatus(FilterRemoteMismatch, changed, reg) {
+		t.Fatal("expected remote mismatch filter to include a checkout whose remote URL changed")
+	}
+}
+
 func TestFilterStatusKindsAndSorts(t *testing.T) {
 	reg := &registry.Registry{
 		Entries: []registry.Entry{

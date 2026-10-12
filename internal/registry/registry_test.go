@@ -172,7 +172,7 @@ var _ = Describe("Registry", func() {
 				{RepoID: "repo1", Path: "/path/a"},
 			},
 		}
-		entry := reg.FindEntry("nonexistent", "/path/a")
+		entry := reg.FindEntry("nonexistent", "/path/elsewhere")
 		Expect(entry).To(BeNil())
 	})
 
@@ -199,13 +199,125 @@ var _ = Describe("Registry", func() {
 		Expect(idx).To(Equal(0))
 	})
 
+	It("binds a checkout to its same-path entry when the repo ID changed", func() {
+		// A remote URL change alters the live repo ID; the path still
+		// identifies the checkout (#361).
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", Path: "/path/a"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(0))
+	})
+
+	It("prefers a same-path entry over a repoID-only match elsewhere", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", Path: "/path/other"},
+				{RepoID: "host/old", Path: "/path/a"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(1))
+	})
+
+	It("prefers an exact repo ID and path match over a path-only match", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", Path: "/path/a"},
+				{RepoID: "host/new", Path: "/path/a"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(1))
+	})
+
+	It("matches paths the way Upsert does", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", Path: "/path/a/"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(0))
+	})
+
+	It("rebinds a repo ID and keeps a checkout ID that stays unique", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", CheckoutID: "repo", Path: "/a/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(0, "host/new")).To(BeTrue())
+		Expect(reg.Entries[0].RepoID).To(Equal("host/new"))
+		Expect(reg.Entries[0].CheckoutID).To(Equal("repo"))
+	})
+
+	It("reallocates a checkout ID that would collide under the new repo ID", func() {
+		// Two same-basename checkouts of different repos both hold "repo";
+		// pointing one at the other's remote must not merge their identities.
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", CheckoutID: "repo", Path: "/a/repo"},
+				{RepoID: "host/old", CheckoutID: "repo", Path: "/b/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(1, "host/new")).To(BeTrue())
+		Expect(reg.Entries[1].RepoID).To(Equal("host/new"))
+		Expect(reg.Entries[1].CheckoutID).NotTo(Equal("repo"))
+		Expect(reg.Entries[1].CheckoutID).To(HavePrefix("repo-"))
+		Expect(reg.Entries[0].CheckoutID).To(Equal("repo"))
+
+		// A later scan of each checkout must update its own entry only.
+		reg.Upsert(registry.Entry{RepoID: "host/new", Path: "/a/repo", RemoteURL: "a"})
+		reg.Upsert(registry.Entry{RepoID: "host/new", Path: "/b/repo", RemoteURL: "b"})
+		Expect(reg.Entries).To(HaveLen(2))
+		Expect(reg.Entries[0].Path).To(Equal("/a/repo"))
+		Expect(reg.Entries[0].RemoteURL).To(Equal("a"))
+		Expect(reg.Entries[1].Path).To(Equal("/b/repo"))
+		Expect(reg.Entries[1].RemoteURL).To(Equal("b"))
+	})
+
+	// An inline config registry is unmarshalled without Load's normalization,
+	// so its checkout IDs may be padded or absent.
+	It("detects a rebind collision with a padded checkout ID", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", CheckoutID: " repo ", Path: "/a/repo"},
+				{RepoID: "host/old", CheckoutID: "repo", Path: "/b/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(1, "host/new")).To(BeTrue())
+		Expect(strings.TrimSpace(reg.Entries[0].CheckoutID)).To(Equal("repo"))
+		Expect(reg.Entries[1].CheckoutID).NotTo(Equal("repo"))
+	})
+
+	It("detects a rebind collision with legacy entries that have no checkout ID", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", Path: "/a/repo"},
+				{RepoID: "host/old", Path: "/b/repo"},
+			},
+		}
+		Expect(reg.RebindRepoID(1, "host/new")).To(BeTrue())
+		Expect(reg.Entries[0].CheckoutID).NotTo(BeEmpty())
+		Expect(reg.Entries[1].CheckoutID).NotTo(BeEmpty())
+		Expect(reg.Entries[1].CheckoutID).NotTo(Equal(reg.Entries[0].CheckoutID))
+	})
+
+	It("ignores a rebind with an invalid index or empty repo ID", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{{RepoID: "host/old", CheckoutID: "repo", Path: "/a/repo"}},
+		}
+		Expect(reg.RebindRepoID(5, "host/new")).To(BeFalse())
+		Expect(reg.RebindRepoID(0, "  ")).To(BeFalse())
+		Expect(reg.Entries[0].RepoID).To(Equal("host/old"))
+	})
+
 	It("returns -1 when entry not found by FindEntryIndex", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/path/a"},
 			},
 		}
-		idx := reg.FindEntryIndex("nonexistent", "/path/a")
+		idx := reg.FindEntryIndex("nonexistent", "/path/elsewhere")
 		Expect(idx).To(Equal(-1))
 	})
 

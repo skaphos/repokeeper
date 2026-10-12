@@ -428,8 +428,41 @@ func (r *Registry) FindByRepoIDAndCheckoutID(repoID, checkoutID string) *Entry {
 	return nil
 }
 
-// FindEntry returns the entry matching repoID and path (exact match first,
-// then repoID-only fallback), or nil if not found.
+// RebindRepoID moves the entry at index to repoID, e.g. after its remote URL
+// changed. The checkout ID is kept while it stays unique under repoID, so
+// explicit IDs and their move detection survive. If another entry already
+// holds it under repoID, a fresh ID is allocated as discovery would; sharing
+// a (repo_id, checkout_id) key would let a later Upsert merge the wrong
+// checkout. It reports whether the entry changed identity.
+func (r *Registry) RebindRepoID(index int, repoID string) bool {
+	repoID = strings.TrimSpace(repoID)
+	if r == nil || repoID == "" || index < 0 || index >= len(r.Entries) {
+		return false
+	}
+	if r.Entries[index].RepoID == repoID {
+		return false
+	}
+	// An inline config registry skips Load's normalization, so trim and
+	// assign checkout IDs first; otherwise a padded or missing ID on another
+	// entry hides a collision from the comparison and from the allocator.
+	r.ensureCheckoutIDs()
+	entry := r.Entries[index]
+	checkoutID := entry.CheckoutID
+	for i := range r.Entries {
+		if i != index && r.Entries[i].RepoID == repoID && r.Entries[i].CheckoutID == checkoutID {
+			// resolveCheckoutID skips entries under other repo IDs, so the
+			// entry being rebound cannot reserve its own old ID here.
+			checkoutID = r.resolveCheckoutID(Entry{RepoID: repoID, Path: entry.Path})
+			break
+		}
+	}
+	r.Entries[index].RepoID = repoID
+	r.Entries[index].CheckoutID = checkoutID
+	return true
+}
+
+// FindEntry returns the entry for the checkout at path with identity repoID,
+// using the same precedence as FindEntryIndex, or nil if not found.
 func (r *Registry) FindEntry(repoID, path string) *Entry {
 	idx := r.FindEntryIndex(repoID, path)
 	if idx < 0 {
@@ -438,11 +471,23 @@ func (r *Registry) FindEntry(repoID, path string) *Entry {
 	return &r.Entries[idx]
 }
 
-// FindEntryIndex returns the index of the entry matching repoID and path
-// (exact match first, then repoID-only fallback), or -1 if not found.
+// FindEntryIndex returns the index of the entry for the checkout at path with
+// identity repoID, or -1 if not found. Precedence:
+//
+//  1. repoID and path both match;
+//  2. path alone matches: the path identifies the checkout, and a remote URL
+//     change alters the live repoID, so the old entry must still bind to it;
+//  3. repoID alone matches (the checkout moved).
+//
+// Paths compare as Upsert compares them, which keeps one entry per path.
 func (r *Registry) FindEntryIndex(repoID, path string) int {
 	for i := range r.Entries {
-		if r.Entries[i].RepoID == repoID && r.Entries[i].Path == path {
+		if r.Entries[i].RepoID == repoID && sameRegistryPath(r.Entries[i].Path, path) {
+			return i
+		}
+	}
+	for i := range r.Entries {
+		if sameRegistryPath(r.Entries[i].Path, path) {
 			return i
 		}
 	}

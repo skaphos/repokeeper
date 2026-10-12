@@ -109,6 +109,11 @@ func ApplyPlans(ctx context.Context, plans []Plan, reg *registry.Registry, mode 
 				continue
 			}
 			reg.Entries[plan.EntryIndex].RemoteURL = plan.RepoRemoteURL
+			// The repo ID derives from the remote URL, so accepting the live
+			// remote also adopts its ID; otherwise the entry keeps the old
+			// identity and ID-based lookups go stale. RebindRepoID keeps the
+			// (repo_id, checkout_id) key unique.
+			reg.RebindRepoID(plan.EntryIndex, plan.RepoID)
 			reg.Entries[plan.EntryIndex].LastSeen = now()
 		}
 	case ReconcileGit:

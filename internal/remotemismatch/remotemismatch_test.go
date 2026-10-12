@@ -9,6 +9,7 @@ import (
 
 	"github.com/skaphos/repokeeper/v2/internal/model"
 	"github.com/skaphos/repokeeper/v2/internal/registry"
+	"github.com/skaphos/repokeeper/v2/internal/vcs"
 )
 
 type adapterStub struct {
@@ -140,6 +141,133 @@ func TestBuildPlansSkipsAndSelection(t *testing.T) {
 	}
 	if plans[1].EntryIndex != 1 {
 		t.Fatalf("expected repo-id fallback match to second entry, got %+v", plans[1])
+	}
+}
+
+// normalizingAdapter normalizes URLs like the real git adapter, so repo IDs
+// derive from remote URLs the way they do in a live status.
+type normalizingAdapter struct {
+	adapterStub
+}
+
+func (a *normalizingAdapter) NormalizeURL(rawURL string) string {
+	return vcs.NewGitURLNormalizer().NormalizeURL(rawURL)
+}
+
+// A real remote URL change alters the live repo ID, so the checkout must be
+// bound to its registry entry by path rather than by the new ID (#361).
+func TestBuildPlansFollowsCheckoutAcrossRemoteURLChange(t *testing.T) {
+	adapter := &normalizingAdapter{}
+	oldURL := "https://host/old.git"
+	newURL := "https://host/new.git"
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: adapter.NormalizeURL(oldURL), Path: "/tmp/repo", RemoteURL: oldURL},
+		},
+	}
+	repos := []model.RepoStatus{
+		{
+			RepoID:        adapter.NormalizeURL(newURL),
+			Path:          "/tmp/repo",
+			PrimaryRemote: "origin",
+			Remotes:       []model.Remote{{Name: "origin", URL: newURL}},
+		},
+	}
+
+	plans := BuildPlans(repos, reg, adapter, ReconcileRegistry)
+	if len(plans) != 1 {
+		t.Fatalf("expected one plan for the changed remote, got %+v", plans)
+	}
+	if plans[0].EntryIndex != 0 || plans[0].RegistryURL != oldURL || plans[0].RepoRemoteURL != newURL {
+		t.Fatalf("expected plan against the same-path entry, got %+v", plans[0])
+	}
+
+	if err := ApplyPlans(context.Background(), plans, reg, ReconcileRegistry, adapter, nil); err != nil {
+		t.Fatalf("apply registry plans: %v", err)
+	}
+	if len(reg.Entries) != 1 {
+		t.Fatalf("expected the entry to be updated in place, got %+v", reg.Entries)
+	}
+	entry := reg.Entries[0]
+	if entry.RemoteURL != newURL {
+		t.Fatalf("expected registry remote_url %q, got %q", newURL, entry.RemoteURL)
+	}
+	if entry.RepoID != adapter.NormalizeURL(newURL) {
+		t.Fatalf("expected repo_id to follow the accepted remote, got %q", entry.RepoID)
+	}
+	if again := BuildPlans(repos, reg, adapter, ReconcileRegistry); len(again) != 0 {
+		t.Fatalf("expected no mismatch after accepting the remote, got %+v", again)
+	}
+}
+
+// Accepting a remote that another same-basename checkout already uses must not
+// give both entries the same (repo_id, checkout_id) identity.
+func TestApplyPlansRegistryKeepsCheckoutIdentityUnique(t *testing.T) {
+	adapter := &normalizingAdapter{}
+	sharedURL := "https://host/shared.git"
+	otherURL := "https://host/other.git"
+	sharedID := adapter.NormalizeURL(sharedURL)
+	reg := &registry.Registry{
+		Entries: []registry.Entry{
+			{RepoID: sharedID, CheckoutID: "repo", Path: "/a/repo", RemoteURL: sharedURL},
+			{RepoID: adapter.NormalizeURL(otherURL), CheckoutID: "repo", Path: "/b/repo", RemoteURL: otherURL},
+		},
+	}
+	repos := []model.RepoStatus{{
+		RepoID:        sharedID,
+		Path:          "/b/repo",
+		PrimaryRemote: "origin",
+		Remotes:       []model.Remote{{Name: "origin", URL: sharedURL}},
+	}}
+
+	plans := BuildPlans(repos, reg, adapter, ReconcileRegistry)
+	if len(plans) != 1 || plans[0].EntryIndex != 1 {
+		t.Fatalf("expected one plan against the /b/repo entry, got %+v", plans)
+	}
+	if err := ApplyPlans(context.Background(), plans, reg, ReconcileRegistry, adapter, nil); err != nil {
+		t.Fatalf("apply registry plans: %v", err)
+	}
+	a, b := reg.Entries[0], reg.Entries[1]
+	if b.RepoID != sharedID {
+		t.Fatalf("expected /b/repo to adopt %q, got %q", sharedID, b.RepoID)
+	}
+	if a.CheckoutID == b.CheckoutID {
+		t.Fatalf("expected distinct checkout IDs under %q, both are %q", sharedID, a.CheckoutID)
+	}
+	if a.CheckoutID != "repo" {
+		t.Fatalf("expected the untouched entry to keep its checkout ID, got %q", a.CheckoutID)
+	}
+}
+
+// Git mode restores the registry URL on the checkout, so the entry's identity
+// already matches the remote it will have and must not change.
+func TestBuildPlansGitModeAcrossRemoteURLChange(t *testing.T) {
+	adapter := &normalizingAdapter{}
+	oldURL := "https://host/old.git"
+	newURL := "https://host/new.git"
+	oldID := adapter.NormalizeURL(oldURL)
+	reg := &registry.Registry{
+		Entries: []registry.Entry{{RepoID: oldID, Path: "/tmp/repo", RemoteURL: oldURL}},
+	}
+	repos := []model.RepoStatus{{
+		RepoID:        adapter.NormalizeURL(newURL),
+		Path:          "/tmp/repo",
+		PrimaryRemote: "origin",
+		Remotes:       []model.Remote{{Name: "origin", URL: newURL}},
+	}}
+
+	plans := BuildPlans(repos, reg, adapter, ReconcileGit)
+	if len(plans) != 1 {
+		t.Fatalf("expected one plan for the changed remote, got %+v", plans)
+	}
+	if err := ApplyPlans(context.Background(), plans, reg, ReconcileGit, adapter, nil); err != nil {
+		t.Fatalf("apply git plans: %v", err)
+	}
+	if want := "/tmp/repo:origin:" + oldURL; len(adapter.setRemoteCalls) != 1 || adapter.setRemoteCalls[0] != want {
+		t.Fatalf("expected set-url %q, got %v", want, adapter.setRemoteCalls)
+	}
+	if reg.Entries[0].RepoID != oldID || reg.Entries[0].RemoteURL != oldURL {
+		t.Fatalf("expected registry entry unchanged in git mode, got %+v", reg.Entries[0])
 	}
 }
 
