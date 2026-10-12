@@ -471,6 +471,37 @@ func (r *Registry) FindEntry(repoID, path string) *Entry {
 	return &r.Entries[idx]
 }
 
+// FindCheckout returns the entry for the checkout at path, preferring one with
+// identity repoID, or nil. Unlike FindEntry it never falls back to a
+// repoID-only match: a repository can have several checkouts, and per-checkout
+// data such as labels must not leak from one sibling to another.
+func (r *Registry) FindCheckout(repoID, path string) *Entry {
+	if r == nil {
+		return nil
+	}
+	idx := r.findCheckoutIndex(repoID, path)
+	if idx < 0 {
+		return nil
+	}
+	return &r.Entries[idx]
+}
+
+// findCheckoutIndex implements the path-bound steps (1 and 2) of
+// FindEntryIndex.
+func (r *Registry) findCheckoutIndex(repoID, path string) int {
+	for i := range r.Entries {
+		if r.Entries[i].RepoID == repoID && sameRegistryPath(r.Entries[i].Path, path) {
+			return i
+		}
+	}
+	for i := range r.Entries {
+		if sameRegistryPath(r.Entries[i].Path, path) {
+			return i
+		}
+	}
+	return -1
+}
+
 // FindEntryIndex returns the index of the entry for the checkout at path with
 // identity repoID, or -1 if not found. Precedence:
 //
@@ -481,15 +512,8 @@ func (r *Registry) FindEntry(repoID, path string) *Entry {
 //
 // Paths compare as Upsert compares them, which keeps one entry per path.
 func (r *Registry) FindEntryIndex(repoID, path string) int {
-	for i := range r.Entries {
-		if r.Entries[i].RepoID == repoID && sameRegistryPath(r.Entries[i].Path, path) {
-			return i
-		}
-	}
-	for i := range r.Entries {
-		if sameRegistryPath(r.Entries[i].Path, path) {
-			return i
-		}
+	if idx := r.findCheckoutIndex(repoID, path); idx >= 0 {
+		return idx
 	}
 	for i := range r.Entries {
 		if r.Entries[i].RepoID == repoID {

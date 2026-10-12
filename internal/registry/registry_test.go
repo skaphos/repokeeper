@@ -239,6 +239,21 @@ var _ = Describe("Registry", func() {
 		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(0))
 	})
 
+	It("finds a checkout by path but never by repo ID alone", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "repo1", Path: "/path/dev"},
+				{RepoID: "host/old", Path: "/path/a/"},
+			},
+		}
+		Expect(reg.FindCheckout("repo1", "/path/prod")).To(BeNil())
+		Expect(reg.FindCheckout("repo1", "/path/dev")).To(BeIdenticalTo(&reg.Entries[0]))
+		Expect(reg.FindCheckout("host/new", "/path/a")).To(BeIdenticalTo(&reg.Entries[1]))
+
+		var nilReg *registry.Registry
+		Expect(nilReg.FindCheckout("repo1", "/path/dev")).To(BeNil())
+	})
+
 	It("rebinds a repo ID and keeps a checkout ID that stays unique", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{

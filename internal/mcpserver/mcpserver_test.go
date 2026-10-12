@@ -347,6 +347,29 @@ func newTestRegistry() *registry.Registry {
 	}
 }
 
+// useSiblingCheckouts makes alpha a two-checkout repo: the original prod
+// checkout plus a dev checkout of the same repo_id listed first, so a
+// repo_id-only lookup would hand prod the dev checkout's metadata and vice
+// versa.
+func useSiblingCheckouts(eng *mockEngine) {
+	devPath := fixturePath("/home/user/dev/alpha")
+	eng.reg.Entries = append([]registry.Entry{{
+		RepoID:      "github.com/example/alpha",
+		Path:        devPath,
+		Type:        "checkout",
+		Labels:      map[string]string{"env": "dev"},
+		Annotations: map[string]string{"note": "scratch checkout"},
+		Status:      registry.StatusPresent,
+	}}, eng.reg.Entries...)
+	eng.statusResult = &model.StatusReport{
+		GeneratedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+		Repos: []model.RepoStatus{
+			{RepoID: "github.com/example/alpha", Path: devPath, Type: "checkout"},
+			{RepoID: "github.com/example/alpha", Path: fixturePath("/home/user/repos/alpha"), Type: "checkout"},
+		},
+	}
+}
+
 func newTestConfig() *config.Config {
 	cfg := config.DefaultConfig()
 	cfg.Exclude = []string{"**/node_modules/**"}
@@ -770,6 +793,52 @@ var _ = Describe("MCPServer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
 		})
+
+		It("labels and selects each checkout by its own registry entry", func() {
+			useSiblingCheckouts(eng)
+			result, err := callTool(srv, "build_workspace_inventory", map[string]any{
+				"label_selector": "env=prod",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			repos := resp["repos"].([]any)
+			Expect(repos).To(HaveLen(1))
+			prod := repos[0].(map[string]any)
+			Expect(prod["path"]).To(Equal(fixturePath("/home/user/repos/alpha")))
+			Expect(prod["annotations"]).To(HaveKeyWithValue("note", "primary service"))
+
+			result, err = callTool(srv, "build_workspace_inventory", map[string]any{
+				"label_selector": "env=dev",
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			repos = resp["repos"].([]any)
+			Expect(repos).To(HaveLen(1))
+			dev := repos[0].(map[string]any)
+			Expect(dev["path"]).To(Equal(fixturePath("/home/user/dev/alpha")))
+			Expect(dev["annotations"]).To(HaveKeyWithValue("note", "scratch checkout"))
+		})
+
+		It("leaves a checkout without its own registry entry unlabelled", func() {
+			eng.statusResult = &model.StatusReport{
+				GeneratedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
+				Repos: []model.RepoStatus{
+					{RepoID: "github.com/example/alpha", Path: fixturePath("/home/user/elsewhere/alpha")},
+				},
+			}
+			result, err := callTool(srv, "build_workspace_inventory", nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			var resp map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &resp)).To(Succeed())
+			repos := resp["repos"].([]any)
+			Expect(repos).To(HaveLen(1))
+			entry := repos[0].(map[string]any)
+			Expect(entry).NotTo(HaveKey("labels"))
+			Expect(entry).NotTo(HaveKey("annotations"))
+		})
 	})
 
 	Describe("select_repositories", func() {
@@ -858,6 +927,19 @@ var _ = Describe("MCPServer", func() {
 			result, err := callTool(srv, "select_repositories", nil)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(result.IsError).To(BeTrue())
+		})
+
+		It("does not select a sibling checkout through another checkout's labels", func() {
+			useSiblingCheckouts(eng)
+			result, err := callTool(srv, "select_repositories", map[string]any{
+				"label_selector": "env=prod",
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			var repos []map[string]any
+			Expect(json.Unmarshal(resultJSON(result), &repos)).To(Succeed())
+			Expect(repos).To(HaveLen(1))
+			Expect(repos[0]["path"]).To(Equal(fixturePath("/home/user/repos/alpha")))
 		})
 	})
 
