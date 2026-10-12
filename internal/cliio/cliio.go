@@ -10,7 +10,10 @@ import (
 	"github.com/skaphos/repokeeper/v2/internal/tableutil"
 )
 
-// PromptYesNo writes prompt and reads a yes/no response from input.
+// PromptYesNo writes prompt and reads a yes/no response from input. A
+// *bufio.Reader with at least bufio's default buffer size is reused, so callers
+// using such a reader for earlier answers from the same stream keep their
+// read-ahead.
 func PromptYesNo(out io.Writer, in io.Reader, prompt string) (bool, error) {
 	if _, err := fmt.Fprint(out, prompt); err != nil {
 		return false, err

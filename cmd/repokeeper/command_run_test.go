@@ -1047,7 +1047,7 @@ func TestIndexRunEWriteDeclinedDoesNotWrite(t *testing.T) {
 	indexCmd.SetErr(errOut)
 	defer indexCmd.SetOut(os.Stdout)
 	defer indexCmd.SetErr(os.Stderr)
-	indexCmd.SetIn(strings.NewReader("\n\n\n\n\n\n\nno\n"))
+	indexCmd.SetIn(strings.NewReader(strings.Repeat("\n", 8) + "no\n"))
 	defer indexCmd.SetIn(os.Stdin)
 	_ = indexCmd.Flags().Set("write", "true")
 	_ = indexCmd.Flags().Set("force", "false")
@@ -1060,6 +1060,49 @@ func TestIndexRunEWriteDeclinedDoesNotWrite(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "Write repo metadata") {
 		t.Fatalf("expected write confirmation prompt, got %q", errOut.String())
+	}
+}
+
+// TestIndexRunEWriteConfirmedAfterDefaultAnswers feeds the eight questionnaire
+// answers and the final confirmation as one piped stream; the confirmation must
+// not be lost to read-ahead buffering by the questionnaire.
+func TestIndexRunEWriteConfirmedAfterDefaultAnswers(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo-index")
+	if err := os.MkdirAll(repoPath, 0o755); err != nil {
+		t.Fatalf("mkdir repo: %v", err)
+	}
+	cfgPath := filepath.Join(tmp, ".repokeeper.yaml")
+	cfg := config.DefaultConfig()
+	cfg.Registry = &registry.Registry{Entries: []registry.Entry{{RepoID: "github.com/org/repo-index", Path: repoPath, Status: registry.StatusPresent, LastSeen: time.Now()}}}
+	if err := config.Save(&cfg, cfgPath); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+	cleanup := withTestConfig(t, cfgPath)
+	defer cleanup()
+	yesCleanup := withAssumeYes(t, false)
+	defer yesCleanup()
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	indexCmd.SetOut(out)
+	indexCmd.SetErr(errOut)
+	defer indexCmd.SetOut(os.Stdout)
+	defer indexCmd.SetErr(os.Stderr)
+	indexCmd.SetIn(strings.NewReader(strings.Repeat("\n", 8) + "y\n"))
+	defer indexCmd.SetIn(os.Stdin)
+	_ = indexCmd.Flags().Set("write", "true")
+	_ = indexCmd.Flags().Set("force", "false")
+	defer func() { _ = indexCmd.Flags().Set("write", "false") }()
+
+	if err := indexCmd.RunE(indexCmd, []string{"github.com/org/repo-index"}); err != nil {
+		t.Fatalf("index confirmed write failed: %v", err)
+	}
+	if strings.Contains(errOut.String(), "index cancelled") {
+		t.Fatalf("expected piped confirmation to be honored, got %q", errOut.String())
+	}
+	if _, err := os.Stat(filepath.Join(repoPath, ".repokeeper-repo.yaml")); err != nil {
+		t.Fatalf("expected confirmed write to create repo metadata, got err=%v", err)
 	}
 }
 

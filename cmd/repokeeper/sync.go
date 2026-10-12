@@ -4,6 +4,7 @@ package repokeeper
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -310,7 +311,14 @@ func confirmSyncExecution(cmd *cobra.Command) (bool, error) {
 }
 
 func confirmWithPrompt(cmd *cobra.Command, prompt string) (bool, error) {
-	return cliio.PromptYesNo(cmd.ErrOrStderr(), cmd.InOrStdin(), prompt)
+	return confirmWithPromptFrom(cmd, cmd.InOrStdin(), prompt)
+}
+
+// confirmWithPromptFrom reads the answer from in rather than the command's raw
+// stdin. Commands that prompt more than once pass the *bufio.Reader they already
+// read earlier answers from, so input buffered by those reads is not lost.
+func confirmWithPromptFrom(cmd *cobra.Command, in io.Reader, prompt string) (bool, error) {
+	return cliio.PromptYesNo(cmd.ErrOrStderr(), in, prompt)
 }
 
 func syncPlanNeedsConfirmation(plan []engine.SyncResult) bool {

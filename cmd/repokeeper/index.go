@@ -72,7 +72,11 @@ Pass --write to save the proposal. Overwriting an existing file requires
 			return fmt.Errorf("load existing repo metadata: %w (use --force to replace)", existingErr)
 		}
 
-		proposal, err := buildIndexProposal(entry, existing, yes, promoteLocalLabels, cmd.InOrStdin(), cmd.ErrOrStderr())
+		// The questionnaire and the final confirmation must share one buffered
+		// reader: a separate reader per prompt can read ahead past its own
+		// answers, so piped or pasted input would lose the confirmation.
+		in := bufio.NewReader(cmd.InOrStdin())
+		proposal, err := buildIndexProposal(entry, existing, yes, promoteLocalLabels, in, cmd.ErrOrStderr())
 		if err != nil {
 			return err
 		}
@@ -93,7 +97,7 @@ Pass --write to save the proposal. Overwriting an existing file requires
 			return fmt.Errorf("repo metadata already exists at %s (use --force to overwrite)", existingPath)
 		}
 		if !yes {
-			confirmed, err := confirmWithPrompt(cmd, fmt.Sprintf("Write repo metadata to %s? [y/N]: ", existingPath))
+			confirmed, err := confirmWithPromptFrom(cmd, in, fmt.Sprintf("Write repo metadata to %s? [y/N]: ", existingPath))
 			if err != nil {
 				return err
 			}
@@ -380,6 +384,8 @@ type indexQuestioner struct {
 	out    io.Writer
 }
 
+// newIndexQuestioner reuses in when it is a *bufio.Reader with at least bufio's
+// default buffer size, allowing callers to share buffered input with later prompts.
 func newIndexQuestioner(in io.Reader, out io.Writer) *indexQuestioner {
 	return &indexQuestioner{reader: bufio.NewReader(in), out: out}
 }
