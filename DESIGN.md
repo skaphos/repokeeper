@@ -552,6 +552,16 @@ During `scan`, RepoKeeper validates every existing registry entry:
 * A new path without an explicit checkout identity is registered separately, even if another checkout with the same basename is missing. Path absence alone never establishes a move or transfers local metadata.
 * If a caller supplies the same `repo_id` and an explicit existing `checkout_id` at a different path → mark that checkout entry `moved` and update the path. Discovery does not supply explicit IDs for new paths.
 
+**Binding a live checkout to its registry entry:**
+
+`repo_id` derives from the live remote URL, so it changes when the remote does, while the path keeps identifying the checkout. Status, filters, and reconciliation therefore look an entry up in this order:
+
+1. `repo_id` and path both match.
+2. The path alone matches. A changed remote still binds to the entry at the same path, which is what lets `--only remote-mismatch` and `--reconcile-remote-mismatch` see the change.
+3. The `repo_id` alone matches (the checkout moved).
+
+Paths compare as `scan` compares them (cleaned; case-insensitive on Windows), so each path maps to one entry. Accepting the live remote with `--reconcile-remote-mismatch registry` updates both `remote_url` and `repo_id`; `git` mode restores the registry URL on the checkout and leaves the entry unchanged.
+
 `repokeeper get` surfaces missing/moved repos so the user can act:
 
 * `--only missing` — show only repos whose paths no longer exist.

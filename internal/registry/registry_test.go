@@ -172,7 +172,7 @@ var _ = Describe("Registry", func() {
 				{RepoID: "repo1", Path: "/path/a"},
 			},
 		}
-		entry := reg.FindEntry("nonexistent", "/path/a")
+		entry := reg.FindEntry("nonexistent", "/path/elsewhere")
 		Expect(entry).To(BeNil())
 	})
 
@@ -199,13 +199,53 @@ var _ = Describe("Registry", func() {
 		Expect(idx).To(Equal(0))
 	})
 
+	It("binds a checkout to its same-path entry when the repo ID changed", func() {
+		// A remote URL change alters the live repo ID; the path still
+		// identifies the checkout (#361).
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", Path: "/path/a"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(0))
+	})
+
+	It("prefers a same-path entry over a repoID-only match elsewhere", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/new", Path: "/path/other"},
+				{RepoID: "host/old", Path: "/path/a"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(1))
+	})
+
+	It("prefers an exact repo ID and path match over a path-only match", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", Path: "/path/a"},
+				{RepoID: "host/new", Path: "/path/a"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(1))
+	})
+
+	It("matches paths the way Upsert does", func() {
+		reg := &registry.Registry{
+			Entries: []registry.Entry{
+				{RepoID: "host/old", Path: "/path/a/"},
+			},
+		}
+		Expect(reg.FindEntryIndex("host/new", "/path/a")).To(Equal(0))
+	})
+
 	It("returns -1 when entry not found by FindEntryIndex", func() {
 		reg := &registry.Registry{
 			Entries: []registry.Entry{
 				{RepoID: "repo1", Path: "/path/a"},
 			},
 		}
-		idx := reg.FindEntryIndex("nonexistent", "/path/a")
+		idx := reg.FindEntryIndex("nonexistent", "/path/elsewhere")
 		Expect(idx).To(Equal(-1))
 	})
 
