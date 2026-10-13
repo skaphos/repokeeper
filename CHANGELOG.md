@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.0.2](https://github.com/skaphos/repokeeper/compare/v2.0.1...v2.0.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **config:** find the nearest .repokeeper.yaml from subdirectories on Windows ([#380](https://github.com/skaphos/repokeeper/issues/380)) ([e9c306b](https://github.com/skaphos/repokeeper/commit/e9c306b7986b2b8adf4b30f2cbcbaf835d8c42e5))
+* **export:** read branch data from real checkout paths ([#387](https://github.com/skaphos/repokeeper/issues/387)) ([d49747d](https://github.com/skaphos/repokeeper/commit/d49747d6801263b45933325e452fba83054a577b))
+* **gitx:** preserve leading whitespace in git stdout so porcelain status parses correctly ([#384](https://github.com/skaphos/repokeeper/issues/384)) ([a0b2f18](https://github.com/skaphos/repokeeper/commit/a0b2f184f86b0a478737b85e856e84feac4c5a41))
+* **index:** share one input reader across the questionnaire and confirmation ([#389](https://github.com/skaphos/repokeeper/issues/389)) ([38759ec](https://github.com/skaphos/repokeeper/commit/38759ec8a157ea9f13e66d39bf96b73a020f85ba))
+* **mcp:** resolve labels and annotations per checkout ([#388](https://github.com/skaphos/repokeeper/issues/388)) ([f815d94](https://github.com/skaphos/repokeeper/commit/f815d94d0858a975e4e60c662e66b344cadd1984))
+* **registry:** bind checkouts to registry entries by path across remote URL changes ([#386](https://github.com/skaphos/repokeeper/issues/386)) ([15c889c](https://github.com/skaphos/repokeeper/commit/15c889c5c6dff271f2fc1bc2f547f7fed5a7377f))
+* **release:** drop deprecated cask postflight quarantine hook ([#385](https://github.com/skaphos/repokeeper/issues/385)) ([df4a804](https://github.com/skaphos/repokeeper/commit/df4a804148e652acd951bf0a893caa297d2f3754))
+* **sync:** apply the per-repository timeout to sequential plan execution ([#383](https://github.com/skaphos/repokeeper/issues/383)) ([d7eb192](https://github.com/skaphos/repokeeper/commit/d7eb192e95fa7f4803c299ac95bcaa8a409f784d))
+* **sync:** re-decide local updates after the plan's fetch ([#382](https://github.com/skaphos/repokeeper/issues/382)) ([60f645a](https://github.com/skaphos/repokeeper/commit/60f645a6ec9f5246c61c20e46d98d4140bed0387))
+
 ## [2.0.1](https://github.com/skaphos/repokeeper/compare/v2.0.0...v2.0.1) (2026-09-06)
 
 
