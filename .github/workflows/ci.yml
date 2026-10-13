@@ -179,7 +179,7 @@ jobs:
           # Pinned to the version release.yml actually releases with, and that
           # .tool-versions pins locally. A floating "~> v2" could validate the
           # config against a different GoReleaser than the one that runs it.
-          version: v2.18.0
+          version: v2.18.3
           install-only: true
       - name: Validate .goreleaser.yaml
         run: goreleaser check
@@ -190,7 +190,7 @@ jobs:
       - name: Install check-jsonschema
         # Pinned to the same version as .tool-versions, so a local run and CI
         # validate against the same tool.
-        run: python -m pip install --upgrade pip 'check-jsonschema==0.38.0'
+        run: python -m pip install --upgrade pip 'check-jsonschema==0.38.2'
       - name: Validate server.json against the MCP registry schema
         run: |
           check-jsonschema \
@@ -225,7 +225,7 @@ jobs:
           go-version-file: go.mod
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
-          version: v2.18.0
+          version: v2.18.3
           install-only: true
       - name: Run CI build task
         run: go -C tools tool task -d .. build-ci
