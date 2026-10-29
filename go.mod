@@ -6,7 +6,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.3
 	github.com/caarlos0/go-shellwords v1.0.12
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
-	github.com/mark3labs/mcp-go v1.2.1
+	github.com/mark3labs/mcp-go v1.4.0
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	github.com/pelletier/go-toml/v2 v2.4.3
