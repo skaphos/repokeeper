@@ -341,7 +341,17 @@ jobs:
           set -euo pipefail
           # Pinned deliberately: @latest would make releases non-reproducible
           # and could break a release when upstream changes. Bump on purpose.
-          go install github.com/modelcontextprotocol/registry/cmd/mcp-publisher@v1.8.1
+          #
+          # The package is cmd/publisher, not cmd/mcp-publisher. The binary
+          # names itself mcp-publisher in its own usage text and upstream ships
+          # it under that name, but the import path never carried the prefix:
+          # every release through v2.0.2 failed here with "does not contain
+          # package" and, because this step is continue-on-error, published
+          # nothing to the registry. Install from the real path and rename so
+          # the publish step's mcp-publisher invocations stay as documented.
+          GOBIN="${RUNNER_TEMP}/mcp-publisher" go install github.com/modelcontextprotocol/registry/cmd/publisher@v1.8.7
+          mv "${RUNNER_TEMP}/mcp-publisher/publisher" "${RUNNER_TEMP}/mcp-publisher/mcp-publisher"
+          echo "${RUNNER_TEMP}/mcp-publisher" >> "${GITHUB_PATH}"
 
       - name: Publish to the MCP registry
         id: mcp_publish
