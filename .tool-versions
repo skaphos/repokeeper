@@ -1,7 +1,7 @@
-golang        1.27.2
-golangci-lint 2.14.0
-goreleaser    2.18.3
-syft          1.54.1
-cosign        3.1.3
+golang        1.27.3
+golangci-lint 2.15.0
+goreleaser    2.19.0
+syft          1.55.0
+cosign        3.1.4
 pipx:reuse    6.2.0
-pipx:check-jsonschema 0.38.2
+pipx:check-jsonschema 0.39.0
